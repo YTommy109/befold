@@ -209,8 +209,7 @@ BefoldApp/
 | `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`PDFSurfaceLayout.rotate` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
-| `PDFSurfacePlaceholder` | 文書を差し替えた直後、タイルが載るまでのあいだ面の上に見せる静止画。PDFKit はページの中身をバックグラウンドのタイルプールで非同期に描き、届くまで面は地の色のままになる（実測で 18 回中 3 回は 250ms 超）。**タイルが載った瞬間を知る手段は無い**ので、`PDFPreviewView` が可視ページを同期で焼いて載せ、面が動く事実（スクロール・倍率・回転・寸法変化・次の差し替え）で外す。上限 0.4 秒は保険で、正しさには効かない |
-| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ。倍率・回転を実際に変えるときは `PDFSurfacePlaceholder` を外す（面を動かす経路がこの型に収斂しているので、外す処理も同じ場所に置く） |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |

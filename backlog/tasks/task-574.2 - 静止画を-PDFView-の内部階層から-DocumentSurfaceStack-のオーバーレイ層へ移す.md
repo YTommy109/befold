@@ -1,9 +1,10 @@
 ---
 id: TASK-574.2
 title: 静止画を PDFView の内部階層から DocumentSurfaceStack のオーバーレイ層へ移す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 03:38'
+updated_date: '2026-08-30 04:29'
 labels:
   - refactor
 dependencies:
@@ -44,3 +45,15 @@ ordinal: 833000
 - [ ] #4 `PDFSurfacePlaceholder.draw(_:in:to:)`（thumbnail 版の死コード）が削除されている
 - [ ] #5 `/review-design` の結果が Implementation Plan に反映されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+対象だった `PDFSurfacePlaceholder` が TASK-575 で撤去されたため、このタスクは不要になった（実装せずに畳む）。静止画を `PDFView` の内部階層から出す、という問題自体が消えている。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+実装不要。移設対象の `PDFSurfacePlaceholder` が TASK-575 で撤去され、問題が消滅したため畳んだ。
+<!-- SECTION:FINAL_SUMMARY:END -->

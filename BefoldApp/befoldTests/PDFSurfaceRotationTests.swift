@@ -135,8 +135,8 @@ struct PDFSurfaceRotationTests {
     ///
     /// **回転が後から倍率を書き戻してはならない。** かつて `rotate` は回転前の倍率を
     /// 捕捉してメインキューで入れ直しており、呼び出し側が続けて入れた `initialZoom` を
-    /// **前のファイルの倍率**で上書きし、倍率が変わるので静止画まで外していた
-    /// （TASK-572 / 実測: 同期区間の終わりで 1.0・静止画あり → 1 周後に 3.0・静止画なし）。
+    /// **前のファイルの倍率**で上書きしていた
+    /// （TASK-572 / 実測: 同期区間の終わりで 1.0 → メインキュー 1 周後に 3.0）。
     @Test("回転を記憶したファイルへ切り替えても initialZoom が後から上書きされない")
     func switchingToRotatedFileKeepsInitialZoom() async {
         let pdfView = makeView()
@@ -149,16 +149,10 @@ struct PDFSurfaceRotationTests {
         PDFSurfaceLayout.apply(rotation: 90, to: pdfView)
         PDFSurfaceLayout.apply(zoom: 1.0, to: pdfView)
         pdfView.layoutSubtreeIfNeeded()
-        pdfView.placeholder.install(on: pdfView)
         let scaleAfterSwitch = pdfView.scaleFactor
         #expect(abs(pdfView.zoom - 1.0) < 0.0001)
-        #expect(pdfView.placeholder.isShowing)
 
         // メインキューを 1 周させても（`MainQueueDrainTests` の前提）倍率は変わらない。
-        // 静止画が外れないことは、ここでは倍率が動かないことで担保する
-        // （倍率が動けば外れることは `PDFSurfacePlaceholderTests` が固定している）。
-        // `isShowing` を直接見ないのは、並列実行で待ちが伸びると 0.4 秒の保険タイマが
-        // 先に外すため（実測: 全件並列で 7.7 秒かかり落ちた）。
         try? await Task.sleep(for: .milliseconds(200))
         #expect(abs(pdfView.zoom - 1.0) < 0.0001)
         #expect(abs(pdfView.scaleFactor - scaleAfterSwitch) < 0.0001)

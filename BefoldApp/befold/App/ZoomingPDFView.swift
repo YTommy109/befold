@@ -19,10 +19,6 @@ final class ZoomingPDFView: PDFView {
     /// 位置と倍率が数回ずつ動き、開いた瞬間のちらつきになる(TASK-567)。
     /// `layout` が倍率を入れた直後に 1 回だけ使い、使ったら捨てる。
     var pendingRestoreFraction: Double?
-    /// 文書を差し替えた直後に見せる静止画（TASK-569）。**面ごとに 1 つ。**
-    /// stored property を 1 本にすることで、2 枚同時に載る形をそもそも作らない。
-    let placeholder = PDFSurfacePlaceholder()
-
     /// 倍率の上下限。`ZoomStore` と同じ値を使い、面ごとに範囲が違う状態を作らない。
     private let minZoom = ZoomStore.minZoom
     private let maxZoom = ZoomStore.maxZoom
@@ -44,15 +40,20 @@ final class ZoomingPDFView: PDFView {
         PDFSurfaceLayout.scrollView(in: self)?.allowsMagnification = false
         keepZoomAfterLayout()
         applyPendingRestore()
-        // 寸法が変わったときだけ静止画を外す（載せた直後の再レイアウトで外さない）。
-        placeholder.noteLayout(of: self)
     }
 
     /// 倍率が決まった後に、待たせていた表示位置を 1 回だけ入れる。
+    ///
+    /// **待つのは「面がまだ組み上がっていない間」だけ。** かつては「余地が出るまで」
+    /// 待っており、スクロールの余地が生まれない文書（1 ページで面に収まる等）では
+    /// 待ちが永久に残っていた。`PDFPreviewView` は復元待ちが残っている間は静止画を
+    /// 載せないので、その種の文書だけ切り替え直後の白紙が消えていなかった
+    /// （実測: 余地 −9.47 で 3 回のレイアウト後も待ちが残る / TASK-573）。
+    /// 余地が無いなら復元しても何も動かないので、そこで使い切ってよい
+    /// （`PDFSurfaceLayout.restore` 自身も余地 0 では何もしない）。
     private func applyPendingRestore() {
         guard let fraction = pendingRestoreFraction else { return }
-        // 余地が出るまでは待つ（レイアウト前は 0 で、入れても無視される）。
-        guard PDFSurfaceLayout.verticalScrollRoom(of: self) > 0 else { return }
+        guard PDFSurfaceLayout.isLaidOut(self) else { return }
         pendingRestoreFraction = nil
         PDFSurfaceLayout.restore(fraction: fraction, in: self)
     }
