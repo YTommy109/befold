@@ -1,11 +1,11 @@
 ---
 id: TASK-569
 title: PDF へ切り替えたときの一瞬の間を詰める
-status: Done
+status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-08-29 22:23'
-updated_date: '2026-08-30 00:33'
+updated_date: '2026-08-30 00:45'
 labels: []
 dependencies: []
 priority: medium
@@ -39,7 +39,7 @@ TASK-567 で「切り替え直後の 1 フレームがフィット前の倍率�
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 サイドバーで .md から .pdf へ送ったときの、操作から最初の PDF フレームまでの時間が区間ごとに実測され、どこに間があるかが特定されている
-- [x] #2 特定した区間に対する対処が入り、対処の前後の実測値が記録されている（対処不要と判断した場合はその根拠が実測付きで記録されている）
+- [ ] #2 特定した区間に対する対処が入り、対処の前後の実測値が記録されている（対処不要と判断した場合はその根拠が実測付きで記録されている）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -128,6 +128,47 @@ pipeline の内側も割った（別の測定）。`ContentLoader.loadData` が 
 ## 計測中に踏んだこと（記録）
 
 一時計装のバグでアプリを 1 回クラッシュさせた（SIGTRAP / arithmetic overflow）。`SwitchTrace` の基準時刻を `static let` の遅延初期化に任せたため、`DispatchTime.now() - base` の `base` が now より後に初期化され、符号なし減算がアンダーフローした。アプリ本体の問題ではない。
+
+## 再オープン: 対処が効いていない（ユーザー報告 / 2026-08-30）
+
+「1.15.1 と比べて遅く感じる。PDF が表示されるまで、何も表示されない**空白ページ**が 0.1〜0.2 秒はっきり見える」
+
+**上の実測は測る対象を間違えていた。** 私が「最初の描画」として計測した `PDFView.draw(_ dirtyRect:)` は**面が塗られた時刻**であって、**ページの中身が出た時刻ではない**。背景だけを塗った空白フレームも「描画」として数えていた。したがって「34.7ms で最初のフレーム」は、ユーザーが見ている空白の終わりを表していない。34.7ms は空白が**始まる**までの時間に近い。
+
+### 空白の正体（実測 / クラッシュスタックが証拠）
+
+ページの中身の描画時刻を測ろうとして `ZoomingPDFView` に `draw(_ page:to:)` の override を足したところ SIGTRAP で落ちた。そのスタックが答えだった。
+
+```
+Thread 7  PDFKit.PDFTilePool.workQueue
+  _dispatch_assert_queue_fail
+  swift_task_checkIsolatedSwift
+  @objc ZoomingPDFView.draw(_:to:)
+  PDFKit  -[PDFTilePool _renderTileForRequest:]
+  PDFKit  -[PDFTilePool requestPDFTileSurfaceForTarget:forPage:...]
+```
+
+**PDFKit はページの中身をバックグラウンドのタイルプール（`PDFTilePool.workQueue`）で非同期に描いている。** `PDFView` の `draw` は先に戻り、タイルが届くまで面は背景色のまま。これが見えている空白。
+
+（この override が落ちたのは、`@MainActor` 隔離のメソッドをバックグラウンドキューから呼ばれたため。CLAUDE.md が `document` プロパティについて警告しているのと同じ罠を、別のメソッドで踏んだ。ユーザーのアプリを 2 回クラッシュさせた。）
+
+### 同期描画のコスト（実測 / 単体プログラム）
+
+130 ページ・125KB の PDF で、PDFKit を直接呼んで計測した。
+
+| 操作 | 時間 |
+| --- | --- |
+| `PDFDocument(data:)`（プロセス内初回。PDFKit の遅延初期化を含む） | 43.0ms |
+| `doc.page(at: 0)` | 0.06ms |
+| `page.thumbnail(of: 800x900, for: .mediaBox)` 初回 | 6.51ms |
+| 同 2 回目・3 回目 | 0.87ms / 0.76ms |
+| 全 130 ページの `bounds` 走査 | 2.36ms |
+
+**1 ページを同期で描くのは 1〜7ms しかかからない。** つまり「タイルを待つ間だけ、自分で描いた 1 ページ目を見せる」は現実的なコストで成立しうる。
+
+### `display()` の扱い（要再検討）
+
+コミット 47dd9aab で入れた `pdfView.display()` は、**空白のフレームを 12〜16ms 早く塗る**方向に働く可能性がある。効果として測った「切り替え全体 49ms → 34.7ms」は、上のとおり終点の取り方が誤っていた。この症状に対しては無効か、わずかに悪化させている疑いがある。正しい終点（タイルが届いた時刻）で測り直すまで、採否を確定できない。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
