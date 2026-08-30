@@ -206,7 +206,7 @@ BefoldApp/
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
 | `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
-| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズ・回転のたびに `layout` で入れ直す（`autoScales` は使わない）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
+| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`PDFSurfaceLayout.rotate` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
 | `PDFSurfacePlaceholder` | 文書を差し替えた直後、タイルが載るまでのあいだ面の上に見せる静止画。PDFKit はページの中身をバックグラウンドのタイルプールで非同期に描き、届くまで面は地の色のままになる（実測で 18 回中 3 回は 250ms 超）。**タイルが載った瞬間を知る手段は無い**ので、`PDFPreviewView` が可視ページを同期で焼いて載せ、面が動く事実（スクロール・倍率・回転・寸法変化・次の差し替え）で外す。上限 0.4 秒は保険で、正しさには効かない |

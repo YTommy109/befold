@@ -193,25 +193,27 @@ enum PDFSurfaceLayout {
     /// 「1 回の操作で読める状態になる」ほうを採る(TASK-564.5)。
     ///
     /// 回転前の倍率(1.0 = フィット)を保つ。縦横比が変わるとフィットの絶対倍率も
-    /// 変わるので、回した後に入れ直す(下の `DispatchQueue.main.async`)。
+    /// 変わるので、回した直後に**同期で**入れ直す。倍率は面が覚えている `zoom` を使う
+    /// （`scaleFactor` から逆算すると、文書の差し替え途中では前の文書の値を拾う）。
+    ///
+    /// **メインキューへ後回しにしてはならない。** かつては回転前の倍率を捕捉して
+    /// `DispatchQueue.main.async` で入れ直しており、`PDFPreviewView.updateNSView` が
+    /// 続けて同期で入れた `initialZoom` を**前のファイルの倍率**で上書きし、倍率が
+    /// 変わるので静止画まで外していた（TASK-572）。後回しにする理由だった
+    /// 「同期だとまだ古い `scaleFactorForSizeToFit` を読む」は、`fitScale` を
+    /// `largestPageSize`（`page.rotation` を織り込む）から同期に計算するように
+    /// なった時点（TASK-567）で消えている。PDFKit 自身の再レイアウトはメインキューへ
+    /// 積まれるが、`autoScales` が切れているので倍率には触らない
+    /// （実測: 同期で入れた倍率は 200ms 後も同じ値 / TASK-572）。
     static func rotate(byDegrees degrees: Int, in pdfView: ZoomingPDFView) {
         guard let document = pdfView.document else { return }
         pdfView.placeholder.dismiss()
-        let zoom = currentZoom(of: pdfView)
         for index in 0 ..< document.pageCount {
             guard let page = document.page(at: index) else { continue }
             page.rotation = normalized(page.rotation + degrees)
         }
-        // 再レイアウトは PDFKit がメインキューへ積む(`PDFPage.rotation` の
-        // 変更が didRotatePage の通知を出す)ので、倍率の入れ直しも同じキューへ**後から**
-        // 積む。ここで同期に入れ直すと、まだ古い `scaleFactorForSizeToFit` を読む。
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                // 回転前の倍率(1.0 = フィット)をそのまま維持する。フィットで見ていた
-                // なら回転後もフィット、拡大していたなら同じ拡大率のまま。
-                apply(zoom: zoom, to: pdfView)
-            }
-        }
+        // フィットで見ていたなら回転後もフィット、拡大していたなら同じ拡大率のまま。
+        apply(zoom: pdfView.zoom, to: pdfView)
     }
 
     /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。

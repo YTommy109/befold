@@ -4,6 +4,7 @@ title: PDF 面の差し替え手順を SwiftUI の外の 1 オブジェクトに
 status: To Do
 assignee: []
 created_date: '2026-08-30 03:38'
+updated_date: '2026-08-30 03:57'
 labels:
   - refactor
 dependencies:
@@ -48,3 +49,9 @@ dagayn `review_tool` が `PDFPreviewView.updateNSView` / `installPlaceholder` �
 - [ ] #5 TASK-572 / TASK-573 で足した順序のテストが緑のまま維持されている
 - [ ] #6 `/review-design` の結果が Implementation Plan に反映されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-572（2026-08-30 / e144c501）で `PDFSurfaceLayout.rotate` の `DispatchQueue.main.async` は撤去済み。撤去対象のうち残るのは `pendingRestoreFraction` と `hasFinishedOneTimeSetup`、および `layout()` の多重責務。
+<!-- SECTION:NOTES:END -->
