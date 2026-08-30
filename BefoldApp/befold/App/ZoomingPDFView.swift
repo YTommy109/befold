@@ -20,10 +20,14 @@ final class ZoomingPDFView: PDFView {
     /// リサイズや回転をまたいでも意味が保たれる。書き込みは `apply(zoom:)` を通す。
     var zoom: Double = ZoomStore.defaultZoom
     /// 倍率の上下限。`ZoomStore` と同じ値を使い、面ごとに範囲が違う状態を作らない。
-    private let minZoom = ZoomStore.minZoom
-    private let maxZoom = ZoomStore.maxZoom
-    /// 認識器の累積値から増分を出す帳簿。
-    private var magnificationTracker = MagnificationTracker()
+    /// **読むのは `ZoomingPDFView+Input` の `applyZoom(scaledBy:)` だけ**
+    /// (Swift の `private` はファイルスコープなので、分割した extension から見えるよう
+    /// internal にしてある。上下限を掛ける場所を増やさない)。
+    let minZoom = ZoomStore.minZoom
+    let maxZoom = ZoomStore.maxZoom
+    /// ピンチの受け皿。増分へ直す帳簿と認識器の所有はあちらが持つ
+    /// (`PDFMagnificationGesture` / TASK-577)。ここは保持するだけ。
+    private var magnificationGesture: PDFMagnificationGesture?
 
     // MARK: - 生成
 
@@ -64,7 +68,9 @@ final class ZoomingPDFView: PDFView {
         // 頃は 1 ページ分だけだったので目立たなかったが、連続にすると表示が遅く感じる
         // (TASK-567 のユーザー報告)。ページの区切りは余白と地の色で足りる。
         pageShadowsEnabled = false
-        installMagnificationRecognizer()
+        magnificationGesture = PDFMagnificationGesture(attachedTo: self) { [weak self] increment in
+            self?.applyZoom(scaledBy: 1 + increment)
+        }
         observeDocumentChanges()
     }
 
@@ -311,90 +317,5 @@ final class ZoomingPDFView: PDFView {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.needsLayout = true }
         }
-    }
-
-    // MARK: - 入力
-
-    /// **ピンチはジェスチャ認識器でも受ける。**
-    ///
-    /// `magnify(with:)` のオーバーライドだけでは届かないことがある。ピンチの
-    /// ヒット先は内側の `PDFPageView` で、`PDFScrollView` が
-    /// `NSScrollView.magnifyWithEvent:` を持つため、そこで消費されて上まで来ない
-    /// (TASK-568 の実測)。`allowsMagnification` を切る手当てはレイアウトの
-    /// タイミングに依存するので、**祖先ビューに付けた認識器**という
-    /// レスポンダチェーンに依存しない経路を主にする。
-    private func installMagnificationRecognizer() {
-        let recognizer = NSMagnificationGestureRecognizer(
-            target: self, action: #selector(handleMagnification(_:))
-        )
-        addGestureRecognizer(recognizer)
-    }
-
-    /// 認識器からのピンチ。**`NSEvent` を作らずに検証できるよう internal**
-    /// (実測できない入口は静かに壊れる。実際、ログを外す作業で `applyZoom` の
-    /// 呼び出しごと消えてもテストは全件通った / TASK-568)。
-    @objc func handleMagnification(_ recognizer: NSMagnificationGestureRecognizer) {
-        let increment = magnificationTracker.increment(for: recognizer)
-        guard increment != 0 else { return }
-        applyZoom(scaledBy: 1 + increment)
-    }
-
-    /// 認識器が返す `magnification` は**ジェスチャ開始からの累積値**なので、
-    /// 前回からの増分へ直してから倍率へ掛ける。ジェスチャが終わったら 0 へ戻す。
-    /// `NSGestureRecognizer` を作らずに単体で確かめられるよう独立させてある。
-    private struct MagnificationTracker {
-        private var last: Double = 0
-
-        mutating func increment(for recognizer: NSMagnificationGestureRecognizer) -> Double {
-            let increment = recognizer.magnification - last
-            last = recognizer.magnification
-            if recognizer.state == .ended || recognizer.state == .cancelled { last = 0 }
-            return increment
-        }
-    }
-
-    /// トラックパッドのピンチ。
-    ///
-    /// **こちらは補助の経路。** 主経路は上の認識器で、`magnify` が呼ばれるには
-    /// 内側のスクロールビューの `allowsMagnification` が切れている必要がある
-    /// (切るのは `layout`)。既定のままだと `PDFScrollView` がジェスチャを
-    /// 消費してここへ届かない(TASK-568 の実測)。
-    override func magnify(with event: NSEvent) {
-        applyZoom(scaledBy: 1 + event.magnification)
-    }
-
-    override func scrollWheel(with event: NSEvent) {
-        // Ctrl+ホイールは拡大縮小(viewer.js の _mmdWheelZoom と同じ約束)。
-        guard event.modifierFlags.contains(.control) else {
-            super.scrollWheel(with: event)
-            return
-        }
-        applyZoom(scaledBy: 1 + event.scrollingDeltaY / 100)
-    }
-
-    /// スペース / Shift+スペースを**滑らかな**スクロールにする。
-    ///
-    /// `PDFView` の既定はページ単位のジャンプで、連続スクロールにした後も
-    /// スペースだけ非連続なまま残る(TASK-567 のユーザー報告)。1 画面ぶんを
-    /// アニメーションで送ると、トラックパッドの操作感と揃う。
-    override func keyDown(with event: NSEvent) {
-        guard event.charactersIgnoringModifiers == " " else {
-            super.keyDown(with: event)
-            return
-        }
-        // 送る量の規則は `PDFSurfaceLayout` が持つ。ここは向きを決めるだけ。
-        let backwards = event.modifierFlags.contains(.shift)
-        let amount = PDFSurfaceLayout.visibleHeight(of: self)
-            * PDFSurfaceLayout.keyboardScrollOverlap
-        scrollSmoothly(by: backwards ? amount : -amount)
-    }
-
-    /// いまの倍率へ係数を掛けて適用し、窓へ伝える。上下限は `ZoomStore` と共有する。
-    /// ピンチと Ctrl+ホイールの入口が両方ここへ収斂する(倍率の意味と上下限を
-    /// 入口ごとに書かないため)。`NSEvent` を作らずに検証できるよう internal。
-    func applyZoom(scaledBy factor: Double) {
-        let scaled = min(max(PDFSurfaceLayout.currentZoom(of: self) * factor, minZoom), maxZoom)
-        apply(zoom: scaled)
-        onZoomChanged?(scaled)
     }
 }

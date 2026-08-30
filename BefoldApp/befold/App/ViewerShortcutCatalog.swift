@@ -1,6 +1,11 @@
 import Foundation
 
-/// ビューア(WKWebView)内のキー操作を Help > キーボードショートカット に載せるための一覧。
+/// ビューア内のキー操作を Help > キーボードショートカット に載せるための一覧。
+///
+/// **この一覧は web 面(WKWebView)と PDF 面の両方を指す。** 割り当てが同じだからで、
+/// PDF 面は `PDFSurfaceLayout.keyboardScroll(forKey:shift:)` が同じ表を持つ(TASK-577)。
+/// 送り量までは一致しない(PDF の Space はページ区切りに合わせてオーバーラップ無し)。
+/// 片面にだけキーを足すとこの前提が崩れるので、足すなら両面へ足す。
 ///
 /// 割り当ての実体は JavaScript 側にあり(`viewer-src/keyboard.js` の `resolveScrollKey` /
 /// `resolveBarCloseKey`)、Swift からは呼べない。そこで **この宣言を jest 側がパースして
