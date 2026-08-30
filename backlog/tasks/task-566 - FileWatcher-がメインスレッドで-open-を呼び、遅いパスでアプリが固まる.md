@@ -1,11 +1,11 @@
 ---
 id: TASK-566
 title: FileWatcher がメインスレッドで open() を呼び、遅いパスでアプリが固まる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-29 12:43'
-updated_date: '2026-08-29 23:57'
+updated_date: '2026-08-30 00:06'
 labels:
   - bug
 dependencies: []
@@ -60,7 +60,7 @@ applicationDidFinishLaunching → SessionRestorer.restoreLastSession
 <!-- AC:BEGIN -->
 - [x] #1 FileWatcher の監視開始がメインスレッドを塞がない
 - [x] #2 監視開始が非同期になっても、開始直後の変更を取りこぼさない
-- [ ] #3 遅いパス（ネットワーク/iCloud 等）を開いてもアプリが固まらないことを確認した手順が Implementation Notes にある
+- [x] #3 遅いパス（ネットワーク/iCloud 等）を開いてもアプリが固まらないことを確認した手順が Implementation Notes にある
 - [x] #4 既存の FileWatcher テストが通り、タイミング依存の flaky を新設していない
 <!-- AC:END -->
 
@@ -153,4 +153,36 @@ worktree のビルド（`BefoldApp/.build/xcode/Build/Products/Debug/befold.app`
 **これは高速なローカルディスク上での測定であり、AC #3 が求める「遅いパスで固まらないこと」の確認ではない。** 高速なパスでは `open()` が一瞬で終わるため、修正前でもサンプルに写らない可能性がある（＝この測定は修正の有無を区別しない）。証拠として言えるのは「ファイルを開く経路でメインスレッドが syscall に入っていない」ことまで。
 
 遅いパスでの確認（上の 4 手順）は**未実行のまま**。iCloud Drive の dataless ファイルやネットワークボリュームを用意できていない。TCC ダイアログを伴う経路（~/Desktop 等）でも再現しうるが、ユーザーのプライバシー設定を変える操作になるため実行していない。
+
+## AC #3 を自動テストで満たした（2026-08-30 / 方針変更）
+
+当初は「iCloud やネットワークボリュームを手で開いて `sample` を撮る」しか手が無いと判断し、手順だけ残して未達にしていた。**外部環境なしで遅いパスを作れることが分かったので、自動テストへ置き換えた。**
+
+実測（2026-08-30）: 書き手のいない FIFO への `open(path, O_EVTONLY)` は**無限にブロックする**。C の小プログラムで確認し、5 秒後も戻らず SIGKILL で終了（exit 137）。書き込み側が `O_WRONLY` で開くとランデブーして両者が戻ることも同じ方法で確認した。
+
+これは「遅い」どころか「無限に遅い」open であり、iCloud の dataless ファイルやネットワークボリュームより忠実かつ決定的に、この不具合の失敗モード（呼び出し元が `open()` で止まる）を再現する。
+
+`befoldTests/FileWatcherSlowOpenTests.swift` を追加した。
+
+- FIFO を張った状態で `FileWatcher` を生成し、生成が 2 秒以内に戻ることを見る。
+- **生成は別スレッドで行い、セマフォの待ちで打ち切る。** テスト本体で直接生成すると、退行時にテストが失敗せず**ハングする**（Swift Testing の `.timeLimit` は await 点でしか割り込めず、同期的に詰まった本体を止められない）。実際に最初その形で書いたところ、`queue.sync` へ戻した実行が 3 分経っても終わらず SIGKILL で打ち切ることになった。
+- 上限のない `DispatchSemaphore.wait()` は独自 swiftlint ルール `unbounded_semaphore_wait` が禁じているため、後片付けの待ちは `waitOrRecordTimeout` を使う。
+- 後始末は**解除 → 停止**の順。監視キューが `open()` で詰まったまま `stop()` を呼ぶと `queue.sync` がデッドロックする。
+
+退行の検出を実測で確認: `queue.sync` へ戻して実行すると **2.010 秒で失敗**する（`Expectation failed: (outcome → .timedOut) == .success`）。ハングせず、どのテストのどの待ちかがログに出る。
+
+計っているのは「遅い / 速い」の境目ではなく**待つか待たないかの構造**なので、予算 2 秒の取り方で結果は揺れない（修正前は無限に戻らない）。
+
+### 最終の自動検証
+
+- `swift test`: 1804 tests / 293 suites すべて通過。
+- swiftlint: main とのベースライン差分ゼロ（54 件 → 54 件、新規・解消ともに無し）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+FileWatcher.init の `queue.sync { startMonitors() }` を `queue.async` へ移し、監視対象と親ディレクトリを開く `open()` が呼び出し元（多くはメインスレッド）で同期に走らないようにした。非同期化で広がった「まだ監視していない」区間は、監視開始の前後で撮った FileFingerprint（inode・サイズ・更新時刻）が変わっていた場合だけ通知して埋める。無条件通知にすると ViewerStore の loadGeneration が進んで走行中の初回読み込みが捨てられ、ファイルを開くたびに読み直しになる（ViewerStoreIntegrationTests の失敗として実測）。
+
+検証: 書き手のいない FIFO への `open(O_EVTONLY)` が無限にブロックする性質を使い、外部環境なしで遅いパスを再現する FileWatcherSlowOpenTests を追加。`queue.sync` へ戻すと 2.010 秒で失敗する（ハングしない）ことを実測した。併せて init の走査テストと FileFingerprint の単体テストを追加。swift test 1804 tests / 293 suites 全通過、swiftlint は main とのベースライン差分ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->
