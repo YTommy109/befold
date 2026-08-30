@@ -1,6 +1,7 @@
 import AppKit
 @testable import befold
 import PDFKit
+import QuartzCore
 import Testing
 
 /// PDF の回転（TASK-564.5）。
@@ -16,6 +17,8 @@ import Testing
 struct PDFSurfaceRotationTests {
     /// 解放を遅らせるためだけの保持箱（上の doc を参照）。
     private static var retained: [ZoomingPDFView] = []
+    /// 同上。窓も手放さない。
+    private static var retainedWindows: [NSWindow] = []
 
     /// Letter 縦 2 ページの文書。
     private func makeDocument() -> PDFDocument {
@@ -50,6 +53,14 @@ struct PDFSurfaceRotationTests {
     @Test("回転は文書のすべてのページへ効く")
     func rotationAppliesToEveryPage() throws {
         let pdfView = makeView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 500),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentView = pdfView
+        Self.retainedWindows.append(window)
+        pdfView.layoutSubtreeIfNeeded()
+        CATransaction.flush()
 
         pdfView.rotate(byDegrees: 90)
 
@@ -107,6 +118,14 @@ struct PDFSurfaceRotationTests {
     @Test("回転してもフィット倍率のままでいる")
     func rotationKeepsTheFittedZoom() {
         let pdfView = makeView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 500),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentView = pdfView
+        Self.retainedWindows.append(window)
+        pdfView.layoutSubtreeIfNeeded()
+        CATransaction.flush()
 
         pdfView.rotate(byDegrees: 90)
         pdfView.layoutSubtreeIfNeeded()
@@ -178,5 +197,42 @@ struct PDFSurfaceRotationTests {
         pdfView.rotate(byDegrees: 90)
 
         #expect(PDFSurfaceLayout.rotation(of: pdfView) == 0)
+    }
+
+    /// 回転の**補間を残さない**（TASK-576）。
+    ///
+    /// PDFKit は回転後のレイアウトでページのレイヤーへ position / bounds の
+    /// `CAAnimation` を積み、回転前の矩形から回転後の矩形へ約 250ms かけて補間する。
+    /// `ZoomingPDFView.rotate(byDegrees:)` はそれを剥がすので、**回した直後の
+    /// レイヤー木にアニメーションは 1 つも残らない**。
+    ///
+    /// 剥がす仕掛け（`CATransaction.flush()` で PDFKit に積ませてから消す）が
+    /// 効かなくなると、ここが 0 件でなくなって落ちる。それが唯一の検知手段で、
+    /// 見た目の補間そのものはテストから測れない。
+    @Test("回転はレイヤーにアニメーションを残さない")
+    func rotationLeavesNoLayerAnimations() {
+        let pdfView = makeView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 500),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentView = pdfView
+        Self.retainedWindows.append(window)
+        pdfView.layoutSubtreeIfNeeded()
+        CATransaction.flush()
+
+        pdfView.rotate(byDegrees: 90)
+        // PDFKit は CoreAnimation のコミットに合わせてアニメーションを積む。
+        // テストは窓を持たないのでコミットが自然には起きない。ここで走らせないと、
+        // 積まれる前に数えることになって**修正が無くても 0 件で通る**（実測）。
+        CATransaction.flush()
+
+        var stack = [pdfView.documentView?.layer].compactMap(\.self)
+        var animations = 0
+        while let layer = stack.popLast() {
+            animations += (layer.animationKeys() ?? []).count
+            stack += layer.sublayers ?? []
+        }
+        #expect(animations == 0)
     }
 }
