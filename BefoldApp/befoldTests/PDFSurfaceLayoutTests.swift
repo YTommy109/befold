@@ -34,8 +34,7 @@ struct PDFSurfaceLayoutTests {
 
     private func makeView(pageSizes: [NSSize] = [NSSize(width: 612, height: 792)]) -> ZoomingPDFView {
         let document = makeDocument(pageSizes: pageSizes)
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
         pdfView.document = document
         pdfView.layoutSubtreeIfNeeded()
@@ -82,12 +81,11 @@ struct PDFSurfaceLayoutTests {
     @Test("文書を入れた直後、レイアウトを待たずにフィット倍率が入る")
     func zoomIsSettledBeforeTheFirstDraw() {
         let document = makeDocument(pageSizes: [NSSize(width: 612, height: 792)])
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
 
         pdfView.document = document
-        PDFSurfaceLayout.apply(zoom: ZoomStore.defaultZoom, to: pdfView)
+        pdfView.apply(zoom: ZoomStore.defaultZoom)
 
         // layoutSubtreeIfNeeded を挟まずに、もう倍率が入っている。
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
@@ -134,7 +132,7 @@ struct PDFSurfaceLayoutTests {
         let pdfView = makeView()
         let fit = PDFSurfaceLayout.fitScale(of: pdfView)
 
-        PDFSurfaceLayout.apply(zoom: 2, to: pdfView)
+        pdfView.apply(zoom: 2)
         #expect(abs(pdfView.scaleFactor - fit * 2) < 0.0001)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 2) < 0.0001)
 
@@ -145,7 +143,7 @@ struct PDFSurfaceLayoutTests {
         #expect(pdfView.scaleFactor > fit * 2)
 
         // ⌘0 でフィットへ戻る。
-        PDFSurfaceLayout.apply(zoom: ZoomStore.defaultZoom, to: pdfView)
+        pdfView.apply(zoom: ZoomStore.defaultZoom)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
     }
 
@@ -224,7 +222,7 @@ struct PDFSurfaceLayoutTests {
     func gainsScrollRoomWhenZoomedIn() {
         let pdfView = makeView()
 
-        PDFSurfaceLayout.apply(zoom: 2, to: pdfView)
+        pdfView.apply(zoom: 2)
         pdfView.layoutSubtreeIfNeeded()
 
         // 余地はページ座標で測る。ピクセル寸法(contentSize)と比べると

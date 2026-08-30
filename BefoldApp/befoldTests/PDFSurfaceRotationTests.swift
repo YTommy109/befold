@@ -37,8 +37,7 @@ struct PDFSurfaceRotationTests {
     }
 
     private func makeView() -> ZoomingPDFView {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
         pdfView.document = makeDocument()
         pdfView.layoutSubtreeIfNeeded()
@@ -52,7 +51,7 @@ struct PDFSurfaceRotationTests {
     func rotationAppliesToEveryPage() throws {
         let pdfView = makeView()
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
 
         let document = try #require(pdfView.document)
         for index in 0 ..< document.pageCount {
@@ -66,7 +65,7 @@ struct PDFSurfaceRotationTests {
 
         var seen: [Int] = []
         for _ in 0 ..< 4 {
-            PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+            pdfView.rotate(byDegrees: 90)
             seen.append(PDFSurfaceLayout.rotation(of: pdfView))
         }
 
@@ -79,7 +78,7 @@ struct PDFSurfaceRotationTests {
     func counterClockwiseNormalizes() {
         let pdfView = makeView()
 
-        PDFSurfaceLayout.rotate(byDegrees: -90, in: pdfView)
+        pdfView.rotate(byDegrees: -90)
 
         #expect(PDFSurfaceLayout.rotation(of: pdfView) == 270)
     }
@@ -88,11 +87,11 @@ struct PDFSurfaceRotationTests {
     @Test("記憶した回転角へ合わせ直せる")
     func restoresARememberedRotation() {
         let pdfView = makeView()
-        PDFSurfaceLayout.rotate(byDegrees: 180, in: pdfView)
+        pdfView.rotate(byDegrees: 180)
         let remembered = PDFSurfaceLayout.rotation(of: pdfView)
 
         let reopened = makeView()
-        PDFSurfaceLayout.apply(rotation: remembered, to: reopened)
+        reopened.apply(rotation: remembered)
 
         #expect(PDFSurfaceLayout.rotation(of: reopened) == 180)
     }
@@ -109,7 +108,7 @@ struct PDFSurfaceRotationTests {
     func rotationKeepsTheFittedZoom() {
         let pdfView = makeView()
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
         pdfView.layoutSubtreeIfNeeded()
 
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 1) < 0.0001)
@@ -122,9 +121,9 @@ struct PDFSurfaceRotationTests {
     @Test("拡大して見ていても回転後に同じ倍率のまま、同期で決まる")
     func rotationKeepsTheZoomSynchronously() {
         let pdfView = makeView()
-        PDFSurfaceLayout.apply(zoom: 2.0, to: pdfView)
+        pdfView.apply(zoom: 2.0)
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
 
         let expected = PDFSurfaceLayout.expectedScaleFactor(of: pdfView, zoom: 2.0)
         #expect(abs(PDFSurfaceLayout.currentZoom(of: pdfView) - 2.0) < 0.0001)
@@ -141,13 +140,13 @@ struct PDFSurfaceRotationTests {
     func switchingToRotatedFileKeepsInitialZoom() async {
         let pdfView = makeView()
         // 前のファイルは倍率 3.0 で見ていた。
-        PDFSurfaceLayout.apply(zoom: 3.0, to: pdfView)
+        pdfView.apply(zoom: 3.0)
         pdfView.layoutSubtreeIfNeeded()
 
         // 次のファイル: 回転 90 の記憶あり、initialZoom は 1.0。
         pdfView.document = makeDocument()
-        PDFSurfaceLayout.apply(rotation: 90, to: pdfView)
-        PDFSurfaceLayout.apply(zoom: 1.0, to: pdfView)
+        pdfView.apply(rotation: 90)
+        pdfView.apply(zoom: 1.0)
         pdfView.layoutSubtreeIfNeeded()
         let scaleAfterSwitch = pdfView.scaleFactor
         #expect(abs(pdfView.zoom - 1.0) < 0.0001)
@@ -173,11 +172,10 @@ struct PDFSurfaceRotationTests {
     /// 文書が無ければ回転は何もしない（切替直後の一瞬）。
     @Test("文書が無ければ回転しても落ちない")
     func rotatingWithoutADocumentIsSafe() {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         Self.retained.append(pdfView)
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
 
         #expect(PDFSurfaceLayout.rotation(of: pdfView) == 0)
     }

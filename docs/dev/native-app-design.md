@@ -205,11 +205,11 @@ BefoldApp/
 | `ViewerTheme` | キャンバス背景色の定義（ライト/ダーク、WebView との透過合わせ）。外部の HTML 文書だけは例外で、文書が canvas ごと所有するためこの色は使われない |
 | `WebViewProxy` | SwiftUI 内部生成の WKWebView を AppKit 側（メニューアクション）へ橋渡しする弱参照ホルダー |
 | `PDFViewProxy` | 同上の `PDFView` 版。面ごとに 1 つ持つ |
-| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして描く |
-| `ZoomingPDFView` | `PDFView` のサブクラス。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受け、スペース / Shift+スペースの送る向きを決めて `PDFSurfaceLayout` へ委ねる。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`PDFSurfaceLayout.rotate` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
+| `PDFPreviewView` | PDF の描画面。`ZoomingPDFView` を包む `NSViewRepresentable` で、`ViewerContentState.data` を `PDFDocument` にして `ZoomingPDFView.present(document:rotation:zoom:scrollFraction:)` へ渡すだけの薄い層。差し替えの順序をここには書かない（TASK-574.1） |
+| `ZoomingPDFView` | `PDFView` のサブクラス。**この面への書き込みはすべてここを通る**（TASK-574.1）。文書の差し替え手順を `present(document:rotation:zoom:scrollFraction:)` が同期 1 本で持ち（文書 → 回転 → 倍率 → `layoutSubtreeIfNeeded()` → 位置）、保留状態を作らない。表示設定と一度きりの配線は `init` が済ませるので、未設定の面は存在できない。ピンチ（`NSMagnificationGestureRecognizer`）と Ctrl+ホイールを倍率操作として受ける。倍率（1.0 = ページ全体が収まる）を面が覚え、リサイズのたびに `layout` で入れ直す（`autoScales` は使わない）。回転は `layout` を起こさないので、`rotate(byDegrees:)` が回した直後に同期で入れ直す（メインキューへ後回しにすると、切り替え時に続けて入る `initialZoom` を前のファイルの倍率で上書きする / TASK-572）。**`document` プロパティを override してはならない**——PDFKit がバックグラウンドから読むため、`@MainActor` 隔離の override は `SIGTRAP` で落ちる（TASK-567） |
 | `PDFRotationOverlay` | PDF の右上に重ねる回転コントロール。メニューには置かない（その面を見ているときにしか意味が無い操作なので、対象の隣に置く） |
 | `PDFSurfaceActions` | PDF 面と窓のあいだの受け渡し（倍率の通知・回転の要求）を 1 つにまとめた値。View の注入クロージャを 3 つ以下に保つため |
-| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。`.singlePageContinuous` の設定、「倍率 1.0 = ページ全体が収まる状態」の換算、表示位置(文書全体に対する 0…1)の取得と復元、90 度回転を持つ |
+| `PDFSurfaceLayout` | PDF の面のレイアウト規則の単一の情報源。**換算だけを持ち、面を変更しない**（TASK-574.1）。「倍率 1.0 = ページ全体が収まる状態」の定義、フィット倍率、表示位置（文書全体に対する 0…1）の取得、スクロール余地、回転角の正規化。WebView 面の `ContentUpdatePlanner`（純関数）にあたる層で、書き込みは `ZoomingPDFView` が行う |
 | `FileListEntryRow` | サイドバーとプレビュー内フォルダー一覧が共有する行表示（アイコン・名前・git 状態バッジ） |
 | `GitStatusBadge` / `GitStatusBadgeView` | `GitFileStatus` / `GitFolderStatus` からバッジ文字・色への純粋な写像と、その描画。サイドバー行の右端に出す（ファイル行は変更種別の文字、フォルダー行は集約を示す `•`） |
 | `SidebarTableViewLocator` | SwiftUI List の内部 NSTableView を取得するブリッジ |

@@ -46,7 +46,7 @@ final class PDFDocumentRenderer: DocumentRendering {
     /// 換算そのものは `PDFSurfaceLayout` が持つ(面の生成側と同じ規則を通す)。
     func applyZoom(_ zoom: Double) {
         guard let pdfView = pdfViewProxy.pdfView else { return }
-        PDFSurfaceLayout.apply(zoom: zoom, to: pdfView)
+        pdfView.apply(zoom: zoom)
     }
 
     func changeZoom(_ change: ZoomChange) -> Double? {
@@ -97,7 +97,7 @@ final class PDFDocumentRenderer: DocumentRendering {
     /// 文書全体を 90 度単位で回す(範囲の判断は `PDFSurfaceLayout` の doc)。
     func rotate(byDegrees degrees: Int) {
         guard let pdfView = pdfViewProxy.pdfView else { return }
-        PDFSurfaceLayout.rotate(byDegrees: degrees, in: pdfView)
+        pdfView.rotate(byDegrees: degrees)
     }
 
     var currentRotation: Int {

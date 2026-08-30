@@ -28,8 +28,7 @@ struct PDFSurfacePositionTests {
                 document.insert(page, at: index)
             }
         }
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
         pdfView.document = document
         pdfView.layoutSubtreeIfNeeded()
@@ -60,13 +59,13 @@ struct PDFSurfacePositionTests {
     @Test("表示位置は文書全体に対する 0…1 で表され、往復で同じ位置へ戻る")
     func positionRoundTripsThroughAFraction() {
         let pdfView = makeView(pageCount: 4)
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
+        pdfView.restore(fraction: 0.5)
         let saved = PDFSurfaceLayout.documentFraction(of: pdfView)
         let page = pdfView.currentPage
 
-        PDFSurfaceLayout.restore(fraction: 0, in: pdfView)
+        pdfView.restore(fraction: 0)
         #expect(PDFSurfaceLayout.documentFraction(of: pdfView) < 0.01)
-        PDFSurfaceLayout.restore(fraction: saved, in: pdfView)
+        pdfView.restore(fraction: saved)
 
         #expect(abs(saved - 0.5) < 0.01)
         #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - saved) < 0.01)
@@ -78,11 +77,11 @@ struct PDFSurfacePositionTests {
     @Test("ページ数が減っても末尾を超えない")
     func clampsWhenThePageDisappears() {
         let wide = makeView(pageCount: 10)
-        PDFSurfaceLayout.restore(fraction: 1, in: wide)
+        wide.restore(fraction: 1)
         let saved = PDFSurfaceLayout.documentFraction(of: wide)
 
         let narrow = makeView(pageCount: 2)
-        PDFSurfaceLayout.restore(fraction: saved, in: narrow)
+        narrow.restore(fraction: saved)
 
         // 余地の割合で復元するので、行き先は必ず文書の中（末尾）に収まる。
         #expect(abs(PDFSurfaceLayout.documentFraction(of: narrow) - 1) < 0.01)
@@ -93,7 +92,7 @@ struct PDFSurfacePositionTests {
         let pdfView = makeView(pageCount: 3)
 
         for fraction in [-1.0, 0, 0.999, 1, 5] {
-            PDFSurfaceLayout.restore(fraction: fraction, in: pdfView)
+            pdfView.restore(fraction: fraction)
             let current = index(of: pdfView)
             #expect(current != nil)
             #expect((current ?? -1) >= 0 && (current ?? -1) <= 2)
@@ -122,58 +121,73 @@ struct PDFSurfacePositionTests {
     /// 文書が無い面へ復元しても落ちない（切替直後の一瞬）。
     @Test("文書が無ければ復元は何もしない")
     func doesNothingWithoutADocument() {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
 
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
+        pdfView.restore(fraction: 0.5)
 
         #expect(pdfView.currentPage == nil)
         #expect(PDFSurfaceLayout.documentFraction(of: pdfView) == 0)
     }
 
-    // MARK: - 復元待ちの消化（TASK-573）
+    // MARK: - 差し替えの順序（TASK-573 / TASK-574.1）
 
-    /// `PDFPreviewView.updateNSView` と同じ順序で差し替える。
-    ///
-    /// **文書の代入から始める。** レイアウト済みの面へ後から復元待ちを置いても
-    /// `needsLayout` が立たず `layout()` が走らないため、本番と違う経路になる
-    /// （文書の差し替えが `PDFViewDocumentChanged` を出して初めてレイアウトが起きる）。
+    /// **本番と同じ関数を呼ぶ。** かつては `PDFPreviewView.updateNSView` の順序を
+    /// テスト側で手で真似ていたが（文書の代入 → 回転 → 倍率 → 復元待ちの代入 →
+    /// レイアウト）、それは「テストが真似た順序」を測るだけで、本番の順序が
+    /// 変わっても気づけなかった。順序は `present(...)` が持つので、そのまま呼ぶ
+    /// （TASK-574.1 で `pendingRestoreFraction` は撤去済み）。
     private func simulateSwitch(pageCount: Int, restore: Double) -> ZoomingPDFView {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
-        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
-        pdfView.document = makeView(pageCount: pageCount).document
-        PDFSurfaceLayout.apply(rotation: 0, to: pdfView)
-        PDFSurfaceLayout.apply(zoom: 1.0, to: pdfView)
-        pdfView.pendingRestoreFraction = restore
-        pdfView.layoutSubtreeIfNeeded()
+        let pdfView = ZoomingPDFView(frame: NSRect(x: 0, y: 0, width: 400, height: 500))
+        pdfView.present(
+            document: makeView(pageCount: pageCount).document,
+            rotation: 0,
+            zoom: 1.0,
+            scrollFraction: restore
+        )
         return pdfView
     }
 
-    /// **文書全体が面に収まるときも、復元待ちはそのレイアウトで使い切る。**
+    /// **余地がある文書は、差し替えと同じ同期区間の中で位置まで入る。**
+    ///
+    /// 復元を後のレイアウトへ先送りしていた頃は、いつ消化されるかがレイアウトの
+    /// タイミング次第だった（TASK-573）。`present(...)` が
+    /// `layoutSubtreeIfNeeded()` まで済ませてから復元するので、戻った時点で
+    /// 位置は入っている。
+    @Test("差し替えが返った時点で位置は復元されている")
+    func restoresPositionWithinPresent() {
+        let pdfView = simulateSwitch(pageCount: 30, restore: 0.5)
+
+        #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - 0.5) < 0.01)
+    }
+
+    /// 復元した位置が PDFKit の後追いレイアウトで巻き戻されないこと。
+    ///
+    /// PDFKit の再レイアウトはメインキューへ積まれる。`present(...)` が同期で
+    /// 入れた位置がそこで 0 へ戻るなら、切り替えのたびに先頭へ飛ぶ
+    /// （実測: 300ms 後も 0.5 のまま / TASK-574.1）。
+    @Test("復元した位置がメインキュー 1 周後も保たれる")
+    func keepsRestoredPositionAfterLaterLayout() async {
+        let pdfView = simulateSwitch(pageCount: 30, restore: 0.5)
+
+        try? await Task.sleep(for: .milliseconds(200))
+        pdfView.layoutSubtreeIfNeeded()
+
+        #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - 0.5) < 0.01)
+    }
+
+    /// **余地が無い文書では、記憶していた位置はその場で捨てる。**
     ///
     /// 余地が出るまで待つ形にしていたため、スクロールの余地が生まれない文書
     /// （1 ページで収まる、など）では待ちが永久に残っていた（実測: 余地 −9.47 で
-    /// `pendingRestoreFraction` が 3 回のレイアウト後も 0.0 のまま / TASK-573）。
-    @Test("余地が無い文書でも復元待ちはレイアウトで消える")
-    func consumesPendingRestoreWhenTheDocumentFits() {
-        let pdfView = simulateSwitch(pageCount: 1, restore: 0.0)
-
-        #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) <= 0) // 余地が無い文書
-        #expect(pdfView.pendingRestoreFraction == nil)
-    }
-
-    /// **居残った復元待ちは、後から拡大した瞬間に発火して表示を飛ばす。**
-    ///
-    /// 余地が無いあいだ待ち続ける形だと、ユーザーが拡大して余地が生まれた
-    /// そのレイアウトで、開いたときの記憶が突然適用される（実測: 修正前は
-    /// 拡大しただけで表示位置が 0.0 → 1.0（末尾）へ飛んだ / TASK-573）。
+    /// 3 回のレイアウト後も待ちが残る / TASK-573）。`present(...)` は 1 回で
+    /// 使い切るので、待ちという状態がそもそも作られない。
     @Test("余地が無い文書を拡大しても、記憶していた位置へ飛ばない")
     func doesNotJumpWhenZoomingCreatesRoom() {
         let pdfView = simulateSwitch(pageCount: 1, restore: 1.0) // 末尾を記憶していた
+        #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) <= 0) // 余地が無い文書
         #expect(PDFSurfaceLayout.documentFraction(of: pdfView) < 0.01)
 
-        PDFSurfaceLayout.apply(zoom: 3.0, to: pdfView) // ユーザーが拡大して余地が生まれる
+        pdfView.apply(zoom: 3.0) // ユーザーが拡大して余地が生まれる
         pdfView.needsLayout = true
         pdfView.layoutSubtreeIfNeeded()
 
@@ -181,26 +195,13 @@ struct PDFSurfacePositionTests {
         #expect(PDFSurfaceLayout.documentFraction(of: pdfView) < 0.9)
     }
 
-    /// 上の変更で、余地がある文書の復元が壊れていないこと（回帰の番人）。
-    @Test("余地がある文書は同じレイアウトの中で位置まで復元される")
-    func restoresPositionWithinTheSameLayout() {
+    /// **文書を外す差し替えでも落ちない**（PDF 以外を表示している間）。
+    @Test("文書を外す差し替えは面から文書だけを外す")
+    func presentingNilDropsTheDocument() {
         let pdfView = simulateSwitch(pageCount: 30, restore: 0.5)
 
-        #expect(pdfView.pendingRestoreFraction == nil)
-        #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - 0.5) < 0.01)
-    }
+        pdfView.present(document: nil, rotation: 0, zoom: 1.0, scrollFraction: 0)
 
-    /// **面がまだ組み上がっていない間は待つ。** 文書が入る前のレイアウトで
-    /// 使い切ってしまうと、記憶していた位置が黙って捨てられる。
-    @Test("文書が入る前のレイアウトでは復元待ちを使い切らない")
-    func keepsPendingRestoreUntilTheSurfaceIsReady() {
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
-        pdfView.frame = NSRect(x: 0, y: 0, width: 400, height: 500)
-
-        pdfView.pendingRestoreFraction = 0.5
-        pdfView.layoutSubtreeIfNeeded()
-
-        #expect(pdfView.pendingRestoreFraction == 0.5)
+        #expect(pdfView.document == nil)
     }
 }

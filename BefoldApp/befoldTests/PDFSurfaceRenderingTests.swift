@@ -37,8 +37,7 @@ struct PDFSurfaceRenderingTests {
                 document.insert(page, at: index)
             }
         }
-        let pdfView = ZoomingPDFView()
-        PDFSurfaceLayout.configure(pdfView)
+        let pdfView = ZoomingPDFView(frame: .zero)
         // 地を明示的に黒く塗る。連続スクロールでは文書を外した面が
         // `underPageBackgroundColor` を描かなくなり、地の色を指定していないと
         // 「文書が外れている」ことを画素で測れない(実測: 外した直後も明るい画素 100%)。
@@ -112,7 +111,7 @@ struct PDFSurfaceRenderingTests {
         let pdfView = makeView(pageCount: 3)
 
         // ページ送りの操作を挟まず、スクロールだけで文書の途中まで進める。
-        PDFSurfaceLayout.restore(fraction: 0.5, in: pdfView)
+        pdfView.restore(fraction: 0.5)
         pdfView.layoutSubtreeIfNeeded()
 
         // 3 ページ分が 1 本に連なっているので、半分まで来ても白いページが見えている
@@ -138,7 +137,7 @@ struct PDFSurfaceRenderingTests {
         let pdfView = makeView(pageCount: 1)
         let before = try #require(pageRect(in: pdfView))
 
-        PDFSurfaceLayout.rotate(byDegrees: 90, in: pdfView)
+        pdfView.rotate(byDegrees: 90)
         await settleLayout()
         pdfView.layoutSubtreeIfNeeded()
 
