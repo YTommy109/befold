@@ -48,7 +48,11 @@ struct PDFFindOverlay: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 0.5))
         .padding(12)
-        .onAppear { isInputFocused = true }
+        // 開いたら入力欄へフォーカスを置く。**この面は AppKit がホストする `PDFView` の
+        // 上に重なる SwiftUI なので、`@FocusState` だけで窓の first responder が移るかは
+        // 実機で確定できていない**（TASK-570 の Notes 参照）。⌘F の直後に打った文字が
+        // 入らない場合は、ここではなく responder の移動を手当てする必要がある。
+        .task { isInputFocused = true }
         // Esc で閉じる。Help の一覧（`ViewerShortcutCatalog.findOnlyItems` の
         // `shortcuts.viewer.findClose` = 「検索バーを閉じる」）は種別非依存に出るので、
         // ここを繋がないと PDF でだけ説明と実態が食い違う（TASK-570 の AC #9）。

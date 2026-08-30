@@ -4,7 +4,7 @@ title: PDF 表示でも文書内検索をできるようにする
 status: In Progress
 assignee: []
 created_date: '2026-08-29 23:13'
-updated_date: '2026-08-30 06:04'
+updated_date: '2026-08-30 06:54'
 labels: []
 dependencies:
   - TASK-574.3
@@ -34,15 +34,15 @@ PDF を開いているあいだ ⌘F が無効で、文書内検索ができな�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PDF を開いた状態で ⌘F が有効になり、検索バーが開く
-- [ ] #2 PDF 内の文字列を検索でき、ヒットが画面上で判別でき、次へ/前へで移動できる
-- [ ] #3 ヒット件数と現在位置が既存の検索バーと同じ形で表示される
-- [ ] #4 テキストを持たない画像では従来どおり ⌘F が無効のままである（canFind を緩めた副作用で開かない）
-- [ ] #5 テキストレイヤーを持たない（スキャン画像のみの）PDF でヒット 0 件として振る舞い、無反応や誤動作にならない
-- [ ] #6 検索の 3 トグル（大文字小文字区別・単語一致・正規表現）について、PDF で対応するもの／しないものを決め、しないものは押せない形にする
-- [ ] #7 ViewerCapabilities の canFind の分岐がユニットテストで固定される（PDF は true、画像は false）
-- [ ] #8 docs/dev/native-app-design.md の「PDF では検索とジャンプができない」旨の記述と ADR 0009 の Consequences を実態に合わせて更新する
-- [ ] #9 ⌘F / ⌘G の Help ショートカット一覧（ViewerShortcutCatalog）の説明が PDF でも実態と合っている
+- [x] #1 PDF を開いた状態で ⌘F が有効になり、検索バーが開く
+- [x] #2 PDF 内の文字列を検索でき、ヒットが画面上で判別でき、次へ/前へで移動できる
+- [x] #3 ヒット件数と現在位置が既存の検索バーと同じ形で表示される
+- [x] #4 テキストを持たない画像では従来どおり ⌘F が無効のままである（canFind を緩めた副作用で開かない）
+- [x] #5 テキストレイヤーを持たない（スキャン画像のみの）PDF でヒット 0 件として振る舞い、無反応や誤動作にならない
+- [x] #6 検索の 3 トグル（大文字小文字区別・単語一致・正規表現）について、PDF で対応するもの／しないものを決め、しないものは押せない形にする
+- [x] #7 ViewerCapabilities の canFind の分岐がユニットテストで固定される（PDF は true、画像は false）
+- [x] #8 docs/dev/native-app-design.md の「PDF では検索とジャンプができない」旨の記述と ADR 0009 の Consequences を実態に合わせて更新する
+- [x] #9 ⌘F / ⌘G の Help ショートカット一覧（ViewerShortcutCatalog）の説明が PDF でも実態と合っている
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -104,4 +104,43 @@ PDF を開いているあいだ ⌘F が無効で、文書内検索ができな�
 - 種別分岐の宛先決定は `DocumentSurfaces.operating(on:)` の 1 行に閉じている。ここは触らずに済むはず。
 - 能力を開けるときは `isBinaryContent` を緩めるのではなく `FileType` 側に新しい述語（例: `supportsFind`）を足すのが素直（画像を巻き込まないため）。
 - pdf.js 同梱で既存 JS 経路に載せる案は ADR 0009 で却下済み（バンドル増・CSP の `worker-src` / `blob:` 緩和・ベンダー監査対象増）。本タスクで蒸し返さない。
+
+## 実装（2026-08-30）
+
+### 入れたもの
+
+| 追加 | 役割 |
+| --- | --- |
+| `FileType.supportsFind` | 「検索対象のテキストを持つか」（画像 false / PDF true）。`isBinaryContent`（読み込み方法）とは別の問い |
+| `PDFFindModel` | 検索の状態。PDFKit の `beginFindString` で非同期に検索し、巡回と件数を持つ。窓ごとに 1 個（`DocumentSurfaces` が所有） |
+| `PDFFindOverlay` | 右上の検索バー。`DocumentSurfaceStack` が PDF 面と同じ条件で出す |
+| `FindMatchCounter` | "3/12" の書式。web 側の `formatNavigationCount` と揃っていることをテストで固定 |
+| `ZoomingPDFView.showFindMatches / clearFindMatches` | 面への書き込み（面の書き込み口を 1 つに保つ / TASK-574.1） |
+
+`ViewerCapabilities.canFind` を `!isBinaryContent` から `supportsFind` へ移し、`PDFDocumentRenderer` の空実装（`openFind` / `findNext` / `findPrevious`）を埋めた。`openJump` は空のまま（ジャンプは範囲外）。
+
+### 実機で確認したこと
+
+- **AC #1**: Edit メニューの "Find…" / "Find Next" が PDF で **enabled**（AX で確認）。⌘F でバーが開く（AXTextField が出現）
+- **AC #2**: "line" で全一致が黄色にハイライトされ、⌘G で次へ進む
+- **AC #3**: 件数が **1/2250 → 2/2550** の形で出る（web 面と同じ "n/N"）
+- **AC #6**: 無効な 2 トグル（Abc・✳）が有効な Aa より明確に淡く描かれる（スクリーンショットで確認）
+
+### 途中で直した実機の不具合 2 件
+
+1. **無効トグルが有効と同じ見た目だった。** `.disabled()` だけでは `foregroundStyle` の明示指定が勝つ。`opacity` で明示的に落とした。
+2. **現在の一致の marker が指定と違う色・ずれた位置に出た。** `currentSelection` は PDFKit がシステムの選択色で描く系統で `PDFSelection.color` を見ない。使うのをやめ、`highlightedSelections` の色だけで 2 段階（黄 / 橙）を表すようにした。あわせて、同じ配列を入れ直しても再描画されないため一度 `nil` にしてから入れ直す。
+
+### 検証
+
+- `swift test` **1821 tests / 297 suites 緑**、`npm test` **615 tests 緑**
+- swiftlint ベースライン: main 53 / head 53、**真の新規 0**
+- markdownlint / `check-doc-symbols.sh` / `check-doc-citations.sh` すべて 0 件
+- 一時的に入れた `NSLog` は除去済み（`grep NSLog` で 0 件）
+
+### 残る不確かさ（正直な申し送り）
+
+**現在の一致（橙）の描画位置を実機で確定できていない。** スクリーンショットでは橙のブロックが最初の一致ではなく直前の行（"Doc 1 Page 1" の "1"）に見えた。色の割り当て自体は `PDFFindHighlightTests` で正しいことを固定してあり（現在の 1 件だけが他と違う色、次へ送ると移る）、再描画の手当ても入れたが、**その後 GUI 自動化でキー入力が安定して届かず、修正後の見え方を撮り直せていない**。
+
+検証に使った PDF は `.tmp/t569/nav2/*.pdf`（スクリプト生成）で、テキストレイヤーと描画位置がずれている可能性も排除できていない。**実ファイルで 1 回目視してほしい**——⌘F → 適当な語 → ⌘G で、橙が語の上に乗るか。ずれていれば別タスクとして起票する。
 <!-- SECTION:NOTES:END -->
