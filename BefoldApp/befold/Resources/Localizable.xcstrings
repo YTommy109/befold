@@ -3459,42 +3459,6 @@
         }
       }
     },
-    "viewer.pdf.find.regex": {
-      "comment": "PDF の検索バーの正規表現トグル。PDFKit が対応しないため常に無効で、tooltip で理由を伝える。",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regular Expression (unavailable in PDF)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正規表現（PDF では使えません）"
-          }
-        }
-      }
-    },
-    "viewer.pdf.find.wholeWord": {
-      "comment": "PDF の検索バーの単語一致トグル。PDFKit が対応しないため常に無効で、tooltip で理由を伝える。",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Whole Word (unavailable in PDF)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "単語単位（PDF では使えません）"
-          }
-        }
-      }
-    },
     "viewer.pdf.rotateClockwise": {
       "comment": "PDF の右上に重ねた回転ボタン。時計回りに 90 度回す。読み上げ名と tooltip に使う。",
       "extractionState": "manual",

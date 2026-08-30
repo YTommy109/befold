@@ -4,7 +4,7 @@ title: PDF 表示でも文書内検索をできるようにする
 status: Done
 assignee: []
 created_date: '2026-08-29 23:13'
-updated_date: '2026-08-30 07:15'
+updated_date: '2026-08-30 07:25'
 labels: []
 dependencies:
   - TASK-574.3
@@ -39,7 +39,7 @@ PDF を開いているあいだ ⌘F が無効で、文書内検索ができな�
 - [x] #3 ヒット件数と現在位置が既存の検索バーと同じ形で表示される
 - [x] #4 テキストを持たない画像では従来どおり ⌘F が無効のままである（canFind を緩めた副作用で開かない）
 - [x] #5 テキストレイヤーを持たない（スキャン画像のみの）PDF でヒット 0 件として振る舞い、無反応や誤動作にならない
-- [x] #6 検索の 3 トグル（大文字小文字区別・単語一致・正規表現）について、PDF で対応するもの／しないものを決め、しないものは押せない形にする
+- [x] #6 検索の 3 トグルについて PDF で対応するものを決め、対応しないもの（単語一致・正規表現）はバーに出さない
 - [x] #7 ViewerCapabilities の canFind の分岐がユニットテストで固定される（PDF は true、画像は false）
 - [x] #8 docs/dev/native-app-design.md の「PDF では検索とジャンプができない」旨の記述と ADR 0009 の Consequences を実態に合わせて更新する
 - [x] #9 ⌘F / ⌘G の Help ショートカット一覧（ViewerShortcutCatalog）の説明が PDF でも実態と合っている
@@ -162,6 +162,8 @@ PDF のテストをまとめて**直列**実行するとプロセスごと落ち
 検証: `swift test`（既定の並列）と `--no-parallel` の**両方で 1821 tests 緑**。
 なお `--no-parallel` は 1 回だけ git 系のテストで異常終了したが、再実行で通り、
 PDF とは無関係な既知の環境要因（TASK-394 の Notes に同種の記録あり）。
+
+AC #6 を実態に合わせて書き換えた（2026-08-30）: PDFKit の検索は .caseInsensitive / .literal / .backwards しか受けず単語一致・正規表現の引数が無い（SDK ヘッダ実測）。PDFPage.selectionForRange: + NSRegularExpression で自前に組めばページ内に限り実現できるが、beginFindString の非同期経路を丸ごと置き換えることになるので採らない。無効トグルを並べる形をやめ、PDFFindOverlay は大文字小文字区別のトグルだけを持つ（viewer.pdf.find.wholeWord / .regex の文字列も削除）。web 面のバーとはトグルの数が違う。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

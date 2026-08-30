@@ -10,11 +10,12 @@ import SwiftUI
 /// 表示条件を自分で判断しない。この View を出すかどうかは `DocumentSurfaceStack` が
 /// PDF の面と同じ条件で決める（条件は 1 箇所 / ADR 0002 段 2）。
 ///
-/// **単語一致と正規表現のトグルは出すが常に無効。** PDFKit の検索が受けるのは
-/// `.caseInsensitive` / `.literal` / `.backwards` だけで、この 2 つに対応する引数が
-/// 無い（SDK ヘッダ実測）。隠さず無効で出すのは、web 面で ON にしたまま PDF を
-/// 開いたときに「同じ設定なのに結果が違う」形を避けるため——押せないことと
-/// tooltip で、ここでは効かないと伝える。
+/// **トグルは大文字小文字の区別だけ。** PDFKit の検索が受けるのは
+/// `.caseInsensitive` / `.literal` / `.backwards` だけで、単語一致・正規表現に
+/// 対応する引数が無い（SDK ヘッダ実測）。`PDFPage.selectionForRange:` と
+/// `NSRegularExpression` で自前に組めばページ内に限り実現できるが、非同期検索の
+/// 経路を丸ごと置き換えることになるので採らない。**このため web 面のバーとは
+/// トグルの数が違う。** 効かないトグルを無効で並べるより、無い方が誤解が少ない。
 struct PDFFindOverlay: View {
     /// 検索の状態。View はこれを読み書きするだけで、面には触らない。
     @Bindable var model: PDFFindModel
@@ -78,22 +79,7 @@ struct PDFFindOverlay: View {
                 symbol: "textformat",
                 labelKey: "viewer.pdf.find.matchCase",
                 isOn: caseSensitive,
-                isEnabled: true,
                 action: onToggleCaseSensitive
-            )
-            toggle(
-                symbol: "textformat.abc.dottedunderline",
-                labelKey: "viewer.pdf.find.wholeWord",
-                isOn: false,
-                isEnabled: false,
-                action: {}
-            )
-            toggle(
-                symbol: "asterisk",
-                labelKey: "viewer.pdf.find.regex",
-                isOn: false,
-                isEnabled: false,
-                action: {}
             )
         }
         .padding(.horizontal, 6)
@@ -105,7 +91,6 @@ struct PDFFindOverlay: View {
         symbol: String,
         labelKey: String.LocalizationValue,
         isOn: Bool,
-        isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
         let label = String(localized: labelKey, bundle: .l10n)
@@ -117,14 +102,10 @@ struct PDFFindOverlay: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(isOn ? Color.accentColor : .clear)
                 )
-                // **使えないトグルは見て分かるようにする。** `.disabled()` だけでは
-                // `foregroundStyle` の明示指定が勝ってしまい、有効なトグルと同じ濃さで
-                // 出る（実機で確認 / TASK-570 の AC #6）。
-                .foregroundStyle(isOn ? Color.white : Color.primary.opacity(isEnabled ? 1 : 0.3))
+                .foregroundStyle(isOn ? Color.white : Color.primary)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .disabled(!isEnabled)
         .accessibilityLabel(label)
         .help(label)
     }
