@@ -1,9 +1,10 @@
 ---
 id: TASK-574.4
 title: native-app-design.md の PDF の見え方から autoScales の記述を除き実装に合わせる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-30 03:38'
+updated_date: '2026-08-30 04:49'
 labels:
   - docs
 dependencies: []
@@ -26,6 +27,20 @@ ordinal: 835000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 「PDF の見え方」の段落に `autoScales` による幅追従の記述が無く、フィットの定義（ページ全体が収まる・文書内最大ページ基準）とリサイズ追従の担い手（`ZoomingPDFView.layout`）が書かれている
-- [ ] #2 `markdownlint-cli2` と `scripts/check-doc-citations.sh` が通る
+- [x] #1 「PDF の見え方」の段落に `autoScales` による幅追従の記述が無く、フィットの定義（ページ全体が収まる・文書内最大ページ基準）とリサイズ追従の担い手（`ZoomingPDFView.layout`）が書かれている
+- [x] #2 `markdownlint-cli2` と `scripts/check-doc-citations.sh` が通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-574.1 で `PDFSurfaceLayout.configure` が `ZoomingPDFView.init` へ畳まれたため、起票時に「コード」欄で引いていた `PDFSurfaceLayout.configure は autoScales = false` という所在も変わっている。文書は新しい所在（`ZoomingPDFView`）で書いた。
+
+検証: `markdownlint-cli2` 0 件 / `scripts/check-doc-citations.sh` 0 件。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+「PDF の見え方」から `autoScales` による幅追従の記述を除き、実装（`autoScales = false`・フィットはページ全体・リサイズ追従は `ZoomingPDFView.layout`）に合わせた。幅基準だとページ下端が画面外に出るという実測値も併記した。
+<!-- SECTION:FINAL_SUMMARY:END -->
