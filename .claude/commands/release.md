@@ -78,6 +78,9 @@ scripts/bump.sh <レベル>
   ある内容のみ）で生成する。除外したコミットがあれば、生成結果と合わせて
   ユーザーに提示する。
 
+いずれの場合も、**英語セクションを先・日本語セクションを後**にした 1 本の
+本文にする（`/release-notes` の「言語」の節）。
+
 生成結果はユーザーに表示する。
 
 ### 3. GitHub リリース作成
@@ -103,7 +106,8 @@ DMG のビルドと添付は GitHub Actions（release.yml）が自動で行う�
 ### 4. CHANGELOG.md への追記（stable リリースのみ）
 
 **stable リリースの場合のみ**、`.claude/skills/changelog.md` スキルの手順に
-従い、生成したリリースノートを `CHANGELOG.md` に追記し、
+従い、生成したリリースノートの**日本語セクションだけ**を `CHANGELOG.md` に
+追記し（`CHANGELOG.md` は日本語のみで維持する）、
 `git add CHANGELOG.md && ALLOW_MAIN_COMMIT=1 git commit -m "docs: CHANGELOG.md に <タグ> を追記する"`
 でコミット・push する（バージョン bump コミットとは分けて新規コミットにする）。
 main への直接コミットは pre-commit フックでブロックされるため `ALLOW_MAIN_COMMIT=1` が必須。
