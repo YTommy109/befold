@@ -76,7 +76,14 @@ final class PDFPageIndicatorModel {
                 MainActor.assumeIsolated {
                     // 文書が変わったら編集を閉じる。PDF から別の PDF へ切り替えても
                     // View は消えないので、編集中の値が残ると古い番号で飛びうる。
-                    self?.cancel()
+                    //
+                    // **`cancel()` は呼ばない（フォーカスを動かさない）。** ここは
+                    // ユーザーの操作ではなく文書の差し替えで走る。面へフォーカスを
+                    // 移すと、サイドバーを矢印で流し読みしている最中に PDF の行へ
+                    // 来た時点で first responder を奪い、**次の矢印が一覧へ届かなく
+                    // なる**（サイドバーは選択が動いた時点でそのファイルを開くため /
+                    // TASK-581）。閉じるところまでがこの経路の仕事。
+                    self?.endEditing()
                     self?.refresh()
                 }
             }
@@ -135,6 +142,9 @@ final class PDFPageIndicatorModel {
     }
 
     /// 入力を捨てて元の表示へ戻す（Esc）。位置は動かさない。
+    ///
+    /// **ユーザーが入力を閉じたときだけ呼ぶ。** 文書の差し替えで閉じる経路は
+    /// `observe()` から `endEditing()` を直接呼ぶ（フォーカスを動かさないため）。
     func cancel() {
         endEditing()
         focusSurface()
