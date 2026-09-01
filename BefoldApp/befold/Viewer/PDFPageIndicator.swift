@@ -78,12 +78,18 @@ struct PDFPageIndicator: View {
         HStack(spacing: 2) {
             // **入力欄には地を敷く。** 敷かないと通常表示とほぼ同じ見た目になり、
             // いま打ち込めるのかが画面から分からない（実機で確認 / TASK-578.2）。
-            PageNumberField(text: $model.draft, onSubmit: model.commit, onCancel: model.cancel)
-                .frame(width: 32, height: 14)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
-                .accessibilityLabel(String(localized: "viewer.pdf.pageJump", bundle: .l10n))
+            FocusClaimingTextField(
+                text: $model.draft,
+                alignment: .right,
+                font: .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular),
+                onSubmit: model.commit,
+                onCancel: model.cancel
+            )
+            .frame(width: 32, height: 14)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+            .accessibilityLabel(String(localized: "viewer.pdf.pageJump", bundle: .l10n))
             Text(verbatim: "/ \(model.pageCount)")
                 .foregroundStyle(.secondary)
         }

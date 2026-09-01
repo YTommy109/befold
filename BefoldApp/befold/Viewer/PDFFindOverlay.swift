@@ -24,8 +24,6 @@ struct PDFFindOverlay: View {
     /// 大文字小文字の区別を切り替える。設定の保存は窓の外が持つ。
     let onToggleCaseSensitive: () -> Void
 
-    @FocusState private var isInputFocused: Bool
-
     var body: some View {
         HStack(spacing: 4) {
             inputField
@@ -49,31 +47,31 @@ struct PDFFindOverlay: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 0.5))
         .padding(12)
-        // 開いたら入力欄へフォーカスを置く。**この面は AppKit がホストする `PDFView` の
-        // 上に重なる SwiftUI なので、`@FocusState` だけで窓の first responder が移るかは
-        // 実機で確定できていない**（TASK-570 の Notes 参照）。⌘F の直後に打った文字が
-        // 入らない場合は、ここではなく responder の移動を手当てする必要がある。
-        .task { isInputFocused = true }
+        // 開いたら入力欄へフォーカスが載る。**その仕事は入力欄自身が持つ**
+        // （`FocusClaimingTextField` が窓へ入った 1 周後に `makeFirstResponder` する）。
+        // かつてここに `.task { isInputFocused = true }` を置いていたが、この面では
+        // `@FocusState` で first responder が移らないため効いていなかった（TASK-579）。
+        //
         // Esc で閉じる。Help の一覧（`ViewerShortcutCatalog.findOnlyItems` の
         // `shortcuts.viewer.findClose` = 「検索バーを閉じる」）は種別非依存に出るので、
         // ここを繋がないと PDF でだけ説明と実態が食い違う（TASK-570 の AC #9）。
         // web 面は viewer-src/keyboard.ts の `resolveBarCloseKey` が同じ役割を持つ。
+        // **入力欄に居るあいだの Esc は入力欄が受ける**（`onExitCommand` は first
+        // responder が SwiftUI 側に無いと呼ばれない）ので、両方を繋いである。
         .onExitCommand { model.close() }
     }
 
     private var inputField: some View {
         HStack(spacing: 2) {
-            TextField(
-                String(localized: "viewer.pdf.find.placeholder", bundle: .l10n),
-                text: Binding(get: { model.query }, set: { model.setQuery($0) })
+            FocusClaimingTextField(
+                text: Binding(get: { model.query }, set: { model.setQuery($0) }),
+                placeholder: String(localized: "viewer.pdf.find.placeholder", bundle: .l10n),
+                font: .systemFont(ofSize: 13),
+                // Enter で次へ（web 面の入力欄と同じ）。
+                onSubmit: { model.moveToNext() },
+                onCancel: { model.close() }
             )
-            .textFieldStyle(.plain)
-            .font(.system(size: 13))
             .frame(width: 160)
-            .focused($isInputFocused)
-            // Enter で次へ（web 面の入力欄と同じ）。IME の変換確定は SwiftUI の
-            // TextField が飲むので、こちらで keyCode 229 を見る必要は無い。
-            .onSubmit { model.moveToNext() }
 
             toggle(
                 symbol: "textformat",
