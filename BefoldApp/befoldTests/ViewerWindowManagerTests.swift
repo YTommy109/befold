@@ -222,6 +222,17 @@ struct ViewerWindowManagerTests {
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
     }
 
+    /// **高さは見ない。幅だけで測る。**
+    ///
+    /// `NSWindow.setFrame(from:)` はフレームを**画面の可視領域に収める**ため、記述子の
+    /// 高さがそのまま適用されるとは限らない。実測: 手元（画面 2560x1050）では
+    /// `200 200 900 700` がそのまま通るが、CI では高さが 674（= 700 − タイトルバー 26）に
+    /// 縮められて落ちた。守りたいのは「保存値が使われたか」であって画面の大きさではないので、
+    /// 収まりに左右されない幅で測る（既定は 1100 幅なので、届いていなければ区別が付く）。
+    private func openedWidth(_ controller: ViewerWindowController?) -> CGFloat? {
+        controller?.window?.frame.size.width
+    }
+
     /// **どのファイルを開いても、出発点は最後に調整した 1 個(TASK-583)。**
     /// かつてはファイル自身の保存値が最優先で、開いた時点でそれを書き戻していたため、
     /// 一度開いたファイルは自分の古い寸法に固定され、あとから調整した値が届かなかった。
@@ -229,11 +240,13 @@ struct ViewerWindowManagerTests {
     func openViewerUsesLastUserAdjustedFrame() {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
-        fixture.windowFrame.recordUserAdjustedFrame("200 200 900 700 0 0 1920 1080")
+        fixture.windowFrame.recordUserAdjustedFrame("0 0 900 480 0 0 1920 1080")
 
         let controller = fixture.manager.openViewer(for: file)
 
-        #expect(controller?.window?.frame.size == NSSize(width: 900, height: 700))
+        #expect(openedWidth(controller) == 900)
+        // 既定（1100）のままではないこと。保存値が届いていなければここで区別が付く。
+        #expect(openedWidth(controller) != ViewerWindowChrome.defaultContentSize.width)
     }
 
     /// 粒度がアプリ全体であることを、破れたら落ちる形で固定する。ファイル単位の記憶が
@@ -244,13 +257,13 @@ struct ViewerWindowManagerTests {
         let second = URL(fileURLWithPath: "/mock/second.mmd")
         let fixture = MockedViewerWindowManager(files: [first, second])
         defer { fixture.closeAll() }
-        fixture.windowFrame.recordUserAdjustedFrame("50 50 700 500 0 0 1920 1080")
+        fixture.windowFrame.recordUserAdjustedFrame("0 0 700 480 0 0 1920 1080")
 
         let firstController = fixture.manager.openViewer(for: first)
         let secondController = fixture.manager.openViewer(for: second)
 
-        #expect(firstController?.window?.frame.size == NSSize(width: 700, height: 500))
-        #expect(secondController?.window?.frame.size == NSSize(width: 700, height: 500))
+        #expect(openedWidth(firstController) == 700)
+        #expect(openedWidth(secondController) == 700)
     }
 
     /// 開いただけでは何も書かない。書き戻していたことが、グローバル値が届かなくなった原因。

@@ -150,21 +150,9 @@ final class PDFPageIndicatorModel {
         focusSurface()
     }
 
-    /// 入力を閉じたら**面へフォーカスを移す。**
-    ///
-    /// 入力欄を出す前の first responder へ返す形にしていたが、実測ではそれが
-    /// サイドバーのファイル一覧で、ジャンプ直後に ↓ を押すと選択が動いて
-    /// **別のファイルが開いた**（TASK-578.2）。飛んだ先を読み続けられるよう、
-    /// 戻し先は「いま読んでいる面」に決め打つ。
-    ///
-    /// **1 周待つ。** 入力欄が消えるより先に移すと、その後の View の片付けで
-    /// first responder が外れる。
+    /// 入力を閉じたら**面へフォーカスを移す**（実体と理由は `PDFViewProxy.focusSurface`）。
     private func focusSurface() {
-        let surface = pdfViewProxy.pdfView
-        DispatchQueue.main.async {
-            guard let surface, let window = surface.window else { return }
-            window.makeFirstResponder(surface)
-        }
+        pdfViewProxy.focusSurface()
     }
 
     private func endEditing() {
