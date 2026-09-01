@@ -31,6 +31,7 @@ struct DocumentSurfaceDispatchTests {
         var findCalls = 0
         var printCalls = 0
         var zoomCalls = 0
+        var focusCalls = 0
 
         var isDirectHTMLMode = false
 
@@ -39,6 +40,10 @@ struct DocumentSurfaceDispatchTests {
         func changeZoom(_: ZoomChange) -> Double? {
             zoomCalls += 1
             return nil
+        }
+
+        func focusSurface() {
+            focusCalls += 1
         }
 
         func openFind() {
@@ -119,6 +124,25 @@ struct DocumentSurfaceDispatchTests {
     /// 設定の反映とリネーム追随が、束の全要素へ配られること。
     /// 実装が `operating(on:)` で 1 枚に絞る形へ変わると、束を 2 要素にしたときに
     /// 片方の数が 0 のままになって落ちる。
+    /// フォーカス移動も「いま描いている面 1 枚」へ届く（⌘→ / CLI / Quick Open / TASK-584）。
+    /// 束の全要素へ配ってしまうと、見えていない面がフォーカスを取りに行く。
+    @Test("フォーカス移動は宛先の面 1 枚だけへ届く")
+    func focusSurfaceReachesOnlyTheOperatingSurface() {
+        let web = RecordingSurface()
+        let pdf = RecordingSurface()
+        let surfaces = DocumentSurfaces(
+            webRenderer: web, pdfRenderer: pdf,
+            findOptions: FindOptionsPreference(
+                defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests.focus")
+            )
+        )
+
+        surfaces.operating(on: .pdf).focusSurface()
+
+        #expect(pdf.focusCalls == 1)
+        #expect(web.focusCalls == 0)
+    }
+
     @Test("設定の反映とリネームは束の全要素へ届く")
     func syncingReachesEverySurface() {
         let web = RecordingSurface()

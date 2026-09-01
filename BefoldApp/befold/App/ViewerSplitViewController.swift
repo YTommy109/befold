@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 protocol SidebarCollapsible: AnyObject {
     func setSidebarCollapsed(_ collapsed: Bool)
+    /// サイドバーが畳まれているか。⌘← の有効判定に使う（畳んでいるなら移り先が無い）。
+    var isSidebarCollapsed: Bool { get }
 }
 
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
@@ -98,6 +100,10 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
 }
 
 extension ViewerSplitViewController: SidebarCollapsible {
+    var isSidebarCollapsed: Bool {
+        sidebarItem.isCollapsed
+    }
+
     /// 望む開閉状態と現在が異なるときだけ toggleSidebar を再利用して切り替える。
     /// これにより状態永続化(onCollapsedChange)とフォーカス移動の挙動を一本化する。
     func setSidebarCollapsed(_ collapsed: Bool) {

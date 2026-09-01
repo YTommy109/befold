@@ -24,8 +24,12 @@ final class DocumentOpener {
     /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
     /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
     /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
-    func openViewer(for url: URL) {
-        Task { await openViewer(for: url, options: CLIOpenOptions()) }
+    /// - Parameter focusesContent: 開いたあとキーボードのフォーカスを本文へ置くか。
+    ///   **契機を知っているのは呼び出し元**なので、ここは受け取るだけにする。
+    ///   CLI と Quick Open は true（サイドバーを操作して開いたわけではない）。
+    ///   サイドバー由来のオープンは false のままで、フォーカスはサイドバーに残る（TASK-581）。
+    func openViewer(for url: URL, focusesContent: Bool = false) {
+        Task { await openViewer(for: url, options: CLIOpenOptions(), focusesContent: focusesContent) }
     }
 
     /// 参照クリック由来のオープン。disposition/relativeTo をそのまま ViewerWindowManager へ通す。
@@ -53,15 +57,23 @@ final class DocumentOpener {
             }
             return
         }
-        openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options)
+        // CLI で開いた窓は本文にフォーカスを置く（TASK-584）。サイドバーを操作して
+        // 開いたわけではないので、本文に居るのが妥当。
+        openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options, focusesContent: true)
     }
 
     /// 複数の URL を、渡された順にウィンドウが出るよう逐次に開く。
     /// **複数の URL を開く入口はここ 1 本に揃える。** 1 件ずつ `openViewer(for:)` を呼ぶと
     /// 呼び出しごとに Task が張られ、解決(実 FS アクセス)の完了順でウィンドウ順序が入れ替わる。
-    func openSequentially(_ urls: [URL], options: CLIOpenOptions = CLIOpenOptions()) {
+    func openSequentially(
+        _ urls: [URL], options: CLIOpenOptions = CLIOpenOptions(), focusesContent: Bool = false
+    ) {
         guard !urls.isEmpty else { return }
-        Task { await SequentialOpener.open(urls) { await openViewer(for: $0, options: options) } }
+        Task {
+            await SequentialOpener.open(urls) {
+                await openViewer(for: $0, options: options, focusesContent: focusesContent)
+            }
+        }
     }
 
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
@@ -88,7 +100,8 @@ final class DocumentOpener {
     /// ウィンドウ生成は戻ってから行う。
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
-        disposition: OpenDisposition = .currentTab, relativeTo sourceWindow: NSWindow? = nil
+        disposition: OpenDisposition = .currentTab, relativeTo sourceWindow: NSWindow? = nil,
+        focusesContent: Bool = false
     ) async {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
@@ -98,10 +111,11 @@ final class DocumentOpener {
             presentNoFileAlert()
             return
         }
-        windowManager.openViewer(
+        let controller = windowManager.openViewer(
             for: target, options: options, disposition: disposition, relativeTo: sourceWindow,
             forceSidebarVisible: isDirectory
         )
+        if focusesContent { controller?.focusContentSurface(nil) }
     }
 
     private func presentNoFileAlert() {

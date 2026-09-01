@@ -28,6 +28,10 @@ protocol DocumentSurfaceOperating: AnyObject {
     /// viewer.js が倍率を持つ通常モードでは nil を返す(保存も JS からの通知経由)。
     func changeZoom(_ change: ZoomChange) -> Double?
 
+    /// キーボードのフォーカスをこの面へ移す。**ユーザーが明示的に本文を選んだときだけ**
+    /// 呼ぶ（開いた瞬間に奪うとサイドバーの流し読みが壊れる / TASK-581）。
+    func focusSurface()
+
     /// ページ内検索を開く / 次へ / 前へ。
     func openFind()
     func findNext()
