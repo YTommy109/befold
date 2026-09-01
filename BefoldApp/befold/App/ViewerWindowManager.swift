@@ -57,6 +57,10 @@ final class ViewerWindowManager {
     /// CSV/TSV の数値表示設定。アプリ全体で 1 つ(AppStores が唯一のインスタンスを持つ)。
     let csvNumberFormatPreference: CsvNumberFormatPreference
     let perFileState: PerFileStateStore
+    /// 新しいウィンドウの出発点になる寸法。**アプリ全体で 1 個**(AppStores が唯一の
+    /// インスタンスを持つ)。既定引数を置かないのは、渡し忘れがコンパイルエラーにならず
+    /// 静かに別インスタンスになるため(TASK-319 と同じ理由)。
+    let windowFrame: WindowFrameStore
     let bookmarkStore: BookmarkStore
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
     /// ここへ集約することで、テストが InMemoryFileReader を注入して存在確認をモック化できる。
@@ -133,6 +137,7 @@ final class ViewerWindowManager {
         codeFontPreference: CodeFontPreference,
         csvNumberFormatPreference: CsvNumberFormatPreference,
         perFileState: PerFileStateStore,
+        windowFrame: WindowFrameStore,
         bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         presentFileNotFound: @escaping (URL, (() -> Void)?) -> Void = { url, onRemoveBookmark in
@@ -158,6 +163,7 @@ final class ViewerWindowManager {
         self.codeFontPreference = codeFontPreference
         self.csvNumberFormatPreference = csvNumberFormatPreference
         self.perFileState = perFileState
+        self.windowFrame = windowFrame
         self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
         self.presentFileNotFound = presentFileNotFound

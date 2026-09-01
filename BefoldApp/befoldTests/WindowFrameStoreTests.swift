@@ -3,137 +3,63 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-@Suite
+/// 新しいウィンドウの出発点になる寸法（アプリ全体で 1 個 / TASK-583）。
+///
+/// **ファイル単位の API を持たないことが、この型の設計そのもの。** かつては
+/// 正規化パス → 記述子の辞書を持ち「そのファイルの値 → 直近アクティブ窓の値 → この値」の
+/// 順で解決していたが、開いた時点で解決結果を各ファイルへ書き戻していたため、一度開いた
+/// ファイルは古い寸法に固定され、あとから調整した値が永久に届かなかった。
 @MainActor
+@Suite
 struct WindowFrameStoreTests {
-    /// 新規の隔離 defaults 上に store を組み立てる。テストをまたいで defaults を共有したい場合は
-    /// 呼び出し元で defaults を保持し、必要な回数だけこのファクトリへ渡し直す。
-    private func makeStore(defaults: UserDefaults = makeIsolatedDefaults(prefix: "WindowFrameStoreTests"))
-        -> (store: WindowFrameStore, defaults: UserDefaults)
-    {
-        (WindowFrameStore(defaults: defaults), defaults)
+    private func makeStore(_ prefix: String = "WindowFrameStoreTests") -> (WindowFrameStore, UserDefaults) {
+        let defaults = makeIsolatedDefaults(prefix: prefix)
+        return (WindowFrameStore(defaults: defaults), defaults)
     }
 
-    @Test
-    func frameDescriptorIsNilWhenUnsaved() {
-        let (store, _) = makeStore()
-
-        #expect(store.frameDescriptor(for: URL(fileURLWithPath: "/tmp/diagram.mmd")) == nil)
-    }
-
-    @Test
-    func setFrameDescriptorPersistsPerFileAcrossInstances() {
-        let (store, defaults) = makeStore()
-        let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
-
-        store.setFrameDescriptor("100 100 800 600 0 0 1920 1080", for: url)
-
-        #expect(makeStore(defaults: defaults).store.frameDescriptor(for: url) == "100 100 800 600 0 0 1920 1080")
-    }
-
-    @Test
-    func frameDescriptorsAreIndependentPerFile() {
-        let (store, _) = makeStore()
-        let first = URL(fileURLWithPath: "/tmp/first.mmd")
-        let second = URL(fileURLWithPath: "/tmp/second.md")
-
-        store.setFrameDescriptor("frame-a", for: first)
-        store.setFrameDescriptor("frame-b", for: second)
-
-        #expect(store.frameDescriptor(for: first) == "frame-a")
-        #expect(store.frameDescriptor(for: second) == "frame-b")
-    }
-
-    @Test("rename で旧パスのフレームが新パスへ引き継がれ旧キーは消える")
-    func migrateFrameDescriptorMovesValueToNewKey() {
-        let (store, _) = makeStore()
-        let old = URL(fileURLWithPath: "/tmp/old.mmd")
-        let new = URL(fileURLWithPath: "/tmp/new.mmd")
-        store.setFrameDescriptor("frame-old", for: old)
-
-        store.migrateFrameDescriptor(from: old, to: new)
-
-        #expect(store.frameDescriptor(for: new) == "frame-old")
-        #expect(store.frameDescriptor(for: old) == nil)
-    }
-
-    @Test("保存値のないファイルの migrate は新パスに影響しない")
-    func migrateFrameDescriptorWithoutSavedValueIsNoop() {
-        let (store, _) = makeStore()
-        let old = URL(fileURLWithPath: "/tmp/old.mmd")
-        let new = URL(fileURLWithPath: "/tmp/new.mmd")
-        store.setFrameDescriptor("frame-new", for: new)
-
-        store.migrateFrameDescriptor(from: old, to: new)
-
-        #expect(store.frameDescriptor(for: new) == "frame-new")
-    }
-
-    @Test("未操作時は最後に調整したフレームは nil")
-    func lastUserAdjustedFrameDescriptorIsNilWhenUnsaved() {
+    @Test("調整していなければ nil（呼び出し側が既定サイズへ縮退する）")
+    func returnsNilBeforeAnyAdjustment() {
         let (store, _) = makeStore()
 
         #expect(store.lastUserAdjustedFrameDescriptor == nil)
     }
 
-    @Test("recordUserAdjustedFrame はファイル単位の値と最後に調整したフレームの両方を更新する")
-    func recordUserAdjustedFrameUpdatesBothPerFileAndLastAdjusted() {
+    @Test("記録した寸法をそのまま返す")
+    func returnsTheRecordedDescriptor() {
+        let (store, _) = makeStore()
+
+        store.recordUserAdjustedFrame("200 200 900 700 0 0 1920 1080")
+
+        #expect(store.lastUserAdjustedFrameDescriptor == "200 200 900 700 0 0 1920 1080")
+    }
+
+    @Test("あとから調整した寸法で上書きされる")
+    func laterAdjustmentWins() {
+        let (store, _) = makeStore()
+
+        store.recordUserAdjustedFrame("200 200 900 700 0 0 1920 1080")
+        store.recordUserAdjustedFrame("10 10 1400 1000 0 0 1920 1080")
+
+        #expect(store.lastUserAdjustedFrameDescriptor == "10 10 1400 1000 0 0 1920 1080")
+    }
+
+    @Test("同じ defaults を見る別インスタンスからも読める（永続化されている）")
+    func persistsAcrossInstances() {
         let (store, defaults) = makeStore()
-        let url = URL(fileURLWithPath: "/tmp/diagram.mmd")
+        store.recordUserAdjustedFrame("0 0 1280 800 0 0 1920 1080")
 
-        store.recordUserAdjustedFrame("frame-x", for: url)
+        let reopened = WindowFrameStore(defaults: defaults)
 
-        let reloaded = makeStore(defaults: defaults).store
-        #expect(reloaded.frameDescriptor(for: url) == "frame-x")
-        #expect(reloaded.lastUserAdjustedFrameDescriptor == "frame-x")
+        #expect(reopened.lastUserAdjustedFrameDescriptor == "0 0 1280 800 0 0 1920 1080")
     }
 
-    @Test("setFrameDescriptor(ウィンドウオープン時の記録)は最後に調整したフレームを書き換えない")
-    func setFrameDescriptorDoesNotAffectLastUserAdjustedFrameDescriptor() {
-        let (store, _) = makeStore()
-        store.recordUserAdjustedFrame("frame-a", for: URL(fileURLWithPath: "/tmp/a.mmd"))
+    /// 旧実装が使っていたファイル単位の辞書は読まない。移行もしないと決めたので
+    /// （`AppStores.retiredDisplayStateKeys` が消す）、値が残っていても影響しない。
+    @Test("旧キー WindowFrames が残っていても読まない")
+    func ignoresTheRetiredPerFileDictionary() {
+        let (store, defaults) = makeStore()
+        defaults.set(["/tmp/a.md": "9 9 400 300 0 0 1920 1080"], forKey: "WindowFrames")
 
-        store.setFrameDescriptor("frame-b", for: URL(fileURLWithPath: "/tmp/b.mmd"))
-
-        #expect(store.lastUserAdjustedFrameDescriptor == "frame-a")
-    }
-
-    @Test("自ファイルの保存値があればそれを使う")
-    func initialFrameDescriptorUsesOwnSavedValueWhenPresent() {
-        let (store, _) = makeStore()
-        let url = URL(fileURLWithPath: "/tmp/own.mmd")
-        store.setFrameDescriptor("frame-own", for: url)
-
-        #expect(store.initialFrameDescriptor(for: url, lastActivePathKey: "/tmp/other.mmd") == "frame-own")
-    }
-
-    @Test("自ファイルの保存値がなければ直近アクティブだったウィンドウのフレームを使う")
-    func initialFrameDescriptorFallsBackToLastActiveWindowFrame() {
-        let (store, _) = makeStore()
-        let activePath = URL(fileURLWithPath: "/tmp/active.mmd")
-        store.setFrameDescriptor("frame-active", for: activePath)
-
-        let result = store.initialFrameDescriptor(
-            for: URL(fileURLWithPath: "/tmp/new.mmd"), lastActivePathKey: activePath.normalizedPathKey
-        )
-
-        #expect(result == "frame-active")
-    }
-
-    @Test("直近アクティブなウィンドウの記録も自ファイルの保存値もなければ最後に調整したフレームを使う")
-    func initialFrameDescriptorFallsBackToLastUserAdjustedFrameDescriptor() {
-        let (store, _) = makeStore()
-        store.recordUserAdjustedFrame("frame-elsewhere", for: URL(fileURLWithPath: "/tmp/somewhere-else.mmd"))
-
-        let result = store.initialFrameDescriptor(for: URL(fileURLWithPath: "/tmp/new.mmd"), lastActivePathKey: nil)
-
-        #expect(result == "frame-elsewhere")
-    }
-
-    @Test("記録が何もなければ nil (呼び出し側で既定のカスケード配置にフォールバックする)")
-    func initialFrameDescriptorIsNilWhenNothingRecorded() {
-        let (store, _) = makeStore()
-
-        #expect(store.initialFrameDescriptor(for: URL(fileURLWithPath: "/tmp/new.mmd"), lastActivePathKey: nil) == nil)
+        #expect(store.lastUserAdjustedFrameDescriptor == nil)
     }
 }

@@ -114,6 +114,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             codeFontPreference: CodeFontPreference(defaults: defaults),
             csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
+            windowFrame: WindowFrameStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             fileReader: fileReader,
             makeStore: { _ in

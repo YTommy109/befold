@@ -92,11 +92,14 @@ enum ViewerTabGrouping {
     /// 保存・復元されるため、組み立て規則はここ 1 箇所だけに置く。
     /// ビューアパスを 1 つも持たなければ nil(ビューアウィンドウでない・全タブが閉じた等)。
     static func makeTabGroup<Window>(
-        tabWindows: [Window], selectedWindow: Window, viewerPath: (Window) -> String?
+        tabWindows: [Window], selectedWindow: Window, viewerPath: (Window) -> String?,
+        frame: String? = nil
     ) -> SessionLayout.TabGroup? {
         let paths = tabWindows.compactMap(viewerPath)
         guard !paths.isEmpty else { return nil }
-        return SessionLayout.TabGroup(paths: paths, selectedPath: viewerPath(selectedWindow))
+        return SessionLayout.TabGroup(
+            paths: paths, selectedPath: viewerPath(selectedWindow), frame: frame
+        )
     }
 
     /// window(自身のタブグループ)を SessionLayout.TabGroup として組み立てる。
@@ -105,8 +108,15 @@ enum ViewerTabGrouping {
         makeTabGroup(
             tabWindows: tabWindows(of: window),
             selectedWindow: window.tabGroup?.selectedWindow ?? window,
-            viewerPath: viewerPath(of:)
+            viewerPath: viewerPath(of:),
+            frame: restorableFrameDescriptor(of: window)
         )
+    }
+
+    /// 復元に使える寸法。フルスクリーン中の値は通常ウィンドウの寸法として無意味なので
+    /// 記録しない(`ViewerWindowController.windowDidEndLiveResize` と同じ判定)。
+    static func restorableFrameDescriptor(of window: NSWindow) -> String? {
+        window.styleMask.contains(.fullScreen) ? nil : window.frameDescriptor
     }
 
     /// ウィンドウが「表示中のはずなのにアクティブ Space に居ない」状態かを判定する。

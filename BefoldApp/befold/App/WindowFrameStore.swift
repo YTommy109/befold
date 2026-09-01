@@ -1,59 +1,42 @@
 import Foundation
 
-/// ウィンドウのフレーム(位置＋サイズ)をファイル(ウィンドウ)毎に UserDefaults へ永続化し、
-/// 再起動後の復元と新規ウィンドウのデフォルト値解決に使う。SidebarStateStore と同型の設計。
-/// フレームは NSWindow.frameDescriptor 形式の文字列として保持する。
+/// **新しいウィンドウの出発点になる寸法**を 1 個だけ持つ（アプリ全体の好み / ADR 0002）。
+/// ユーザーが最後にリサイズしたフレームを覚え、次に開く窓へそのまま渡す。
+/// フレームは `NSWindow.frameDescriptor` 形式の文字列。
+///
+/// **ファイル単位では持たない。** かつては `WindowFrames`（正規化パス → 記述子）の辞書を
+/// 持ち、「そのファイル自身の保存値 → 直近アクティブ窓の値 → この値」の順で解決していたが、
+/// ウィンドウを開いた時点で解決結果を各ファイルへ書き戻していたため、一度開いたファイルは
+/// 以後ずっと自分の古い値で開き、あとから調整した寸法が永久に届かなかった
+/// （実測 2026-09-01: 記録 104 件のうち、最後に調整した寸法と一致するのは 1 件だけ）。
+/// TASK-583 でファイル単位の記憶をやめ、この 1 個に畳んだ。判断の経緯は
+/// `docs/adr/0010-window-frame-app-wide-default.md` を参照。
+///
+/// **URL を引数に取る API を置かない。** 置くとファイル単位で読む書き方が復活しうるので、
+/// 粒度を doc コメントではなく型の形で守る。再起動時に窓ごとの寸法を戻すのは
+/// この型ではなく `SessionLayout.TabGroup.frame`（窓の状態）の仕事。
 @MainActor
 final class WindowFrameStore {
     private static let lastUserAdjustedKey = "WindowFrameLastUserAdjusted"
 
     private let defaults: UserDefaults
-    private let frames: PathKeyedDictionary<String>
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        frames = PathKeyedDictionary(defaults: defaults, key: "WindowFrames")
     }
 
-    /// 指定ファイルの保存済みフレーム記述子を返す。保存がなければ nil。
-    func frameDescriptor(for url: URL) -> String? {
-        frames.value(for: url)
-    }
-
-    /// 指定ファイルのフレーム記述子を保存する。ウィンドウを開いた時点の解決結果を記録する用途で使い、
-    /// 「ユーザーが最後に調整したフレーム」(lastUserAdjustedFrameDescriptor)は書き換えない。
-    func setFrameDescriptor(_ descriptor: String, for url: URL) {
-        frames.setValue(descriptor, for: url)
-    }
-
-    /// ユーザーがウィンドウをリサイズ/移動したときに呼ぶ。ファイル単位の記録に加え、
-    /// 「ユーザーが最後に調整したフレーム」としても記録する。
-    func recordUserAdjustedFrame(_ descriptor: String, for url: URL) {
-        setFrameDescriptor(descriptor, for: url)
+    /// ユーザーがウィンドウをリサイズし終えたときに呼ぶ。
+    ///
+    /// **閉じたときには呼ばない。** 複数の窓を一括で閉じると `windowWillClose` の到達順は
+    /// AppKit 任せで、どの窓の寸法が残るかを制御できない。「最後に調整した寸法」という
+    /// 意味に素直な契機はリサイズの確定だけ。
+    func recordUserAdjustedFrame(_ descriptor: String) {
         defaults.set(descriptor, forKey: Self.lastUserAdjustedKey)
     }
 
-    /// ユーザーが最後に調整したフレーム記述子。未調整なら nil。
+    /// ユーザーが最後に調整したフレーム記述子。未調整なら nil
+    /// （呼び出し側が既定のサイズとカスケード配置へ縮退する）。
     var lastUserAdjustedFrameDescriptor: String? {
         defaults.string(forKey: Self.lastUserAdjustedKey)
-    }
-
-    /// 新規ウィンドウの初期フレームを、
-    /// (1) このファイル自身の保存値 → (2) 直近アクティブだったウィンドウ(ファイル)の保存値 →
-    /// (3) ユーザーが最後に調整したフレーム、の優先順で解決する。すべて記録がなければ nil を返し、
-    /// 呼び出し側で既定のカスケード配置にフォールバックする。
-    func initialFrameDescriptor(for url: URL, lastActivePathKey: String?) -> String? {
-        if let saved = frameDescriptor(for: url) { return saved }
-        if let lastActivePathKey,
-           let activeFrame = frameDescriptor(for: URL(fileURLWithPath: lastActivePathKey))
-        {
-            return activeFrame
-        }
-        return lastUserAdjustedFrameDescriptor
-    }
-
-    /// ファイルの rename / move に伴い、旧パスのフレーム記述子を新パスへ引き継ぐ。
-    func migrateFrameDescriptor(from oldURL: URL, to newURL: URL) {
-        frames.migrateValue(from: oldURL, to: newURL)
     }
 }

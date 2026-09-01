@@ -23,6 +23,8 @@ struct AppStores {
     let codeFontPreference = CodeFontPreference()
     let csvNumberFormatPreference = CsvNumberFormatPreference()
     let perFileState = PerFileStateStore()
+    /// 新しいウィンドウの出発点になる寸法。アプリ全体で 1 個(TASK-583)。
+    let windowFrame = WindowFrameStore(defaults: .standard)
     /// 「最近使ったリポジトリ」メニューの階層化に使う worktree 一覧キャッシュ。
     /// git 呼び出しは起動時と新規リポジトリ記録時の非同期解決だけで、メニュー構築では読むだけ。
     let worktreeCatalog = WorktreeCatalog()
@@ -40,6 +42,9 @@ struct AppStores {
     ///
     /// `ViewerSourceModes` / `SourceDiffEnabled` は、消えた `DisplayModeStore` の
     /// 一度きり移行が掃除していた旧キー。担い手が消えるのでここへ引き取る。
+    ///
+    /// `WindowFrames` はファイル単位のウィンドウ寸法(TASK-583 で廃止)。**移行しない**——
+    /// 記録は実測 104 件あったが、そのどれを「アプリ全体で 1 個」の値に選ぶかに根拠が無い。
     static func removeRetiredDisplayStateKeys(from defaults: UserDefaults) {
         for key in retiredDisplayStateKeys {
             defaults.removeObject(forKey: key)
@@ -53,5 +58,6 @@ struct AppStores {
         "ViewerDisplayModes",
         "ViewerSourceModes",
         "SourceDiffEnabled",
+        "WindowFrames",
     ]
 }

@@ -6,19 +6,19 @@ import AppKit
 ///
 /// ここに置くのは「AppKit がウィンドウについて通知してくること」だけで、
 /// 文書の状態の遷移(表示モード・スクロール位置)は `ViewerDocumentPresenter` の担当。
-/// フレームの保存だけはウィンドウ由来の値をファイル単位で永続化するため、この層が持つ。
+/// フレームは窓由来の値だが**保存先は持たない**。粒度がアプリ全体なので、値は delegate 越しに
+/// ウィンドウ管理層へ渡す(TASK-583)。
 @MainActor
 extension ViewerWindowController: NSWindowDelegate {
-    /// 現在のウィンドウフレーム(位置＋サイズ)を保存する。
-    /// フルスクリーン中のフレームは通常ウィンドウの寸法として無意味なため保存しない。
-    private func saveWindowFrame() {
+    /// 現在のウィンドウフレーム(位置＋サイズ)を上位へ渡す。
+    /// フルスクリーン中のフレームは通常ウィンドウの寸法として無意味なため渡さない。
+    private func reportAdjustedFrame() {
         guard let window, !window.styleMask.contains(.fullScreen) else { return }
-        perFileState.windowFrame.recordUserAdjustedFrame(window.frameDescriptor, for: fileURL)
+        delegate?.viewerWindow(self, didAdjustFrameTo: window.frameDescriptor)
     }
 
     func windowWillClose(_ notification: Notification) {
         swipeMonitor.stop()
-        saveWindowFrame()
         store.close()
         sidebar.cancelPendingListing()
         delegate?.viewerWindowWillClose(self)
@@ -31,10 +31,13 @@ extension ViewerWindowController: NSWindowDelegate {
         delegate?.viewerWindowDidBecomeKey(self)
     }
 
-    /// リサイズ完了時にのみ保存する。ライブリサイズ中は windowDidResize が毎フレーム
-    /// 飛ぶため、そこでは保存せず UserDefaults への連打を避ける。
-    /// ドラッグ移動やタイリングでの位置変更は windowWillClose 時にまとめて保存される。
+    /// リサイズ完了時にのみ記録する。ライブリサイズ中は windowDidResize が毎フレーム
+    /// 飛ぶため、そこでは記録せず UserDefaults への連打を避ける。
+    ///
+    /// **閉じたときには記録しない(TASK-583)。** 複数の窓を一括で閉じると windowWillClose の
+    /// 到達順は AppKit 任せで、どの窓の寸法が最後に残るかを制御できない。再起動時に窓ごとの
+    /// 寸法を戻すのは、この経路ではなくセッションのレイアウト(`SessionLayout.TabGroup.frame`)。
     func windowDidEndLiveResize(_ notification: Notification) {
-        saveWindowFrame()
+        reportAdjustedFrame()
     }
 }

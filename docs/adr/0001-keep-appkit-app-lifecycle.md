@@ -25,7 +25,7 @@ befold は現在 AppKit アプリライフサイクル（`@main` 付き `AppDele
 | --- | --- |
 | ネイティブ NSWindow タブの明示制御 | `tabGroup`/`addTabbedWindow`/`selectedWindow`（`ViewerWindowController`/`SessionRestorer`） |
 | セッション復元（タブ構成・順序・選択・アクティブ） | 完全自前実装、NSWindowRestoration 不使用（`SessionStore`/`SessionRestorer`） |
-| URL 単位のウィンドウフレーム永続化 | `WindowFrameStore`（`frameDescriptor`, rename 追従, 前回アクティブ引き継ぎ） |
+| ウィンドウ寸法の永続化 | `WindowFrameStore`（新規ウィンドウの出発点をアプリ全体で 1 個）と `SessionLayout.TabGroup.frame`（再起動時に窓ごとへ戻す）。URL 単位の記憶は ADR 0010 で廃止した |
 | CLI から特定ウィンドウを開く/前面化 | Distributed Notification → `openPaths` + `NSApp.activate`（`AppDelegate`/CLI 転送） |
 | 同一ファイルを複数ウィンドウで開く | `ViewerWindowManager` の辞書管理 |
 | Sparkle 自動更新 | `AppDelegate` に結合（`SPUStandardUpdaterController`/`SPUUpdaterDelegate`） |

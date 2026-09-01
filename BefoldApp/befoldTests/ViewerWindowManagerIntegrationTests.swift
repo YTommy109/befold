@@ -25,6 +25,7 @@ struct ViewerWindowManagerIntegrationTests {
             codeFontPreference: CodeFontPreference(defaults: defaults),
             csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: PerFileStateStore(defaults: defaults),
+            windowFrame: WindowFrameStore(defaults: defaults),
             bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent,
             recentRepositoriesStore: RecentRepositoriesStore(defaults: defaults)

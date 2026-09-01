@@ -19,6 +19,8 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
     /// 乗っているため、「切り替えたのに通知されない」= アイコンが取り残される。
     private(set) var diffLayoutToggleCount = 0
     private(set) var toggleSidebarTreeLayoutCalled = false
+    /// リサイズ確定で通知されたフレーム記述子。閉じたときには通知されないことも見る(TASK-583)。
+    private(set) var adjustedFrameDescriptors: [String] = []
 
     func viewerWindowWillClose(_ controller: ViewerWindowController) {
         closeCalled = true
@@ -26,6 +28,10 @@ final class MockViewerWindowControllerDelegate: ViewerWindowControllerDelegate {
 
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
         becomeKeyCalled = true
+    }
+
+    func viewerWindow(_ controller: ViewerWindowController, didAdjustFrameTo descriptor: String) {
+        adjustedFrameDescriptors.append(descriptor)
     }
 
     func viewerWindow(
