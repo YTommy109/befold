@@ -83,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             codeFontPreference: stores.codeFontPreference,
             csvNumberFormatPreference: stores.csvNumberFormatPreference,
             perFileState: stores.perFileState,
+            windowFrame: stores.windowFrame,
             bookmarkStore: stores.bookmarkStore,
             recentRepositoriesStore: stores.recentRepositoriesStore,
             // リポジトリを記録したら、その本体ルートの worktree 一覧も裏で解決し直しておく。

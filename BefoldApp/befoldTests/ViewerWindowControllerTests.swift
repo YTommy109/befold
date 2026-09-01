@@ -77,33 +77,37 @@ struct ViewerWindowControllerTests {
     // WindowFrameStore へ記録すること、(2) 注入された initialFrameDescriptor を
     // 実際のウィンドウへ適用すること、を検証する。
 
-    @Test("リサイズ完了時に WindowFrameStore へフレームが記録される")
-    func windowFrameIsRecordedOnResize() {
+    @Test("リサイズ完了時にフレームが上位へ通知される")
+    func windowFrameIsReportedOnResize() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
         let fixture = ViewerWindowControllerFixture(file: file, defaults: defaults)
         let controller = fixture.controller
+        let delegate = MockViewerWindowControllerDelegate()
+        controller.delegate = delegate
         defer { controller.close() }
-        let frame = NSRect(x: 120, y: 140, width: 900, height: 700)
-        controller.window?.setFrame(frame, display: false)
+        controller.window?.setFrame(NSRect(x: 120, y: 140, width: 900, height: 700), display: false)
 
         controller.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
 
-        #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == controller.window?.frameDescriptor)
+        #expect(delegate.adjustedFrameDescriptors == [controller.window?.frameDescriptor].compactMap(\.self))
     }
 
-    @Test("ウィンドウを閉じたときにも WindowFrameStore へフレームが記録される")
-    func windowFrameIsRecordedOnClose() throws {
+    /// **閉じたときには通知しない(TASK-583)。** 複数の窓を一括で閉じると windowWillClose の
+    /// 到達順は AppKit 任せなので、どの窓の寸法が「最後に調整した値」として残るかを
+    /// 制御できない。ここが通知すると、その順序依存が復活する。
+    @Test("ウィンドウを閉じたときにはフレームを通知しない")
+    func windowFrameIsNotReportedOnClose() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests")
         let fixture = ViewerWindowControllerFixture(file: file, defaults: defaults)
         let controller = fixture.controller
-        let frame = NSRect(x: 160, y: 180, width: 800, height: 650)
-        controller.window?.setFrame(frame, display: false)
-        let descriptor = try #require(controller.window?.frameDescriptor)
+        let delegate = MockViewerWindowControllerDelegate()
+        controller.delegate = delegate
+        controller.window?.setFrame(NSRect(x: 160, y: 180, width: 800, height: 650), display: false)
 
         controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
         controller.close()
 
-        #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == descriptor)
+        #expect(delegate.adjustedFrameDescriptors.isEmpty)
     }
 
     @Test("initialFrameDescriptor を渡すとそのフレームで開く")

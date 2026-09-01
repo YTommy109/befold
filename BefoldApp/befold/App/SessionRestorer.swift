@@ -212,6 +212,7 @@ final class SessionRestorer {
     ) {
         var previousWindow: NSWindow?
         var selectedWindow: NSWindow?
+        var firstWindow: NSWindow?
         for path in group.paths {
             guard let url = urlByPath[path] else { continue }
             let disposition: OpenDisposition = openedPaths.contains(path) ? .newWindow : .currentTab
@@ -222,8 +223,15 @@ final class SessionRestorer {
             guard let window = controller?.window else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
             ViewerTabGrouping.attachAsTab(window, to: previousWindow, select: false)
+            if firstWindow == nil { firstWindow = window }
             previousWindow = window
             if path == group.selectedPath { selectedWindow = window }
+        }
+        // 前回のこの窓の寸法へ戻す(TASK-583)。新しく開く窓はアプリ全体で 1 個の
+        // 出発点を使うが、復元だけは窓ごとの寸法を保つ。タブは 1 枚の窓を共有するので
+        // グループにつき 1 回でよく、タブ化を終えてから当てる。
+        if let frame = group.frame, let window = firstWindow {
+            window.setFrame(from: frame)
         }
         selectedWindow?.tabGroup?.selectedWindow = selectedWindow
         // 復元は選択タブをプログラムから決めるため、キー化を待たずに一覧を揃える

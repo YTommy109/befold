@@ -61,6 +61,10 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
         noteClosedIfNoWindowRemains(for: controller.fileURL)
     }
 
+    func viewerWindow(_ controller: ViewerWindowController, didAdjustFrameTo descriptor: String) {
+        manager.windowFrame.recordUserAdjustedFrame(descriptor)
+    }
+
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
         manager.sessionStore.noteActivated(controller.fileURL)
         // タブグループが壊れていない状態を観測できる唯一の契機。ここで記録しておかないと、

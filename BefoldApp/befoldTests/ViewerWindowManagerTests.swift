@@ -222,42 +222,45 @@ struct ViewerWindowManagerTests {
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
     }
 
-    @Test("既に保存済みのウィンドウフレームがあるファイルを開いても保存値は上書きされない")
-    func openViewerKeepsOwnSavedWindowFrame() {
+    /// **どのファイルを開いても、出発点は最後に調整した 1 個(TASK-583)。**
+    /// かつてはファイル自身の保存値が最優先で、開いた時点でそれを書き戻していたため、
+    /// 一度開いたファイルは自分の古い寸法に固定され、あとから調整した値が届かなかった。
+    @Test("開く寸法は、最後にユーザーが調整したフレームで決まる")
+    func openViewerUsesLastUserAdjustedFrame() {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
-        fixture.perFileState.windowFrame.setFrameDescriptor("200 200 900 700 0 0 1920 1080", for: file)
+        fixture.windowFrame.recordUserAdjustedFrame("200 200 900 700 0 0 1920 1080")
+
+        let controller = fixture.manager.openViewer(for: file)
+
+        #expect(controller?.window?.frame.size == NSSize(width: 900, height: 700))
+    }
+
+    /// 粒度がアプリ全体であることを、破れたら落ちる形で固定する。ファイル単位の記憶が
+    /// 復活すると、この期待（別ファイルでも同じ寸法）が崩れる。
+    @Test("別のファイルを開いても同じ寸法から始まる")
+    func openViewerUsesTheSameFrameForEveryFile() {
+        let first = URL(fileURLWithPath: "/mock/first.mmd")
+        let second = URL(fileURLWithPath: "/mock/second.mmd")
+        let fixture = MockedViewerWindowManager(files: [first, second])
+        defer { fixture.closeAll() }
+        fixture.windowFrame.recordUserAdjustedFrame("50 50 700 500 0 0 1920 1080")
+
+        let firstController = fixture.manager.openViewer(for: first)
+        let secondController = fixture.manager.openViewer(for: second)
+
+        #expect(firstController?.window?.frame.size == NSSize(width: 700, height: 500))
+        #expect(secondController?.window?.frame.size == NSSize(width: 700, height: 500))
+    }
+
+    /// 開いただけでは何も書かない。書き戻していたことが、グローバル値が届かなくなった原因。
+    @Test("ファイルを開いても、調整していない寸法は記録されない")
+    func openViewerDoesNotRecordFrameOnItsOwn() {
+        let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
 
         fixture.manager.openViewer(for: file)
 
-        #expect(
-            fixture.perFileState.windowFrame.frameDescriptor(for: file) == "200 200 900 700 0 0 1920 1080"
-        )
-    }
-
-    @Test("初めて開くファイルは直近アクティブだったウィンドウのフレームを引き継ぐ")
-    func openViewerInheritsLastActiveWindowFrame() {
-        let activeFile = URL(fileURLWithPath: "/mock/active.mmd")
-        let newFile = URL(fileURLWithPath: "/mock/new.mmd")
-        let fixture = MockedViewerWindowManager(files: [activeFile, newFile])
-        defer { fixture.closeAll() }
-        fixture.perFileState.windowFrame.setFrameDescriptor("50 50 700 500 0 0 1920 1080", for: activeFile)
-        fixture.sessionStore.noteActivated(activeFile)
-
-        fixture.manager.openViewer(for: newFile)
-
-        #expect(
-            fixture.perFileState.windowFrame.frameDescriptor(for: newFile) == "50 50 700 500 0 0 1920 1080"
-        )
-    }
-
-    @Test("記録が何もない新規ファイルはウィンドウフレームを記録しない(既定のカスケード配置に任せる)")
-    func openViewerLeavesWindowFrameUnsetWhenNothingToInherit() {
-        let fixture = MockedViewerWindowManager(files: [file])
-        defer { fixture.closeAll() }
-
-        fixture.manager.openViewer(for: file)
-
-        #expect(fixture.perFileState.windowFrame.frameDescriptor(for: file) == nil)
+        #expect(fixture.windowFrame.lastUserAdjustedFrameDescriptor == nil)
     }
 }

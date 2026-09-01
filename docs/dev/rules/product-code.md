@@ -93,7 +93,6 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 - 型名: UpperCamelCase（`ViewerStore`, `FileWatcher`）
 - メソッド・プロパティ: lowerCamelCase（`openFile`, `isRejected`）
 - GCD キューラベル: リバースドメイン（`com.degino.befold.filewatcher`）
-- ウィンドウ autosave 名: `Viewer-<パスベースの識別子>`
 - `@available(*, unavailable)` + `fatalError()`: Interface Builder 未使用を明示する `required init?(coder:)` に付ける
 
 ### パターン

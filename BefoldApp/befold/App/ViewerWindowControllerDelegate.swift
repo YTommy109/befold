@@ -20,6 +20,13 @@ protocol ViewerWindowControllerDelegate: AnyObject {
     /// モード切替セグメントの差分アイコンがその値を映す。ツールバーは view ベースで
     /// validate を通らないため(ADR 0002)、操作した窓を含む全窓を再同期する必要がある。
     func viewerWindowDidToggleDiffLayout(_ controller: ViewerWindowController)
+
+    /// ユーザーがウィンドウをリサイズし終えたことを伝える。
+    ///
+    /// 寸法は**アプリ全体で 1 個**の「次に開く窓の出発点」として保存する(TASK-583)。
+    /// 窓自身がストアを持たないのは、粒度がアプリ全体だから——窓ごとに書き込み先を
+    /// 持たせると、どの窓の値が残るかが窓の寿命に左右される。
+    func viewerWindow(_ controller: ViewerWindowController, didAdjustFrameTo descriptor: String)
 }
 
 /// performFileSwitch の結果。呼び出し元(明示的なファイル選択と履歴ナビゲーション)が

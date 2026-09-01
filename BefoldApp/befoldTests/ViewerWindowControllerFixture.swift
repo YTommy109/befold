@@ -50,8 +50,7 @@ struct ViewerWindowControllerFixture {
         let zoomStore = zoomStore ?? ZoomStore(defaults: defaults)
         let perFileState = PerFileStateStore(
             zoom: zoomStore,
-            sidebar: SidebarStateStore(defaults: defaults),
-            windowFrame: WindowFrameStore(defaults: defaults)
+            sidebar: SidebarStateStore(defaults: defaults)
         )
         let bookmarkStore = bookmarkStore ?? BookmarkStore(defaults: defaults)
         self.defaults = defaults

@@ -9,6 +9,20 @@ struct SessionLayout: Codable, Equatable {
         var paths: [String]
         /// このグループで選択されていたタブ
         var selectedPath: String?
+        /// この窓(タブグループ)の寸法。`NSWindow.frameDescriptor` 形式。
+        ///
+        /// **窓ごとの寸法はここに持つ(TASK-583)。** 新しく開く窓の出発点はアプリ全体で
+        /// 1 個(`WindowFrameStore`)だが、再起動の復元だけは前回の各窓の寸法へ戻す。
+        /// 記録は終了時の一括スナップショット(`SessionRestorer.currentSessionLayout`)なので、
+        /// 窓を閉じる順序に依存しない。省略可能にしてあるのは、この項目を持たない
+        /// 保存済みレイアウト(旧バージョン)をそのまま読めるようにするため。
+        var frame: String?
+
+        init(paths: [String], selectedPath: String?, frame: String? = nil) {
+            self.paths = paths
+            self.selectedPath = selectedPath
+            self.frame = frame
+        }
     }
 
     /// ウィンドウ(タブグループ)の並び
@@ -21,7 +35,7 @@ struct SessionLayout: Codable, Equatable {
             let paths = group.paths.filter { availablePaths.contains($0) }
             guard !paths.isEmpty else { return nil }
             let selectedPath = group.selectedPath.flatMap { paths.contains($0) ? $0 : nil } ?? paths.first
-            return TabGroup(paths: paths, selectedPath: selectedPath)
+            return TabGroup(paths: paths, selectedPath: selectedPath, frame: group.frame)
         }
         return SessionLayout(groups: filteredGroups)
     }
@@ -112,7 +126,8 @@ final class SessionStore {
         let renamed = layout.groups.map { group in
             SessionLayout.TabGroup(
                 paths: group.paths.map { $0 == oldPath ? newPath : $0 },
-                selectedPath: group.selectedPath == oldPath ? newPath : group.selectedPath
+                selectedPath: group.selectedPath == oldPath ? newPath : group.selectedPath,
+                frame: group.frame
             )
         }
         saveLayout(SessionLayout(groups: renamed))

@@ -150,7 +150,8 @@ BefoldApp/
 | `MainMenuBuilder` | メインメニューをコードで構築 |
 | `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす。ビューア内の一覧は文書内ジャンプのゲート（`FeatureGate.isDocumentJumpEnabled`）を必須引数で受け取り、ゲート開でのみ Enter / ⇧Return のジャンプ移動を載せ、Esc の説明を「検索バーを閉じる」から「検索バー・ジャンプバーを閉じる」へ入れ替える |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
-| `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型 |
+| `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型。各グループ（＝窓 1 枚）は寸法（`frame`）も持ち、再起動時に窓ごとの大きさを戻す（ADR 0010「窓の状態」） |
+| `WindowFrameStore` | **新しいウィンドウの出発点になる寸法**をアプリ全体で 1 個だけ永続化（`WindowFrameLastUserAdjusted`）。書く契機はリサイズの確定のみで、閉じたときには書かない（一括で閉じたときの到達順が AppKit 任せのため）。ファイル単位では持たない——URL を引数に取る API を置かないことで粒度を型で守る（ADR 0010 / TASK-583） |
 | `ZoomStore` | ファイルごとのズーム倍率を永続化（0.5〜2.0、25% 刻み） |
 | `WindowPresentationMemory` | ファイルごとのスクロール位置（レンダリング/ソース別）・表示モード（レンダリング/ソース/差分）・回転角を、**その窓の生存期間だけ**記憶する。`UserDefaults` を型の依存として持たず、永続化できない。生成するのは `ViewerDocumentPresenter` の 1 箇所だけで、窓ごとに 1 個（TASK-565）。表は「記憶の種類」で並び、面（web / PDF）では分けない——どの面がどれを使うかは能力（`canRotate` 等）が決める（TASK-574.3）。**記憶へ位置が届く経路は両面とも「切替直前の pull」1 本**。かつて web 面だけが持っていたスクロールごとの継続通知は、位置を永続化していた頃の名残なので撤去した（`PresentationMemoryWriteDirectionTests` が復活を検知する） |
 | `PathKeyedTable` | メモリ上の「正規化パス → 値」表。`PathKeyedDictionary`（永続）とキーの規約と rename 追従を揃えつつ、`UserDefaults` を持たない |

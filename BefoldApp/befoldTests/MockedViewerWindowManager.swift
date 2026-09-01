@@ -67,6 +67,7 @@ struct MockedViewerWindowManager {
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
     let perFileState: PerFileStateStore
+    let windowFrame: WindowFrameStore
     let displayDefaults: SidebarDisplayDefaults
     /// 生成される全ウィンドウが共有する差分表示設定。機能ゲートに依存しないよう
     /// isAvailable を明示して、dev/stable いずれのビルドでも同じ挙動でテストする。
@@ -90,6 +91,20 @@ struct MockedViewerWindowManager {
     ///   - directories: 存在するディレクトリとして扱う URL(例: フォルダーオープンのフォールバック検証)。
     ///   - diffReader: 渡すと、生成される全ウィンドウが共有する GitDiffLoader をこの取得器で作る。
     ///     既定の nil はローダー自体を持たない(差分を取りに行かない)。
+    /// テスト用の `ViewerStore` を作る口。init の行数を上限内に収めるため外へ出してある
+    /// （`function_body_length`）。
+    private static func makeStoreFactory(
+        fileReader: InMemoryFileReader, defaults: UserDefaults
+    ) -> (URL) -> ViewerStore {
+        { _ in
+            ViewerStore(
+                watcherFactory: { _, _, _, _ in MockFileWatcher() },
+                fileReader: fileReader,
+                defaults: defaults
+            )
+        }
+    }
+
     init(
         files: [URL], directories: [URL] = [], prefix: String = "ViewerWindowManagerTests",
         contents: String = "graph TD;", repositoryRoot: URL? = nil,
@@ -105,6 +120,7 @@ struct MockedViewerWindowManager {
         sessionStore = SessionStore(defaults: defaults)
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
         perFileState = PerFileStateStore(defaults: defaults)
+        windowFrame = WindowFrameStore(defaults: defaults)
         displayDefaults = SidebarDisplayDefaults(defaults: defaults)
         let diffDisplayPreference = DiffDisplayPreference(defaults: defaults)
         self.diffDisplayPreference = diffDisplayPreference
@@ -129,18 +145,13 @@ struct MockedViewerWindowManager {
             codeFontPreference: CodeFontPreference(defaults: defaults),
             csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
             perFileState: perFileState,
+            windowFrame: windowFrame,
             bookmarkStore: bookmarkStore,
             fileReader: fileReader,
             presentFileNotFound: { url, onRemoveBookmark in
                 fileNotFoundPresentations.record(url: url, onRemoveBookmark: onRemoveBookmark)
             },
-            makeStore: { _ in
-                ViewerStore(
-                    watcherFactory: { _, _, _, _ in MockFileWatcher() },
-                    fileReader: fileReader,
-                    defaults: defaults
-                )
-            },
+            makeStore: Self.makeStoreFactory(fileReader: fileReader, defaults: defaults),
             makeContentView: placeholderViewerContent,
             gitFileIndex: gitFileIndex,
             recentRepositoriesStore: recentRepositoriesStore
