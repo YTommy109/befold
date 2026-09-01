@@ -187,6 +187,7 @@ BefoldApp/
 | コンポーネント | 責務 |
 |---|---|
 | `ViewerStore` | 対象ファイル・表示モード・ファイル監視・削除検知を保持する `@Observable` の中核モデル |
+| `ViewerLoadStarter.start` | 読み込みの**開始**。`nonisolated` なのが要点で、ここで作る `Task` はアクターを継承せず協調プールで即座に走る。`@MainActor` の文脈で `Task {}` を作ると、切り替えで積まれた他の仕事が捌けるまで読み込みが開始すらしない（実測 2026-09-01: 開始待ちの中央値 19.23ms → 0.03ms、切り替え全体でも 21.98ms → 19.07ms / TASK-571）。**`@MainActor` を付け直すと `ViewerStoreLoadStartTests` が落ちる。** `Task.detached` は使わない（pre-commit が禁止） |
 | `ViewerContentState` | 読み込みが確定させた表示状態（content / fileType / filePath / rejectReason / 段階読み込み）の単一情報源。`ViewerStore.contentState` が窓ごとに 1 つ持つ |
 | `ShowLineNumbersSetting` | 行番号表示の設定（UserDefaults への永続化と CLI の起動限り上書き）。`ViewerStore` が窓ごとに 1 つ持つ |
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |

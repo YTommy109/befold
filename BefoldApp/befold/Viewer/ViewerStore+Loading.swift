@@ -49,27 +49,23 @@ extension ViewerStore {
         contentState.beginLoading()
         let resolved = target.resolvingSymlinksInPath()
         let fileType = pendingFileType
-        loadTask = Task {
-            await self.performLoad(
-                resolved: resolved, url: target, fileType: fileType,
-                generation: generation
+        loadTask = ViewerLoadStarter.start(
+            LoadInputs(
+                resolved: resolved, fileType: fileType,
+                fileReader: fileReader, contentLoader: contentLoader,
+                chunkedReaderFactory: makeChunkedReader
             )
+        ) { [weak self] outcome in
+            self?.applyLoaded(outcome, url: target, fileType: fileType, generation: generation)
         }
     }
 
-    /// バックグラウンドで読み込み結果を計算し、世代が最新のままなら表示状態へ適用する。
-    private func performLoad(
-        resolved: URL, url: URL, fileType: FileType, generation: Int
-    ) async {
-        let outcome = await ViewerLoadPipeline.load(
-            resolved: resolved,
-            fileType: fileType,
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: makeChunkedReader
-        )
+    /// 読み込み結果を表示状態へ適用する。世代が追い越されていれば捨てる。
+    private func applyLoaded(
+        _ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType, generation: Int
+    ) {
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
-        guard !Task.isCancelled, generation == loadGeneration else { return }
+        guard generation == loadGeneration else { return }
         apply(outcome, url: url, fileType: fileType)
     }
 
