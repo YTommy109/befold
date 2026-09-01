@@ -101,8 +101,11 @@ struct FileListViewNavigationKeyTests {
         #expect(navigated.get() == nil)
     }
 
-    @Test("Cmd+← は従来どおり上位フォルダーへ移動する")
-    func commandLeftArrowStillNavigatesToParent() {
+    /// **⌘← は上位フォルダーへ移動しない（TASK-584 で廃止）。** 本文からサイドバーへ
+    /// 戻る操作に充てた。上へ出る手段は ⌘↑ と delete に残っている（Finder も ⌘← を
+    /// 上位移動には使わない）。ここが `.handled` に戻ると、その戻る操作が奪われる。
+    @Test("Cmd+← はサイドバーでは何もしない（上位移動から外した）")
+    func commandLeftArrowNoLongerNavigatesToParent() {
         let fixture = EntriesUnderHome()
         let navigated = LockedBox<URL?>(nil)
 
@@ -116,8 +119,8 @@ struct FileListViewNavigationKeyTests {
 
         let result = view.handleKey(.leftArrow, modifiers: .command)
 
-        #expect(result == .handled)
-        #expect(navigated.get() == fixture.parentURL)
+        #expect(result == .ignored)
+        #expect(navigated.get() == nil)
     }
 
     /// カレントディレクトリがホームの外(既定の `/tmp/FileListViewTests`)なら、

@@ -22,6 +22,8 @@ protocol ViewerMenuValidationSource: AnyObject {
     var effectiveDisplayMode: ViewerDisplayMode { get }
     /// 差分レイアウトが左右分割か(⌘\\ のチェック状態)。
     var isDiffLayoutSideBySide: Bool { get }
+    /// サイドバーが畳まれているか。⌘←(サイドバーへフォーカス)の有効判定に使う。
+    var isSidebarCollapsed: Bool { get }
 }
 
 /// メインメニュー・ツールバー項目の有効判定と表示名を決める対応表。
@@ -53,6 +55,9 @@ enum ViewerMenuValidator {
             menuItem.title = ViewerCommandTitles.bookmark(isBookmarked: source.isBookmarked)
             return capabilities.canBookmark
         }
+        if let enabled = validateFocusTraversalItem(menuItem, source: source) {
+            return enabled
+        }
         if menuItem.action == #selector(ViewerWindowController.goBack(_:)) {
             return source.canGoBack
         }
@@ -73,6 +78,26 @@ enum ViewerMenuValidator {
 
     /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘\\)の validate。
     /// 自分の担当外の項目には nil を返し、呼び出し側(validate)の判定を続けさせる。
+    /// サイドバーと本文の行き来（⌘← / ⌘→ / TASK-584）。担当外なら nil。
+    ///
+    /// **⌘← は畳んでいるときだけ無効。** 行が 1 つも描かれていないサイドバーへ
+    /// フォーカスを送っても、キー操作の宛先が消えるだけになる。
+    /// かつてサイドバーの「上位フォルダーへ移動」と重なっていたが、そちらを廃止したので
+    /// 文脈で意味を分ける必要は無くなった（上へ出る手段は ⌘↑ と delete）。
+    ///
+    /// **⌘→ は常に有効。** どの種別でも「本文を読む」ことはできるので、能力では絞らない。
+    private static func validateFocusTraversalItem(
+        _ menuItem: NSMenuItem, source: some ViewerMenuValidationSource
+    ) -> Bool? {
+        if menuItem.action == #selector(ViewerWindowController.focusSidebar(_:)) {
+            return !source.isSidebarCollapsed
+        }
+        if menuItem.action == #selector(ViewerWindowController.focusContentSurface(_:)) {
+            return true
+        }
+        return nil
+    }
+
     private static func validateDisplayModeItem(
         _ menuItem: NSMenuItem, source: some ViewerMenuValidationSource
     ) -> Bool? {
@@ -147,5 +172,11 @@ extension ViewerWindowController: ViewerMenuValidationSource {
 
     var canGoForward: Bool {
         navigationHistory.canGoForward
+    }
+
+    /// 分割ビューが未配線（テストの最小構成など）なら「畳んでいない」として扱う。
+    /// 有効側へ倒すのは、判定できないことを理由に操作を塞がないため。
+    var isSidebarCollapsed: Bool {
+        sidebarCollapsible?.isSidebarCollapsed ?? false
     }
 }

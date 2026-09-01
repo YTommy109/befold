@@ -38,6 +38,7 @@ extension MainMenuBuilder {
             keyEquivalent: "s",
             modifiers: [.command]
         )
+        addFocusTraversalItems(to: menu)
         menu.addItem(.separator())
         addHistoryItems(to: menu)
         menu.addItem(.separator())
@@ -103,6 +104,25 @@ extension MainMenuBuilder {
             "menu.view.goForward",
             action: #selector(ViewerWindowController.goForward(_:)),
             keyEquivalent: "]"
+        )
+    }
+
+    /// サイドバーと本文のあいだでキーボードのフォーカスを移す項目（TASK-584）。
+    ///
+    /// **Tab ではなく ⌘← / ⌘→ にしてある。** web 面では Tab / Shift+Tab がブラウザ既定の
+    /// 文書内リンク送りに使われており（`viewer-src/keyboard.ts` はどちらも見ていない）、
+    /// 奪うと Markdown 文書のリンクをキーボードで辿れなくなる。矢印は履歴（⌘[ / ⌘]）とも
+    /// 衝突せず、PDF 面は Cmd 付きを `super` へ流し、web 面は `metaKey` で早期 return する。
+    static func addFocusTraversalItems(to menu: NSMenu) {
+        menu.addLocalizedItem(
+            "menu.view.focusSidebar",
+            action: #selector(ViewerWindowController.focusSidebar(_:)),
+            keyEquivalent: String(UnicodeScalar(UInt16(NSLeftArrowFunctionKey))!)
+        )
+        menu.addLocalizedItem(
+            "menu.view.focusContent",
+            action: #selector(ViewerWindowController.focusContentSurface(_:)),
+            keyEquivalent: String(UnicodeScalar(UInt16(NSRightArrowFunctionKey))!)
         )
     }
 

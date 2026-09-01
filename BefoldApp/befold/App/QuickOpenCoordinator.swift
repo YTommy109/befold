@@ -68,5 +68,8 @@ final class QuickOpenCoordinator {
         }
         controller.focusWindow()
         controller.switchFile(to: url)
+        // Quick Open で開いた窓は本文にフォーカスを置く（TASK-584）。パネルから選んだので、
+        // サイドバーを操作して開いたわけではない。
+        controller.focusContentSurface(nil)
     }
 }

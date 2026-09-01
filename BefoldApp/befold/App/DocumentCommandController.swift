@@ -134,6 +134,14 @@ final class DocumentCommandController {
 
     /// 本番コードからは `openBar(kind:)` を経由すること。ここへの直接呼び出しは
     /// テスト専用(`openBar` の既定モード選択を迂回してしまうため)。
+    /// キーボードのフォーカスを**いま描いている面**へ移す（⌘→ / TASK-584）。
+    ///
+    /// 能力では絞らない。どの種別でも「本文を読む」ことはできるので、フォーカスを
+    /// 渡せない面は無い。面がまだ組み上がっていなければ proxy 側が黙って何もしない。
+    func focusSurface() {
+        renderer.focusSurface()
+    }
+
     func openFind() {
         guard capabilities().canFind else { return }
         renderer.openFind()

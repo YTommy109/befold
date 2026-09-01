@@ -61,6 +61,10 @@ final class WebViewDocumentRenderer: DocumentRendering {
         return newZoom
     }
 
+    func focusSurface() {
+        webViewProxy.focusSurface()
+    }
+
     func openFind() {
         evaluate(ViewerBridge.openFindScript)
     }

@@ -117,6 +117,17 @@ extension ViewerWindowController {
         navigateHistory(by: 1)
     }
 
+    /// View > 本文へフォーカス（⌘→）。キー割り当ての理由は
+    /// `MainMenuBuilder.addFocusTraversalItems` の doc を参照。
+    @objc func focusContentSurface(_ sender: Any?) {
+        documentCommands.focusSurface()
+    }
+
+    /// View > サイドバーへフォーカス（⌘←）。畳んでいるときは項目が無効（`ViewerMenuValidator`）。
+    @objc func focusSidebar(_ sender: Any?) {
+        fileListModel.tableFocuser.focus()
+    }
+
     /// AppKit からの有効判定要求の受け口。対応表は `ViewerMenuValidator` にある。
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         ViewerMenuValidator.validate(menuItem, source: self)

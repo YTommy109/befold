@@ -125,13 +125,43 @@ const EXPECTED_MENU_ITEMS: {
     keyEquivalent: '"\\\\"',
     modifiers: ['.command'],
   },
+  // modifiers を省略しているので既定の ⌘ が付く（パースは書かれた引数だけを見るため null）。
+  {
+    localizationKey: 'menu.view.focusSidebar',
+    keyEquivalent: 'String(UnicodeScalar(UInt16(NSLeftArrowFunctionKey))!)',
+    modifiers: null,
+  },
+  {
+    localizationKey: 'menu.view.focusContent',
+    keyEquivalent: 'String(UnicodeScalar(UInt16(NSRightArrowFunctionKey))!)',
+    modifiers: null,
+  },
 ]
+
+/**
+ * AppKit の矢印キー定数を、表記に使う記号へ写す。
+ *
+ * 矢印は文字リテラルで書けない（`NSLeftArrowFunctionKey` は私用領域のスカラー値）ため、
+ * メニュー定義では `String(UnicodeScalar(UInt16(NS…FunctionKey))!)` の形になる。
+ * ここで解決しておくと、サイトの表へ載せたときの突き合わせもそのまま効く。
+ */
+const ARROW_FUNCTION_KEYS: Readonly<Record<string, string>> = {
+  NSLeftArrowFunctionKey: '←',
+  NSRightArrowFunctionKey: '→',
+  NSUpArrowFunctionKey: '↑',
+  NSDownArrowFunctionKey: '↓',
+}
 
 /** `BookmarkShortcut.keyEquivalent` のような定数参照を、実際のキーへ解決する。 */
 function resolveKeyEquivalent(expression: string): string | null {
   const literal = /^"(.*)"$/u.exec(expression)?.[1]
   // Swift のエスケープを戻す（差分レイアウトの `"\\"` は 1 文字の `\`）。
   if (literal !== undefined) return literal.replaceAll(/\\(.)/gu, '$1')
+
+  const arrow = /^String\(UnicodeScalar\(UInt16\((NS[A-Za-z]+FunctionKey)\)\)!\)$/u.exec(
+    expression,
+  )?.[1]
+  if (arrow !== undefined) return ARROW_FUNCTION_KEYS[arrow] ?? null
 
   const constant = /^BookmarkShortcut\.([A-Za-z0-9_]+)$/u.exec(expression)?.[1]
   if (constant === undefined) return null

@@ -71,6 +71,16 @@ enum SidebarKeyAction: Equatable {
         // 修飾なしの `.return` と衝突させないため、下の `.return` より前に置く。
         case .return where modifiers.contains(.command):
             commandReturn(target: target, shiftKey: modifiers.contains(.shift))
+        // ⌘← / ⌘→ はサイドバーと本文の行き来（TASK-584）。メニューのキーエクイバレントが
+        // 先に拾うが、下の修飾なしのケースは修飾キーを見ないので、ここでも明示的に譲る。
+        //
+        // **⌘← はかつて「上位フォルダーへ移動」だったが廃止した。** 上へ出る手段は
+        // ⌘↑ と delete の 2 つで足りており、Finder も ⌘← を上位移動には使わない。
+        // 手段を減らしたぶんを、面をまたぐフォーカス移動に充てている。
+        case .rightArrow where modifiers.contains(.command):
+            .ignored
+        case .leftArrow where modifiers.contains(.command):
+            .ignored
         case .return, .rightArrow, "l":
             forward(target: target, mode: mode)
         case .leftArrow, "h":

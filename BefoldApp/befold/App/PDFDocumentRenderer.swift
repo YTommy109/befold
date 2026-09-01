@@ -64,6 +64,10 @@ final class PDFDocumentRenderer: DocumentRendering {
     // MARK: - Find / Jump
 
     /// 検索バーを開く。実体は `PDFFindModel`(PDFKit の `beginFindString`)。
+    func focusSurface() {
+        pdfViewProxy.focusSurface()
+    }
+
     func openFind() {
         findModel.open()
     }

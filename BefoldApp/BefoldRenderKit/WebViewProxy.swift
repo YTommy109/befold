@@ -14,4 +14,23 @@ public final class WebViewProxy {
     public weak var renderer: ViewerRenderer?
 
     public init() {}
+
+    /// キーボードのフォーカスを**この面へ移す**。
+    ///
+    /// viewer.html 内のキー処理（`viewer-src/keyboard.ts` の document レベルの keydown）は、
+    /// WKWebView が窓の first responder でなければ届かない。サイドバーが first responder を
+    /// 握ったままだと、スペースや矢印が本文へ来ない。
+    ///
+    /// **1 周待つ。** SwiftUI が面を組み終える前に呼ぶと、その後の View の更新で
+    /// first responder が外れる（PDF 面で実測した挙動と同じ / TASK-578.2）。
+    ///
+    /// **ユーザーが明示的に本文を選んだときだけ呼ぶこと。** 開いた瞬間に奪うと、
+    /// サイドバーを矢印で流し読みしている最中にフォーカスを持って行かれる（TASK-581）。
+    public func focusSurface() {
+        let surface = webView
+        DispatchQueue.main.async {
+            guard let surface, let window = surface.window else { return }
+            window.makeFirstResponder(surface)
+        }
+    }
 }

@@ -1347,6 +1347,40 @@
         }
       }
     },
+    "menu.view.focusContent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Content"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本文へフォーカス"
+          }
+        }
+      }
+    },
+    "menu.view.focusSidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Sidebar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーへフォーカス"
+          }
+        }
+      }
+    },
     "menu.view.goBack": {
       "extractionState": "manual",
       "localizations": {

@@ -64,6 +64,12 @@ final class FakeDocumentRenderer: DocumentRendering {
         return zoomAfterChange
     }
 
+    private(set) var focusSurfaceCount = 0
+
+    func focusSurface() {
+        focusSurfaceCount += 1
+    }
+
     func openFind() {
         commands.append(.openFind)
     }

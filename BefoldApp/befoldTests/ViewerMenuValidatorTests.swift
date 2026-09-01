@@ -24,6 +24,7 @@ struct ViewerMenuValidatorTests {
         var canGoForward = false
         var effectiveDisplayMode: ViewerDisplayMode = .rendered
         var isDiffLayoutSideBySide = false
+        var isSidebarCollapsed = false
     }
 
     private func makeItem(_ action: Selector, tag: Int = 0) -> NSMenuItem {
