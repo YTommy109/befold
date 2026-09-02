@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   ZOOM_MIN,
   ZOOM_MAX,
@@ -1221,6 +1223,31 @@ describe('buildLineNumberRows', () => {
     expect(rows).toBe(
       '<tr><td class="line-content">a</td></tr><tr><td class="line-content">b</td></tr>',
     );
+  });
+
+  // 空行は <td class="line-content"></td> になる。要素が空だと line box が
+  // 生成されず <tr> の高さが 0 になり、行番号なし表示で空行が消える
+  // (実測: 行番号なしで [15, 0, 15, 0, 0, 15]px、行番号ありで全行 15px)。
+  // 生成物側にプレースホルダを入れるとコピー結果に不可視文字が混ざるので、
+  // 担保は CSS 側に置く。ここが空行を落とし始めたら気づけるようにしておく。
+  test('空行も 1 行として <tr> を作る(高さの担保は style.css 側)', () => {
+    const rows = buildLineNumberRows('a\n\nb', 1, false);
+    expect(rows).toBe(
+      '<tr><td class="line-content">a</td></tr>' +
+        '<tr><td class="line-content"></td></tr>' +
+        '<tr><td class="line-content">b</td></tr>',
+    );
+  });
+
+  test('style.css が空の line-content にも line box を作る', () => {
+    // クラスを付けるだけでは高さは出ない。見た目側の担保はここでしか測れない。
+    // :empty ではなく ::after にするのは、reflowSpanBalancedLines が開き <span> を
+    // 前置した空行が :empty に一致しないため。
+    const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.line-content::after'));
+    expect(css).toContain('.line-content::after');
+    expect(rule).toContain('display: inline-block;');
+    expect(css).not.toContain('.line-content:empty');
   });
 });
 

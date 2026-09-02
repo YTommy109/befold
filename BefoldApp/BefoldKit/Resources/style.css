@@ -326,6 +326,16 @@ body {
   background-size: calc(var(--indent-depth, 0) * 4ch) 100%;
 }
 
+/* 空行(空の <td>)は line box が生成されず <tr> の高さが 0 になり、行番号を
+   表示していないときだけ空行が消えて見える(行番号ありは数字のセルが高さを保つ)。
+   全行へ無条件に空の inline-block を足して line box を必ず作る。
+   :empty ではなく ::after にするのは、reflowSpanBalancedLines が開き <span> を
+   前置した空行が :empty に一致しないため。生成内容なのでコピー結果には入らない。 */
+.line-content::after {
+  content: "";
+  display: inline-block;
+}
+
 /* ── git 差分表示 ──
    追加・削除の地色は半透明ティントで重ねる(キャンバス色を書かない設計に従う)。
    色だけに頼らないよう、行頭に +/- の記号セルを必ず置く(viewer.js の diffRow)。 */
