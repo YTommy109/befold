@@ -22,6 +22,7 @@ import {
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   RUNNING_VERSION_LABELS,
+  RUNNING_VERSION_TABLE_LABELS,
   TOP_N,
   UNIQUE_SOURCE_LABELS,
   UNRECORDED_LABEL,
@@ -672,9 +673,10 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
         </p>
         <p class="note">
           全期間ではなく{windowLabel}に絞っている。見たいのは今も使われ続けている版で
-          あって、過去に一度でも動いた版の履歴ではないため。stable と develop を分けて
-          いるのは、develop に開発機が含まれ、混ぜると stable 利用者の分布が読めなく なるため。上位{' '}
-          {TOP_N} 件まで。
+          あって、過去に一度でも動いた版の履歴ではないため。develop は表に出していない。
+          作者の開発機しか映らないうえ、単位が「アクセス元×日」なので同じ 1 台が回線や日を
+          またぐたびに増え、利用者の分布としては読めないため（下の「確認 → 更新」には
+          残してある）。上位 {TOP_N} 件まで。
         </p>
         <p class="note">
           流入面の「ダウンロード（LP）: バージョン別」とは別物。あちらは
@@ -685,7 +687,7 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           以外のクライアント（curl など）からの確認も、バージョンを名乗らないので ここには出ない。
         </p>
         <div class="grid">
-          {RUNNING_VERSION_LABELS.map(({ key, label }) => (
+          {RUNNING_VERSION_TABLE_LABELS.map(({ key, label }) => (
             <CountTable title={`${label}: 稼働バージョン別`} rows={summary.runningVersions[key]} />
           ))}
         </div>
