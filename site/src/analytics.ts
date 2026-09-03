@@ -279,8 +279,27 @@ export const RUNNING_VERSION_LABELS: { key: RunningVersionKey; label: string }[]
   { key: 'unrecorded', label: 'アプリ（チャネル未記録）' },
 ]
 
+/** 稼働バージョン分布の鍵。develop を含まない（{@link RUNNING_VERSION_TABLE_LABELS}）。 */
+export type RunningVersionTableKey = Exclude<RunningVersionKey, 'develop'>
+
+/**
+ * 稼働バージョン分布が対象にするチャネル（`develop` を除いたもの）。
+ *
+ * develop は作者の開発機（個人 2 台 + 職場 1 台）しか映らない。しかも数える
+ * 単位は「アクセス元×日」なので、同じ 1 台が回線や日をまたぐたびに増える。
+ * 「他に利用者がいるのか」を読み取る用途には使えず、外部利用者の分布を見る
+ * stable の表の隣に並ぶと誤読を招くだけなので、この表からは外す。
+ *
+ * 転換率（`RUNNING_VERSION_LABELS` を使う「確認 → 更新」）は develop も残す。
+ * あちらは自分の機体でも更新経路が生きているかの確認に使える。
+ */
+export const RUNNING_VERSION_TABLE_LABELS: { key: RunningVersionTableKey; label: string }[] =
+  RUNNING_VERSION_LABELS.filter(
+    (entry): entry is { key: RunningVersionTableKey; label: string } => entry.key !== 'develop',
+  )
+
 /** チャネル別の稼働バージョン分布。 */
-export type RunningVersions = Record<RunningVersionKey, Count[]>
+export type RunningVersions = Record<RunningVersionTableKey, Count[]>
 
 /** 母集団ごとのユニークアクセス元数。 */
 export type UniqueSources = Record<UniqueSourceKey, number>
@@ -1201,6 +1220,7 @@ async function runningVersionBreakdown(db: D1Database, now: number): Promise<Run
                 COUNT(DISTINCT visitor_token) AS count
          FROM events
          WHERE app_version IS NOT NULL AND timestamp >= ?
+               AND COALESCE(channel, 'unrecorded') <> 'develop'
                AND ${metricExpression(METRIC_FILTERS.update_check)} AND ${HUMAN_ONLY}
          GROUP BY channel, label
        ),
@@ -1217,11 +1237,11 @@ async function runningVersionBreakdown(db: D1Database, now: number): Promise<Run
        ORDER BY channel, position`,
     )
     .bind(jstWindowStart(now, DAILY_WINDOW_DAYS))
-    .all<Count & { channel: RunningVersionKey }>()
+    .all<Count & { channel: RunningVersionTableKey }>()
 
   // 0 件のチャネルも空配列で残す（表そのものを消さないため）。
   const byChannel = {} as RunningVersions
-  for (const { key } of RUNNING_VERSION_LABELS) byChannel[key] = []
+  for (const { key } of RUNNING_VERSION_TABLE_LABELS) byChannel[key] = []
   for (const { channel, label, count } of results) {
     byChannel[channel]?.push({ label, count })
   }

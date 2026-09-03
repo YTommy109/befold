@@ -24,6 +24,7 @@ import {
   UNIQUE_SOURCE_LABELS,
   VERSION_BREAKDOWN_METRICS,
   RUNNING_VERSION_LABELS,
+  RUNNING_VERSION_TABLE_LABELS,
   TOP_N,
   METRIC_EXPR,
   metricOf,
@@ -120,7 +121,7 @@ describe('稼働中のアプリバージョン', () => {
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 2 }])
   })
 
-  it('stable と develop を混ぜない', async () => {
+  it('develop は数えない（作者の開発機しか映らない）', async () => {
     await insertUpdateCheck({
       ts: jst('2026-08-08 01:00'),
       appVersion: '1.13.1',
@@ -137,7 +138,7 @@ describe('稼働中のアプリバージョン', () => {
     const summary = await summarizeAll(env.DB, NOW)
 
     expect(summary.runningVersions.stable).toEqual([{ label: '1.13.1', count: 1 }])
-    expect(summary.runningVersions.develop).toEqual([{ label: '1.13.2-dev.4', count: 1 }])
+    expect(summary.runningVersions).not.toHaveProperty('develop')
   })
 
   it('チャネルが記録されていない行を落とさない', async () => {
@@ -203,7 +204,7 @@ describe('稼働中のアプリバージョン', () => {
   it('0 件のチャネルも表そのものは残す（未計測と 0 件を混同させない）', async () => {
     const summary = await summarizeAll(env.DB, NOW)
 
-    for (const { key } of RUNNING_VERSION_LABELS) {
+    for (const { key } of RUNNING_VERSION_TABLE_LABELS) {
       expect(summary.runningVersions[key]).toEqual([])
     }
   })

@@ -657,9 +657,10 @@ describe('稼働中のアプリバージョンの表示', () => {
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
-    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).not.toContain('アプリ（develop）: 稼働バージョン別')
     expect(body).toContain('1.13.1')
-    expect(body).toContain('1.13.2-dev.4')
+    // develop は表そのものを出さないので、その版はどこにも現れない。
+    expect(countTable(body, 'アプリ（stable）: 稼働バージョン別')).not.toContain('1.13.2-dev.4')
   })
 
   it('何を 1 と数えているかが画面に書かれている', async () => {
@@ -708,7 +709,7 @@ describe('稼働中のアプリバージョンの表示', () => {
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
-    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).not.toContain('アプリ（develop）: 稼働バージョン別')
     expect(body).toContain('アプリ（チャネル未記録）: 稼働バージョン別')
   })
 })
