@@ -21,7 +21,7 @@ import {
  *   trafficSplit 2 本（総数・区分別内訳）/ 指標別内訳 1 本（OS 別・接続元組織別・
  *   バージョン別を 1 本にまとめてあり、指標の数にも軸の数にも依らない）/
  *   eventBreakdowns 1 本
- * - delivery 1 本: eventBreakdowns
+ * - delivery 2 本: eventBreakdowns / deliveryWindow（直近 30 日の窓と日次推移）
  * - events 1 本: eventPage（次のページの有無も同じクエリで確定させる）
  *
  * この上限の目的は性能ではなく、「指標を 1 つ足すたびにクエリが 1 本増える」形への
@@ -32,7 +32,9 @@ import {
  * （os / as_org を UNION ALL で 1 本に畳んで枠を空けた）、TASK-494 も 13 のまま
  * （既存の日別推移クエリの SELECT 句へ COUNT(DISTINCT CASE WHEN ...) を並べた）。
  * TASK-492 でイベント面を足して合計 16 → 17。TASK-506 で 17 → 16
- * （バージョン別を単独クエリから指標別内訳の軸へ畳んだ）。
+ * （バージョン別を単独クエリから指標別内訳の軸へ畳んだ）。TASK-489.5 で 16 → 17
+ * （配信面に窓と日次推移のクエリを 1 本足した。累計と最終発生は既存の
+ * eventBreakdowns の SELECT 句へ相乗りさせ、窓のぶんだけを別クエリにした）。
  */
 const MAX_QUERIES_PER_PAGE = 8
 
@@ -40,7 +42,7 @@ const MAX_QUERIES_PER_PAGE = 8
  * 全ページ合計の上限。
  *
  * **ページごとの上限だけでは、面を増やすことで上限を回避できてしまう。**
- * 合計にも上限を置くことで、退行検知としての意味を保つ。現在の合計は 17 本。
+ * 合計にも上限を置くことで、退行検知としての意味を保つ。現在の合計は 18 本。
  */
 const MAX_QUERIES_TOTAL = 20
 
@@ -73,7 +75,7 @@ const SUMMARIZERS: Record<DashboardPageKey, (db: D1Database) => Promise<unknown>
   overview: async (db) => await summarizeOverview(db, NOW),
   users: async (db) => await summarizeUsers(db, NOW),
   traffic: async (db) => await summarizeTraffic(db),
-  delivery: async (db) => await summarizeDelivery(db),
+  delivery: async (db) => await summarizeDelivery(db, NOW),
   events: async (db) => await eventPage(db),
 }
 

@@ -25,6 +25,8 @@ import {
   RUNNING_VERSION_LABELS,
   RUNNING_VERSION_TABLE_LABELS,
   TOP_N,
+  DELIVERY_WINDOW_DAYS,
+  DELIVERY_RECENT_DAYS,
 } from '../src/analytics'
 
 /**
@@ -39,7 +41,7 @@ async function summarizeAll(db: D1Database, now: number) {
     summarizeOverview(db, now),
     summarizeUsers(db, now),
     summarizeTraffic(db),
-    summarizeDelivery(db),
+    summarizeDelivery(db, now),
   ])
 
   return { ...overview, ...users, ...traffic, ...delivery }
@@ -966,6 +968,102 @@ describe('イベント面のページ送り', () => {
   })
 })
 
+describe('配信面の窓と日次推移', () => {
+  /** ホスト・経路・UA・時刻を指定して 1 件記録する。 */
+  async function insertRoute(options: {
+    ts: number
+    kind: string
+    host?: string | null
+    fallback?: string | null
+    uaSummary?: string | null
+  }): Promise<void> {
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, fallback, ua_summary) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(
+        options.ts,
+        options.kind,
+        options.host ?? null,
+        options.fallback ?? null,
+        options.uaSummary ?? null,
+      )
+      .run()
+  }
+
+  it('窓の外の発生は「直近」に入らないが累計には残る', async () => {
+    // ここが効かないと、クローラが一度舐めた跡がいつまでも「まだ落ちている」と
+    // 読める（実測 2026-09-04: フォールバック 266 件のうち 262 件が 8/19-8/26 の
+    // ボット由来だった）。
+    await insertRoute({ ts: NOW, kind: 'github_fallback', fallback: 'dmg' })
+    await insertRoute({
+      ts: NOW - DAY_MS * DELIVERY_WINDOW_DAYS,
+      kind: 'github_fallback',
+      fallback: 'dmg',
+    })
+
+    const summary = await summarizeDelivery(env.DB, NOW)
+    const route = summary.fallbacks.find((entry) => entry.label === 'dmg')
+
+    expect(route?.human).toBe(2)
+    expect(route?.humanRecent).toBe(1)
+  })
+
+  it('短いほうの窓は長いほうの部分集合として数える', async () => {
+    await insertRoute({ ts: NOW, kind: 'github_fallback', fallback: 'dmg' })
+    await insertRoute({
+      ts: NOW - DAY_MS * DELIVERY_RECENT_DAYS,
+      kind: 'github_fallback',
+      fallback: 'dmg',
+    })
+
+    const summary = await summarizeDelivery(env.DB, NOW)
+    const route = summary.fallbacks.find((entry) => entry.label === 'dmg')
+
+    expect(route?.humanRecent).toBe(2)
+    expect(route?.humanLatest).toBe(1)
+  })
+
+  it('日次推移は旧ホストとフォールバックを別の系列で、窓ぶんをゼロ埋めして返す', async () => {
+    await insertRoute({ ts: NOW, kind: 'update_check', host: LEGACY_HOST })
+    await insertRoute({ ts: NOW, kind: 'visit', host: LEGACY_HOST, uaSummary: 'bot:Googlebot' })
+    await insertRoute({ ts: NOW, kind: 'github_fallback', host: CANONICAL_HOST, fallback: 'dmg' })
+
+    const summary = await summarizeDelivery(env.DB, NOW)
+    const today = summary.dailyRoutes.at(-1)
+
+    expect(summary.dailyRoutes).toHaveLength(DELIVERY_WINDOW_DAYS)
+    expect(today).toEqual({
+      day: jstDayKey(NOW),
+      legacyHuman: 1,
+      legacyBot: 1,
+      fallbackHuman: 1,
+      fallbackBot: 0,
+    })
+  })
+
+  it('旧ホストで落ちたフォールバックは両方の系列に入る', async () => {
+    // 経路を排他に振り分けると、旧ホスト側かフォールバック側のどちらかから
+    // 消える。どちらの停止判断にも要る 1 件なので両方へ足す。
+    await insertRoute({ ts: NOW, kind: 'github_fallback', host: LEGACY_HOST, fallback: 'dmg' })
+
+    const summary = await summarizeDelivery(env.DB, NOW)
+    const today = summary.dailyRoutes.at(-1)
+
+    expect(today?.legacyHuman).toBe(1)
+    expect(today?.fallbackHuman).toBe(1)
+  })
+
+  it('正規ホストへのアクセスは日次推移に出ない', async () => {
+    await insertRoute({ ts: NOW, kind: 'visit', host: CANONICAL_HOST })
+
+    const summary = await summarizeDelivery(env.DB, NOW)
+
+    expect(summary.dailyRoutes.every((point) => point.legacyHuman + point.legacyBot === 0)).toBe(
+      true,
+    )
+  })
+})
+
 describe('リクエスト先ホストと GitHub フォールバックの内訳', () => {
   /** ホストと UA を指定して 1 件記録する。 */
   async function insertHostRow(
@@ -988,8 +1086,20 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
     const { byHost } = await eventBreakdowns(env.DB)
     const byLabel = new Map(byHost.map((split) => [split.label, split]))
 
-    expect(byLabel.get(CANONICAL_HOST)).toEqual({ label: CANONICAL_HOST, human: 1, nonHuman: 0 })
-    expect(byLabel.get(LEGACY_HOST)).toEqual({ label: LEGACY_HOST, human: 1, nonHuman: 1 })
+    expect(byLabel.get(CANONICAL_HOST)).toEqual({
+      label: CANONICAL_HOST,
+      human: 1,
+      nonHuman: 0,
+      lastSeenHumanAt: NOW,
+      lastSeenBotAt: null,
+    })
+    expect(byLabel.get(LEGACY_HOST)).toEqual({
+      label: LEGACY_HOST,
+      human: 1,
+      nonHuman: 1,
+      lastSeenHumanAt: NOW,
+      lastSeenBotAt: NOW,
+    })
   })
 
   it('0 件の既知ホストも行として残る', async () => {
@@ -1002,10 +1112,14 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
     for (const host of RECORDED_HOSTS) {
       expect(byHost.map((split) => split.label)).toContain(host)
     }
+    // 最終発生は 0 ではなく null。0 を入れると画面が 1970 年を描き、
+    // 「一度も来ていない」が「大昔に来た」に化ける。
     expect(byHost.find((split) => split.label === LEGACY_HOST)).toEqual({
       label: LEGACY_HOST,
       human: 0,
       nonHuman: 0,
+      lastSeenHumanAt: null,
+      lastSeenBotAt: null,
     })
   })
 
@@ -1018,6 +1132,8 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
       label: UNRECORDED_LABEL,
       human: 1,
       nonHuman: 0,
+      lastSeenHumanAt: NOW,
+      lastSeenBotAt: null,
     })
     expect(byHost.find((split) => split.label === CANONICAL_HOST)?.human).toBe(0)
   })
@@ -1035,8 +1151,8 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
 
     // fallback を持たない行は入らない（download が経路として数えられない）。
     expect(byFallback).toEqual([
-      { label: 'appcast', human: 1, nonHuman: 0, lastSeenAt: NOW },
-      { label: 'dmg', human: 1, nonHuman: 0, lastSeenAt: NOW },
+      { label: 'appcast', human: 1, nonHuman: 0, lastSeenHumanAt: NOW, lastSeenBotAt: null },
+      { label: 'dmg', human: 1, nonHuman: 0, lastSeenHumanAt: NOW, lastSeenBotAt: null },
     ])
   })
 
@@ -1052,7 +1168,31 @@ describe('リクエスト先ホストと GitHub フォールバックの内訳',
 
     const { byFallback } = await eventBreakdowns(env.DB)
 
-    expect(byFallback).toEqual([{ label: 'dmg', human: 2, nonHuman: 0, lastSeenAt: NOW }])
+    expect(byFallback).toEqual([
+      { label: 'dmg', human: 2, nonHuman: 0, lastSeenHumanAt: NOW, lastSeenBotAt: null },
+    ])
+  })
+
+  it('最後に発生した時刻を人間とロボットで分ける', async () => {
+    // 停止条件は人間が来なくなったかで決まる。混ぜた最終発生はロボットが作り続ける
+    // （実測 2026-09-04: 旧ホストの直近の発生は Googlebot と Meta-ExternalAgent で、
+    // Sparkle は 08-21 が最後だった）。
+    await insertHostRow('update_check', LEGACY_HOST, 'Sparkle')
+    await env.DB.prepare(
+      'INSERT INTO events (timestamp, kind, host, ua_summary) VALUES (?, ?, ?, ?)',
+    )
+      .bind(NOW + DAY_MS, 'visit', LEGACY_HOST, 'bot:Googlebot')
+      .run()
+
+    const { byHost } = await eventBreakdowns(env.DB)
+
+    expect(byHost.find((split) => split.label === LEGACY_HOST)).toEqual({
+      label: LEGACY_HOST,
+      human: 1,
+      nonHuman: 1,
+      lastSeenHumanAt: NOW,
+      lastSeenBotAt: NOW + DAY_MS,
+    })
   })
 
   it('不正なリクエストと R2 の欠落を別の経路として数える', async () => {

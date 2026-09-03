@@ -136,7 +136,7 @@ const RENDERERS: Record<
     )
   },
   delivery: async (c, page) => {
-    const summary = await summarizeDelivery(c.env.DB)
+    const summary = await summarizeDelivery(c.env.DB, Date.now())
     return c.html(
       <DashboardPageShell page={page}>
         <DeliverySections summary={summary} />
