@@ -7,7 +7,7 @@
  */
 
 import { CHANNELS } from './lib/github'
-import { RECORDED_HOSTS } from './lib/hosts'
+import { LEGACY_HOST, RECORDED_HOSTS } from './lib/hosts'
 import {
   DAY_MS,
   JST_DAY_EXPR,
@@ -455,8 +455,9 @@ export type TrafficSummary = {
 
 /** 配信面: 配布ホストと旧経路・フォールバック。 */
 export type DeliverySummary = {
-  hosts: Split[]
-  fallbacks: FallbackSplit[]
+  hosts: RouteSplit[]
+  fallbacks: RouteSplit[]
+  dailyRoutes: DeliveryDailyPoint[]
 }
 
 /**
@@ -479,6 +480,20 @@ export const KIND_LABELS: { kind: MetricKey; label: string }[] = [
 
 /** 日別推移・時間帯分布が対象にする窓（当日を含む直近 N 日）。 */
 export const DAILY_WINDOW_DAYS = 14
+
+/**
+ * 配信面の日次推移と「直近」列が対象にする窓（当日を含む直近 N 日）。
+ *
+ * **`DAILY_WINDOW_DAYS`（14 日）を流用しない。** 停止判断で読みたいのは
+ * 「一過性のクローラのスパイクだったのか、今も続く流入なのか」で、これは
+ * 発生から 2 週間では判別が付かない。実測（2026-09-04）では GitHub フォールバック
+ * 266 件のうち 2026-08-19〜08-21 の 172 件がクローラの一斉巡回だったが、14 日窓では
+ * その 3 日が窓の外へ落ち、肝心のスパイクが画面から消える。
+ */
+export const DELIVERY_WINDOW_DAYS = 30
+
+/** 配信面の「直近」列のうち短いほうの窓（当日を含む直近 N 日）。 */
+export const DELIVERY_RECENT_DAYS = 7
 /**
  * 内訳を切り出す上位 N 件。ダッシュボードの注記もこの値を読む（画面の説明と
  * 実際の切り出し件数がずれないように、数字を書き写さない）。
@@ -848,23 +863,62 @@ export type VisitBreakdowns = {
 export type EventBreakdowns = {
   visits: VisitBreakdowns
   /** リクエスト先ホスト別（全 kind）。0 件の既知ホストも行として残す。 */
-  byHost: Split[]
+  byHost: RouteTotals[]
   /** GitHub へ落ちた経路別（kind='github_fallback' のみ）。 */
-  byFallback: FallbackSplit[]
+  byFallback: RouteTotals[]
 }
 
 /**
- * フォールバック経路 1 つぶんの件数と、**最後に発生した時刻**（epoch ms）。
+ * 停止判断の対象になる経路 1 つぶん（旧ホスト・GitHub フォールバックの両方）。
  *
- * 累計だけでは「直近は落ちていない」が読めない。一度でも発生すると件数は
- * 二度と減らないため、GitHub 経路を止めてよいか（ADR 0007 / TASK-489）の判断は
- * 「最後にいつ落ちたか」でしか付かない。ホスト別（`Split`）にこの列を足さないのは、
- * あちらが「0 件の既知ホストも行として残す」表で、最終発生時刻を持たない行が
- * 常に混ざるため（意味の違う 2 つの表を同じ型にすると片方だけ直る）。
+ * **かつてホスト別（`Split`）とフォールバック別（`FallbackSplit`）で型を分けていた。**
+ * 理由は「0 件の既知ホストも行として残す表には最終発生時刻を持たない行が常に
+ * 混ざる」であり、当時は妥当だった。TASK-489.5 で両表とも「この経路を止めて
+ * よいか」を読むための同じ表になったので統一する。0 件の行は最終発生を `null` で
+ * 表し、行を残すかどうかの違いは型ではなく畳む関数（`foldHosts` / `foldFallbacks`）が持つ。
  *
- * `null` にはならない。この配列は発生した行だけから作る。
+ * **`Split` を拡張しない。** あちらは `visits.byPage` などページ・言語別の内訳とも
+ * 共有する型で、停止判断の列を足すと無関係な表がその値を運ぶことになる。
+ *
+ * 人間とロボットの最終発生を分けて持つ。停止条件は人間の有無で決まるのに、
+ * 実測（2026-09-04）では旧ホストの直近の発生が Googlebot / Meta-ExternalAgent で、
+ * 混ぜた最終発生では「まだ人間が来ている」と読めてしまう。
+ *
+ * 窓別の件数は人間だけを持つ。ロボットの推移は日次グラフで読む（表を 9 列にしない）。
  */
-export type FallbackSplit = Split & { lastSeenAt: number }
+export type RouteTotals = {
+  label: string
+  human: number
+  nonHuman: number
+  /** 人間の最終発生（epoch ms）。一度も無ければ null。 */
+  lastSeenHumanAt: number | null
+  /** ロボット・自動アクセスの最終発生（epoch ms）。一度も無ければ null。 */
+  lastSeenBotAt: number | null
+}
+
+/**
+ * 経路 1 つぶんの表示用の値。全期間の累計（`RouteTotals`）に窓の件数を重ねたもの。
+ *
+ * **窓の件数を `RouteTotals` に持たせない。** 累計と最終発生は全期間を走る
+ * `eventBreakdowns`、窓は `deliveryWindow` と、取得元が別のクエリになる。
+ * 1 つの型にすると `eventBreakdowns` が窓の列を 0 のまま返すことになり、
+ * 「まだ埋めていない 0」と「本当に 0 件」が型の上で区別できなくなる。
+ */
+export type RouteSplit = RouteTotals & {
+  /** 直近 `DELIVERY_WINDOW_DAYS` 日の人間の件数。 */
+  humanRecent: number
+  /** 直近 `DELIVERY_RECENT_DAYS` 日の人間の件数。 */
+  humanLatest: number
+}
+
+/** 停止判断の対象になる経路の日次推移 1 日ぶん。 */
+export type DeliveryDailyPoint = {
+  day: string
+  legacyHuman: number
+  legacyBot: number
+  fallbackHuman: number
+  fallbackBot: number
+}
 
 /**
  * 内訳を 1 本のクエリで取り、軸ごとに TS 側で畳む。
@@ -939,15 +993,15 @@ type BreakdownRow = {
  * 列の導入前に記録された行（host が NULL）は当時どのホストで応答したかを
  * 復元できないため、既知ホストに混ぜず `UNRECORDED_LABEL` で分けて出す。
  */
-function foldHosts(rows: BreakdownRow[]): Split[] {
-  const splits = new Map<string, Split>(
-    RECORDED_HOSTS.map((host) => [host, { label: host, human: 0, nonHuman: 0 }]),
+function foldHosts(rows: BreakdownRow[]): RouteTotals[] {
+  const splits = new Map<string, RouteTotals>(
+    RECORDED_HOSTS.map((host) => [host, emptyRoute(host)]),
   )
 
   for (const row of rows) {
     const label = row.host ?? UNRECORDED_LABEL
-    const split = splits.get(label) ?? { label, human: 0, nonHuman: 0 }
-    addTo(split, row)
+    const split = splits.get(label) ?? emptyRoute(label)
+    addRouteRow(split, row)
     splits.set(label, split)
   }
 
@@ -963,25 +1017,44 @@ function foldHosts(rows: BreakdownRow[]): Split[] {
  * 行が無い経路は行として出さない（ホスト別と逆）。まだ一度も落ちていない経路に
  * 「最後に発生した時刻」は無く、0 の行を作ると空欄の意味を説明する羽目になる。
  */
-function foldFallbacks(rows: BreakdownRow[]): FallbackSplit[] {
-  const byLabel = new Map<string, FallbackSplit>()
+function foldFallbacks(rows: BreakdownRow[]): RouteTotals[] {
+  const byLabel = new Map<string, RouteTotals>()
 
   for (const row of rows) {
     if (row.fallback === null) continue
-    const split = byLabel.get(row.fallback) ?? {
-      label: row.fallback,
-      human: 0,
-      nonHuman: 0,
-      lastSeenAt: 0,
-    }
-    addTo(split, row)
-    split.lastSeenAt = Math.max(split.lastSeenAt, row.last_seen_at)
+    const split = byLabel.get(row.fallback) ?? emptyRoute(row.fallback)
+    addRouteRow(split, row)
     byLabel.set(row.fallback, split)
   }
 
   return [...byLabel.values()].toSorted(
     (a, b) => b.human + b.nonHuman - (a.human + a.nonHuman) || a.label.localeCompare(b.label),
   )
+}
+
+/** 発生 0 件の経路。最終発生は「無い」ので null で、0 を入れて 1970 年を描かせない。 */
+function emptyRoute(label: string): RouteTotals {
+  return { label, human: 0, nonHuman: 0, lastSeenHumanAt: null, lastSeenBotAt: null }
+}
+
+/**
+ * 集約済みの 1 行を経路へ足す。**最終発生は人間とロボットで別の列に入れる。**
+ *
+ * `is_non_human` は GROUP BY に入っているので、行そのものがどちらか一方に属する。
+ * ここで混ぜると「停止条件は人間で決まるのに、最終発生はロボットが作っている」
+ * 状態を読めなくする（実測 2026-09-04: 旧ホストの直近の発生は Googlebot と
+ * Meta-ExternalAgent で、Sparkle は 08-21 が最後）。
+ *
+ * 窓別の件数はここでは足さない。全期間の集約行には窓の情報が無く、`deliveryWindow`
+ * の別クエリが持つ（合流は `withWindowCounts`）。
+ */
+function addRouteRow(split: RouteTotals, row: BreakdownRow): void {
+  addTo(split, row)
+  if (row.is_non_human === 1) {
+    split.lastSeenBotAt = Math.max(split.lastSeenBotAt ?? 0, row.last_seen_at)
+  } else {
+    split.lastSeenHumanAt = Math.max(split.lastSeenHumanAt ?? 0, row.last_seen_at)
+  }
 }
 
 /** 集約済みの行を 1 軸へ畳む。件数の多い順、同数ならラベル順。 */
@@ -1471,11 +1544,139 @@ export async function summarizeTraffic(db: D1Database): Promise<TrafficSummary> 
   }
 }
 
-/** 配信面の集計（1 クエリ）。 */
-export async function summarizeDelivery(db: D1Database): Promise<DeliverySummary> {
-  const breakdownAxes = await eventBreakdowns(db)
+/**
+ * 配信面の集計（2 クエリ）。
+ *
+ * 窓の長さは戻り値に載せず、表示側が `DELIVERY_WINDOW_DAYS` /
+ * `DELIVERY_RECENT_DAYS` を直接読む。面ごとの集計を 1 つへ畳んで検証している
+ * テスト（analytics.test.ts の `summarizeAll`）で `windowDays` が利用者面の 14 と
+ * 衝突し、片方が黙って上書きされるため。
+ *
+ * 全期間の累計と最終発生は `eventBreakdowns`、直近の窓と日次推移は
+ * `deliveryWindow` が持つ。**累計だけでは停止判断ができない**ため両方を引く——
+ * 累計は一度発生すると二度と減らず、クローラの一斉巡回が残した数がいつまでも
+ * 「まだ落ちている」ように見える（実測 2026-09-04: GitHub フォールバック 266 件の
+ * うち 262 件が 8/19-8/26 のボット由来）。
+ */
+export async function summarizeDelivery(db: D1Database, now: number): Promise<DeliverySummary> {
+  const [breakdownAxes, window] = await Promise.all([eventBreakdowns(db), deliveryWindow(db, now)])
 
-  return { hosts: breakdownAxes.byHost, fallbacks: breakdownAxes.byFallback }
+  return {
+    hosts: withWindowCounts(breakdownAxes.byHost, window.byHost),
+    fallbacks: withWindowCounts(breakdownAxes.byFallback, window.byFallback),
+    dailyRoutes: window.daily,
+  }
+}
+
+/** `deliveryWindow` が返す、窓の中だけの人間の件数（経路ラベル → 件数）。 */
+type WindowCounts = Map<string, { recent: number; latest: number }>
+
+/** 全期間の集約に、窓の中の人間の件数を重ねる。窓に出てこない経路は 0 のまま。 */
+function withWindowCounts(routes: RouteTotals[], counts: WindowCounts): RouteSplit[] {
+  return routes.map((route) => {
+    const hit = counts.get(route.label)
+    return {
+      ...route,
+      humanRecent: hit?.recent ?? 0,
+      humanLatest: hit?.latest ?? 0,
+    }
+  })
+}
+
+/**
+ * 配信面の窓（直近 `DELIVERY_WINDOW_DAYS` 日）を 1 本のクエリで取る。
+ *
+ * 表の「直近」列と日次推移グラフの両方をこの 1 本から作る。窓の集計を軸ごとに
+ * 引くと `query-count.test.ts` の上限に当たるうえ、同じ窓を 2 回定義することになる。
+ *
+ * **`HUMAN_ONLY` を掛けない。** この面は「人間はもう来ていないが、ロボットが
+ * 最終発生を作り続けている」を読むためのもので、ロボット側を落とすと停止判断が
+ * できない。`eventBreakdowns` と同じ理由で `NON_HUMAN_MATCH` を式として使い、
+ * 人間かどうかは行の属性として返す（analytics.test.ts の自動アクセス除外の検査は
+ * この形を除外側として認める）。
+ *
+ * 日の丸めは `JST_DAY_EXPR`、窓の起点は `jstWindowStart`。どちらも `lib/jst` が
+ * 唯一の定義元で、ここに書き下ろさない。
+ */
+async function deliveryWindow(
+  db: D1Database,
+  now: number,
+): Promise<{ byHost: WindowCounts; byFallback: WindowCounts; daily: DeliveryDailyPoint[] }> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${JST_DAY_EXPR} AS day,
+              host, fallback, COUNT(*) AS count,
+              ${NON_HUMAN_MATCH} AS is_non_human
+       FROM events
+       WHERE timestamp >= ?
+       GROUP BY day, host, fallback, is_non_human`,
+    )
+    .bind(jstWindowStart(now, DELIVERY_WINDOW_DAYS))
+    .all<WindowRow>()
+
+  // 短い窓は日付の集合で判定する。ミリ秒で比べ直すと、SQL 側の日の丸めと
+  // TS 側の境界がずれたときに列とグラフで食い違う（境界の定義元を 1 つに保つ）。
+  const latestDays = new Set(jstDaysInWindow(now, DELIVERY_RECENT_DAYS))
+
+  const byHost: WindowCounts = new Map()
+  const byFallback: WindowCounts = new Map()
+  const byDay = new Map<string, DeliveryDailyPoint>()
+
+  for (const row of results) {
+    const isLatest = latestDays.has(row.day)
+    if (row.is_non_human === 0) {
+      addWindowCount(byHost, row.host ?? UNRECORDED_LABEL, row.count, isLatest)
+      if (row.fallback !== null) addWindowCount(byFallback, row.fallback, row.count, isLatest)
+    }
+
+    const point = byDay.get(row.day) ?? {
+      day: row.day,
+      legacyHuman: 0,
+      legacyBot: 0,
+      fallbackHuman: 0,
+      fallbackBot: 0,
+    }
+    // 1 件が旧ホストとフォールバックの両方に当たりうる（旧ホストで R2 が外した
+    // 場合）。行を排他に振り分けず、両方の系列へ足す。
+    if (row.host === LEGACY_HOST) {
+      if (row.is_non_human === 1) point.legacyBot += row.count
+      else point.legacyHuman += row.count
+    }
+    if (row.fallback !== null) {
+      if (row.is_non_human === 1) point.fallbackBot += row.count
+      else point.fallbackHuman += row.count
+    }
+    byDay.set(row.day, point)
+  }
+
+  const daily = jstDaysInWindow(now, DELIVERY_WINDOW_DAYS).map(
+    (day) =>
+      byDay.get(day) ?? { day, legacyHuman: 0, legacyBot: 0, fallbackHuman: 0, fallbackBot: 0 },
+  )
+
+  return { byHost, byFallback, daily }
+}
+
+/** `deliveryWindow` が受け取る 1 行。 */
+type WindowRow = {
+  day: string
+  host: string | null
+  fallback: string | null
+  is_non_human: number
+  count: number
+}
+
+/** 窓の件数を経路ラベルへ足す。短い窓は長い窓の部分集合なので二重には数えない。 */
+function addWindowCount(
+  counts: WindowCounts,
+  label: string,
+  count: number,
+  isLatest: boolean,
+): void {
+  const hit = counts.get(label) ?? { recent: 0, latest: 0 }
+  hit.recent += count
+  if (isLatest) hit.latest += count
+  counts.set(label, hit)
 }
 
 /**
