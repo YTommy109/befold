@@ -13,20 +13,32 @@ enum CLIShimCoordinator {
     /// メニュー構築)をブロックしない。案内も app-modal な `runModal()` ではなく通知センターの
     /// バナー通知で表示し、表示中も CLI 転送の ACK 応答が main run loop 上で通常どおり
     /// 処理され続けるようにする。
+    ///
+    /// Debug ビルドでは何もしない。判定は symlink の参照先と「起動中のアプリの bundlePath」の
+    /// 文字列一致で行うため、DerivedData や .build 配下から起動する開発ビルドでは、
+    /// `/usr/local/bin/befold` が正しくリリース版を指していても必ず staleSymlink に見える。
+    /// 開発中に毎回出る誤検知でしかないので、案内自体をリリースビルドに限る。
     @MainActor
     static func notifyIfStale() {
-        let bundlePath = Bundle.main.bundlePath
-        // App Translocation 下では bundlePath がランダム化された一時マウントを指すため、
-        // 正しく設置済みの symlink でも参照先不一致(staleSymlink)に見えてしまう。
-        // ここで案内しても再インストールは translocatedBundle で断られるだけなので黙る。
-        guard !CLIInstaller.isTranslocated(bundlePath: bundlePath) else { return }
-        DispatchQueue.global(qos: .utility).async {
-            let status = CLIShimInspector.status(bundlePath: bundlePath, installPath: CLIInstaller.defaultInstallPath)
-            guard status == .legacyFile || status == .staleSymlink else { return }
-            Task { @MainActor in
-                await CLIInstallUI.presentReinstallRecommended()
+        #if DEBUG
+            return
+        #else
+            let bundlePath = Bundle.main.bundlePath
+            // App Translocation 下では bundlePath がランダム化された一時マウントを指すため、
+            // 正しく設置済みの symlink でも参照先不一致(staleSymlink)に見えてしまう。
+            // ここで案内しても再インストールは translocatedBundle で断られるだけなので黙る。
+            guard !CLIInstaller.isTranslocated(bundlePath: bundlePath) else { return }
+            DispatchQueue.global(qos: .utility).async {
+                let status = CLIShimInspector.status(
+                    bundlePath: bundlePath,
+                    installPath: CLIInstaller.defaultInstallPath
+                )
+                guard status == .legacyFile || status == .staleSymlink else { return }
+                Task { @MainActor in
+                    await CLIInstallUI.presentReinstallRecommended()
+                }
             }
-        }
+        #endif
     }
 
     /// メニューの「Install 'befold' command in PATH」。/usr/local/bin に CLI コマンドの symlink を設置する。
