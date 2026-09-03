@@ -4,13 +4,11 @@ title: 条件を満たした旧世代の配布経路を実際に停止する
 status: To Do
 assignee: []
 created_date: '2026-08-16 02:01'
-updated_date: '2026-08-17 14:52'
+updated_date: '2026-09-03 15:24'
 labels: []
 milestone: m-8
 dependencies:
-  - TASK-489.1
-  - TASK-488.3
-  - TASK-495
+  - TASK-489.5
 parent_task_id: TASK-489
 priority: low
 type: chore
@@ -54,4 +52,6 @@ TASK-489.1 の ADR が存在し、TASK-489.2 の観測でその条件を満た�
 
 <!-- SECTION:NOTES:BEGIN -->
 着手不可。TASK-489.1（停止条件の ADR）と TASK-489.2（観測）の両方が完了し、観測値が条件を満たしたことを確認できるまで着手しない。再開判断の材料: ダッシュボードで旧ホストの appcast アクセスと GitHub フォールバック発生数が条件どおりゼロ継続しているか。
+
+TASK-489.2 は起票されていなかった。観測は **TASK-489.5** が用意する。Description・Notes 中の「TASK-489.2」はこれを指す（依存にも追加済み）。
 <!-- SECTION:NOTES:END -->
