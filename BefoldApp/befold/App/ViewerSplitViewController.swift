@@ -43,7 +43,7 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         super.init(nibName: nil, bundle: nil)
 
         sidebarItem.minimumThickness = 200
-        sidebarItem.maximumThickness = 360
+        sidebarItem.maximumThickness = 480
         sidebarItem.canCollapse = true
 
         let contentItem = NSSplitViewItem(viewController: NSHostingController(rootView: content))
