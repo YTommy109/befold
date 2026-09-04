@@ -153,8 +153,10 @@ enum ViewerWindowAssembler {
                 guard let controller else { return }
                 controller.fileListModel.tableFocuser.cancelPendingFocus()
                 // 畳んだままスライドモードが残ると、次に開いたときアイコン幅で戻る。
-                SlideModeExitOnHide.apply(to: controller.fileListModel)
-                controller.sidebarCollapsible?.setSlideMode(false)
+                SlideModeCoordinator.setEnabled(
+                    false, model: controller.fileListModel,
+                    collapsible: controller.sidebarCollapsible
+                )
             }
         )
         controller.sidebarCollapsible = splitViewController

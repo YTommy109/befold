@@ -134,17 +134,9 @@ extension ViewerWindowController {
     }
 
     /// View > スライドモード。畳んでいるときは項目が無効（`ViewerMenuValidator`）。
-    ///
-    /// 状態（`fileListModel`）と幅（`sidebarCollapsible`）を**必ずこの順で**更新する。
-    /// 幅を先に変えると、ヘッダーが 1 フレームだけ広いまま描かれる。
+    /// 手順の実体は `SlideModeCoordinator`（順序をこことヘッダーで二重に持たない）。
     @objc func toggleSlideMode(_ sender: Any?) {
-        let next = !fileListModel.isSlideMode
-        fileListModel.setSlideMode(next)
-        sidebarCollapsible?.setSlideMode(next)
-        if next {
-            // これがこのモードの目的そのもの。カーソルキーでファイルを送れるようにする。
-            fileListModel.tableFocuser.focus()
-        }
+        SlideModeCoordinator.toggle(model: fileListModel, collapsible: sidebarCollapsible)
     }
 
     /// AppKit からの有効判定要求の受け口。対応表は `ViewerMenuValidator` にある。

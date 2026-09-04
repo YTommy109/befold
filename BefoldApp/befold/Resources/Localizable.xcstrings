@@ -2877,23 +2877,23 @@
       }
     },
     "sidebar.slideMode.exit": {
-  "extractionState": "manual",
-  "localizations": {
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Exit Slide Mode"
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit Slide Mode"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スライドモードを終了"
+          }
+        }
       }
     },
-    "ja": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "スライドモードを終了"
-      }
-    }
-  }
-},
-"sidebar.path.menu.help" : {
+    "sidebar.path.menu.help" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
