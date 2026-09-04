@@ -3,35 +3,34 @@ import CoreGraphics
 import Testing
 
 /// スライドモードのサイドバー幅の幾何。GUI 層は自動テスト対象外なので、
-/// 「アイコンは見えてファイル名は隠れる」を測れるのはこの純粋関数だけ。
+/// 「アイコンは見えてファイル名は隠れる」を測れるのはこの値だけ。
 @Suite
 struct SidebarSlideMetricsTests {
-    @Test("幅は行の左端からアイコン右端までの合計に List のインセットを足したもの")
-    func widthSumsRowGeometryAndListInset() {
+    @Test("thickness は行の左右パディング・三角・間隔・アイコンの合計")
+    func thicknessSumsRowGeometry() {
         let expected = SidebarRowIndent.rowHorizontalPadding * 2
             + SidebarRowIndent.disclosureWidth
             + SidebarSlideMetrics.rowContentSpacing
             + SidebarSlideMetrics.iconWidth
-            + 7
 
-        #expect(SidebarSlideMetrics.width(listInset: 7) == expected)
+        #expect(SidebarSlideMetrics.thickness == expected)
     }
 
-    @Test("既定の幅は実測した List のインセットを使う")
-    func defaultWidthUsesMeasuredInset() {
+    @Test("アイコンは切れず、名前の分の余地は残らない")
+    func thicknessShowsIconAndHidesName() {
+        // アイコンの右端を下回るとアイコンが切れる。
+        #expect(SidebarSlideMetrics.thickness >= SidebarSlideMetrics.iconTrailingEdge)
+        // アイコンの右に残るのは行の右パディングだけ。名前が入る余地を作らない。
         #expect(
-            SidebarSlideMetrics.width
-                == SidebarSlideMetrics.width(listInset: SidebarSlideMetrics.measuredListInset)
+            SidebarSlideMetrics.thickness - SidebarSlideMetrics.iconTrailingEdge
+                == SidebarRowIndent.rowHorizontalPadding
         )
     }
 
-    @Test("ファイル名が始まる位置より広く、通常の下限より狭い")
-    func widthSitsBetweenIconColumnAndMinimumSidebarWidth() {
-        let iconRightEdge = SidebarRowIndent.rowHorizontalPadding
-            + SidebarRowIndent.disclosureWidth
-            + SidebarSlideMetrics.rowContentSpacing
-            + SidebarSlideMetrics.iconWidth
-        #expect(SidebarSlideMetrics.width > iconRightEdge)
-        #expect(SidebarSlideMetrics.width < 200)
+    @Test("通常モードの下限(200)より明確に狭い")
+    func thicknessIsNarrowerThanMinimumSidebarWidth() {
+        // ViewerSplitViewController.minimumSidebarWidth はジェネリック型の静的プロパティで
+        // テストから具体化しづらいため、値そのものを書く。両方を変えるときは揃えること。
+        #expect(SidebarSlideMetrics.thickness < 200)
     }
 }

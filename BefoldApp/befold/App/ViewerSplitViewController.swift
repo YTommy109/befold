@@ -126,9 +126,9 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
             guard thicknessBeforeSlideMode == nil else { return }
             thicknessBeforeSlideMode = sidebarItem.viewController.view.frame.width
             setAutosaveEnabled(false)
-            sidebarItem.minimumThickness = SidebarSlideMetrics.width
-            sidebarItem.maximumThickness = SidebarSlideMetrics.width
-            splitView.setPosition(SidebarSlideMetrics.width, ofDividerAt: 0)
+            sidebarItem.minimumThickness = SidebarSlideMetrics.thickness
+            sidebarItem.maximumThickness = SidebarSlideMetrics.thickness
+            splitView.setPosition(SidebarSlideMetrics.thickness, ofDividerAt: 0)
         } else {
             guard let restored = thicknessBeforeSlideMode else { return }
             thicknessBeforeSlideMode = nil

@@ -12,26 +12,29 @@ enum SidebarSlideMetrics {
     /// 行アイコンの一辺(`FileListEntryRow` の nameLabel が与える frame)。
     static let iconWidth: CGFloat = 16
 
-    /// `List`(NSTableView 裏打ち)が行の外側に持つ左右のインセットの実測値。
+    /// `NSSplitViewItem` の thickness に渡す幅。
     ///
-    /// **机上では出せない値**なので、実機で幅を詰めて測った結果をここに焼く。
-    /// 測り方と根拠は TASK-585 の Implementation Notes に残す。
-    static let measuredListInset: CGFloat = 0
-
-    /// 与えられた `List` のインセットに対するスライドモードの幅。
+    /// **thickness が効くのは内容部分(List)であって、サイドバーの見た目の幅ではない。**
+    /// 実測(2026-09-04): 通常時は `_NSSplitViewItemViewWrapper` が 303pt で、その中の
+    /// `NSContainerConcentricGlassEffectView` が `x=8.0 w=295.0` だった。thickness に 54 を
+    /// 渡したときの wrapper は 62pt で、いずれも「wrapper = 内容 + 8」の関係にある。
+    /// したがってここでは AppKit が足す 8pt を含めない。見た目の幅は 8pt 広くなる。
     ///
-    /// 左右のパディング + 開閉三角 + 間隔 + アイコン。名前の分は足さない
-    /// (名前が隠れることがこのモードの狙いのため)。
-    static func width(listInset: CGFloat) -> CGFloat {
+    /// 内訳は行の左パディング + 開閉三角 + 間隔 + アイコン + 行の右パディング。
+    /// 名前の分は足さない(名前が隠れることがこのモードの狙いのため)。
+    static var thickness: CGFloat {
         SidebarRowIndent.rowHorizontalPadding * 2
             + SidebarRowIndent.disclosureWidth
             + rowContentSpacing
             + iconWidth
-            + listInset
     }
 
-    /// 実際に使う幅。
-    static var width: CGFloat {
-        width(listInset: measuredListInset)
+    /// 行アイコンの右端が行の左端から何 pt の位置にあるか。
+    /// `thickness` がこれを下回るとアイコンが切れる。
+    static var iconTrailingEdge: CGFloat {
+        SidebarRowIndent.rowHorizontalPadding
+            + SidebarRowIndent.disclosureWidth
+            + rowContentSpacing
+            + iconWidth
     }
 }
