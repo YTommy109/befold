@@ -52,6 +52,15 @@ struct FileListView: View {
                 entry: entry, gitStatus: { model.gitStatus?.fileStatus(at: entry.pathKey) },
                 gitFolderStatus: { model.gitStatus?.folderStatus(at: entry.pathKey) }
             )
+            // スライドモード中はアイコンもファイル名も映さない(TASK-587)。見せたいのは
+            // 「いまどれを選んでいるか」だけで、選択ハイライトは行ビューが描くので残る。
+            //
+            // **マスクは行の中ではなくここでかける。** `FileListEntryRow` は
+            // `FolderListingView`(プレビュー内のフォルダー一覧)と共有しており、
+            // 引数を通すとスライドモードと無関係な側にも配線が要る。
+            // 行を空ビューへ差し替える形も採らない——行の高さを自前で導出し直すことになり、
+            // フォントやメトリクスが変われば黙ってずれる。redacted なら寸法をそのまま継ぐ。
+            .redacted(reason: model.transient.isSlideMode ? .placeholder : [])
             .padding(.horizontal, SidebarRowIndent.rowHorizontalPadding)
             .padding(.vertical, 2)
             .listRowInsets(EdgeInsets())
