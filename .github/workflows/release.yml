@@ -215,6 +215,36 @@ jobs:
           files: ${{ env.DMG_NAME }}
           prerelease: ${{ contains(github.ref_name, '-') }}
 
+      # 手動ダウンロードは配布サイトへ送る。GitHub に DMG を置き続けているのは
+      # 出荷済みバージョンの自動アップデート互換のためであって（上のコメント）、
+      # 人に直接落としてもらう場所ではない。README とアプリ内 Help は既に配布
+      # サイト向きだが、Releases ページだけ案内が無い。
+      #
+      # 追記はリリースノート生成の手順（/release, /release-notes）ではなく
+      # ここに置く。手順の申し送りは守られないが、CI のステップは毎リリース
+      # 必ず通るため、書き忘れという形で破れない。
+      #
+      # マーカーで冪等にする。action-gh-release の append_body は実行のたびに
+      # 足すため、ワークフローを再実行すると案内が二重になる。
+      - name: リリース本文に配布サイトへの導線を追記する
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          marker='<!-- distribution-site-notice -->'
+          body=$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)
+          if [[ "$body" == *"$marker"* ]]; then
+            echo "追記済みのためスキップする"
+            exit 0
+          fi
+          {
+            printf '%s\n\n---\n\n%s\n' "$body" "$marker"
+            printf 'Get the latest version from **[befold.degino.com](https://befold.degino.com/download?ref=gh-release)**. '
+            printf 'The DMG attached here is kept so that already-installed older versions can keep updating themselves.\n\n'
+            printf '最新版は **[befold.degino.com](https://befold.degino.com/download?ref=gh-release)** から取得してください。'
+            printf 'ここに添付している DMG は、インストール済みの古いバージョンが自動アップデートを続けられるようにするためのものです。\n'
+          } | gh release edit "$GITHUB_REF_NAME" --notes-file -
+
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
