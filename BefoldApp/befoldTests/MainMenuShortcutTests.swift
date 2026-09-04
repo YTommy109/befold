@@ -47,6 +47,7 @@ struct ViewMenuValidationTests {
         var effectiveDisplayMode: ViewerDisplayMode = .rendered
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
+        var isSlideMode = false
     }
 
     /// PDF を見ている状態 / それ以外（markdown 相当）を見ている状態。

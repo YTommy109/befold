@@ -128,6 +128,25 @@ extension ViewerWindowController {
         fileListModel.tableFocuser.focus()
     }
 
+    /// スライドモード中か。`ViewerMenuValidationSource` の要求。真値は `fileListModel`。
+    var isSlideMode: Bool {
+        fileListModel.isSlideMode
+    }
+
+    /// View > スライドモード。畳んでいるときは項目が無効（`ViewerMenuValidator`）。
+    ///
+    /// 状態（`fileListModel`）と幅（`sidebarCollapsible`）を**必ずこの順で**更新する。
+    /// 幅を先に変えると、ヘッダーが 1 フレームだけ広いまま描かれる。
+    @objc func toggleSlideMode(_ sender: Any?) {
+        let next = !fileListModel.isSlideMode
+        fileListModel.setSlideMode(next)
+        sidebarCollapsible?.setSlideMode(next)
+        if next {
+            // これがこのモードの目的そのもの。カーソルキーでファイルを送れるようにする。
+            fileListModel.tableFocuser.focus()
+        }
+    }
+
     /// AppKit からの有効判定要求の受け口。対応表は `ViewerMenuValidator` にある。
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         ViewerMenuValidator.validate(menuItem, source: self)

@@ -25,6 +25,7 @@ struct ViewerMenuValidatorTests {
         var effectiveDisplayMode: ViewerDisplayMode = .rendered
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
+        var isSlideMode = false
     }
 
     private func makeItem(_ action: Selector, tag: Int = 0) -> NSMenuItem {
@@ -188,6 +189,29 @@ struct ViewerMenuValidatorTests {
         #expect(item.state == .off)
 
         source.isDiffLayoutSideBySide = true
+        #expect(ViewerMenuValidator.validate(item, source: source))
+        #expect(item.state == .on)
+    }
+
+    @Test("スライドモードはサイドバーを畳んでいる間は選べない")
+    func slideModeRequiresVisibleSidebar() {
+        let source = StubSource()
+        source.isSidebarCollapsed = true
+
+        let item = makeItem(#selector(ViewerWindowController.toggleSlideMode(_:)))
+
+        #expect(!ViewerMenuValidator.validate(item, source: source))
+    }
+
+    @Test("スライドモードのチェックは窓の状態をそのまま映す")
+    func slideModeReflectsWindowState() {
+        let source = StubSource()
+        let item = makeItem(#selector(ViewerWindowController.toggleSlideMode(_:)))
+
+        #expect(ViewerMenuValidator.validate(item, source: source))
+        #expect(item.state == .off)
+
+        source.isSlideMode = true
         #expect(ViewerMenuValidator.validate(item, source: source))
         #expect(item.state == .on)
     }
