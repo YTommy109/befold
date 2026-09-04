@@ -105,7 +105,8 @@ struct SidebarParentRowSelectionTests {
             delegate: delegates.makeSpy(onNavigate: onNavigate),
             onSortOrderChanged: { _ in },
             onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {}
+            onToggleSidebarTreeLayout: {},
+            onToggleSlideMode: {}
         )
     }
 

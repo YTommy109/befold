@@ -170,7 +170,11 @@ enum ViewerWindowAssembler {
             },
             onToggleHiddenFiles: makeDisplayToggle(.toggleHiddenFiles, for: controller),
             onToggleChangedFilesOnly: makeDisplayToggle(.toggleChangedFilesOnly, for: controller),
-            onToggleSidebarTreeLayout: makeDisplayToggle(.toggleLayoutMode, for: controller)
+            onToggleSidebarTreeLayout: makeDisplayToggle(.toggleLayoutMode, for: controller),
+            onToggleSlideMode: { [weak controller] in
+                // メニューと同じ入口を通す。状態と幅の更新順序を 2 箇所に持たない。
+                controller?.toggleSlideMode(nil)
+            }
         )
     }
 

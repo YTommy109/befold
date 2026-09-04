@@ -11,6 +11,8 @@ struct FileListView: View {
     var onToggleHiddenFiles: (() -> Void)?
     let onToggleChangedFilesOnly: () -> Void
     let onToggleSidebarTreeLayout: () -> Void
+    /// スライドモードの解除（ヘッダーのアイコン）。ウィンドウ側の経路へ素通しする。
+    let onToggleSlideMode: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,7 +22,8 @@ struct FileListView: View {
                 onSortOrderChanged: onSortOrderChanged,
                 onToggleHiddenFiles: onToggleHiddenFiles,
                 onToggleChangedFilesOnly: onToggleChangedFilesOnly,
-                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout
+                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout,
+                onToggleSlideMode: onToggleSlideMode
             )
             entryList
         }

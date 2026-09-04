@@ -23,19 +23,40 @@ struct SidebarHeaderView: View {
     var onToggleHiddenFiles: (() -> Void)?
     let onToggleChangedFilesOnly: () -> Void
     let onToggleSidebarTreeLayout: () -> Void
+    /// スライドモードの解除。ウィンドウ側の `toggleSlideMode(_:)` と同じ経路を通す
+    /// （状態と幅の更新順序を 1 箇所に保つため、ここで直接 model を書き換えない）。
+    /// **既定値を持たせない。** 渡し忘れが「押しても何も起きないボタン」へ静かに倒れる。
+    let onToggleSlideMode: () -> Void
 
     @FocusState private var isFilterFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            baseDirectoryIndicator
-            navigationHeader
-            if model.isFilterActive {
-                filterField
+            if model.isSlideMode {
+                slideModeIndicator
+            } else {
+                baseDirectoryIndicator
+                navigationHeader
+                if model.isFilterActive {
+                    filterField
+                }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    /// スライドモード中のヘッダー。**状態表示と解除操作を兼ねる。**
+    /// 幅がアイコン 1 つ分しかないので他の操作は一切出さない（メニューからも解除できる）。
+    private var slideModeIndicator: some View {
+        Button {
+            onToggleSlideMode()
+        } label: {
+            Image(systemName: "play.rectangle")
+                .foregroundStyle(.tint)
+        }
+        .buttonStyle(.borderless)
+        .help(String(localized: "sidebar.slideMode.exit", bundle: .l10n))
     }
 
     private var filterField: some View {
