@@ -1,9 +1,11 @@
 ---
 id: TASK-489.6
 title: GitHub Releases のリリース本文に配布サイトへの導線を入れる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-04 01:46'
+updated_date: '2026-09-04 01:50'
 labels: []
 dependencies: []
 parent_task_id: TASK-489
@@ -24,8 +26,25 @@ README・アプリ内 Help の導線はすでに配布サイト向きだが（RE
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 すべての新規リリースの GitHub Release 本文の末尾に、最新版は https://befold.degino.com/download から取得するよう促す案内が英語と日本語で入る
-- [ ] #2 案内の追記が release.yml のステップとして行われ、リリースノート生成側の手順（/release, /release-notes）の遵守に依存しない
-- [ ] #3 ワークフローを再実行しても案内が重複して追記されない
-- [ ] #4 GitHub Releases の DMG そのものは削除・添付停止しない（停止条件は TASK-489.1 が決める）
+- [x] #1 すべての新規リリースの GitHub Release 本文の末尾に、最新版は https://befold.degino.com/download から取得するよう促す案内が英語と日本語で入る
+- [x] #2 案内の追記が release.yml のステップとして行われ、リリースノート生成側の手順（/release, /release-notes）の遵守に依存しない
+- [x] #3 ワークフローを再実行しても案内が重複して追記されない
+- [x] #4 GitHub Releases の DMG そのものは削除・添付停止しない（停止条件は TASK-489.1 が決める）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+release.yml の「GitHub Release を作成して DMG を添付する」の直後に追記ステップを足した。
+
+- 置き場所を release.yml にした理由: リリース本文は /release コマンドの gh release create --notes が作るが、手順の申し送りは守られない。CI のステップなら毎リリース必ず通るため、書き忘れという形で破れない（CLAUDE.md「決めたことには、破れたら落ちるものを付ける」）。
+- 冪等性はマーカー <!-- distribution-site-notice --> の有無で担保する。action-gh-release の append_body は実行のたびに足すため採らなかった（再実行で二重になる）。
+- 実測（gh を差し替えたスタブで step の run をそのまま実行）: 1 回目で本文末尾に追記され、2 回目は「追記済みのためスキップする」を出して本文が変化しないことを確認した。YAML のパースも確認済み。
+- リンクは /download?ref=gh-release にした。recordEvent は kind を問わず ?ref= を referrer として記録するため（site/src/events.ts の resolveReferrer 呼び出し）、この導線が実際に使われたかをダッシュボードの参照元で読める。ref の値は変えないこと（過去データと接続できなくなる）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+release.yml の DMG 添付ステップの直後に、GitHub Release 本文の末尾へ配布サイトへの導線（英日）を追記するステップを足した。リリースノート生成手順への申し送りではなく CI ステップに置いたので、書き忘れで破れない。マーカー <!-- distribution-site-notice --> の有無で冪等にしてある（action-gh-release の append_body は再実行で二重になるため採らなかった）。検証: gh を差し替えたスタブで step の run をそのまま 2 回実行し、1 回目で追記・2 回目はスキップして本文が不変であることを実測。YAML のパースも確認。DMG の添付・削除には手を付けていない。
+<!-- SECTION:FINAL_SUMMARY:END -->
