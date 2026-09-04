@@ -144,7 +144,7 @@ GitHub 直の appcast URL を見ており（フィード URL の Worker 切替�
 | `/dashboard` | 概要 | 累計 / 本日 / 日毎の推移 / 最新イベント | 4 |
 | `/dashboard/users` | 利用者 | 日別ユニークアクセス元 / 稼働バージョン / 時間帯分布 / アップデートの取り込み | 4 |
 | `/dashboard/traffic` | 流入 | 内訳 / ページ別 / 言語別 / 人間と自動アクセス | 8 |
-| `/dashboard/delivery` | 配信 | 配布ホストと旧経路 | 1 |
+| `/dashboard/delivery` | 配信 | 配布ホストと旧経路 / 停止判断の対象経路の日次推移 | 2 |
 | `/dashboard/events` | イベント | 人間のアクセスを新しい順に 100 件ずつ（過去へ遡れる） | 1 |
 
 イベント面のページ送りは id を基準にしたカーソル（`?before=` / `?after=`）で、

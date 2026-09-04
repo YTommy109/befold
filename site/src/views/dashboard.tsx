@@ -6,30 +6,33 @@ import type {
   DashboardPage,
   DashboardPageKey,
   DeliverySummary,
-  FallbackSplit,
   EventPage,
   KindCounts,
   MetricKey,
   OverviewSummary,
   RecentEvent,
+  RouteSplit,
   Split,
   TrafficSummary,
   UsersSummary,
 } from '../analytics'
 import {
   DASHBOARD_PAGES,
+  DELIVERY_RECENT_DAYS,
+  DELIVERY_WINDOW_DAYS,
   DOWNLOAD_METRICS,
   downloadTotal,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   OVERVIEW_METRICS,
   RUNNING_VERSION_LABELS,
+  RUNNING_VERSION_TABLE_LABELS,
   TOP_N,
   UNIQUE_SOURCE_LABELS,
   UNRECORDED_LABEL,
   VERSION_BREAKDOWN_METRICS,
 } from '../analytics'
-import { LEGACY_HOST } from '../lib/hosts'
+import { CANONICAL_HOST, LEGACY_HOST } from '../lib/hosts'
 import { formatJst } from '../lib/jst'
 
 /**
@@ -175,14 +178,22 @@ const CountTable: FC<{ title: string; rows: Count[] }> = ({ title, rows }) => (
 )
 
 /**
- * 人間と自動アクセスを 2 列で並べる表。**0 件の行も落とさない。**
+ * 停止判断の対象になる経路の表。旧ホスト別と GitHub フォールバック別で共有する。
  *
- * `CountTable` + `splitRows` は 0 を落とす（取りうる値がすべて出そろう軸で
- * 0 の行が並ぶのを避けるため）。ホストと GitHub フォールバックはその逆で、
- * 「0 であること」の確認が目的なので、行が消えると「まだ 0」と「そもそも
- * 計測していない」が区別できなくなる。
+ * 人間と自動アクセスを 2 列並べるだけの汎用の表にしない。累計だけの表では
+ * 「一度発生した経路」と「いま落ち続けている経路」が同じ見え方になり、経路を
+ * 止めてよいかの判断（ADR 0007 / TASK-489）に使えない。
+ *
+ * **列は人間側に厚く、ロボット側に薄い。** 停止条件は人間の有無で決まるので、
+ * 人間は累計・直近 2 つの窓・最終発生まで出し、ロボットは累計と最終発生だけに
+ * する。ロボットの推移は日次グラフで読む（両方を対称に並べると 9 列になる）。
  */
-const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
+const RouteTable: FC<{
+  title: string
+  rows: RouteSplit[]
+  windowDays: number
+  recentDays: number
+}> = ({ title, rows, windowDays, recentDays }) => (
   <section>
     <h3>{title}</h3>
     {rows.length === 0 ? (
@@ -192,8 +203,12 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
         <thead>
           <tr>
             <th></th>
-            <th>人間</th>
-            <th>自動アクセス</th>
+            <th>人間 累計</th>
+            <th>人間 {windowDays}日</th>
+            <th>人間 {recentDays}日</th>
+            <th>人間 最終 (JST)</th>
+            <th>ロボット 累計</th>
+            <th>ロボット 最終 (JST)</th>
           </tr>
         </thead>
         <tbody>
@@ -201,7 +216,11 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
             <tr>
               <td>{row.label}</td>
               <td>{row.human}</td>
+              <td>{row.humanRecent}</td>
+              <td>{row.humanLatest}</td>
+              <td>{formatLastSeen(row.lastSeenHumanAt)}</td>
               <td>{row.nonHuman}</td>
+              <td>{formatLastSeen(row.lastSeenBotAt)}</td>
             </tr>
           ))}
         </tbody>
@@ -211,41 +230,14 @@ const SplitTable: FC<{ title: string; rows: Split[] }> = ({ title, rows }) => (
 )
 
 /**
- * フォールバック経路別の表。件数に加えて**最後に発生した時刻**を出す。
+ * 最終発生の表示。**発生が無い経路は 0 ではなく「—」にする。**
  *
- * `SplitTable` を流用しない。累計だけの表では「一度発生した経路」と
- * 「いま落ち続けている経路」が同じ見え方になり、GitHub 経路を止めてよいかの
- * 判断（ADR 0007 / TASK-489）に使えない。列が違う以上、同じ表にはできない。
+ * `formatJst(0)` は 1970 年を描いてしまい、「一度も来ていない」が
+ * 「大昔に来た」に化ける。0 件の既知ホストは行として残す設計なので、この行は必ず出る。
  */
-const FallbackTable: FC<{ title: string; rows: FallbackSplit[] }> = ({ title, rows }) => (
-  <section>
-    <h3>{title}</h3>
-    {rows.length === 0 ? (
-      <p class="empty">データなし</p>
-    ) : (
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            <th>人間</th>
-            <th>自動アクセス</th>
-            <th>最後に発生 (JST)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr>
-              <td>{row.label}</td>
-              <td>{row.human}</td>
-              <td>{row.nonHuman}</td>
-              <td>{formatJst(row.lastSeenAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </section>
-)
+function formatLastSeen(at: number | null): string {
+  return at === null ? '—' : formatJst(at)
+}
 
 /** 棒グラフの内部座標。viewBox で拡大縮小するため単位は px ではない。 */
 const CHART = { width: 960, height: 220, labelGap: 22, topGap: 18, groupGap: 10, barGap: 1 }
@@ -694,9 +686,10 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
         </p>
         <p class="note">
           全期間ではなく{windowLabel}に絞っている。見たいのは今も使われ続けている版で
-          あって、過去に一度でも動いた版の履歴ではないため。stable と develop を分けて
-          いるのは、develop に開発機が含まれ、混ぜると stable 利用者の分布が読めなく なるため。上位{' '}
-          {TOP_N} 件まで。
+          あって、過去に一度でも動いた版の履歴ではないため。develop は表に出していない。
+          作者の開発機しか映らないうえ、単位が「アクセス元×日」なので同じ 1 台が回線や日を
+          またぐたびに増え、利用者の分布としては読めないため（下の「確認 → 更新」には
+          残してある）。上位 {TOP_N} 件まで。
         </p>
         <p class="note">
           流入面の「ダウンロード（LP）: バージョン別」とは別物。あちらは
@@ -707,7 +700,7 @@ export const UsersSections: FC<{ summary: UsersSummary }> = ({ summary }) => {
           以外のクライアント（curl など）からの確認も、バージョンを名乗らないので ここには出ない。
         </p>
         <div class="grid">
-          {RUNNING_VERSION_LABELS.map(({ key, label }) => (
+          {RUNNING_VERSION_TABLE_LABELS.map(({ key, label }) => (
             <CountTable title={`${label}: 稼働バージョン別`} rows={summary.runningVersions[key]} />
           ))}
         </div>
@@ -861,7 +854,7 @@ export const DeliverySections: FC<{ summary: DeliverySummary }> = ({ summary }) 
   return (
     <>
       <section class="block">
-        <h2>配布ホストと旧経路（全期間の累計）</h2>
+        <h2>配布ホストと旧経路</h2>
         <p class="note">
           旧ホスト（{LEGACY_HOST}）と GitHub へのフォールバックを止めてよいかの判断材料 （ADR
           0007）。ホスト別は kind を問わない全イベントが対象で、0 件のホストも 行として残す（「まだ
@@ -882,16 +875,92 @@ export const DeliverySections: FC<{ summary: DeliverySummary }> = ({ summary }) 
           秒）に当たった周期を数えられないため、実際より小さく出る。
         </p>
         <p class="note">
-          累計は一度発生すると減らないので、止めてよいかは「最後に発生 (JST)」で 読む——
-          直近に落ちていなければ、その経路はもう使われていない。 なお <code>dmg-invalid</code> は R2
-          の欠落ではなく、配布対象でないタグ・ファイル名を
+          <strong>累計だけでは止めてよいかを判断できない。</strong>
+          一度発生すると累計は二度と減らないため、クローラが旧タグを一斉に舐めた跡が
+          いつまでも「まだ落ちている」ように見える（実測 2026-09-04: GitHub フォールバック 266
+          件のうち 262 件が 8/19〜8/26 のボット由来）。 判断は
+          <strong>直近 {DELIVERY_WINDOW_DAYS} 日の人間の件数</strong>と
+          <strong>人間の最終発生</strong>で読み、累計は参考値として置く。
+        </p>
+        <p class="note">
+          <strong>最終発生を人間とロボットで分けている。</strong>
+          停止条件は人間が来なくなったかで決まるのに、両者を混ぜた最終発生は
+          ロボットが作り続ける（実測 2026-09-04: 旧ホストの直近の発生は Googlebot・
+          Meta-ExternalAgent で、Sparkle は 08-21 が最後）。 一度も発生していない経路は 「—」で、0
+          件と「大昔に 1 度だけ」を混同させない。
+        </p>
+        <p class="note">
+          「{UNRECORDED_LABEL}」行の最終発生は出さない。ホスト列は導入後の全行に入るので、
+          この行が示すのは<strong>列を入れた時期</strong>であって経路の生死ではない。
+        </p>
+        <p class="note">
+          なお <code>dmg-invalid</code> は R2 の欠落ではなく、配布対象でないタグ・ファイル名を
           弾いた（＝いたずら半分のパス探索を含む）リクエストなので、
           停止判断の材料には数えない。この値の導入前に記録された <code>dmg</code>{' '}
           行は両者の混合で、遡って分離できない。
         </p>
         <div class="grid">
-          <SplitTable title="リクエスト先ホスト別" rows={summary.hosts} />
-          <FallbackTable title="GitHub フォールバックの経路別" rows={summary.fallbacks} />
+          <RouteTable
+            title="リクエスト先ホスト別"
+            rows={summary.hosts}
+            windowDays={DELIVERY_WINDOW_DAYS}
+            recentDays={DELIVERY_RECENT_DAYS}
+          />
+          <RouteTable
+            title="GitHub フォールバックの経路別"
+            rows={summary.fallbacks}
+            windowDays={DELIVERY_WINDOW_DAYS}
+            recentDays={DELIVERY_RECENT_DAYS}
+          />
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>停止判断の対象経路の推移（直近 {DELIVERY_WINDOW_DAYS} 日）</h2>
+        <p class="note">
+          一過性のスパイクと定常的な流入を分けて読むための図。人間の棒が途切れて
+          ロボットの棒だけが続いているなら、その経路は<strong>もう人間には使われていない</strong>。
+          正規ホスト（{CANONICAL_HOST}）は停止判断の対象ではないので描かない。
+        </p>
+        <div class="grid">
+          <section>
+            <h3>旧ホスト（{LEGACY_HOST}）へのアクセス</h3>
+            <SeriesChart
+              title={`旧ホストへのアクセス（直近 ${DELIVERY_WINDOW_DAYS} 日）`}
+              labels={summary.dailyRoutes.map((point) => point.day.slice(5))}
+              series={[
+                {
+                  label: '人間',
+                  unit: '件',
+                  values: summary.dailyRoutes.map((point) => point.legacyHuman),
+                },
+                {
+                  label: 'ロボット',
+                  unit: '件',
+                  values: summary.dailyRoutes.map((point) => point.legacyBot),
+                },
+              ]}
+            />
+          </section>
+          <section>
+            <h3>GitHub フォールバック</h3>
+            <SeriesChart
+              title={`GitHub フォールバック（直近 ${DELIVERY_WINDOW_DAYS} 日）`}
+              labels={summary.dailyRoutes.map((point) => point.day.slice(5))}
+              series={[
+                {
+                  label: '人間',
+                  unit: '件',
+                  values: summary.dailyRoutes.map((point) => point.fallbackHuman),
+                },
+                {
+                  label: 'ロボット',
+                  unit: '件',
+                  values: summary.dailyRoutes.map((point) => point.fallbackBot),
+                },
+              ]}
+            />
+          </section>
         </div>
       </section>
     </>

@@ -657,9 +657,10 @@ describe('稼働中のアプリバージョンの表示', () => {
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
-    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).not.toContain('アプリ（develop）: 稼働バージョン別')
     expect(body).toContain('1.13.1')
-    expect(body).toContain('1.13.2-dev.4')
+    // develop は表そのものを出さないので、その版はどこにも現れない。
+    expect(countTable(body, 'アプリ（stable）: 稼働バージョン別')).not.toContain('1.13.2-dev.4')
   })
 
   it('何を 1 と数えているかが画面に書かれている', async () => {
@@ -708,7 +709,7 @@ describe('稼働中のアプリバージョンの表示', () => {
     const body = await (await call(PAGE.users, AUTH_HEADERS)).text()
 
     expect(body).toContain('アプリ（stable）: 稼働バージョン別')
-    expect(body).toContain('アプリ（develop）: 稼働バージョン別')
+    expect(body).not.toContain('アプリ（develop）: 稼働バージョン別')
     expect(body).toContain('アプリ（チャネル未記録）: 稼働バージョン別')
   })
 })
@@ -1063,12 +1064,17 @@ describe('配布ホストと旧経路の表示', () => {
       .run()
   }
 
-  /** 「配布ホストと旧経路」セクションだけを切り出す。 */
+  /** 「配布ホストと旧経路」セクション（表の 2 つ）だけを切り出す。 */
   function hostSection(body: string): string {
     return body.slice(
       body.indexOf('<h2>配布ホストと旧経路'),
-      body.indexOf('<h2>人間の訪問と自動アクセス'),
+      body.indexOf('<h2>停止判断の対象経路の推移'),
     )
+  }
+
+  /** 日次推移のセクションだけを切り出す。 */
+  function trendSection(body: string): string {
+    return body.slice(body.indexOf('<h2>停止判断の対象経路の推移'))
   }
 
   it('旧ホストへのアクセスを人間とロボットに分けて出す', async () => {
@@ -1104,8 +1110,9 @@ describe('配布ホストと旧経路の表示', () => {
     expect(hostHtml).toContain('appcast')
   })
 
-  it('経路別に最後に発生した時刻を出す', async () => {
+  it('経路別に最後に発生した時刻を、人間とロボットで分けて出す', async () => {
     // 累計は一度発生すると減らないので、止めてよいかは最終発生時刻でしか読めない。
+    // かつ停止条件は人間で決まるのに、混ぜた最終発生はロボットが作り続ける。
     const at = Date.parse('2026-08-08T03:00:00Z')
     await env.DB.prepare('INSERT INTO events (timestamp, kind, host, fallback) VALUES (?, ?, ?, ?)')
       .bind(at, 'github_fallback', 'befold.degino.com', 'dmg')
@@ -1113,8 +1120,42 @@ describe('配布ホストと旧経路の表示', () => {
 
     const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
 
-    expect(hostHtml).toContain('最後に発生 (JST)')
+    expect(hostHtml).toContain('人間 最終 (JST)')
+    expect(hostHtml).toContain('ロボット 最終 (JST)')
     expect(hostHtml).toContain(formatJst(at))
+  })
+
+  it('一度も発生していない経路の最終発生は 0 ではなく「—」で出す', async () => {
+    // formatJst(0) は 1970 年を描く。0 件の既知ホストは必ず行として残る設計なので、
+    // ここを 0 にすると「大昔に来た」に化ける。
+    await insertRow('visit', 'befold.degino.com')
+
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
+    const legacyCell = hostHtml.indexOf('<td>befold.tommy109.workers.dev</td>')
+
+    expect(hostHtml.slice(legacyCell, legacyCell + 200)).toContain('—')
+    expect(hostHtml).not.toContain('1970-')
+  })
+
+  it('直近の窓の件数を累計と並べて出す', async () => {
+    await insertRow('update_check', 'befold.tommy109.workers.dev')
+
+    const hostHtml = hostSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
+
+    expect(hostHtml).toContain('人間 30日')
+    expect(hostHtml).toContain('人間 7日')
+  })
+
+  it('停止判断の対象経路だけを日次推移に描く', async () => {
+    await insertRow('update_check', 'befold.tommy109.workers.dev')
+    await insertRow('github_fallback', 'befold.degino.com', 'dmg')
+
+    const trendHtml = trendSection(await (await call(PAGE.delivery, AUTH_HEADERS)).text())
+
+    expect(trendHtml).toContain('旧ホスト（befold.tommy109.workers.dev）へのアクセス')
+    expect(trendHtml).toContain('GitHub フォールバック')
+    // 正規ホストは停止判断の対象ではないので系列に出さない。
+    expect(trendHtml).not.toContain('<h3>befold.degino.com')
   })
 
   it('フォールバックが無ければ経路別は「データなし」になる', async () => {

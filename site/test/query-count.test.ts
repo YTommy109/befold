@@ -81,7 +81,7 @@ const SUMMARIZERS: Record<DashboardPageKey, (db: D1Database) => Promise<unknown>
   overview: async (db) => await summarizeOverview(db, NOW),
   users: async (db) => await summarizeUsers(db, NOW),
   traffic: async (db) => await summarizeTraffic(db),
-  delivery: async (db) => await summarizeDelivery(db),
+  delivery: async (db) => await summarizeDelivery(db, NOW),
   events: async (db) => await eventPage(db),
 }
 
@@ -98,14 +98,14 @@ const SUMMARIZERS: Record<DashboardPageKey, (db: D1Database) => Promise<unknown>
  *   trafficSplit 2 本（総数・区分別内訳）/ 指標別内訳 1 本（OS 別・接続元組織別・
  *   バージョン別を 1 本にまとめてあり、指標の数にも軸の数にも依らない）/
  *   eventBreakdowns
- * - delivery 1: eventBreakdowns
+ * - delivery 2: eventBreakdowns / deliveryWindow（直近 30 日の窓と日次推移）
  * - events 1: eventPage（次のページの有無も同じクエリで確定させる）
  */
 const EXPECTED_QUERIES: Record<DashboardPageKey, number> = {
   overview: 4,
   users: 4,
   traffic: 7,
-  delivery: 1,
+  delivery: 2,
   events: 1,
 }
 
