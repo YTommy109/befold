@@ -63,7 +63,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
-        model.filterText = "note*"
+        model.transient.filterText = "note*"
 
         // 親フォルダ "src" は "note*" に一致しないが、子が残るので一緒に残る。
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["src", "note.md"])
@@ -110,7 +110,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
-        model.filterText = "note*"
+        model.transient.filterText = "note*"
 
         #expect(model.visibleEntries.first?.disclosure == .expanded)
     }
@@ -132,7 +132,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
-        model.filterText = "note*"
+        model.transient.filterText = "note*"
 
         // 見えている先頭は "src"(一致していない祖先)。
         #expect(model.visibleEntries.first?.url == dirA.url)
@@ -169,7 +169,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
-        model.filterText = "nomatch*"
+        model.transient.filterText = "nomatch*"
 
         #expect(model.visibleEntries.isEmpty)
     }
@@ -189,7 +189,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]],
             showsDisclosure: true
         )
-        model.filterText = "note*"
+        model.transient.filterText = "note*"
 
         guard case let .shared(shared) = model.listingSource(for: model.currentDirectory) else {
             Issue.record("listingSource が .shared ではない")
@@ -265,7 +265,7 @@ struct FileListModelTreeFilterTests {
         let opened = makeEntry("README.md")
         let model = makeModel(entries: [opened, makeEntry("notes.txt")])
         model.selection = opened.id
-        model.filterText = "notes*"
+        model.transient.filterText = "notes*"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["notes.txt"])
     }

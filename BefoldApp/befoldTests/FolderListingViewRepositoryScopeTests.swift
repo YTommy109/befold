@@ -98,7 +98,7 @@ struct FolderListingViewRepositoryScopeTests {
     @Test("プレビューの一覧では、深さを持つ行を渡しても祖先が足し戻されない")
     func previewListingDoesNotKeepAncestors() {
         let model = makeModel(entries: [])
-        model.filterText = "note*"
+        model.transient.filterText = "note*"
         let dirA = makeEntry("src", kind: .folder)
         let nested = FileListEntry(url: dirA.url.appendingPathComponent("note.md"), kind: .file)
         let view = makeView(directory: directory, filter: model.listFilter)

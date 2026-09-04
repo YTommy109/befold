@@ -9,4 +9,5 @@
 # 登録できない形にすることで、例外の追加を差分レビューで必ず目に付くようにする）。
 # 例外は現状値の凍結（ラチェット）ではない。上限を超えない限り増減は自由で、逆に
 # 上限まで太らせてよいという意味でもない。返済して閾値以下へ戻せたらこの行を消す。
-BefoldApp/befold/App/ViewerWindowController	900	NSResponder チェーンの都合で移動できない @objc メニューアクションと validate 対応表、および init の Parameter doc（約 120 行）が支配的で、責務分離を尽くしても 400 行へは到達しない（TASK-441 / TASK-453 で 1255 → 802 行まで返済済み。判断の経緯は TASK-441 の AC #1）
+BefoldApp/befold/App/ViewerWindowController	920	NSResponder チェーンの都合で移動できない @objc メニューアクションと validate 対応表、および init の Parameter doc（約 120 行）が支配的で、責務分離を尽くしても 400 行へは到達しない（TASK-441 / TASK-453 で 1255 → 802 行まで返済済み。判断の経緯は TASK-441 の AC #1）。TASK-585 で @objc メニューアクションを 1 つ足した際、本体は SlideModeCoordinator へ委譲して薄い 1 行にしたうえで 909 行になったため、上限を 900 から 920 へ引き上げた（@objc アクションを足すたびに数行ずつ増える構造で、900 は main 時点の 898 に対して余地が 2 行しかなかった）
+BefoldApp/befold/App/MainMenuBuilder	420	メインメニューの静的な項目定義そのもので、項目 1 つが 4〜6 行を占める。項目を足す以外に太る要因が無く、責務で切っても「メニュー項目の定義」以上には分かれない（+ViewMenu / +FileMenu 等の分割は合算されるため返済にならない）。TASK-585 でスライドモードの項目を足して 403 行になった

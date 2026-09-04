@@ -128,6 +128,17 @@ extension ViewerWindowController {
         fileListModel.tableFocuser.focus()
     }
 
+    /// スライドモード中か。`ViewerMenuValidationSource` の要求。真値は `fileListModel`。
+    var isSlideMode: Bool {
+        fileListModel.transient.isSlideMode
+    }
+
+    /// View > スライドモード。畳んでいるときは項目が無効（`ViewerMenuValidator`）。
+    /// 手順の実体は `SlideModeCoordinator`（順序をこことヘッダーで二重に持たない）。
+    @objc func toggleSlideMode(_ sender: Any?) {
+        SlideModeCoordinator.toggle(model: fileListModel, collapsible: sidebarCollapsible)
+    }
+
     /// AppKit からの有効判定要求の受け口。対応表は `ViewerMenuValidator` にある。
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         ViewerMenuValidator.validate(menuItem, source: self)

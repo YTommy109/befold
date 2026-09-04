@@ -1466,6 +1466,23 @@
         }
       }
     },
+    "menu.view.slideMode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slide Mode"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スライドモード"
+          }
+        }
+      }
+    },
     "menu.view.sidebarTreeLayout" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2855,6 +2872,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "フィルターを隠す"
+          }
+        }
+      }
+    },
+    "sidebar.slideMode.exit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exit Slide Mode"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スライドモードを終了"
           }
         }
       }

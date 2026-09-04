@@ -94,7 +94,7 @@ struct FolderListingViewFilterTests {
             for: directory, sequence: 1
         )
         model.showChangedFilesOnly = true
-        model.filterText = "*.md"
+        model.transient.filterText = "*.md"
 
         let view = makeView(directory: model.currentDirectory, filter: model.listFilter)
 
@@ -136,7 +136,7 @@ struct FolderListingViewFilterTests {
         let dropped = makeEntry("dropped.md")
         let model = makeModel(entries: [])
         model.entries = [kept, dropped]
-        model.filterText = "kept"
+        model.transient.filterText = "kept"
 
         #expect(model.listingSource(for: directory) == .shared([kept]))
         #expect(model.listingSource(for: directory) != .shared([kept, dropped]))

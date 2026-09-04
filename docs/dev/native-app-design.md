@@ -170,7 +170,8 @@ BefoldApp/
 | `GitDiffAvailability` | 差分表示モードを選ばせてよいかを決める git 側の事実（可用性・そのファイルに差分として出せる変更があるか）。基準ディレクトリの種別と `SidebarGitStatus` から導く純粋な写像で、**確定した否定の事実（git 管理外／扱えないリポジトリ／変更なし・未追跡）でだけ選択不可にする**。未解決の間は選べるままにして初期表示での入れ替わりを 1 方向に限る。フォルダーが git 由来の機能を出してよいかの判定そのものは `BaseDirectoryDescriptor.allowsGitFeatures(_:)` にあり、サイドバーの「変更のあるファイルのみ」と共有する（TASK-537） |
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
-| `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController` |
+| `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController`。幅は 200〜480pt で `splitView.autosaveName` により起動をまたいで永続化する。スライドモード中だけ min／max を `SidebarSlideMetrics.thickness` に固定し、その間は autosave を止めて細幅が焼き込まれるのを防ぐ（`autosaveName` を触るのは同ファイルの private メソッド 1 つだけ） |
+| `SidebarSlideMetrics` | スライドモード時にサイドバーへ渡す thickness の幾何。行の左右パディング・開閉三角・アイコンの合計で、名前の分を含めない。thickness が効くのは内容部分で、見た目の幅は AppKit が足す 8pt ぶん広くなる |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
 | `GitCommandRunner` | git 実行を一元化する薄い `Process` ラッパ（無害化オプション前置・タイムアウト・プロセスグループ打ち切り）。git を呼ぶ全機能の共通土台 |
 | `GitRepository` | ルート解決・追跡ファイル列挙・worktree 一覧・`.git/index` fingerprint の問い合わせ。`GitRepository+RemoteLink` の `remoteFileLink(forFileAt:)` が、サイドバーの「リンクをコピーする」向けに origin・HEAD ブランチ・リポジトリルート基準の相対パスを 1 回のリポジトリオープンで解決する（作れない条件はすべて nil へ畳む） |
@@ -198,6 +199,8 @@ BefoldApp/
 | `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
+| `SidebarTransientState` | サイドバーの**保存値の対を持たない**見せ方（名前フィルターとプレゼン用のスライドモード）。窓ごとで永続化せず、再起動すれば必ず初期値へ戻る。保存値を持つ表示 4 値（`SidebarDisplayDefaults`）と分ける境界がこれ。`isSlideMode` がスライドモードの唯一の真値で、`ViewerSplitViewController` は幅だけを持つ |
+| `SlideModeCoordinator` | スライドモードの出入りの手順（真値の更新 → 幅の適用 → サイドバーへフォーカス）。順序に意味があるため、View メニューとヘッダーのアイコンと「畳んだときの解除」がすべてここを通る。進入時にフィルターを閉じる。サイドバーが畳まれている間はメニュー項目が無効で、自動で開閉しないので `SidebarStateStore` の「最後にユーザーが操作した開閉状態」を汚さない |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
 | `ReferenceResolver` | クリックされた href/パス参照を外部 URL・ローカルファイル・非対応に分類 |

@@ -306,4 +306,15 @@ struct MainMenuBuilderTests {
 
         #expect(builtMenu == nil)
     }
+
+    @Test("表示メニューにスライドモードの項目がある")
+    func viewMenuHasSlideModeItem() throws {
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+
+        let item = try #require(
+            view.items.first { $0.action == #selector(ViewerWindowController.toggleSlideMode(_:)) }
+        )
+        // ショートカットは割り当てない(TASK-585)。プレゼン中の誤爆を避けるため。
+        #expect(item.keyEquivalent.isEmpty)
+    }
 }

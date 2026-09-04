@@ -90,6 +90,12 @@ extension MainMenuBuilder {
         )
         addChangedFilesOnlyItem(to: menu)
         addSidebarTreeLayoutItem(to: menu)
+        // ショートカットは割り当てない。プレゼン中に誤って入る／抜けるのを避けるため、
+        // メニューとサイドバーヘッダーのアイコンからの明示操作だけにする(TASK-585)。
+        menu.addLocalizedItem(
+            "menu.view.slideMode",
+            action: #selector(ViewerWindowController.toggleSlideMode(_:))
+        )
     }
 
     /// ファイル履歴の前後移動(⌘[ / ⌘])。makeViewMenuItem から切り出しているのは、

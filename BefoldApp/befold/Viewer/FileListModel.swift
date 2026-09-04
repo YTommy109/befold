@@ -190,11 +190,10 @@ final class FileListModel {
     /// 行の並べ方(ドリルダウン / ツリー展開)。
     /// View はキー操作の割り当てをこの値で切り替える。
     var layoutMode: SidebarLayoutMode
-    /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
-    /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
-    var filterText: String = ""
-    /// フィルターフィールドの開閉状態。true の間は navigationHeader 直下に検索欄を表示する。
-    var isFilterActive: Bool = false
+    /// 絞り込みとスライドモード(窓ごと・永続化しない)。保存値の対がある表示 4 値とは
+    /// 分けてある。詳しくは `SidebarTransientState` の doc を参照。
+    let transient = SidebarTransientState()
+
     /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
     /// git ルートの解決は subprocess を伴うため View の body では行わず、
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
@@ -325,7 +324,7 @@ final class FileListModel {
     /// ここ 1 箇所に集約し、増えたときに片側だけ取り残されないようにする(TASK-288)。
     var listFilter: FileListFilter {
         FileListFilter(
-            filterText: filterText,
+            filterText: transient.filterText,
             gitStatus: showChangedFilesOnly ? gitStatus : nil,
             presentedPathKey: storedSelectionPathKey
         )

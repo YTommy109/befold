@@ -24,6 +24,8 @@ protocol ViewerMenuValidationSource: AnyObject {
     var isDiffLayoutSideBySide: Bool { get }
     /// サイドバーが畳まれているか。⌘←(サイドバーへフォーカス)の有効判定に使う。
     var isSidebarCollapsed: Bool { get }
+    /// スライドモード中か。表示メニューのチェック状態に使う。
+    var isSlideMode: Bool { get }
 }
 
 /// メインメニュー・ツールバー項目の有効判定と表示名を決める対応表。
@@ -94,6 +96,13 @@ enum ViewerMenuValidator {
         }
         if menuItem.action == #selector(ViewerWindowController.focusContentSurface(_:)) {
             return true
+        }
+        if menuItem.action == #selector(ViewerWindowController.toggleSlideMode(_:)) {
+            menuItem.state = source.isSlideMode ? .on : .off
+            // 畳んでいる間は入れない。自動で開くと、ユーザーが操作していない開閉が
+            // SidebarStateStore へ「最後にユーザーが操作した開閉状態」として保存され、
+            // 以後の新規ウィンドウの初期値を汚す(TASK-585)。
+            return !source.isSidebarCollapsed
         }
         return nil
     }

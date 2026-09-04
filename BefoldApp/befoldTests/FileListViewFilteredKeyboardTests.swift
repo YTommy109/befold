@@ -29,13 +29,14 @@ struct FileListViewFilteredKeyboardTests {
         let model = FileListModel(
             currentDirectory: directory, entries: [alpha, beta1, beta2], selection: alpha.id
         )
-        model.filterText = "beta*"
+        model.transient.filterText = "beta*"
         let view = FileListView(
             model: model,
             delegate: delegates.makeSpy(),
             onSortOrderChanged: { _ in },
             onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {}
+            onToggleSidebarTreeLayout: {},
+            onToggleSlideMode: {}
         )
         return (view, [beta1, beta2])
     }
@@ -79,7 +80,7 @@ struct FileListViewFilteredKeyboardTests {
         let (view, hits) = makeFilteredView()
         _ = view.handleKey(.downArrow)
 
-        view.model.filterText = ""
+        view.model.transient.filterText = ""
 
         #expect(view.model.selection == hits[0].id)
         #expect(view.handleKey(.downArrow) == .handled)
@@ -125,7 +126,8 @@ struct FileListViewFilteredKeyboardTests {
             delegate: delegates.makeSpy(),
             onSortOrderChanged: { _ in },
             onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {}
+            onToggleSidebarTreeLayout: {},
+            onToggleSlideMode: {}
         )
         model.snapshotEvaluations.reset()
 
@@ -138,7 +140,7 @@ struct FileListViewFilteredKeyboardTests {
     @Test("絞り込み結果が空なら隠れた選択からの移動は何も起こさない")
     func hiddenSelectionWithNoMatchesIsIgnored() {
         let (view, _) = makeFilteredView()
-        view.model.filterText = "no-such-name*"
+        view.model.transient.filterText = "no-such-name*"
         let before = view.model.selection
 
         #expect(view.handleKey(.downArrow) == .ignored)
