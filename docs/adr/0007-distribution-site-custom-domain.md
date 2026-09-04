@@ -4,6 +4,8 @@
 - 日付: 2026-08-14
 - backlog decision: decision-7
 - 関連タスク: TASK-476（サブタスク 476.1〜476.6）
+- 更新: [ADR 0011](./0011-legacy-distribution-shutdown-conditions.md) が決定 1 の
+  「停止時期は定めない」を停止条件で置き換えた（supersede ではない。他の決定は有効）
 
 <!-- constrained-by ../superpowers/specs/2026-07-28-cloudflare-distribution-analytics-design.md -->
 
@@ -104,6 +106,13 @@ Custom Domain を追加した後も削除しない。`routes` を書いた時点
 
 停止時期は定めない。停止できる条件は「旧ホストの appcast を叩くクライアントが
 ゼロになったこと」だが、これは観測できてもゼロを保証できない。
+
+**この段落は [ADR 0011](./0011-legacy-distribution-shutdown-conditions.md) が
+更新した。** 停止条件は同 ADR の決定 4 にある。`/appcast*.xml` と `/dl/*` は
+そこで別々の条件に分けられている（現行 appcast の enclosure が新ドメインだけを
+指すようになり、両者が連動しなくなったため）。「ゼロを保証できない」という
+上の指摘は解消されておらず、切り捨てるバージョン範囲を明示したうえで判断として
+引き受ける形になっている。
 
 観測手段は TASK-488.3 で用意した。`events.host` に応答したホストを記録し、
 ダッシュボードの「配布ホストと旧経路」でホスト別の件数を人間とロボットに分けて出す
