@@ -10,7 +10,7 @@ protocol SidebarCollapsible: AnyObject {
     var isSidebarCollapsed: Bool { get }
     /// スライドモードの幅を適用／解除する（TASK-585）。**真偽値はここでは保持しない**
     /// （真値は `FileListModel.isSlideMode`）。
-    func setSlideMode(_ on: Bool)
+    func setSlideMode(_ enabled: Bool)
 }
 
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
@@ -121,8 +121,8 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     ///
     /// **min／max を先に変えてから `setPosition` する。** 逆順だと `setPosition` の値が
     /// そのときの min／max で clamp されて効かない。
-    func setSlideMode(_ on: Bool) {
-        if on {
+    func setSlideMode(_ enabled: Bool) {
+        if enabled {
             guard thicknessBeforeSlideMode == nil else { return }
             thicknessBeforeSlideMode = sidebarItem.viewController.view.frame.width
             setAutosaveEnabled(false)

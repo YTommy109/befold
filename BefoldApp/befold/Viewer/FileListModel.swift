@@ -206,10 +206,10 @@ final class FileListModel {
     /// スライドモードの出入り。**進入時にフィルターを閉じる。**
     /// ヘッダーが入力欄ごとアイコン 1 つへ置き換わるため、絞り込みだけが残ると
     /// 細い一覧が「なぜこれだけなのか」分からなくなる。
-    func setSlideMode(_ on: Bool) {
-        guard isSlideMode != on else { return }
-        isSlideMode = on
-        if on { closeFilter() }
+    func setSlideMode(_ enabled: Bool) {
+        guard isSlideMode != enabled else { return }
+        isSlideMode = enabled
+        if enabled { closeFilter() }
     }
 
     /// フィルター欄を閉じ、絞り込み文字列も解除する。
