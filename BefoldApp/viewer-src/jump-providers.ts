@@ -212,22 +212,32 @@ var changeBlockJumpProvider: JumpProvider = {
 // JS/TS では呼び出し側（`foo(1)` / `obj.method(2)`）にも同じクラスが付き、
 // 定義と区別できない（実測）。トークンは除外にだけ使う。
 //
+// ## JS/TS のメソッド短縮記法（TASK-485.23）
+//
+// `foo() {` / `async foo() {` / `get foo() {` は `if (x) {` / `while (x) {` /
+// `} catch (e) {` と行の形が同じなので、**名前の位置に予約語が来ないこと**を
+// 否定先読みで要求して分ける。ここが唯一の分かれ目なので、予約語の取りこぼしは
+// そのまま誤検出になる（`viewer-main-jump-function.test.js` の
+// 「制御構文を定義として拾わない」がそれを落とす）。
+//
+// `} else {` のように `}` で始まる行は、名前が行頭に来ないので先読み以前に外れる。
+// 呼び出しにコールバックを渡す行（`describe('x', () => {`）も、`)` の直後が `{` で
+// ないため外れる。ここでもトークンは使わない——判定の分かれ目は行の形のままで、
+// ADR 0011 の決定は変えていない。
+//
 // ## 対応言語
 //
 // 非対応言語ではメニューごと無効になる（Swift 側 ViewerCapabilities）。
 // この表と Swift の `FunctionJumpLanguages.supported` のずれは
 // `ViewerFunctionJumpLanguageContractTests` が落とす。
 //
-// v1 では JS/TS のメソッド短縮記法（`foo() {`）を対象にしていない。
-// `if (x) {` / `while (x) {` / `} catch (e) {` と行の形が同じで、除外語彙を
-// 抱えないと誤検出するため。クラスメソッドを拾うのは別タスクとする。
 var FUNCTION_JUMP_LANGUAGES = ['swift', 'python', 'javascript', 'typescript'];
 
 // 言語ごとに 1 本へ結合した判定。collect は rebuild のたびに全行を走査するので、
 // 行あたりに走らせる正規表現を増やさない（TASK-485.4 の設計レビュー項目 6）。
 // `g` を付けないので `test` は状態を持たない（lastIndex の持ち越しが起きない）。
 var JS_DEFINITION =
-  /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>))/u;
+  /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
 
 var DEFINITION_PATTERNS: Record<string, RegExp> = {
   // `class func` のように修飾子として現れる語も定義キーワードなので、

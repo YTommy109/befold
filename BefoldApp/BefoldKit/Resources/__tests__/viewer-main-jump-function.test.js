@@ -185,6 +185,94 @@ describe('定義ジャンプ: コメント・文字列を定義と誤検出し�
 
     expect(markedLines(document)).toEqual(['function real(a) {']);
   });
+
+  // TASK-485.23。クラスのメソッドが 1 つも拾えないと、TS のコードで機能が
+  // 事実上使えない（定義が `function` で始まる行だけになる）。
+  test('TS のクラスメソッド短縮記法を拾う（修飾子・ゲッタ・ジェネリクス・戻り値型つき）', async () => {
+    const { document } = await openDefinitionJump('typescript', [
+      'export class Store<T> {',
+      '  constructor(private readonly items: T[]) {',
+      '    this.items = items;',
+      '  }',
+      '  get size(): number {',
+      '    return this.items.length;',
+      '  }',
+      '  set first(value: T) {',
+      '    this.items[0] = value;',
+      '  }',
+      '  public async load(url: string): Promise<void> {',
+      '    await fetch(url);',
+      '  }',
+      '  static empty<U>(): Store<U> {',
+      '    return new Store<U>([]);',
+      '  }',
+      '  *entries() {',
+      '    yield* this.items;',
+      '  }',
+      '  #hidden() {',
+      '    return 1;',
+      '  }',
+      '}',
+    ]);
+
+    expect(markedLines(document)).toEqual([
+      'export class Store<T> {',
+      'constructor(private readonly items: T[]) {',
+      'get size(): number {',
+      'set first(value: T) {',
+      'public async load(url: string): Promise<void> {',
+      'static empty<U>(): Store<U> {',
+      '*entries() {',
+      '#hidden() {',
+    ]);
+  });
+
+  // メソッド短縮記法と行の形が同じもの。**分かれ目は名前の位置の予約語だけ**なので、
+  // 予約語を 1 つ落とすとそのまま誤検出になる（ADR 0011 / TASK-485.23）。
+  test('制御構文を定義として拾わない（メソッド短縮記法と行の形が同じ）', async () => {
+    const { document } = await openDefinitionJump('typescript', [
+      'function real(kind: string) {',
+      '  if (kind === "a") {',
+      '    return 1;',
+      '  } else if (kind === "b") {',
+      '    return 2;',
+      '  } else {',
+      '    return 3;',
+      '  }',
+      '  for (const item of items) {',
+      '  }',
+      '  while (running) {',
+      '  }',
+      '  switch (kind) {',
+      '  }',
+      '  do {',
+      '  } while (false);',
+      '  try {',
+      '  } catch (error) {',
+      '  } finally {',
+      '  }',
+      '}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['function real(kind: string) {']);
+  });
+
+  // 呼び出しにコールバックを渡す行は `)` の直後が `{` にならないので外れる。
+  // テストコードは丸ごとこの形なので、拾うと目印が本物の定義に埋もれる。
+  test('コールバックを渡す呼び出し行を定義として拾わない', async () => {
+    const { document } = await openDefinitionJump('javascript', [
+      'describe("suite", () => {',
+      '  it("works", async () => {',
+      '    setTimeout(() => {',
+      '      done();',
+      '    }, 0);',
+      '  });',
+      '});',
+      'function real() {}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['function real() {}']);
+  });
 });
 
 describe('定義ジャンプ: 非対応言語と段階読み込み', () => {

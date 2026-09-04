@@ -18,7 +18,7 @@ ordinal: 798000
 
 TASK-485.4 で入れた定義ジャンプの対応言語は swift / python / javascript / typescript の 4 つ（`FunctionJumpLanguages.supported` と JS の `FUNCTION_JUMP_LANGUAGES`）。同梱 highlight.js は common ビルドで 36 言語を扱う（`viewer-src/vendor.ts:19`）ため、残りの言語では機能が無効になっている。
 
-ADR 0009 の方式なら**言語ごとに正規表現を 1 本足すだけ**で広げられる（コメント・文字列の除外は highlight.js が持つので言語ごとに書かない）。
+ADR 0011 の方式なら**言語ごとに正規表現を 1 本足すだけ**で広げられる（コメント・文字列の除外は highlight.js が持つので言語ごとに書かない）。
 
 ## 注意
 

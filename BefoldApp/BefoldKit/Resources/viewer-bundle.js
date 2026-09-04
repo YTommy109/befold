@@ -16560,7 +16560,7 @@
     ignoresTruncation: true
   };
   var FUNCTION_JUMP_LANGUAGES = ["swift", "python", "javascript", "typescript"];
-  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>))/u;
+  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
   var DEFINITION_PATTERNS = {
     // `class func` のように修飾子として現れる語も定義キーワードなので、
     // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。

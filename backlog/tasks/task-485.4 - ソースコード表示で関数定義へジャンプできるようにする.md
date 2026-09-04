@@ -96,7 +96,7 @@ hljs のハイライト結果（`highlightCode` :17、`reflowSpanBalancedLines` 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## 検出方式の選定（AC #5 / ADR 0009）
+## 検出方式の選定（AC #5 / ADR 0011）
 
 **行テキストの言語別正規表現で「定義か」を決め、highlight.js のスパンで「本当にコードか」を決める**二役分離を採った。理由と実測は `backlog/decisions/decision-9` に記録した。要点:
 
@@ -165,7 +165,7 @@ CSS 側も固定幅を持たない（`.mmd-find-bar` は `flex-direction: column
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 ソースコード表示で関数・型の定義行へ前後移動できるようにした（DocumentJumpKind の 3 つ目の種類 functionDefinition）。
 
-検出方式は二役分離: 「この行は定義か」を言語別の行テキスト正規表現で決め、「その行は本当にコードか」を highlight.js のスパン（.hljs-comment / .hljs-string）で決める。コメント・文字列の除外を自前で持ち回らないのは、reflowSpanBalancedLines が行ごとに span を開き直すため複数行コメント／文字列の途中の行も自分の td 内に印を持つから。逆に span.hljs-title.function_ は定義の判定に使わない（JS/TS は呼び出し側にも同じクラスが付くことを実測）。選定理由は ADR 0009 に記録した。
+検出方式は二役分離: 「この行は定義か」を言語別の行テキスト正規表現で決め、「その行は本当にコードか」を highlight.js のスパン（.hljs-comment / .hljs-string）で決める。コメント・文字列の除外を自前で持ち回らないのは、reflowSpanBalancedLines が行ごとに span を開き直すため複数行コメント／文字列の途中の行も自分の td 内に印を持つから。逆に span.hljs-title.function_ は定義の判定に使わない（JS/TS は呼び出し側にも同じクラスが付くことを実測）。選定理由は ADR 0011 に記録した。
 
 対応言語は swift / python / javascript / typescript の 4 つ。非対応言語ではメニュー項目が押す前からグレーアウトする（ViewerCapabilities.canJumpToFunctionDefinition、条件は差分表示中でないソース表示 かつ 対応言語）。言語集合が Swift と JS の 2 箇所にあるため ViewerFunctionJumpLanguageContractTests で結んだ。段階読み込み中は「表示範囲内」ラベルを出す（差分と違い appendChunk で実際に追記が起きるため ignoresTruncation は付けない）。
 
