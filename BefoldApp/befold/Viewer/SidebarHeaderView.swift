@@ -32,12 +32,12 @@ struct SidebarHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if model.isSlideMode {
+            if model.transient.isSlideMode {
                 slideModeIndicator
             } else {
                 baseDirectoryIndicator
                 navigationHeader
-                if model.isFilterActive {
+                if model.transient.isFilterActive {
                     filterField
                 }
             }
@@ -60,15 +60,16 @@ struct SidebarHeaderView: View {
     }
 
     private var filterField: some View {
-        TextField(
+        @Bindable var transient = model.transient
+        return TextField(
             String(localized: "sidebar.filter.placeholder", bundle: .l10n),
-            text: $model.filterText
+            text: $transient.filterText
         )
         .textFieldStyle(.plain)
         .focused($isFilterFieldFocused)
         .onAppear { isFilterFieldFocused = true }
         .onKeyPress(.escape) {
-            model.closeFilter()
+            model.transient.closeFilter()
             return .handled
         }
     }
@@ -88,8 +89,8 @@ struct SidebarHeaderView: View {
             showHiddenFiles: model.showHiddenFiles,
             showChangedFilesOnly: model.showChangedFilesOnly,
             canFilterChangedFiles: model.canFilterChangedFiles,
-            isFilterActive: model.isFilterActive,
-            isFilterTextEmpty: model.filterText.isEmpty
+            isFilterActive: model.transient.isFilterActive,
+            isFilterTextEmpty: model.transient.filterText.isEmpty
         )
     }
 
@@ -120,10 +121,10 @@ struct SidebarHeaderView: View {
     }
 
     private func toggleFilter() {
-        if model.isFilterActive {
-            model.closeFilter()
+        if model.transient.isFilterActive {
+            model.transient.closeFilter()
         } else {
-            model.isFilterActive = true
+            model.transient.isFilterActive = true
         }
     }
 

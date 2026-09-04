@@ -130,7 +130,7 @@ extension ViewerWindowController {
 
     /// スライドモード中か。`ViewerMenuValidationSource` の要求。真値は `fileListModel`。
     var isSlideMode: Bool {
-        fileListModel.isSlideMode
+        fileListModel.transient.isSlideMode
     }
 
     /// View > スライドモード。畳んでいるときは項目が無効（`ViewerMenuValidator`）。

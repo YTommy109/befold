@@ -190,34 +190,9 @@ final class FileListModel {
     /// 行の並べ方(ドリルダウン / ツリー展開)。
     /// View はキー操作の割り当てをこの値で切り替える。
     var layoutMode: SidebarLayoutMode
-    /// ファイル名フィルターの検索文字列。フォルダ移動をまたいで保持し、
-    /// アプリ再起動時は初期値(空文字列)に戻る(永続化しない)。
-    var filterText: String = ""
-    /// フィルターフィールドの開閉状態。true の間は navigationHeader 直下に検索欄を表示する。
-    var isFilterActive: Bool = false
-    /// プレゼン用のスライドモード(TASK-585)。**窓ごとで、永続化しない**
-    /// (`filterText` / `isFilterActive` と同じ立場)。
-    ///
-    /// **この値がスライドモードの唯一の真値。** `ViewerSplitViewController` は幅だけを持ち、
-    /// 真偽値を二重に持たない。二重に持つと幅と表示が食い違う形が作れてしまう。
-    /// 変更は `setSlideMode(_:)` を通すこと(直接代入するとフィルターが閉じない)。
-    private(set) var isSlideMode = false
-
-    /// スライドモードの出入り。**進入時にフィルターを閉じる。**
-    /// ヘッダーが入力欄ごとアイコン 1 つへ置き換わるため、絞り込みだけが残ると
-    /// 細い一覧が「なぜこれだけなのか」分からなくなる。
-    func setSlideMode(_ enabled: Bool) {
-        guard isSlideMode != enabled else { return }
-        isSlideMode = enabled
-        if enabled { closeFilter() }
-    }
-
-    /// フィルター欄を閉じ、絞り込み文字列も解除する。
-    /// アイコン再押下・esc・スライドモード進入のどれからも同じ挙動にするための共通口。
-    func closeFilter() {
-        isFilterActive = false
-        filterText = ""
-    }
+    /// 絞り込みとスライドモード(窓ごと・永続化しない)。保存値の対がある表示 4 値とは
+    /// 分けてある。詳しくは `SidebarTransientState` の doc を参照。
+    let transient = SidebarTransientState()
 
     /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
     /// git ルートの解決は subprocess を伴うため View の body では行わず、
@@ -349,7 +324,7 @@ final class FileListModel {
     /// ここ 1 箇所に集約し、増えたときに片側だけ取り残されないようにする(TASK-288)。
     var listFilter: FileListFilter {
         FileListFilter(
-            filterText: filterText,
+            filterText: transient.filterText,
             gitStatus: showChangedFilesOnly ? gitStatus : nil,
             presentedPathKey: storedSelectionPathKey
         )

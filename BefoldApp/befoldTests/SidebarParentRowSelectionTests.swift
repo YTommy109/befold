@@ -89,7 +89,7 @@ struct SidebarParentRowSelectionTests {
     func parentRowFollowsAncestorsKeptByFilter() {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: nil)
-        model.filterText = "deep*"
+        model.transient.filterText = "deep*"
 
         // 一致した deep.md と、その祖先として足し戻された src / lib が残る。
         #expect(model.visibleEntries.map(\.kind) == [.folder, .folder, .file])

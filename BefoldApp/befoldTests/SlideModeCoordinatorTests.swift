@@ -34,11 +34,11 @@ struct SlideModeCoordinatorTests {
         let collapsible = CollapsibleSpy()
 
         SlideModeCoordinator.toggle(model: model, collapsible: collapsible)
-        #expect(model.isSlideMode)
+        #expect(model.transient.isSlideMode)
         #expect(collapsible.slideModeCalls == [true])
 
         SlideModeCoordinator.toggle(model: model, collapsible: collapsible)
-        #expect(!model.isSlideMode)
+        #expect(!model.transient.isSlideMode)
         #expect(collapsible.slideModeCalls == [true, false])
     }
 
@@ -50,7 +50,7 @@ struct SlideModeCoordinatorTests {
 
         SlideModeCoordinator.setEnabled(false, model: model, collapsible: collapsible)
 
-        #expect(!model.isSlideMode)
+        #expect(!model.transient.isSlideMode)
         #expect(collapsible.slideModeCalls == [true, false])
     }
 
@@ -61,7 +61,7 @@ struct SlideModeCoordinatorTests {
 
         SlideModeCoordinator.setEnabled(false, model: model, collapsible: collapsible)
 
-        #expect(!model.isSlideMode)
+        #expect(!model.transient.isSlideMode)
         #expect(collapsible.slideModeCalls.isEmpty)
     }
 }

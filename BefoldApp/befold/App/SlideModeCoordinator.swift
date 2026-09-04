@@ -11,7 +11,7 @@
 enum SlideModeCoordinator {
     /// スライドモードを切り替える。View メニューとヘッダーのアイコンの両方がここを通る。
     static func toggle(model: FileListModel, collapsible: (any SidebarCollapsible)?) {
-        setEnabled(!model.isSlideMode, model: model, collapsible: collapsible)
+        setEnabled(!model.transient.isSlideMode, model: model, collapsible: collapsible)
     }
 
     /// スライドモードを明示的に設定する。
@@ -21,8 +21,8 @@ enum SlideModeCoordinator {
     static func setEnabled(
         _ enabled: Bool, model: FileListModel, collapsible: (any SidebarCollapsible)?
     ) {
-        guard model.isSlideMode != enabled else { return }
-        model.setSlideMode(enabled)
+        guard model.transient.isSlideMode != enabled else { return }
+        model.transient.setSlideMode(enabled)
         collapsible?.setSlideMode(enabled)
         if enabled {
             // これがこのモードの目的そのもの。カーソルキーでファイルを送れるようにする。

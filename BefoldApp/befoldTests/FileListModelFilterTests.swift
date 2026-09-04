@@ -30,7 +30,7 @@ struct FileListModelFilterTests {
     func filterNarrowsToMatchingEntries() {
         let entries = [makeEntry("README.md"), makeEntry("notes.txt")]
         let model = makeModel(entries: entries)
-        model.filterText = "read"
+        model.transient.filterText = "read"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["README.md"])
     }
@@ -97,7 +97,7 @@ struct FileListModelFilterTests {
             to: model
         )
         model.showChangedFilesOnly = true
-        model.filterText = "read*"
+        model.transient.filterText = "read*"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["README.md"])
     }

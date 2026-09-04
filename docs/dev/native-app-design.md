@@ -198,7 +198,9 @@ BefoldApp/
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
 | `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
-| `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー。プレゼン用のスライドモード（`isSlideMode`）もここが持つ。**窓ごとで永続化しない**（`filterText` と同じ立場）で、これがモードの唯一の真値。`ViewerSplitViewController` は幅だけを持つ。進入時にフィルターを閉じ、サイドバーへフォーカスを移す。サイドバーが畳まれている間はメニュー項目が無効で、畳んだ時点で `SlideModeExitOnHide` が解除する（自動で開閉しないので `SidebarStateStore` を汚さない） |
+| `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
+| `SidebarTransientState` | サイドバーの**保存値の対を持たない**見せ方（名前フィルターとプレゼン用のスライドモード）。窓ごとで永続化せず、再起動すれば必ず初期値へ戻る。保存値を持つ表示 4 値（`SidebarDisplayDefaults`）と分ける境界がこれ。`isSlideMode` がスライドモードの唯一の真値で、`ViewerSplitViewController` は幅だけを持つ |
+| `SlideModeCoordinator` | スライドモードの出入りの手順（真値の更新 → 幅の適用 → サイドバーへフォーカス）。順序に意味があるため、View メニューとヘッダーのアイコンと「畳んだときの解除」がすべてここを通る。進入時にフィルターを閉じる。サイドバーが畳まれている間はメニュー項目が無効で、自動で開閉しないので `SidebarStateStore` の「最後にユーザーが操作した開閉状態」を汚さない |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |
 | `ReferenceResolver` | クリックされた href/パス参照を外部 URL・ローカルファイル・非対応に分類 |

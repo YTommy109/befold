@@ -1,16 +1,12 @@
 @testable import befold
-import Foundation
 import Testing
 
-/// スライドモードの窓ごと状態。永続化しないので UserDefaults は触らない。
+/// 絞り込みとスライドモードの窓ごと状態。永続化しないので UserDefaults は触らない。
 @MainActor
 @Suite
-struct FileListModelSlideModeTests {
-    private func makeModel() -> FileListModel {
-        FileListModel(
-            currentDirectory: URL(fileURLWithPath: "/tmp/slide-mode", isDirectory: true),
-            entries: [], selection: nil
-        )
+struct SidebarTransientStateTests {
+    private func makeModel() -> SidebarTransientState {
+        SidebarTransientState()
     }
 
     @Test("既定ではスライドモードではない")

@@ -157,7 +157,7 @@ extension SidebarEmptyContext {
     init(model: FileListModel) {
         self.init(
             activeGitChangeFilter: model.listFilter.gitChangeFilter(for: model.entriesDirectory),
-            filterText: model.filterText,
+            filterText: model.transient.filterText,
             directoryName: model.currentDirectory.lastPathComponent,
             didFailEnumeration: model.didFailListing,
             hasLoadedEntries: model.hasLoadedEntries

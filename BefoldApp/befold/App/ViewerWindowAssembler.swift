@@ -149,15 +149,7 @@ enum ViewerWindowAssembler {
             onSidebarDidReveal: { [weak controller] in
                 controller?.fileListModel.tableFocuser.focus()
             },
-            onSidebarDidHide: { [weak controller] in
-                guard let controller else { return }
-                controller.fileListModel.tableFocuser.cancelPendingFocus()
-                // 畳んだままスライドモードが残ると、次に開いたときアイコン幅で戻る。
-                SlideModeCoordinator.setEnabled(
-                    false, model: controller.fileListModel,
-                    collapsible: controller.sidebarCollapsible
-                )
-            }
+            onSidebarDidHide: makeSidebarDidHide(for: controller)
         )
         controller.sidebarCollapsible = splitViewController
         return splitViewController
@@ -167,6 +159,22 @@ enum ViewerWindowAssembler {
     ///
     /// 行操作(選択・移動・別の場所で開く・展開/畳み)は controller が
     /// `FileListViewDelegate` として直接受けるため、ここでは配線しない。
+    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨て、スライドモードを解除する。
+    ///
+    /// 畳んだままスライドモードが残ると、次に開いたときアイコン幅のまま戻り、
+    /// ヘッダーの解除ボタンにしか出口が無くなる。**自動で開閉はしない**ので、
+    /// `SidebarStateStore` の「最後にユーザーが操作した開閉状態」は汚れない。
+    private static func makeSidebarDidHide(for controller: ViewerWindowController) -> () -> Void {
+        { [weak controller] in
+            guard let controller else { return }
+            controller.fileListModel.tableFocuser.cancelPendingFocus()
+            SlideModeCoordinator.setEnabled(
+                false, model: controller.fileListModel,
+                collapsible: controller.sidebarCollapsible
+            )
+        }
+    }
+
     private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
         FileListView(
             model: controller.fileListModel,

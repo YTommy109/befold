@@ -80,11 +80,11 @@ struct SidebarNavigatorGenerationTests {
         let (navigator, host) = makeNavigator(currentDirectory: base) { _, _, _ in .empty }
         defer { withExtendedLifetime(host) {} }
 
-        navigator.fileListModel.filterText = "fileA"
+        navigator.fileListModel.transient.filterText = "fileA"
         navigator.navigateToFolder(dirB)
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)
-        #expect(navigator.fileListModel.filterText == "fileA")
+        #expect(navigator.fileListModel.transient.filterText == "fileA")
     }
 }
