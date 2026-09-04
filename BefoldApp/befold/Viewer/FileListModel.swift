@@ -195,6 +195,30 @@ final class FileListModel {
     var filterText: String = ""
     /// フィルターフィールドの開閉状態。true の間は navigationHeader 直下に検索欄を表示する。
     var isFilterActive: Bool = false
+    /// プレゼン用のスライドモード(TASK-585)。**窓ごとで、永続化しない**
+    /// (`filterText` / `isFilterActive` と同じ立場)。
+    ///
+    /// **この値がスライドモードの唯一の真値。** `ViewerSplitViewController` は幅だけを持ち、
+    /// 真偽値を二重に持たない。二重に持つと幅と表示が食い違う形が作れてしまう。
+    /// 変更は `setSlideMode(_:)` を通すこと(直接代入するとフィルターが閉じない)。
+    private(set) var isSlideMode = false
+
+    /// スライドモードの出入り。**進入時にフィルターを閉じる。**
+    /// ヘッダーが入力欄ごとアイコン 1 つへ置き換わるため、絞り込みだけが残ると
+    /// 細い一覧が「なぜこれだけなのか」分からなくなる。
+    func setSlideMode(_ on: Bool) {
+        guard isSlideMode != on else { return }
+        isSlideMode = on
+        if on { closeFilter() }
+    }
+
+    /// フィルター欄を閉じ、絞り込み文字列も解除する。
+    /// アイコン再押下・esc・スライドモード進入のどれからも同じ挙動にするための共通口。
+    func closeFilter() {
+        isFilterActive = false
+        filterText = ""
+    }
+
     /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
     /// git ルートの解決は subprocess を伴うため View の body では行わず、
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。

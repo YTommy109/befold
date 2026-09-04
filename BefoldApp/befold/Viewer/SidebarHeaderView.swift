@@ -47,16 +47,9 @@ struct SidebarHeaderView: View {
         .focused($isFilterFieldFocused)
         .onAppear { isFilterFieldFocused = true }
         .onKeyPress(.escape) {
-            closeFilter()
+            model.closeFilter()
             return .handled
         }
-    }
-
-    /// フィルターフィールドを閉じ、フィルター文字列を解除する。
-    /// アイコン再押下・esc のどちらからも同じ挙動にするための共通口。
-    private func closeFilter() {
-        model.isFilterActive = false
-        model.filterText = ""
     }
 
     /// 基準ディレクトリの解決前(初回表示直後の一瞬)は行を出さない。
@@ -107,7 +100,7 @@ struct SidebarHeaderView: View {
 
     private func toggleFilter() {
         if model.isFilterActive {
-            closeFilter()
+            model.closeFilter()
         } else {
             model.isFilterActive = true
         }
