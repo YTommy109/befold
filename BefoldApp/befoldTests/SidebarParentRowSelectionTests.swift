@@ -102,11 +102,7 @@ struct SidebarParentRowSelectionTests {
     private func makeView(model: FileListModel, onNavigate: @escaping (URL) -> Void) -> FileListView {
         FileListView(
             model: model,
-            delegate: delegates.makeSpy(onNavigate: onNavigate),
-            onSortOrderChanged: { _ in },
-            onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {},
-            onToggleSlideMode: {}
+            delegate: delegates.makeSpy(onNavigate: onNavigate)
         )
     }
 

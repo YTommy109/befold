@@ -4,27 +4,13 @@ import SwiftUI
 
 struct FileListView: View {
     @Bindable var model: FileListModel
-    /// 行操作(選択・移動・別の場所で開く・展開/畳み)の受け手。
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)と表示切り替えの受け手。
     /// ウィンドウ側(ViewerWindowController)が保持するため弱参照で持つ。
     weak var delegate: FileListViewDelegate?
-    let onSortOrderChanged: (SortOrder) -> Void
-    var onToggleHiddenFiles: (() -> Void)?
-    let onToggleChangedFilesOnly: () -> Void
-    let onToggleSidebarTreeLayout: () -> Void
-    /// スライドモードの解除（ヘッダーのアイコン）。ウィンドウ側の経路へ素通しする。
-    let onToggleSlideMode: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            SidebarHeaderView(
-                model: model,
-                delegate: delegate,
-                onSortOrderChanged: onSortOrderChanged,
-                onToggleHiddenFiles: onToggleHiddenFiles,
-                onToggleChangedFilesOnly: onToggleChangedFilesOnly,
-                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout,
-                onToggleSlideMode: onToggleSlideMode
-            )
+            SidebarHeaderView(model: model, delegate: delegate)
             entryList
         }
     }

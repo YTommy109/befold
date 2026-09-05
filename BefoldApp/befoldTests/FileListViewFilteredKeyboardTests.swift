@@ -32,11 +32,7 @@ struct FileListViewFilteredKeyboardTests {
         model.transient.filterText = "beta*"
         let view = FileListView(
             model: model,
-            delegate: delegates.makeSpy(),
-            onSortOrderChanged: { _ in },
-            onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {},
-            onToggleSlideMode: {}
+            delegate: delegates.makeSpy()
         )
         return (view, [beta1, beta2])
     }
@@ -123,11 +119,7 @@ struct FileListViewFilteredKeyboardTests {
         model.layoutMode = .tree
         let view = FileListView(
             model: model,
-            delegate: delegates.makeSpy(),
-            onSortOrderChanged: { _ in },
-            onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {},
-            onToggleSlideMode: {}
+            delegate: delegates.makeSpy()
         )
         model.snapshotEvaluations.reset()
 

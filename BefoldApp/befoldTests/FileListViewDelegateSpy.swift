@@ -16,6 +16,7 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
     private(set) var openedElsewhere: [(url: URL, disposition: OpenDisposition)] = []
     private(set) var expandedEntries: [FileListEntry] = []
     private(set) var collapsedEntries: [FileListEntry] = []
+    private(set) var displayChanges: [SidebarDisplayRequest] = []
 
     func fileListDidSelectFile(_ url: URL) {
         selectedFiles.append(url)
@@ -37,6 +38,10 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
 
     func fileListDidRequestCollapse(_ entry: FileListEntry) {
         collapsedEntries.append(entry)
+    }
+
+    func fileListDidRequestDisplayChange(_ request: SidebarDisplayRequest) {
+        displayChanges.append(request)
     }
 }
 

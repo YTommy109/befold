@@ -155,10 +155,6 @@ enum ViewerWindowAssembler {
         return splitViewController
     }
 
-    /// サイドバーのファイル一覧ビューを組み立てる。
-    ///
-    /// 行操作(選択・移動・別の場所で開く・展開/畳み)は controller が
-    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない。
     /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨て、スライドモードを解除する。
     ///
     /// 畳んだままスライドモードが残ると、次に開いたときアイコン幅のまま戻り、
@@ -175,36 +171,12 @@ enum ViewerWindowAssembler {
         }
     }
 
-    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
-        FileListView(
-            model: controller.fileListModel,
-            delegate: controller,
-            onSortOrderChanged: { [weak controller] order in
-                controller?.sidebar.applyDisplayChange(.setSortOrder(order))
-            },
-            onToggleHiddenFiles: makeDisplayToggle(.toggleHiddenFiles, for: controller),
-            onToggleChangedFilesOnly: makeDisplayToggle(.toggleChangedFilesOnly, for: controller),
-            onToggleSidebarTreeLayout: makeDisplayToggle(.toggleLayoutMode, for: controller),
-            onToggleSlideMode: { [weak controller] in
-                // メニューと同じ入口を通す。状態と幅の更新順序を 2 箇所に持たない。
-                controller?.toggleSlideMode(nil)
-            }
-        )
-    }
-
-    /// サイドバーヘッダーのトグルボタンの動作を作る。
+    /// サイドバーのファイル一覧ビューを組み立てる。
     ///
-    /// サイドバー表示 4 値は窓ごとのライブ値なので(ADR 0002「窓の状態」)、**この窓の
-    /// サイドバーへ直接届ける。** メニュー(⌃⌘T など)も同じ
-    /// `SidebarNavigator.applyDisplayChange(_:)` を通り、ボタン専用の経路は持たせない。
-    /// 以前は delegate → `ViewerWindowManager` → 全窓一括反映という経路だったが、
-    /// 配る先が 1 窓になった今、窓の外を往復する理由が無い(TASK-480.3)。
-    static func makeDisplayToggle(
-        _ change: SidebarDisplayChange, for controller: ViewerWindowController
-    ) -> () -> Void {
-        { [weak controller] in
-            controller?.sidebar.applyDisplayChange(change)
-        }
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)も表示切り替えも controller が
+    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない(TASK-586)。
+    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
+        FileListView(model: controller.fileListModel, delegate: controller)
     }
 
     // MARK: - 配線
