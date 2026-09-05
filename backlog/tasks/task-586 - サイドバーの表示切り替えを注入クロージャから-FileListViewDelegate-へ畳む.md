@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-04 13:41'
-updated_date: '2026-09-05 01:37'
+updated_date: '2026-09-05 02:48'
 labels: []
 dependencies: []
 ordinal: 851000
@@ -52,6 +52,8 @@ GUI 層は自動テスト対象外なのでボタン自体は押せない。押�
 docs/dev/native-app-design.md は更新不要と判断した。同文書は FileListModel / FileListView をコンポーネント表の 1 行で扱うだけで、親子間の配線方式（クロージャか delegate か）を記述していないため、今回の変更で古くなる記述が無い。
 
 検証: swift build 成功 / swift test 1875 tests in 308 suites passed / swiftlint ベースライン差分は真の新規ゼロ（origin/main 51 件 → HEAD 51 件、解消もゼロ）。
+
+実装後レビュー（/code-review high、2026-09-05）の規約メモ: このタスクは新しい型（SidebarDisplayRequest）と新しいプロトコルメソッドを足し、5 ファイルにまたがる表示切替経路にノードを挿入したが、実装前の /review-design を回していない（TASK-585 は回している）。レビューで出た「ヘッダーボタンの配線が新テストの通らない場所に残っている」（TASK-590）は設計文だけから導ける型で、回していれば着手前に見つかっていた。指摘の起票先: TASK-590 / TASK-591 / TASK-592（TASK-586 由来）、TASK-588 / TASK-589（TASK-587 由来、main に PR #632 で入っている）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
