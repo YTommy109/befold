@@ -30,7 +30,7 @@ struct SidebarNavigatorSortOrderTests {
             entries: [],
             selection: nil,
             displayDefaults: preference,
-            sortOrder: sortOrder,
+            overrides: SidebarDisplayOverrides(sortOrder: sortOrder),
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: []) },
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
         )

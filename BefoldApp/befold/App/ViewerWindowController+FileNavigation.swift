@@ -31,6 +31,17 @@ extension ViewerWindowController {
         sidebar.navigateHistory(by: offset)
     }
 
+    /// スライド窓の前後移動(TASK-593.3)。行き先の解決は `SlideKeyAction` が持ち、
+    /// ここは通常窓と同じ `switchFile(to:)` を通すだけ(履歴・タイトル・per-file の
+    /// 表示メモリが従来どおり効く)。
+    func moveToAdjacentFile(_ action: SlideKeyAction) {
+        let model = fileListModel
+        guard let destination = action.destination(
+            in: model.listSnapshot, from: model.selection
+        ) else { return }
+        switchFile(to: destination.url)
+    }
+
     /// サイドバーで別ファイルが選択されたときにウィンドウの表示対象を切り替える。
     /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {

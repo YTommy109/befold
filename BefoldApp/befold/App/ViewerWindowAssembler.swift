@@ -33,12 +33,29 @@ enum ViewerWindowAssembler {
     /// 3. ストアのコールバックを配線してから開く(開いた直後の通知を取り落とさない)
     static func openInitialDocument(
         for controller: ViewerWindowController, at fileURL: URL,
-        adopting initialListing: SidebarListingSeed?
+        adopting initialListing: SidebarListingSeed?,
+        expanding initialExpansion: [String: URL] = [:]
     ) {
-        controller.sidebar.attach(to: controller, adopting: initialListing)
+        controller.sidebar.attach(
+            to: controller, adopting: initialListing, expanding: initialExpansion
+        )
         controller.sidebar.refreshFileList()
         wireStoreCallbacks(for: controller)
         controller.store.openFile(fileURL)
+    }
+
+    /// ツールバーを作って取り付ける。**種別が持たないなら作らない**(TASK-593.2)。
+    ///
+    /// 隠すのではなく作らないのが要点。ツールバーを残したまま隠すと
+    /// `.system(.toggleSidebar)` が生きていて、サイドバーを開く経路が 1 つ増える。
+    ///
+    /// 生成・デリゲート設定・取り付けの順序制約は `ViewerToolbarController.init` の中に
+    /// 閉じているので、ここが持つのは「作るかどうか」だけ。
+    static func makeToolbarController(
+        for controller: ViewerWindowController, on window: NSWindow
+    ) -> ViewerToolbarController? {
+        guard controller.kind.hasToolbar else { return nil }
+        return ViewerToolbarController(window: window, host: controller)
     }
 
     static func makeSidebarNavigator(
@@ -53,8 +70,7 @@ enum ViewerWindowAssembler {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
-            displayDefaults: displayDefaults, sortOrder: overrides.sortOrder,
-            showHiddenFiles: overrides.showHiddenFiles,
+            displayDefaults: displayDefaults, overrides: overrides,
             git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
@@ -142,6 +158,7 @@ enum ViewerWindowAssembler {
             sidebar: makeFileListView(for: controller),
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
+            allowsSidebar: controller.kind.allowsSidebar,
             onCollapsedChange: { [weak controller] collapsed in
                 guard let controller else { return }
                 controller.perFileState.sidebar.recordToggle(collapsed, for: controller.fileURL)
@@ -155,68 +172,58 @@ enum ViewerWindowAssembler {
         return splitViewController
     }
 
-    /// サイドバーのファイル一覧ビューを組み立てる。
+    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨てる。
     ///
-    /// 行操作(選択・移動・別の場所で開く・展開/畳み)は controller が
-    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない。
-    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨て、スライドモードを解除する。
-    ///
-    /// 畳んだままスライドモードが残ると、次に開いたときアイコン幅のまま戻り、
-    /// ヘッダーの解除ボタンにしか出口が無くなる。**自動で開閉はしない**ので、
-    /// `SidebarStateStore` の「最後にユーザーが操作した開閉状態」は汚れない。
+    /// 保留のまま残すと「開いた要求が、閉じた後に成立する」形になる(TASK-563)。
     private static func makeSidebarDidHide(for controller: ViewerWindowController) -> () -> Void {
         { [weak controller] in
-            guard let controller else { return }
-            controller.fileListModel.tableFocuser.cancelPendingFocus()
-            SlideModeCoordinator.setEnabled(
-                false, model: controller.fileListModel,
-                collapsible: controller.sidebarCollapsible
-            )
+            controller?.fileListModel.tableFocuser.cancelPendingFocus()
         }
     }
 
-    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
-        FileListView(
-            model: controller.fileListModel,
-            delegate: controller,
-            onSortOrderChanged: { [weak controller] order in
-                controller?.sidebar.applyDisplayChange(.setSortOrder(order))
-            },
-            onToggleHiddenFiles: makeDisplayToggle(.toggleHiddenFiles, for: controller),
-            onToggleChangedFilesOnly: makeDisplayToggle(.toggleChangedFilesOnly, for: controller),
-            onToggleSidebarTreeLayout: makeDisplayToggle(.toggleLayoutMode, for: controller),
-            onToggleSlideMode: { [weak controller] in
-                // メニューと同じ入口を通す。状態と幅の更新順序を 2 箇所に持たない。
-                controller?.toggleSlideMode(nil)
-            }
-        )
-    }
-
-    /// サイドバーヘッダーのトグルボタンの動作を作る。
+    /// サイドバーのファイル一覧ビューを組み立てる。
     ///
-    /// サイドバー表示 4 値は窓ごとのライブ値なので(ADR 0002「窓の状態」)、**この窓の
-    /// サイドバーへ直接届ける。** メニュー(⌃⌘T など)も同じ
-    /// `SidebarNavigator.applyDisplayChange(_:)` を通り、ボタン専用の経路は持たせない。
-    /// 以前は delegate → `ViewerWindowManager` → 全窓一括反映という経路だったが、
-    /// 配る先が 1 窓になった今、窓の外を往復する理由が無い(TASK-480.3)。
-    static func makeDisplayToggle(
-        _ change: SidebarDisplayChange, for controller: ViewerWindowController
-    ) -> () -> Void {
-        { [weak controller] in
-            controller?.sidebar.applyDisplayChange(change)
-        }
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)も表示切り替えも controller が
+    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない(TASK-586)。
+    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
+        FileListView(model: controller.fileListModel, delegate: controller)
     }
 
     // MARK: - 配線
 
+    /// この窓が要るイベントモニタを作って取り付ける。開始まで済ませる。**停止は
+    /// windowWillClose が 1 箇所でまとめて行う**（`ViewerWindowController+WindowDelegate.swift`）。
+    ///
+    /// 取り付けを 1 本にまとめてあるのは、モニタを足したときに「作ったが取り付けていない」
+    /// 経路をコントローラの init 側に作らせないため。
+    static func wireEventMonitors(for controller: ViewerWindowController, on window: NSWindow) {
+        controller.swipeMonitor = makeSwipeMonitor(for: controller, on: window)
+        controller.slideKeyMonitor = makeSlideKeyMonitor(for: controller, on: window)
+    }
+
     /// 二本指スワイプによるファイル履歴ナビゲーション検知を作る。
-    /// 開始まで済ませて返す。停止は windowWillClose が行う
-    /// （`ViewerWindowController+WindowDelegate.swift`）。
-    static func makeSwipeMonitor(
+    private static func makeSwipeMonitor(
         for controller: ViewerWindowController, on window: NSWindow
     ) -> SwipeHistoryMonitor {
         let monitor = SwipeHistoryMonitor(window: window) { [weak controller] offset in
             controller?.navigateHistory(by: offset)
+        }
+        monitor.start()
+        return monitor
+    }
+
+    /// スライド窓の前後移動キー検知を作る。**種別が持たないなら作らない**(TASK-593.3)。
+    /// 開始まで済ませて返す。停止は `swipeMonitor` と同じく windowWillClose が行う。
+    ///
+    /// 隣の解決とファイルを開く経路はどちらも通常窓と同じものを通す
+    /// （`FileListSnapshot.nextFile(after:)` と `switchFile(to:)`）ので、
+    /// ここが持つのは「どの動作をどの呼び出しへ写すか」だけ。
+    private static func makeSlideKeyMonitor(
+        for controller: ViewerWindowController, on window: NSWindow
+    ) -> SlideKeyMonitor? {
+        guard controller.kind == .slide else { return nil }
+        let monitor = SlideKeyMonitor(window: window) { [weak controller] action in
+            controller?.moveToAdjacentFile(action)
         }
         monitor.start()
         return monitor

@@ -36,7 +36,8 @@ struct ViewerWindowControllerToolbarTests {
         // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/
         // ブックマーク の順。差分レイアウトの切替は独立アイテムを持たず、モード切替
         // セグメントの差分セグメント再クリックが担うため、構成はゲートで変わらない。
-        let identifiers = controller.toolbarController.toolbarDefaultItemIdentifiers(toolbar)
+        let toolbarController = try #require(controller.toolbarController)
+        let identifiers = toolbarController.toolbarDefaultItemIdentifiers(toolbar)
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
@@ -44,7 +45,7 @@ struct ViewerWindowControllerToolbarTests {
         ])
 
         for identifier in ["historyBack", "historyForward"] {
-            let item = try #require(controller.toolbarController.toolbar(
+            let item = try #require(toolbarController.toolbar(
                 toolbar, itemForItemIdentifier: .init(identifier), willBeInsertedIntoToolbar: false
             ))
             // 戻る・進むアイテムはナビゲーション項目としてタイトルより先頭側に配置される
@@ -137,9 +138,10 @@ struct ViewerWindowControllerToolbarTests {
         // 遅延になるだけで失敗にはならない(上限はスイートの .timeLimit が担保する)。
         await codeController.store.loadTask?.value
 
-        codeController.toolbarController.refreshToolbarState()
+        codeController.toolbarController?.refreshToolbarState()
 
-        let codeButton = try #require(codeController.toolbarController.toolbar(
+        let codeToolbarController = try #require(codeController.toolbarController)
+        let codeButton = try #require(codeToolbarController.toolbar(
             codeToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
         )?.view as? NSButton)
         #expect(codeButton.isEnabled == true)
@@ -147,7 +149,8 @@ struct ViewerWindowControllerToolbarTests {
         let previewController = makeController(file: URL(fileURLWithPath: "/mock/b.mmd"))
         defer { previewController.close() }
         let previewToolbar = try #require(previewController.window?.toolbar)
-        let previewItem = try #require(previewController.toolbarController.toolbar(
+        let previewToolbarController = try #require(previewController.toolbarController)
+        let previewItem = try #require(previewToolbarController.toolbar(
             previewToolbar, itemForItemIdentifier: .init("lineNumbers"), willBeInsertedIntoToolbar: false
         ))
         let previewButton = try #require(previewItem.view as? NSButton)
@@ -170,7 +173,7 @@ struct ViewerWindowControllerToolbarTests {
         // fileType は非同期読み込みの完了(apply())と同時に確定するため、完了を待つ。
         await controller.store.loadTask?.value
 
-        controller.toolbarController.refreshToolbarState()
+        controller.toolbarController?.refreshToolbarState()
 
         let liveItem = try #require(toolbar.items.first { $0.itemIdentifier == .init("modeToggle") })
         let segmented = try #require(liveItem.view as? NSSegmentedControl)
@@ -195,12 +198,12 @@ struct ViewerWindowControllerToolbarTests {
         let diffIndex = try #require(ModeSegments.all.firstIndex(of: .diff))
 
         preference.layout = .inline
-        controller.toolbarController.refreshToolbarState()
+        controller.toolbarController?.refreshToolbarState()
         let inlineImage = try #require(segmented.image(forSegment: diffIndex))
         #expect(inlineImage === ViewerToolbarController.segmentImage(for: .diff, isSideBySide: false, label: ""))
 
         preference.layout = .sideBySide
-        controller.toolbarController.refreshToolbarState()
+        controller.toolbarController?.refreshToolbarState()
         let sideBySideImage = try #require(segmented.image(forSegment: diffIndex))
         #expect(sideBySideImage === ViewerToolbarController.segmentImage(for: .diff, isSideBySide: true, label: ""))
         #expect(inlineImage !== sideBySideImage)
@@ -298,7 +301,7 @@ struct ViewerWindowControllerToolbarTests {
 
         // CLI 転送など、ウィンドウのトグル操作を経ずストアだけが変わる経路を模す。
         bookmarkStore.toggle(file)
-        controller.toolbarController.refreshToolbarState()
+        controller.toolbarController?.refreshToolbarState()
 
         #expect(button.contentTintColor == .controlAccentColor)
     }
@@ -329,7 +332,8 @@ struct ViewerWindowControllerToolbarTests {
         // toolbar(_:itemForItemIdentifier:willBeInsertedIntoToolbar:) は呼び出しごとに
         // 現在の store 状態から新規にアイテムを生成する。ツールバーのカスタマイズ等で
         // アイテムが再生成される経路でも、履歴あり状態が反映されることを確認する。
-        let recreatedHistoryItem = try #require(controller.toolbarController.toolbar(
+        let historyToolbarController = try #require(controller.toolbarController)
+        let recreatedHistoryItem = try #require(historyToolbarController.toolbar(
             toolbar, itemForItemIdentifier: .init("historyBack"), willBeInsertedIntoToolbar: false
         ))
         #expect((recreatedHistoryItem.view as? HistoryButtonView)?.isEnabled == true)

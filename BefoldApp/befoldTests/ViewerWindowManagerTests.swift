@@ -240,13 +240,13 @@ struct ViewerWindowManagerTests {
     func openViewerUsesLastUserAdjustedFrame() {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
-        fixture.windowFrame.recordUserAdjustedFrame("0 0 900 480 0 0 1920 1080")
+        fixture.windowFrame.recordUserAdjustedFrame("0 0 900 480 0 0 1920 1080", for: .viewer)
 
         let controller = fixture.manager.openViewer(for: file)
 
         #expect(openedWidth(controller) == 900)
         // 既定（1100）のままではないこと。保存値が届いていなければここで区別が付く。
-        #expect(openedWidth(controller) != ViewerWindowChrome.defaultContentSize.width)
+        #expect(openedWidth(controller) != ViewerWindowKind.viewer.defaultContentSize.width)
     }
 
     /// 粒度がアプリ全体であることを、破れたら落ちる形で固定する。ファイル単位の記憶が
@@ -257,7 +257,7 @@ struct ViewerWindowManagerTests {
         let second = URL(fileURLWithPath: "/mock/second.mmd")
         let fixture = MockedViewerWindowManager(files: [first, second])
         defer { fixture.closeAll() }
-        fixture.windowFrame.recordUserAdjustedFrame("0 0 700 480 0 0 1920 1080")
+        fixture.windowFrame.recordUserAdjustedFrame("0 0 700 480 0 0 1920 1080", for: .viewer)
 
         let firstController = fixture.manager.openViewer(for: first)
         let secondController = fixture.manager.openViewer(for: second)
@@ -274,6 +274,6 @@ struct ViewerWindowManagerTests {
 
         fixture.manager.openViewer(for: file)
 
-        #expect(fixture.windowFrame.lastUserAdjustedFrameDescriptor == nil)
+        #expect(fixture.windowFrame.lastUserAdjustedFrameDescriptor(for: .viewer) == nil)
     }
 }

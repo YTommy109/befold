@@ -28,20 +28,24 @@ struct FileListViewTests {
         )
         return FileListView(
             model: model,
-            delegate: delegates.makeSpy(onSelect: onSelect, onNavigate: onNavigate),
-            onSortOrderChanged: { _ in },
-            onToggleChangedFilesOnly: {},
-            onToggleSidebarTreeLayout: {},
-            onToggleSlideMode: {}
+            delegate: delegates.makeSpy(onSelect: onSelect, onNavigate: onNavigate)
         )
     }
 
-    @Test("サイドバーの「別の場所で開く」項目は新しいタブと新しいウィンドウの両方を持つ")
-    func openElsewhereEntriesCoverTabAndWindow() {
-        #expect(SidebarContextMenu.openElsewhereEntries.map(\.disposition) == [.newTab, .newWindow])
+    /// `openElsewhereEntries` は項目を数える単一情報源なので、ここが表から抜けると
+    /// その開き先の入口が 1 つも無くなる（スライド窓を開く経路は他に無い / TASK-593.2）。
+    @Test("サイドバーの「別の場所で開く」項目は新しいタブ・新しいウィンドウ・スライドモードを持つ")
+    func openElsewhereEntriesCoverTabWindowAndSlide() {
         #expect(
-            SidebarContextMenu.openElsewhereEntries.map(\.titleKey)
-                == ["sidebar.context.openInNewTab", "sidebar.context.openInNewWindow"]
+            SidebarContextMenu.openElsewhereEntries.map(\.disposition)
+                == [.newTab, .newWindow, .slide]
+        )
+        #expect(
+            SidebarContextMenu.openElsewhereEntries.map(\.titleKey) == [
+                "sidebar.context.openInNewTab",
+                "sidebar.context.openInNewWindow",
+                "sidebar.context.openInSlideMode",
+            ]
         )
     }
 

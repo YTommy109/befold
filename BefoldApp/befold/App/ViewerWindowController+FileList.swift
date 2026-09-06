@@ -28,4 +28,11 @@ extension ViewerWindowController: FileListViewDelegate {
     func fileListDidRequestCollapse(_ entry: FileListEntry) {
         sidebar.collapseFolder(entry.pathKey)
     }
+
+    /// サイドバーヘッダーのトグル。表示 4 値は窓ごとのライブ値なので(ADR 0002)、
+    /// **この窓のサイドバーへ直接届ける。** メニュー(⌃⌘T ほか)と同じ経路を通り、
+    /// ボタン専用の経路は持たせない。
+    func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange) {
+        sidebar.applyDisplayChange(change)
+    }
 }

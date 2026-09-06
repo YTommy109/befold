@@ -7,11 +7,10 @@ import Foundation
 /// ViewerWindowController / SidebarNavigator に固定されているため、注入クロージャを
 /// 1 本ずつ生やさずこのプロトコルへ畳む(`SidebarNavigatorHost` と同じ流儀)。
 ///
-/// **表示切り替え(並び順・不可視ファイル・変更のみ・ツリー表示・スライドモード)は、
-/// まだここに畳まれていない。** 同じ「受け手が controller に固定されている」条件を
-/// 満たすのに注入クロージャのままで、TASK-585 でスライドモードを足して 5 本になった
-/// (規定の上限は 3 本)。畳む作業は TASK-586。見送ったのは対象タスクのスコープを
-/// 守るためで、条件を満たさないからではない。
+/// 表示切り替え(並び順・不可視ファイル・変更のみ・ツリー表示)も
+/// 同じ理由でここへ畳んである(TASK-586)。**種別は `SidebarDisplayChange` の値で
+/// 表し、メソッドは 1 本に保つ**——切り替えを 1 つ足すたびにプロトコルのメソッドが
+/// 増えると、再び「注入クロージャを 1 本ずつ生やす」のと同じ形に戻る。
 ///
 /// **既定実装は置かない。** 「ドリルダウン表示では展開が無い」という都合で
 /// optional にすると、ツリー表示側の配線漏れがコンパイル時に落ちなくなる。
@@ -30,4 +29,11 @@ protocol FileListViewDelegate: AnyObject {
     func fileListDidRequestExpand(_ entry: FileListEntry)
     /// ツリー表示でフォルダ行を畳む。
     func fileListDidRequestCollapse(_ entry: FileListEntry)
+    /// サイドバーヘッダーからの表示切り替え要求。種別は引数の列挙で表す。
+    ///
+    /// **1 段包んだ `SidebarDisplayRequest` は置かない(TASK-593.1)。** 包みは
+    /// 「表示 4 値ではないがヘッダーから来る切り替え」であるスライドモードを
+    /// 混ぜないために要ったもので、スライドモードが専用ウィンドウへ移った今、
+    /// ここを通るのは `SidebarDisplayChange` だけになった。
+    func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange)
 }

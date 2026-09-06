@@ -13,14 +13,11 @@ import AppKit
 /// - 「他のビューア窓と重なっているか」の判定はコントローラ側(述語として受け取る)
 @MainActor
 enum ViewerWindowChrome {
-    /// 保存済みフレームが無いときに使う既定サイズ。
-    static let defaultContentSize = NSSize(width: 1100, height: 850)
-
     /// ビューアウィンドウを 1 枚作る。
     ///
     /// ウィンドウの実サイズは `contentViewController` の設定後に確定させるため、
     /// ここでの `contentRect` はプレースホルダ。
-    static func makeWindow(fileURL: URL) -> NSWindow {
+    static func makeWindow(fileURL: URL, kind: ViewerWindowKind = .viewer) -> NSWindow {
         let window = NSWindow(
             contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -37,6 +34,12 @@ enum ViewerWindowChrome {
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
         window.tabbingIdentifier = "ViewerWindow"
+        // スライド窓はタブへ合流させない(TASK-593.2)。**`tabbingIdentifier` を消すのでは
+        // 足りない。** システム設定「書類を開くときはタブで開く: 常に」では、識別子が
+        // 無くても AppKit が既存の窓へ畳むことがあるため、モードそのものを禁止する。
+        if !kind.joinsTabs {
+            window.tabbingMode = .disallowed
+        }
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
         // 生成時点では一覧がまだ届いておらず、出すのは開こうとしている文書。
@@ -75,11 +78,14 @@ enum ViewerWindowChrome {
     ///   どちらでも、既存ウィンドウと位置が完全に一致すると重なって見分けが付かなくなるため、
     ///   埋まっている間はカスケード量だけずらす。判定に必要な「他のビューア窓」の知識は
     ///   呼び出し側が持つ(この型は `NSApp` を知らない)。
+    /// - Parameter kind: 保存済みフレームが無いときの既定サイズを決める。**既定値を持たせない**
+    ///   ——渡し忘れると、スライド窓が 16:9 ではない寸法で開く形が静かにできる。
     static func applyInitialFrame(
-        _ descriptor: String?, to window: NSWindow, isOccupied: (NSPoint) -> Bool
+        _ descriptor: String?, to window: NSWindow, kind: ViewerWindowKind,
+        isOccupied: (NSPoint) -> Bool
     ) {
         guard let descriptor else {
-            window.setContentSize(defaultContentSize)
+            window.setContentSize(kind.defaultContentSize)
             window.center()
             return
         }

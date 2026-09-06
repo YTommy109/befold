@@ -41,7 +41,9 @@ extension ViewerWindowController {
         switch disposition {
         case .currentTab:
             switchFile(to: url)
-        case .newTab, .newWindow:
+        // `.slide` はリンク由来では起こらない(`OpenDisposition` の doc)が、`default` では
+        // なく明示して列挙する——case を足したときにここが黙って素通りしないため。
+        case .newTab, .newWindow, .slide:
             openFileElsewhere(url, disposition, window)
         }
     }

@@ -25,13 +25,48 @@ struct ViewerMenuValidatorTests {
         var effectiveDisplayMode: ViewerDisplayMode = .rendered
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
-        var isSlideMode = false
+        var allowsSidebar = true
     }
 
     private func makeItem(_ action: Selector, tag: Int = 0) -> NSMenuItem {
         let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
         item.tag = tag
         return item
+    }
+
+    @Test("⌘S はサイドバーを持てない窓では選べない")
+    func toggleSidebarRequiresASidebarWindow() {
+        let source = StubSource()
+        source.allowsSidebar = false
+
+        let item = makeItem(#selector(NSSplitViewController.toggleSidebar(_:)))
+
+        #expect(!ViewerMenuValidator.validate(item, source: source))
+    }
+
+    @Test("⌘S はサイドバーを持てる窓では畳んでいても選べる")
+    func toggleSidebarStaysEnabledWhileCollapsed() {
+        let source = StubSource()
+        source.isSidebarCollapsed = true
+
+        let item = makeItem(#selector(NSSplitViewController.toggleSidebar(_:)))
+
+        #expect(ViewerMenuValidator.validate(item, source: source))
+    }
+
+    /// ⌘← にスライド窓用の分岐を足していないことの担保(TASK-593.2)。スライド窓は
+    /// 常に畳まれているので、既存の「畳んでいる間は無効」の規則だけで無効になる。
+    @Test("⌘← は畳んでいる窓では選べない（スライド窓も同じ規則で無効になる）")
+    func focusSidebarFollowsCollapsedStateOnly() {
+        let collapsed = StubSource()
+        collapsed.isSidebarCollapsed = true
+        collapsed.allowsSidebar = false
+
+        #expect(
+            !ViewerMenuValidator.validate(
+                makeItem(#selector(ViewerWindowController.focusSidebar(_:))), source: collapsed
+            )
+        )
     }
 
     @Test("担当外のセレクタは既定どおり有効のまま返す")
@@ -189,29 +224,6 @@ struct ViewerMenuValidatorTests {
         #expect(item.state == .off)
 
         source.isDiffLayoutSideBySide = true
-        #expect(ViewerMenuValidator.validate(item, source: source))
-        #expect(item.state == .on)
-    }
-
-    @Test("スライドモードはサイドバーを畳んでいる間は選べない")
-    func slideModeRequiresVisibleSidebar() {
-        let source = StubSource()
-        source.isSidebarCollapsed = true
-
-        let item = makeItem(#selector(ViewerWindowController.toggleSlideMode(_:)))
-
-        #expect(!ViewerMenuValidator.validate(item, source: source))
-    }
-
-    @Test("スライドモードのチェックは窓の状態をそのまま映す")
-    func slideModeReflectsWindowState() {
-        let source = StubSource()
-        let item = makeItem(#selector(ViewerWindowController.toggleSlideMode(_:)))
-
-        #expect(ViewerMenuValidator.validate(item, source: source))
-        #expect(item.state == .off)
-
-        source.isSlideMode = true
         #expect(ViewerMenuValidator.validate(item, source: source))
         #expect(item.state == .on)
     }

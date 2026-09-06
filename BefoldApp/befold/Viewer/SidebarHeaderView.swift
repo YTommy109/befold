@@ -9,54 +9,30 @@ import SwiftUI
 /// 行・コンテキストメニュー・キー操作には影響しない。
 ///
 /// 各トグルの真実の源は `SidebarDisplayDefaults` で、`model` の値はその写し。
-/// ここは写しを読んで見た目を決め、切り替えの実行はクロージャで上位(ViewerWindowController)
-/// へ返す。
+/// ここは写しを読んで見た目を決め、切り替えの実行は `FileListViewDelegate` で
+/// 上位(ViewerWindowController)へ返す。**トグルごとにクロージャを注入しない**
+/// ——種別は `SidebarDisplayChange` の値で表す(TASK-586)。
 struct SidebarHeaderView: View {
     @Bindable var model: FileListModel
-    /// フォルダー名のパスポップアップが起こす移動の受け手。
+    /// 表示切り替えと、フォルダー名のパスポップアップが起こす移動の受け手。
     ///
     /// **移動用のクロージャを別に増やさない。** ⌘↑ / delete と同じ
     /// `fileListDidRequestNavigation(to:)` を通すことで、上へ移動する経路が 1 本に
     /// 保たれる(TASK-475)。ウィンドウ側が保持するため弱参照で持つ。
     weak var delegate: FileListViewDelegate?
-    let onSortOrderChanged: (SortOrder) -> Void
-    var onToggleHiddenFiles: (() -> Void)?
-    let onToggleChangedFilesOnly: () -> Void
-    let onToggleSidebarTreeLayout: () -> Void
-    /// スライドモードの解除。ウィンドウ側の `toggleSlideMode(_:)` と同じ経路を通す
-    /// （状態と幅の更新順序を 1 箇所に保つため、ここで直接 model を書き換えない）。
-    /// **既定値を持たせない。** 渡し忘れが「押しても何も起きないボタン」へ静かに倒れる。
-    let onToggleSlideMode: () -> Void
 
     @FocusState private var isFilterFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if model.transient.isSlideMode {
-                slideModeIndicator
-            } else {
-                baseDirectoryIndicator
-                navigationHeader
-                if model.transient.isFilterActive {
-                    filterField
-                }
+            baseDirectoryIndicator
+            navigationHeader
+            if model.transient.isFilterActive {
+                filterField
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-    }
-
-    /// スライドモード中のヘッダー。**状態表示と解除操作を兼ねる。**
-    /// 幅がアイコン 1 つ分しかないので他の操作は一切出さない（メニューからも解除できる）。
-    private var slideModeIndicator: some View {
-        Button {
-            onToggleSlideMode()
-        } label: {
-            Image(systemName: "play.rectangle")
-                .foregroundStyle(.tint)
-        }
-        .buttonStyle(.borderless)
-        .help(String(localized: "sidebar.slideMode.exit", bundle: .l10n))
     }
 
     private var filterField: some View {
@@ -113,8 +89,8 @@ struct SidebarHeaderView: View {
         SidebarHeaderControls(
             controls: controls,
             placement: placement,
-            onToggleLayoutMode: onToggleSidebarTreeLayout,
-            onToggleChangedFilesOnly: onToggleChangedFilesOnly,
+            onToggleLayoutMode: { perform(.toggleLayoutMode) },
+            onToggleChangedFilesOnly: { perform(.toggleChangedFilesOnly) },
             onToggleFilter: toggleFilter,
             onSelectOverflowItem: selectOverflowItem
         )
@@ -129,10 +105,22 @@ struct SidebarHeaderView: View {
     }
 
     private func selectOverflowItem(_ kind: SidebarOverflowItem.Kind) {
+        perform(Self.displayChange(for: kind))
+    }
+
+    /// オーバーフローメニューの項目が表す切り替え。**分岐をボタンの中に書かない**
+    /// ——項目を足したときに配線漏れが起きたかどうかを、この対応表のテストで測れる。
+    /// テストから呼べるよう internal。
+    static func displayChange(for kind: SidebarOverflowItem.Kind) -> SidebarDisplayChange {
         switch kind {
-        case .sortFoldersFirst: onSortOrderChanged(.foldersFirst)
-        case .sortAlphabetical: onSortOrderChanged(.alphabetical)
-        case .hiddenFiles: onToggleHiddenFiles?()
+        case .sortFoldersFirst: .setSortOrder(.foldersFirst)
+        case .sortAlphabetical: .setSortOrder(.alphabetical)
+        case .hiddenFiles: .toggleHiddenFiles
         }
+    }
+
+    /// 表示切り替えを delegate へ配る唯一の口。テストから呼べるよう internal。
+    func perform(_ change: SidebarDisplayChange) {
+        delegate?.fileListDidRequestDisplayChange(change)
     }
 }

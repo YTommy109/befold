@@ -41,7 +41,7 @@ extension ViewerWindowController: SidebarNavigatorHost {
     /// いずれも最終的にこの 1 点を通る唯一の再同期点であり、能力が変わったことを
     /// 知れる場所がほかに無い(TASK-485.18)。
     func refreshUIState() {
-        toolbarController.refreshToolbarState()
+        toolbarController?.refreshToolbarState()
         documentCommands.syncJumpAvailability()
     }
 }

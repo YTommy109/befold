@@ -60,8 +60,7 @@ final class SidebarNavigator {
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
         displayDefaults: any SidebarDisplayDefaultsProviding,
-        sortOrder: SortOrder? = nil,
-        showHiddenFiles: Bool? = nil,
+        overrides: SidebarDisplayOverrides = .none,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
             = DirectoryLister.listingAsync,
         childrenLister: @escaping (URL, SortOrder, Bool) async -> [FileListEntry]?
@@ -70,17 +69,11 @@ final class SidebarNavigator {
         makeGitIndexWatcher: @escaping GitIndexWatch.WatcherFactory
             = { url, onChange in FileWatcher(path: url, onChange: onChange) }
     ) {
-        // 窓ごとのライブ値の初期値。CLI の明示指定(--sort / --hidden-files)があればそれで上書きし、
-        // 無ければ前回保存した既定値から始める。**既定値を読むのはここ 1 回だけ。**
+        // 窓ごとのライブ値の初期値。CLI の明示指定と起点の窓からの引き継ぎがあれば
+        // それで上書きし、無ければ前回保存した既定値から始める。**既定値を読むのはここ 1 回だけ。**
         // displayDefaults は保持しないため以後読み直せず、窓の内側(listing)へ渡すのは
         // 書き戻し専用の SidebarDisplayDefaultsRecording としてのみ(ADR 0002「窓の状態の規則」2)。
-        var initialSettings = displayDefaults.settings
-        if let sortOrder {
-            initialSettings.sortOrder = sortOrder
-        }
-        if let showHiddenFiles {
-            initialSettings.showHiddenFiles = showHiddenFiles
-        }
+        let initialSettings = overrides.applied(to: displayDefaults.settings)
         let fileListModel = FileListModel(
             currentDirectory: currentDirectory,
             entries: entries,
@@ -196,7 +189,13 @@ final class SidebarNavigator {
     ///   する(判定は `SidebarListingSeed.canApply(to:)` / TASK-532)。nil もここで受ける
     ///   ——呼び出し側へ分岐を置くと窓の生成手順が 2 本に割れる。**取り付けと同じ区間で
     ///   当てる**ので、最初の `refreshFileList` より前になることが構造で決まる。
-    func attach(to host: SidebarNavigatorHost, adopting seed: SidebarListingSeed? = nil) {
+    /// - Parameter expanding: 起点の窓のツリー展開(pathKey → URL)。**`seed` とは別の
+    ///   引数で受ける**理由は `SidebarInheritance` の doc(TASK-593.2)。
+    func attach(
+        to host: SidebarNavigatorHost,
+        adopting seed: SidebarListingSeed? = nil,
+        expanding expansion: [String: URL] = [:]
+    ) {
         self.host = host
         listing.attach(to: host)
         gitStatus.attach(to: host)
@@ -205,6 +204,8 @@ final class SidebarNavigator {
         layoutTransition.attach(to: self)
         guard let seed, seed.canApply(to: fileListModel) else { return }
         applyRows(seed.listing, for: seed.directory)
+        // **行を当てた後に展開する**(順序の理由は `SidebarTreePresenter.adoptExpansion`)。
+        tree.adoptExpansion(expansion)
     }
 
     // MARK: - Navigation History
@@ -248,6 +249,12 @@ final class SidebarNavigator {
     /// 展開中フォルダの pathKey。テストが展開状態を検証するための読み取り専用の窓。
     var expandedFolderKeys: Set<String> {
         tree.expandedKeys
+    }
+
+    /// 展開中フォルダの pathKey → URL。**別の窓へ展開を引き継ぐための読み取り窓**
+    /// (`attach(to:adopting:expanding:)` の入力 / TASK-593.2)。
+    var expandedFolderURLs: [String: URL] {
+        tree.expandedFolderURLs
     }
 
     /// 列挙結果から行を組み立てて fileListModel へ反映し、反映した行を返す。

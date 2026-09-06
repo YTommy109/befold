@@ -4,27 +4,13 @@ import SwiftUI
 
 struct FileListView: View {
     @Bindable var model: FileListModel
-    /// 行操作(選択・移動・別の場所で開く・展開/畳み)の受け手。
+    /// 行操作(選択・移動・別の場所で開く・展開/畳み)と表示切り替えの受け手。
     /// ウィンドウ側(ViewerWindowController)が保持するため弱参照で持つ。
     weak var delegate: FileListViewDelegate?
-    let onSortOrderChanged: (SortOrder) -> Void
-    var onToggleHiddenFiles: (() -> Void)?
-    let onToggleChangedFilesOnly: () -> Void
-    let onToggleSidebarTreeLayout: () -> Void
-    /// スライドモードの解除（ヘッダーのアイコン）。ウィンドウ側の経路へ素通しする。
-    let onToggleSlideMode: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            SidebarHeaderView(
-                model: model,
-                delegate: delegate,
-                onSortOrderChanged: onSortOrderChanged,
-                onToggleHiddenFiles: onToggleHiddenFiles,
-                onToggleChangedFilesOnly: onToggleChangedFilesOnly,
-                onToggleSidebarTreeLayout: onToggleSidebarTreeLayout,
-                onToggleSlideMode: onToggleSlideMode
-            )
+            SidebarHeaderView(model: model, delegate: delegate)
             entryList
         }
     }
@@ -52,15 +38,6 @@ struct FileListView: View {
                 entry: entry, gitStatus: { model.gitStatus?.fileStatus(at: entry.pathKey) },
                 gitFolderStatus: { model.gitStatus?.folderStatus(at: entry.pathKey) }
             )
-            // スライドモード中はアイコンもファイル名も映さない(TASK-587)。見せたいのは
-            // 「いまどれを選んでいるか」だけで、選択ハイライトは行ビューが描くので残る。
-            //
-            // **マスクは行の中ではなくここでかける。** `FileListEntryRow` は
-            // `FolderListingView`(プレビュー内のフォルダー一覧)と共有しており、
-            // 引数を通すとスライドモードと無関係な側にも配線が要る。
-            // 行を空ビューへ差し替える形も採らない——行の高さを自前で導出し直すことになり、
-            // フォントやメトリクスが変われば黙ってずれる。redacted なら寸法をそのまま継ぐ。
-            .redacted(reason: model.transient.isSlideMode ? .placeholder : [])
             .padding(.horizontal, SidebarRowIndent.rowHorizontalPadding)
             .padding(.vertical, 2)
             .listRowInsets(EdgeInsets())

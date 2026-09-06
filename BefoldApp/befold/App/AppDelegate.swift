@@ -289,10 +289,12 @@ extension AppDelegate: NSMenuItemValidation {
         guard let action = menuItem.action, let change = Self.sidebarChange(for: action) else {
             return true
         }
-        let model = ActiveViewerProvider.fromMainWindow()?.fileListModel
+        let controller = ActiveViewerProvider.fromMainWindow()
+        let model = controller?.fileListModel
         let state = SidebarDisplayMenuState(
             activeWindow: model?.displaySettings,
-            canFilterChangedFiles: model?.canFilterChangedFiles ?? false
+            canFilterChangedFiles: model?.canFilterChangedFiles ?? false,
+            allowsSidebar: controller?.kind.allowsSidebar ?? false
         )
         switch change {
         case .toggleHiddenFiles:

@@ -53,6 +53,13 @@ final class SidebarExpansion {
     /// 「展開を始めたときに渡された URL をそのまま覚えている」だけ。
     private var urls: [String: URL] = [:]
 
+    /// 展開中フォルダの pathKey → URL。**別の窓へ展開を引き継ぐためだけの読み取り窓**
+    /// (`SidebarListingSeed` と同じ「材料を渡して相手に畳ませる」形 / TASK-593.2)。
+    /// 引き継ぎ先はこれを `expandFolder(_:at:)` へ流し、自分の子リストを取り直す。
+    var expandedFolderURLs: [String: URL] {
+        urls.filter { expandedKeys.contains($0.key) }
+    }
+
     /// フォルダごとの列挙の世代。開始時に進めて走行中を無効化し、着地時に一致を確認する。
     /// **フォルダごとに分ける**のが要点。サイドバー全体で 1 つだと、後から始まった
     /// 展開が先行する別フォルダの列挙結果を捨ててしまう。

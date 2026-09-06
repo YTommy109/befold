@@ -8,9 +8,6 @@ protocol SidebarCollapsible: AnyObject {
     func setSidebarCollapsed(_ collapsed: Bool)
     /// サイドバーが畳まれているか。⌘← の有効判定に使う（畳んでいるなら移り先が無い）。
     var isSidebarCollapsed: Bool { get }
-    /// スライドモードの幅を適用／解除する（TASK-585）。**真偽値はここでは保持しない**
-    /// （真値は `FileListModel.isSlideMode`）。
-    func setSlideMode(_ enabled: Bool)
 }
 
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
@@ -18,7 +15,7 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         220
     }
 
-    /// 通常モードでのサイドバー幅の下限。スライドモードはこれを一時的に下回る。
+    /// サイドバー幅の下限。
     static var minimumSidebarWidth: CGFloat {
         200
     }
@@ -37,9 +34,8 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
 
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
-    /// スライドモードへ入る直前のサイドバー幅。抜けるときにここへ戻す。
-    /// スライドモード中だけ値を持つ。
-    private var thicknessBeforeSlideMode: CGFloat?
+    /// サイドバーを開けるか(窓の種別が決める / TASK-593.2)。
+    private let allowsSidebar: Bool
     private let initialCollapsed: Bool
     private let onCollapsedChange: (Bool) -> Void
     private let onSidebarDidReveal: () -> Void
@@ -50,11 +46,13 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     /// (TASK-563)。渡し忘れをコンパイルエラーにする。
     init(
         sidebar: Sidebar, content: Content, initialCollapsed: Bool = true,
+        allowsSidebar: Bool = true,
         onCollapsedChange: @escaping (Bool) -> Void = { _ in },
         onSidebarDidReveal: @escaping () -> Void = {},
         onSidebarDidHide: @escaping () -> Void
     ) {
         self.initialCollapsed = initialCollapsed
+        self.allowsSidebar = allowsSidebar
         self.onCollapsedChange = onCollapsedChange
         self.onSidebarDidReveal = onSidebarDidReveal
         self.onSidebarDidHide = onSidebarDidHide
@@ -73,7 +71,7 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         // ディバイダー位置(サイドバー幅)を起動をまたいで永続化する。
         // この autosave は開閉状態も復元するため、開閉だけは
         // viewWillAppear で明示的に決める(initialCollapsed が呼び出し側の解決結果)
-        setAutosaveEnabled(true)
+        splitView.autosaveName = Self.autosaveName
     }
 
     override func viewWillAppear() {
@@ -93,7 +91,18 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         sidebarItem.isCollapsed = initialCollapsed
     }
 
+    /// サイドバーの開閉。**開かせない窓ではここで止める**(TASK-593.2)。
+    ///
+    /// `setSidebarCollapsed(_:)` もこれを呼ぶので、CLI の `--sidebar` と
+    /// `forceSidebarVisible` を含む**すべての開閉経路がこの 1 箇所を通る**。
+    /// メニュー検証(⌘S の無効化)は利用者に押させないための表示側の手当てで、
+    /// 実際に開かせない担保はこちら。
+    ///
+    /// ここで止まると `onCollapsedChange` が発火しないため、`SidebarStateStore.recordToggle`
+    /// にも届かない。「種別の帰結である折りたたみを利用者の選択として保存しない」
+    /// (ADR 0002)は、別のガードではなくこの構造が担保している。
     override func toggleSidebar(_ sender: Any?) {
+        guard allowsSidebar else { return }
         let wasCollapsed = sidebarItem.isCollapsed
         super.toggleSidebar(sender)
         onCollapsedChange(sidebarItem.isCollapsed)
@@ -110,39 +119,6 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         if !wasCollapsed, sidebarItem.isCollapsed {
             onSidebarDidHide()
         }
-    }
-
-    /// スライドモードの幅を適用／解除する（TASK-585）。真偽値は保持しない。
-    ///
-    /// **autosave を止めてから幅を変える。** `autosaveName` が生きていると AppKit が
-    /// 任意のタイミングでスライドモードの細幅を保存キーへ書き出し、`viewWillAppear` の
-    /// 「記憶があれば上書きしない」規則がそれを固定化して、次に開く窓のサイドバーが
-    /// 細いままになる。この形なら、スライドモードのまま終了しても細幅は焼かれない。
-    ///
-    /// **min／max を先に変えてから `setPosition` する。** 逆順だと `setPosition` の値が
-    /// そのときの min／max で clamp されて効かない。
-    func setSlideMode(_ enabled: Bool) {
-        if enabled {
-            guard thicknessBeforeSlideMode == nil else { return }
-            thicknessBeforeSlideMode = sidebarItem.viewController.view.frame.width
-            setAutosaveEnabled(false)
-            sidebarItem.minimumThickness = SidebarSlideMetrics.thickness
-            sidebarItem.maximumThickness = SidebarSlideMetrics.thickness
-            splitView.setPosition(SidebarSlideMetrics.thickness, ofDividerAt: 0)
-        } else {
-            guard let restored = thicknessBeforeSlideMode else { return }
-            thicknessBeforeSlideMode = nil
-            sidebarItem.minimumThickness = Self.minimumSidebarWidth
-            sidebarItem.maximumThickness = Self.maximumSidebarWidth
-            splitView.setPosition(restored, ofDividerAt: 0)
-            setAutosaveEnabled(true)
-        }
-    }
-
-    /// `autosaveName` を触る**唯一の場所**。外から設定できないよう private にする。
-    /// ここが 1 箇所であることが、スライドモード中に幅が焼き込まれない担保になる。
-    private func setAutosaveEnabled(_ enabled: Bool) {
-        splitView.autosaveName = enabled ? Self.autosaveName : nil
     }
 
     @available(*, unavailable)

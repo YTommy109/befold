@@ -83,8 +83,18 @@ enum ViewerTabGrouping {
 
     /// ビューアウィンドウなら対応するファイルの正規化パスを返す。
     /// ウィンドウ 1 枚だけを見て決まる判定なので、管理台帳を引かずに答えられる。
+    /// 「復元の対象として記録してよいビューア窓」のパス。それ以外は nil。
+    ///
+    /// **スライド窓をここで落とす**(TASK-593.2)。スナップショットを作る経路は
+    /// 終了時レイアウト(`SessionRestorer.currentSessionLayout`)と「最近使ったリポジトリ」
+    /// (`RecentRepositoryRecorder.recordTabGroup`)の 2 つあり、どちらも
+    /// `tabGroup(of:)` を通ってここへ来る。除外を消費側へ置くと片方だけ直せてしまうので、
+    /// 2 経路が合流するこの 1 箇所に置く。
     static func viewerPath(of window: NSWindow) -> String? {
-        (window.windowController as? ViewerWindowController)?.fileURL.normalizedPathKey
+        guard let controller = window.windowController as? ViewerWindowController,
+              controller.kind.isRestorable
+        else { return nil }
+        return controller.fileURL.normalizedPathKey
     }
 
     /// タブ構成スナップショットの組み立て本体(NSWindow に依存しない純粋関数)。

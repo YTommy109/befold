@@ -24,8 +24,8 @@ protocol ViewerMenuValidationSource: AnyObject {
     var isDiffLayoutSideBySide: Bool { get }
     /// サイドバーが畳まれているか。⌘←(サイドバーへフォーカス)の有効判定に使う。
     var isSidebarCollapsed: Bool { get }
-    /// スライドモード中か。表示メニューのチェック状態に使う。
-    var isSlideMode: Bool { get }
+    /// サイドバーを開ける窓か。⌘S(サイドバーの表示切替)の有効判定に使う(TASK-593.2)。
+    var allowsSidebar: Bool { get }
 }
 
 /// メインメニュー・ツールバー項目の有効判定と表示名を決める対応表。
@@ -91,18 +91,18 @@ enum ViewerMenuValidator {
     private static func validateFocusTraversalItem(
         _ menuItem: NSMenuItem, source: some ViewerMenuValidationSource
     ) -> Bool? {
+        // ⌘S。スライド窓では開けないので選ばせない。**実際に開かせない担保は
+        // `ViewerSplitViewController.toggleSidebar(_:)` 側**で、ここは表示の手当て。
+        if menuItem.action == #selector(NSSplitViewController.toggleSidebar(_:)) {
+            return source.allowsSidebar
+        }
+        // ⌘←。スライド窓は常に畳まれているので、この既存の規則でそのまま無効になる
+        // (種別の分岐を足さない)。
         if menuItem.action == #selector(ViewerWindowController.focusSidebar(_:)) {
             return !source.isSidebarCollapsed
         }
         if menuItem.action == #selector(ViewerWindowController.focusContentSurface(_:)) {
             return true
-        }
-        if menuItem.action == #selector(ViewerWindowController.toggleSlideMode(_:)) {
-            menuItem.state = source.isSlideMode ? .on : .off
-            // 畳んでいる間は入れない。自動で開くと、ユーザーが操作していない開閉が
-            // SidebarStateStore へ「最後にユーザーが操作した開閉状態」として保存され、
-            // 以後の新規ウィンドウの初期値を汚す(TASK-585)。
-            return !source.isSidebarCollapsed
         }
         return nil
     }
@@ -187,5 +187,11 @@ extension ViewerWindowController: ViewerMenuValidationSource {
     /// 有効側へ倒すのは、判定できないことを理由に操作を塞がないため。
     var isSidebarCollapsed: Bool {
         sidebarCollapsible?.isSidebarCollapsed ?? false
+    }
+
+    /// 種別が決める(TASK-593.2)。**分割ビューの配線に依存させない**——未配線を
+    /// 「開ける」に倒すと、スライド窓の生成途中の一瞬だけ ⌘S が有効になる形ができる。
+    var allowsSidebar: Bool {
+        kind.allowsSidebar
     }
 }
