@@ -1,9 +1,10 @@
 ---
 id: TASK-593
 title: スライドモードをサイドバー無しの専用ウィンドウへ移す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-06 09:25'
+updated_date: '2026-09-06 10:33'
 labels:
   - sidebar
   - slide-mode
@@ -29,7 +30,13 @@ TASK-585 / 587 のスライドモードは「今の窓のサイドバーを 54pt
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 サイドバーのコンテキストメニュー「スライドモードで開く」でサイドバー無しの新しい窓が開き、Space / ↓ で次、Backspace / Shift+Space / ↑ で前のファイルへ移る
-- [ ] #2 旧スライドモード（幅の固定・行のマスク・View メニューの切替・ヘッダーの解除アイコン）がコードから消えている
-- [ ] #3 docs/dev/native-app-design.md がスライド窓の仕様を記述し、旧モードの記述が残っていない
+- [x] #1 サイドバーのコンテキストメニュー「スライドモードで開く」でサイドバー無しの新しい窓が開き、Space / ↓ で次、Backspace / Shift+Space / ↑ で前のファイルへ移る
+- [x] #2 旧スライドモード（幅の固定・行のマスク・View メニューの切替・ヘッダーの解除アイコン）がコードから消えている
+- [x] #3 docs/dev/native-app-design.md がスライド窓の仕様を記述し、旧モードの記述が残っていない
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+スライドモードを「サイドバーを細めて行をマスクする」形から専用ウィンドウへ移した。サブタスク 3 件（撤去 → 窓種別と入口 → 前後移動キー）を依存順に完了。旧モードのシンボルは rg で 0 件、TASK-588 / 589 は対象消滅により見送りで Done、590〜592 は前提を実態へ書き換えた。native-app-design.md はスライド窓の仕様（種別・キー表・引き継ぎ）を記述し、旧モードの記述は残っていない。残る実機確認は 1 点、ローカルモニタが WKWebView より先に keyDown を取れるか（TASK-593.3 の Notes）。
+<!-- SECTION:FINAL_SUMMARY:END -->

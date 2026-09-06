@@ -1,10 +1,10 @@
 ---
 id: TASK-593.3
 title: スライド窓の前後移動キーを実装する
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-06 09:25'
-updated_date: '2026-09-06 10:32'
+updated_date: '2026-09-06 10:33'
 labels:
   - sidebar
   - slide-mode
@@ -198,3 +198,9 @@ WKWebView より先にモニタへ届くかは測っていない。`/run` で実
 本文がスクロールするだけならこの前提が誤りで、`NSWindow.sendEvent(_:)` の上書きへ
 切り替える。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+スライド窓で Space / ↓ が次、Shift+Space / Backspace / ↑ が前のファイルへ移るようにした。判定は keyCode の純粋な表（SlideKeyAction）、検知は SwipeHistoryMonitor と同形のローカルモニタ、隣の解決は FileListSnapshot。ファイルを開く経路は通常窓と同じ switchFile を通す。実ウィンドウを作る統合テスト 12 件で切り替え・端の停止・タブ非合流・ツールバー無し・per-file 記憶の非汚染・セッション除外を固定した。ローカルモニタが WKWebView より先に keyDown を取れるかだけは実機未確認で、取れなければ sendEvent 上書きへ切り替える。
+<!-- SECTION:FINAL_SUMMARY:END -->

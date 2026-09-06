@@ -1,10 +1,10 @@
 ---
 id: TASK-593.2
 title: 窓種別 .slide と「スライドモードで開く」を追加する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-06 09:25'
-updated_date: '2026-09-06 10:32'
+updated_date: '2026-09-06 10:33'
 labels:
   - sidebar
   - slide-mode
@@ -195,3 +195,9 @@ GUI 層は自動テスト対象外なので、次は `/run` での目視が要�
 表示モード（AC #6）は既存経路をそのまま通しており、`ViewerWindowControllerSourceModeTests`
 ほか既存のテストが窓の種別に依らず通っている。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+窓種別 `ViewerWindowKind`（.viewer / .slide）を足し、サイドバーのコンテキストメニューの「スライドモードで開く」からサイドバー無し・ツールバー無し・タブ合流なし・セッション復元対象外の窓を開けるようにした。サイドバーを開かせるガードは 2 箇所に絞り（⌘← は既存の判定で無効になる）、`recordToggle` は toggleSidebar の no-op で構造的に届かない形にした。一覧の引き継ぎは器を分け、SidebarListingSeed の「運ぶのは行ではなく材料」という記録済みの判断を守った。
+<!-- SECTION:FINAL_SUMMARY:END -->
