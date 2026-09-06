@@ -96,6 +96,33 @@ struct FileListSnapshot {
         return visible[index - 1]
     }
 
+    /// `selection` の次の**ファイル行**。フォルダー行は飛ばす。端では nil(周回しない)。
+    ///
+    /// スライド窓の前後移動が使う(TASK-593.3)。**ここに置くのは `listSnapshot` を
+    /// キー 1 回につき 1 度しか読まないため**(読むたびに再計算する / TASK-418)。
+    /// 呼び出し側でループを書くと、1 回のキー操作で何度も読み直す形になりやすい。
+    ///
+    /// 終端する理由: 最初の 1 歩で `current` が実在の行 ID になり、以後 `next(after:)` は
+    /// 添字を必ず 1 つ進めるため、`visible` の末尾で nil に落ちる。
+    func nextFile(after selection: FileListEntry.ID?) -> FileListEntry? {
+        var current = selection
+        while let candidate = next(after: current) {
+            if candidate.kind == .file { return candidate }
+            current = candidate.id
+        }
+        return nil
+    }
+
+    /// `selection` の前の**ファイル行**。`nextFile(after:)` と対称。
+    func previousFile(before selection: FileListEntry.ID?) -> FileListEntry? {
+        var current = selection
+        while let candidate = previous(before: current) {
+            if candidate.kind == .file { return candidate }
+            current = candidate.id
+        }
+        return nil
+    }
+
     /// 指定した行の 1 つ上の階層にあたる行。無ければ nil。
     ///
     /// 判定に使うのは **配列上の depth の連なり**で、パス文字列の前置一致ではない。

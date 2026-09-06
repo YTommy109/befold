@@ -191,14 +191,39 @@ enum ViewerWindowAssembler {
 
     // MARK: - 配線
 
+    /// この窓が要るイベントモニタを作って取り付ける。開始まで済ませる。**停止は
+    /// windowWillClose が 1 箇所でまとめて行う**（`ViewerWindowController+WindowDelegate.swift`）。
+    ///
+    /// 取り付けを 1 本にまとめてあるのは、モニタを足したときに「作ったが取り付けていない」
+    /// 経路をコントローラの init 側に作らせないため。
+    static func wireEventMonitors(for controller: ViewerWindowController, on window: NSWindow) {
+        controller.swipeMonitor = makeSwipeMonitor(for: controller, on: window)
+        controller.slideKeyMonitor = makeSlideKeyMonitor(for: controller, on: window)
+    }
+
     /// 二本指スワイプによるファイル履歴ナビゲーション検知を作る。
-    /// 開始まで済ませて返す。停止は windowWillClose が行う
-    /// （`ViewerWindowController+WindowDelegate.swift`）。
-    static func makeSwipeMonitor(
+    private static func makeSwipeMonitor(
         for controller: ViewerWindowController, on window: NSWindow
     ) -> SwipeHistoryMonitor {
         let monitor = SwipeHistoryMonitor(window: window) { [weak controller] offset in
             controller?.navigateHistory(by: offset)
+        }
+        monitor.start()
+        return monitor
+    }
+
+    /// スライド窓の前後移動キー検知を作る。**種別が持たないなら作らない**(TASK-593.3)。
+    /// 開始まで済ませて返す。停止は `swipeMonitor` と同じく windowWillClose が行う。
+    ///
+    /// 隣の解決とファイルを開く経路はどちらも通常窓と同じものを通す
+    /// （`FileListSnapshot.nextFile(after:)` と `switchFile(to:)`）ので、
+    /// ここが持つのは「どの動作をどの呼び出しへ写すか」だけ。
+    private static func makeSlideKeyMonitor(
+        for controller: ViewerWindowController, on window: NSWindow
+    ) -> SlideKeyMonitor? {
+        guard controller.kind == .slide else { return nil }
+        let monitor = SlideKeyMonitor(window: window) { [weak controller] action in
+            controller?.moveToAdjacentFile(action)
         }
         monitor.start()
         return monitor

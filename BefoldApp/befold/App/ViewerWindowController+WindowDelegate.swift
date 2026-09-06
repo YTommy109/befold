@@ -19,6 +19,7 @@ extension ViewerWindowController: NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         swipeMonitor.stop()
+        slideKeyMonitor?.stop()
         store.close()
         sidebar.cancelPendingListing()
         delegate?.viewerWindowWillClose(self)

@@ -96,6 +96,9 @@ final class ViewerWindowController: NSWindowController {
     /// 二本指スワイプによるファイル履歴ナビゲーション検知。
     /// 開始は `ViewerWindowAssembler`、停止は `+WindowDelegate` の windowWillClose。
     var swipeMonitor: SwipeHistoryMonitor!
+    /// スライド窓の前後移動キー。**通常のビューア窓では nil**(TASK-593.3)。
+    /// 取り付けは `ViewerWindowAssembler.wireEventMonitors(for:on:)`、停止は windowWillClose。
+    var slideKeyMonitor: SlideKeyMonitor?
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
     /// この窓のツールバー。**スライド窓では nil**(TASK-593.2)。
     ///
@@ -337,7 +340,7 @@ final class ViewerWindowController: NSWindowController {
         // (contentViewController 設定によるフィッティングサイズ化など)が
         // windowDidResize 経由で保存されるのを防ぐ
         window.delegate = self
-        swipeMonitor = ViewerWindowAssembler.makeSwipeMonitor(for: self, on: window)
+        ViewerWindowAssembler.wireEventMonitors(for: self, on: window)
         ViewerWindowAssembler.wirePresentationTargetChange(for: self)
         ViewerWindowAssembler.openInitialDocument(
             for: self, at: fileURL, adopting: initialListing, expanding: initialExpansion

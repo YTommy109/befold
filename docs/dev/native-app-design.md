@@ -171,6 +171,7 @@ BefoldApp/
 | `ReferenceMenuPresenter` | 参照の右クリックメニューの項目定義・表示・実行（`@objc` アクションを含めて 1 型に閉じる） |
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerWindowKind` | ビューア窓の種別（`.viewer` / `.slide`）。生成時に決まり以後変わらない（`let` で受ける）。`allowsSidebar` / `hasToolbar` / `joinsTabs` / `isRestorable` の 4 つの述語を持ち、**呼び出し側で `kind == .slide` と書かない**。`.slide` はプレゼン用のスライド窓で、サイドバー無し・ツールバー無し・タブ合流なし・セッション復元の対象外 |
+| `SlideKeyAction` / `SlideKeyMonitor` | スライド窓の前後移動キー。判定は keyCode の純粋な表（Space・↓ が次、Shift+Space・Backspace・↑ が前、⌘/⌥/⌃ 付きとテキスト入力中は素通し）で、検知は `SwipeHistoryMonitor` と同じローカルイベントモニタ。**`characters` ではなく keyCode で判定する**（矢印の characters は非印字でレイアウトにも依る）。扱ったイベントは消費するので、JS 側の `spaceScroll` と `viewer-src/keyboard.ts` の矢印スクロールには届かない |
 | `SidebarInheritance` | 新しい窓を開くときに起点の窓から引き継ぐ材料の採取。運ぶのは 2 つ——列挙の材料（`SidebarListingSeed`）と、ツリーの展開状態（pathKey → URL）。**展開は seed に混ぜない**（seed の `canApply(to:)` は「列挙の入力が同じか」を問うもので、展開は列挙の入力ではない）。表示 4 値はここを通らず `SidebarDisplayOverrides` が運ぶ |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController`。幅は 200〜480pt で `splitView.autosaveName` により起動をまたいで永続化する。`allowsSidebar` が false の種別では `toggleSidebar(_:)` が no-op になり、`setSidebarCollapsed(_:)` もこれを呼ぶので **CLI の `--sidebar` を含む全開閉経路がこの 1 箇所で止まる**。止まると `onCollapsedChange` が発火せず `SidebarStateStore.recordToggle` にも届かない |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
