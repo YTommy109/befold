@@ -21,6 +21,24 @@ struct ViewerWindowKindTests {
         #expect(kind.isRestorable)
     }
 
+    /// スライド窓は画面共有・プロジェクターへ映すので 16:9 で始める(TASK-593.5)。
+    ///
+    /// **実際の窓の寸法ではなく既定値を測る。** AppKit は窓をディスプレイに合わせて
+    /// 切り詰めるため、`window.contentView.frame` を測ると画面環境に依存して落ちる
+    /// (実測: CI のランナーで比が 1.52 になり失敗した)。守りたいのは「既定値が 16:9」で、
+    /// 実現された寸法は AppKit の都合。
+    @Test("スライド窓の既定サイズは 16:9")
+    func slideDefaultContentSizeIsSixteenByNine() {
+        let size = ViewerWindowKind.slide.defaultContentSize
+
+        #expect(abs(size.width / size.height - 16.0 / 9.0) < 0.001, "実測 \(size)")
+    }
+
+    @Test("通常窓の既定サイズは従来どおり")
+    func viewerDefaultContentSizeIsUnchanged() {
+        #expect(ViewerWindowKind.viewer.defaultContentSize == NSSize(width: 1100, height: 850))
+    }
+
     @Test("スライド窓はサイドバー・ツールバー・タブ・復元のすべてを持たない")
     func slideKindAllowsNothing() {
         let kind = ViewerWindowKind.slide

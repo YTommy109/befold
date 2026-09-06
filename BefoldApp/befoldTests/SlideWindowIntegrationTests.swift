@@ -185,19 +185,6 @@ struct SlideWindowIntegrationTests {
         #expect(controller.fileURL.normalizedPathKey == second.normalizedPathKey)
     }
 
-    @Test("スライド窓は保存された寸法が無ければ 16:9 で開く")
-    func opensAtSixteenByNineByDefault() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        let controller = try #require(
-            fixture.manager.openViewer(for: first, disposition: .slide)
-        )
-        let size = try #require(controller.window?.contentView?.frame.size)
-
-        #expect(abs(size.width / size.height - 16.0 / 9.0) < 0.01, "実測 \(size)")
-    }
-
     /// 種別で寸法の壺が分かれていることを、窓を実際にリサイズして測る(TASK-593.5)。
     /// 分かれていないと、プレゼン用に広げた寸法が次に開く通常窓へそのまま漏れる。
     @Test("スライド窓をリサイズしても通常窓の既定寸法は変わらない")

@@ -4,7 +4,7 @@ title: 'スライド窓の寸法を通常窓と分けて覚え、既定を 16:9 
 status: Done
 assignee: []
 created_date: '2026-09-06 11:10'
-updated_date: '2026-09-06 11:11'
+updated_date: '2026-09-06 13:37'
 labels:
   - sidebar
   - slide-mode
@@ -77,6 +77,20 @@ ADR 0010 は「新しいウィンドウの寸法はアプリ全体で 1 個」�
 
 16:9 が画面共有・プロジェクターで実際に見やすいかは主観の伴う判断なので、実機での確認は
 利用者に委ねる。既定値を変えたいだけなら `ViewerWindowKind.defaultContentSize` の 1 箇所。
+
+## 追記: CI で落ちたテストを直した（2026-09-06）
+
+`SlideWindowIntegrationTests` の「スライド窓は保存された寸法が無ければ 16:9 で開く」が
+GitHub Actions の macOS ランナーで失敗した（実測: 比が 1.52、期待 16:9 = 1.778）。
+
+**原因はテストの測る対象。** `window.contentView.frame.size` という**実現された窓の寸法**を
+アサートしていたが、AppKit は窓をディスプレイに合わせて切り詰めるため、CI の仮想
+ディスプレイでは 16:9 にならない。守りたいのは「既定値が 16:9 であること」で、実現された
+寸法は AppKit の都合。手元では画面が大きいため通っており、環境依存に気づけなかった。
+
+`ViewerWindowKind.slide.defaultContentSize` を直接測る純粋なテストへ移し
+（`ViewerWindowKindTests`）、通常窓の既定値 1100×850 も対で固定した。統合テスト側からは
+寸法のアサートを削除した（窓の生成そのものは他のケースが見ている）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
