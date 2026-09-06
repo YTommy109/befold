@@ -1,10 +1,10 @@
 ---
 id: TASK-593.6
 title: スライド窓で隣のスライドの画像を先読みしてチラつきを消す
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-06 11:42'
-updated_date: '2026-09-06 11:43'
+updated_date: '2026-09-06 13:38'
 labels:
   - slide-mode
   - performance
@@ -99,3 +99,73 @@ ordinal: 864000
 - `ViewerWindowAssembler.makeSlidePrefetcher(for:)`: `.slide` のときだけ生成し、`surfaces.web` から JS 実行のクロージャを渡す（窓が proxy を直接覗かない既存の方針を守る）
 - `ViewerWindowController.prefetchSlideNeighbours()`: `listSnapshot` を 1 度読み、隣 2 つを prefetcher へ渡すだけ
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 結論: 見送り（2026-09-06、ユーザー判断）
+
+原因の特定には至ったが、有効な修正を作れず、ユーザー判断で打ち切った。
+**次に触る人が同じ道を辿らないよう、除外済みの容疑者と再現方法を残す。**
+
+## 症状（再現済み）
+
+スライド窓でファイルを送ると、初回だけ「**スタイルは完全に当たっているが画像だけ未到着で、
+そのぶん本文が中央に寄った状態**」が一瞬見える。ユーザーの言葉では
+「各スライドの文字列、例えば "QuickLook に対応してます。" が中央に一瞬見える」。
+画像のあるスライドでのみ知覚される。
+
+## 実測で除外したもの（すべて「効かない／起きていない」を確認済み）
+
+| 容疑者 | 判定の根拠 |
+| --- | --- |
+| サンプルの画像サイズ指定（`<img>` の width/height） | ユーザー確認で無効。**ただしハーネスでは確かに枠を確保する**（下記） |
+| 隣スライドの画像の先読み | ユーザー確認で無効。先読み自体はキャッシュに載る（対照実験で `complete=true` / `naturalWidth=1200` 対 `false` / `0`） |
+| 上記 2 つの同時適用 | ユーザー確認で無効 |
+| viewer.html の挟み込み | 実アプリのログで `EXIT direct mode` がスライド間で 0 回 |
+| canvas 所有の反転 | 実アプリのログで `drawsBackground=1` 固定 |
+| 倍率の再適用 | 実アプリのログで `applyPendingZoom changes=0`（常に 1.0） |
+| `allowsContentJavaScript = false` が JS を止めている | ハーネスで `evaluateJavaScript` が動くことを確認（結果 2、エラーなし） |
+| WKWebView の地の色 | `underPageBackgroundColor` を変えても中間フレームは変わらず |
+
+## 実アプリでの実測タイミング
+
+`didCommit → didFinish` は画像ありのスライドで 5〜7ms、文字だけで 1〜5ms。
+経路（`plan=directHTMLLoad` → `enter` → `loadFileURL`）は全スライドで同一。
+
+## 再現ハーネス（次に調べる人へ）
+
+`takeSnapshot` は Web コンテンツだけを描き**ウィンドウ背景を含まない**ので、
+「何も描かれていない」状態は PNG では白になる。画面が白いことの証拠にはならない。
+またオフスクリーンの WKWebView は**描画も rAF も走らない**ので、ウィンドウへ載せること。
+
+中間フレームを捉えるには**現象の窓を人工的に広げる**。画像を `sips` で 6000x4000 に
+拡大した複製を用意し、実ウィンドウに載せた WebView で A→B を遷移させながら
+10ms 間隔で `takeSnapshot` すると、ご報告どおりの中間状態が撮れる。
+`<img>` に実寸の width/height を足した変種と比べると、**枠が確保され本文が最終位置に
+留まる**ことがフレーム上で確認できる（つまり属性の効果自体は本物）。
+
+## 未解明のまま残っている矛盾
+
+**ハーネスでは width/height 属性が中間状態を明確に改善するのに、実アプリでは
+ユーザーの体感が変わらなかった。** ハーネスが再現していないアプリ側の要素
+（`DocumentSurfaceStack` の面の opacity 切り替え、SwiftUI の再構成、
+`ViewerStore.openFile` → `ContentLoader` → `ViewerRenderer.render` の間の状態）が
+残っている。次に着手するならここから。
+
+## 調査の失敗から（同じ轍を踏まないために）
+
+- **最初の測定で「中間フレームは無い」と結論したのは誤り。** サンプリングが 10ms 間隔で、
+  現象の窓が 5〜10ms だったため丸ごと飛ばしていた。**サンプリングの粗さを根拠の欠如と
+  取り違えない**
+- **修正を片方ずつ試して個別に「無効」と判定した。** レイアウトの飛びと画像の遅れは
+  別の症状で、単独ではもう片方が残る。**症状が複数あるなら、切り分けの前に組み合わせも試す**
+- 「読めない画像」で測ったが、WebKit は壊れた画像として alt の箱を描くため
+  「まだ読めていない」とは別物だった
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+見送り。原因は「スタイル適用済み・画像だけ未到着で本文が中央に寄る中間状態」と特定し、ハーネスで再現もできたが、実アプリで有効な修正を作れなかった（画像サイズ指定・先読み・その同時適用がいずれもユーザー確認で無効）。実測で除外した容疑者一覧、実アプリのログ、再現ハーネスの手順、ハーネスと実アプリで結果が食い違うという未解明点を Notes に残した。ユーザー判断で調査を打ち切り、コードへの変更はすべて revert 済み（リポジトリに残した変更は無い）。
+<!-- SECTION:FINAL_SUMMARY:END -->
