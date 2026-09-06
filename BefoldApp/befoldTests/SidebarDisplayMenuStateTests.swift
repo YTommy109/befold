@@ -22,7 +22,8 @@ struct SidebarDisplayMenuStateTests {
             activeWindow: settings(
                 showHiddenFiles: true, showChangedFilesOnly: true, layoutMode: .tree
             ),
-            canFilterChangedFiles: true
+            canFilterChangedFiles: true,
+            allowsSidebar: true
         )
 
         #expect(state.isEnabled)
@@ -40,7 +41,9 @@ struct SidebarDisplayMenuStateTests {
     /// 4 値は窓ごとのライブ値なので、届け先の窓が無い状態で項目を押せてはならない。
     @Test("アクティブウィンドウが無ければ項目は無効で、チェックも付かない")
     func disabledWithoutAnActiveWindow() {
-        let state = SidebarDisplayMenuState(activeWindow: nil, canFilterChangedFiles: false)
+        let state = SidebarDisplayMenuState(
+            activeWindow: nil, canFilterChangedFiles: false, allowsSidebar: true
+        )
 
         #expect(!state.isEnabled)
         #expect(!state.hidesHiddenFiles)
@@ -93,11 +96,43 @@ struct SidebarDisplayMenuStateTests {
         #expect(!noWindow.isEnabled(for: .toggleLayoutMode))
     }
 
+    /// スライド窓にはサイドバーが無いので、切り替える先の一覧そのものが無い(TASK-593)。
+    /// **3 項目すべて**を無効にする——「サイドバーをツリー表示」だけを塞ぐと、隣の
+    /// 不可視ファイル・変更のみが同じ理由で押せるまま残る。
+    @Test("サイドバーを持てない窓ではサイドバー表示 3 項目すべてが選べない")
+    func sidebarDisplayItemsAreDisabledWithoutASidebar() {
+        let slide = menuState(
+            settings(showHiddenFiles: false, showChangedFilesOnly: false, layoutMode: .drillDown),
+            allowsSidebar: false
+        )
+
+        #expect(!slide.isEnabled)
+        #expect(!slide.isEnabled(for: .toggleLayoutMode))
+        #expect(!slide.isEnabled(for: .toggleHiddenFiles))
+        #expect(!slide.isEnabled(for: .toggleChangedFilesOnly))
+    }
+
+    /// 対の確認。サイドバーを持てる窓では従来どおり選べる（上のテストが
+    /// 「そもそも常に無効」を測っているわけではないと分かる）。
+    @Test("サイドバーを持てる窓では従来どおり選べる")
+    func sidebarDisplayItemsStayEnabledWithASidebar() {
+        let viewer = menuState(
+            settings(showHiddenFiles: false, showChangedFilesOnly: false, layoutMode: .drillDown),
+            allowsSidebar: true
+        )
+
+        #expect(viewer.isEnabled(for: .toggleLayoutMode))
+        #expect(viewer.isEnabled(for: .toggleHiddenFiles))
+        #expect(viewer.isEnabled(for: .toggleChangedFilesOnly))
+    }
+
     private func menuState(
-        _ settings: SidebarDisplaySettings?, canFilterChangedFiles: Bool = true
+        _ settings: SidebarDisplaySettings?, canFilterChangedFiles: Bool = true,
+        allowsSidebar: Bool = true
     ) -> SidebarDisplayMenuState {
         SidebarDisplayMenuState(
-            activeWindow: settings, canFilterChangedFiles: canFilterChangedFiles
+            activeWindow: settings, canFilterChangedFiles: canFilterChangedFiles,
+            allowsSidebar: allowsSidebar
         )
     }
 }

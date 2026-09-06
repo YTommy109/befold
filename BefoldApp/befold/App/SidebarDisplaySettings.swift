@@ -116,7 +116,8 @@ extension FileListModel {
 /// 検証できるようにするため。`NSApp.mainWindow` に依存する解決は呼び出し側に残す。
 struct SidebarDisplayMenuState: Equatable {
     /// 項目を選べるか。操作対象の窓が無ければ false(4 値は窓ごとのライブ値なので、
-    /// 届け先が無い状態で押せてはならない)。
+    /// 届け先が無い状態で押せてはならない)。**サイドバーを持てない窓でも false**
+    /// ——スライド窓には切り替える先の一覧が無く、押しても結果が見えない(TASK-593)。
     let isEnabled: Bool
     /// 不可視ファイル項目が「隠す」を表すか(表示中なら true)。
     let hidesHiddenFiles: Bool
@@ -136,8 +137,14 @@ struct SidebarDisplayMenuState: Equatable {
     ///     (`FileListModel.canFilterChangedFiles`)。窓が無ければ `isEnabled` が false に
     ///     なるので値は問わない。**既定値を持たせない**——渡し忘れが静かに
     ///     「常に出す / 常に出さない」へ倒れる形を作らないため。
-    init(activeWindow settings: SidebarDisplaySettings?, canFilterChangedFiles: Bool) {
-        isEnabled = settings != nil
+    ///   - allowsSidebar: そのウィンドウがサイドバーを持てるか(`ViewerWindowKind.allowsSidebar`)。
+    ///     スライド窓では 3 項目すべてが対象を持たない。`canFilterChangedFiles` と同じ理由で
+    ///     **既定値を持たせない**。
+    init(
+        activeWindow settings: SidebarDisplaySettings?, canFilterChangedFiles: Bool,
+        allowsSidebar: Bool
+    ) {
+        isEnabled = settings != nil && allowsSidebar
         hidesHiddenFiles = settings?.showHiddenFiles ?? false
         checksChangedFilesOnly = settings?.showChangedFilesOnly ?? false
         checksTreeLayout = settings?.layoutMode == .tree
