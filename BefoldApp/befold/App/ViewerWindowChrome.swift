@@ -20,7 +20,7 @@ enum ViewerWindowChrome {
     ///
     /// ウィンドウの実サイズは `contentViewController` の設定後に確定させるため、
     /// ここでの `contentRect` はプレースホルダ。
-    static func makeWindow(fileURL: URL) -> NSWindow {
+    static func makeWindow(fileURL: URL, kind: ViewerWindowKind = .viewer) -> NSWindow {
         let window = NSWindow(
             contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -37,6 +37,12 @@ enum ViewerWindowChrome {
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
         window.tabbingIdentifier = "ViewerWindow"
+        // スライド窓はタブへ合流させない(TASK-593.2)。**`tabbingIdentifier` を消すのでは
+        // 足りない。** システム設定「書類を開くときはタブで開く: 常に」では、識別子が
+        // 無くても AppKit が既存の窓へ畳むことがあるため、モードそのものを禁止する。
+        if !kind.joinsTabs {
+            window.tabbingMode = .disallowed
+        }
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
         // 生成時点では一覧がまだ届いておらず、出すのは開こうとしている文書。

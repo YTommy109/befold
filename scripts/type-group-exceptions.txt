@@ -9,4 +9,4 @@
 # 登録できない形にすることで、例外の追加を差分レビューで必ず目に付くようにする）。
 # 例外は現状値の凍結（ラチェット）ではない。上限を超えない限り増減は自由で、逆に
 # 上限まで太らせてよいという意味でもない。返済して閾値以下へ戻せたらこの行を消す。
-BefoldApp/befold/App/ViewerWindowController	905	NSResponder チェーンの都合で移動できない @objc メニューアクションと validate 対応表、および init の Parameter doc（約 120 行）が支配的で、責務分離を尽くしても 400 行へは到達しない（TASK-441 / TASK-453 で 1255 → 802 行まで返済済み。判断の経緯は TASK-441 の AC #1）。TASK-585 で足した toggleSlideMode を TASK-593.1 が撤去したため、そのとき 900 → 920 に上げた上限を実測値の 905 へ戻した（@objc アクションを足すたびに数行ずつ増える構造なので、上限は常に実測値へ張り付ける）
+BefoldApp/befold/App/ViewerWindowController	922	NSResponder チェーンの都合で移動できない @objc メニューアクションと validate 対応表、および init の Parameter doc（約 120 行）が支配的で、責務分離を尽くしても 400 行へは到達しない（TASK-441 / TASK-453 で 1255 → 802 行まで返済済み。判断の経緯は TASK-441 の AC #1）。TASK-593.2 で窓種別 kind の stored property・init 引数 2 つ（kind / initialExpansion）・ツールバーを作らない分岐・toolbarController を Optional にした doc を足して 905 → 922 行になった（この変更で増える責務は stored property 1 つで、プロトコル準拠も注入クロージャも増えていない）。上限は常に実測値へ張り付ける

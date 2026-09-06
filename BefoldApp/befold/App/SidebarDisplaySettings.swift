@@ -26,17 +26,36 @@ struct SidebarDisplaySettings: Equatable {
     )
 }
 
-/// CLI 由来の「この起動限りの上書き」。指定のあった値だけ、窓の生成時に初期値へ混ぜる。
+/// 窓の生成時に初期値へ混ぜる「指定のあった値」。指定されていない値は nil で表し、
+/// 保存された既定値をそのまま使う。
 ///
-/// `--sort` / `--hidden-files` を個別の引数で持ち回ると、経路が増えるたびに引数が伸びて
-/// 片方だけ通し忘れる(TASK-413 と同型)。**指定されていない = nil** をここで表し、
-/// 保存された既定値は書き換えない。
+/// 出どころは 2 つある。CLI 由来の「この起動限りの上書き」(`--sort` / `--hidden-files`)と、
+/// 起点の窓からの引き継ぎ(TASK-593.2)。**個別の引数で持ち回らない**——経路が増えるたびに
+/// 引数が伸びて片方だけ通し忘れる(TASK-413 と同型)。
+///
+/// **4 値すべてを持つ。** ADR 0002 の窓ごと 4 値のうち 2 つだけを運ぶ形にしていると、
+/// 「別の窓で開く」で並び順は引き継がれるのにレイアウトと絞り込みだけ既定へ戻る、という
+/// 非対称が生まれる。運べる値と運べない値の境界は、この型の外からは見えない。
 struct SidebarDisplayOverrides: Equatable {
     var sortOrder: SortOrder?
     var showHiddenFiles: Bool?
+    var showChangedFilesOnly: Bool?
+    var layoutMode: SidebarLayoutMode?
 
     /// 指定なし。CLI 以外の経路(Recent メニュー・参照クリックなど)はこれで開く。
     static let none = SidebarDisplayOverrides()
+
+    /// 既定値へ上書きを重ねた初期値。**適用はここ 1 箇所だけ**——値を足したときに
+    /// 「型には足したが混ぜ忘れた」形をコンパイラでは捕まえられないため、混ぜる場所を
+    /// 1 つに保って `SidebarDisplayOverridesTests` で全値を測る。
+    func applied(to settings: SidebarDisplaySettings) -> SidebarDisplaySettings {
+        var merged = settings
+        if let sortOrder { merged.sortOrder = sortOrder }
+        if let showHiddenFiles { merged.showHiddenFiles = showHiddenFiles }
+        if let showChangedFilesOnly { merged.showChangedFilesOnly = showChangedFilesOnly }
+        if let layoutMode { merged.layoutMode = layoutMode }
+        return merged
+    }
 }
 
 /// サイドバー表示 4 値への変更。`SidebarListingCoordinator.applyDisplayChange(_:)` が

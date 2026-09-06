@@ -2689,6 +2689,23 @@
         }
       }
     },
+    "sidebar.context.openInSlideMode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Slide Mode"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スライドモードで開く"
+          }
+        }
+      }
+    },
     "sidebar.context.openInNewWindow": {
       "extractionState": "manual",
       "localizations": {

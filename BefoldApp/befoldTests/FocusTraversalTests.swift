@@ -90,6 +90,7 @@ struct FocusTraversalTests {
         var effectiveDisplayMode = ViewerDisplayMode.rendered
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
+        var allowsSidebar = true
     }
 
     private func item(for selector: Selector) -> NSMenuItem {

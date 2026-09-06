@@ -54,7 +54,8 @@ extension ViewerWindowManager {
         // 同じ一覧を出すなら空から作り直す理由が無い。
         let controller = makeController(
             for: url, options: options, forceSidebarVisible: forceSidebarVisible,
-            initialListing: listingSeed(from: sourceWindow)
+            kind: disposition == .slide ? .slide : .viewer,
+            inheriting: SidebarInheritance.seed(from: sourceWindow)
         )
         register(controller, forKey: key)
         controller.delegate = sessionSync
@@ -81,8 +82,9 @@ extension ViewerWindowManager {
     /// - `.newTab`: cmd+クリック等。起点ウィンドウと同じタブグループに同じファイルの
     ///   タブが既にあればそれを選択し、重複タブを作らない(TASK-487)。別ウィンドウで
     ///   開いているだけなら素通しし、起点のタブグループへ新しいタブを開く。
-    /// - `.newWindow`: ユーザーが明示的に新規ウィンドウを求めた経路なので常に素通しする
+    /// - `.newWindow` / `.slide`: ユーザーが明示的に新しい窓を求めた経路なので常に素通しする
     ///   (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
+    ///   スライド窓は器が違うだけで、再利用の規則は `.newWindow` と同じ。
     private func reusableController(
         forKey key: String, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
     ) -> ViewerWindowController? {
@@ -96,7 +98,7 @@ extension ViewerWindowManager {
                 guard let window = controller.window else { return false }
                 return siblings.contains(window)
             }
-        case .newWindow:
+        case .newWindow, .slide:
             return nil
         }
     }
@@ -112,36 +114,31 @@ extension ViewerWindowManager {
     /// 新規ウィンドウのコントローラを、初期表示状態(サイドバー開閉・ウィンドウ枠)を
     /// 解決したうえで生成する。共有依存の渡し先はここ 1 箇所で、渡し忘れれば
     /// コンパイルが落ちる(既定値を持たない引数として受けている)。
-    /// 起点ウィンドウのサイドバーが列挙済みの一覧(引き継ぎの材料)。
-    /// ビューアウィンドウでない・まだ一覧が届いていないなら nil。
-    private func listingSeed(from sourceWindow: NSWindow?) -> SidebarListingSeed? {
-        guard let controller = sourceWindow?.windowController as? ViewerWindowController,
-              controller.fileListModel.hasLoadedEntries
-        else { return nil }
-        let model = controller.fileListModel
-        return SidebarListingSeed(
-            directory: model.entriesDirectory,
-            listing: controller.sidebar.lastListing,
-            sortOrder: model.sortOrder,
-            showHiddenFiles: model.showHiddenFiles
-        )
-    }
-
     private func makeController(
         for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool,
-        initialListing: SidebarListingSeed?
+        kind: ViewerWindowKind, inheriting seed: SidebarInheritance.Seed
     ) -> ViewerWindowController {
         let lastActivePathKey = sessionStore.savedActivePath()
-        // 開閉の解決順: CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンによる強制表示 > 記憶の引き継ぎ。
-        let initialSidebarCollapsed: Bool = if let showSidebar = options.showSidebar {
+        // 開閉の解決順: 種別 > CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンに
+        // よる強制表示 > 記憶の引き継ぎ。
+        //
+        // **サイドバーを持たない種別は記憶しない**(TASK-593.2)。畳んでいることは種別の
+        // 帰結であって利用者の選択ではないので、per-file の記憶へ書くと「そのファイルを
+        // 次に通常窓で開くとサイドバーが畳まれている」状態が残る(ADR 0002「窓の状態」)。
+        // `recordToggle` 側は toggleSidebar が no-op になることで構造的に届かないが、
+        // この `setCollapsed` は生成時に直接書くので明示的に飛ばす。
+        let initialSidebarCollapsed: Bool = if !kind.allowsSidebar {
+            true
+        } else if let showSidebar = options.showSidebar {
             !showSidebar
         } else if forceSidebarVisible {
             false
         } else {
             perFileState.sidebar.initialCollapsed(for: url, lastActivePathKey: lastActivePathKey)
         }
-        perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
-
+        if kind.allowsSidebar {
+            perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
+        }
         // 寸法はアプリ全体で 1 個。**ここで書き戻さない**——かつては解決結果をファイルへ
         // 書き戻しており、一度開いたファイルが自分の古い値に固定されていた(TASK-583)。
         // 再起動時に窓ごとの寸法を戻すのは SessionRestorer の仕事。
@@ -161,10 +158,12 @@ extension ViewerWindowManager {
             gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
             initialSidebarCollapsed: initialSidebarCollapsed,
+            kind: kind,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
             initialShowHiddenFiles: options.showHiddenFiles,
-            initialListing: initialListing,
+            initialListing: seed.listing,
+            initialExpansion: seed.expansion,
             showLineNumbersOverride: options.showLineNumbers,
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),

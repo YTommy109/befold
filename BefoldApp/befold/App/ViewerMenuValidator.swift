@@ -24,6 +24,8 @@ protocol ViewerMenuValidationSource: AnyObject {
     var isDiffLayoutSideBySide: Bool { get }
     /// サイドバーが畳まれているか。⌘←(サイドバーへフォーカス)の有効判定に使う。
     var isSidebarCollapsed: Bool { get }
+    /// サイドバーを開ける窓か。⌘S(サイドバーの表示切替)の有効判定に使う(TASK-593.2)。
+    var allowsSidebar: Bool { get }
 }
 
 /// メインメニュー・ツールバー項目の有効判定と表示名を決める対応表。
@@ -89,6 +91,13 @@ enum ViewerMenuValidator {
     private static func validateFocusTraversalItem(
         _ menuItem: NSMenuItem, source: some ViewerMenuValidationSource
     ) -> Bool? {
+        // ⌘S。スライド窓では開けないので選ばせない。**実際に開かせない担保は
+        // `ViewerSplitViewController.toggleSidebar(_:)` 側**で、ここは表示の手当て。
+        if menuItem.action == #selector(NSSplitViewController.toggleSidebar(_:)) {
+            return source.allowsSidebar
+        }
+        // ⌘←。スライド窓は常に畳まれているので、この既存の規則でそのまま無効になる
+        // (種別の分岐を足さない)。
         if menuItem.action == #selector(ViewerWindowController.focusSidebar(_:)) {
             return !source.isSidebarCollapsed
         }
@@ -178,5 +187,11 @@ extension ViewerWindowController: ViewerMenuValidationSource {
     /// 有効側へ倒すのは、判定できないことを理由に操作を塞がないため。
     var isSidebarCollapsed: Bool {
         sidebarCollapsible?.isSidebarCollapsed ?? false
+    }
+
+    /// 種別が決める(TASK-593.2)。**分割ビューの配線に依存させない**——未配線を
+    /// 「開ける」に倒すと、スライド窓の生成途中の一瞬だけ ⌘S が有効になる形ができる。
+    var allowsSidebar: Bool {
+        kind.allowsSidebar
     }
 }

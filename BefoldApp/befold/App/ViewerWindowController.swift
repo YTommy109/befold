@@ -78,6 +78,9 @@ final class ViewerWindowController: NSWindowController {
     /// ウィンドウ生成時のサイドバー初期開閉状態。解決(記憶の引き継ぎ・CLI からの強制表示など)は
     /// ViewerWindowManager.openViewer が行い、ここでは結果を受け取って渡すだけにする。
     let initialSidebarCollapsed: Bool
+    /// この窓の種別(TASK-593.2)。**生成時に決まり、以後変わらない**——`let` にしてあるのが
+    /// その担保で、ツールバーの有無・タブ合流・サイドバーの可否をあとから覆せる経路を作らない。
+    let kind: ViewerWindowKind
     /// 別のタブ/ウィンドウでファイルを開く処理。タブ結合の基準にするため自分のウィンドウも渡す。
     /// 本番では ViewerWindowManager 経由で注入する。
     let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
@@ -94,7 +97,11 @@ final class ViewerWindowController: NSWindowController {
     /// 開始は `ViewerWindowAssembler`、停止は `+WindowDelegate` の windowWillClose。
     var swipeMonitor: SwipeHistoryMonitor!
     /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
-    private(set) var toolbarController: ViewerToolbarController!
+    /// この窓のツールバー。**スライド窓では nil**(TASK-593.2)。
+    ///
+    /// Optional にしてあるのが「ツールバーを持たない窓がある」ことの担保で、
+    /// 暗黙アンラップのままだと利用側が無条件に触って落ちる。
+    private(set) var toolbarController: ViewerToolbarController?
     /// この窓の描画面の束(proxy と adapter)。面が増えても窓が持つのはこれ 1 本のまま
     /// (TASK-564.6)。テスト(@testable)が差し込めるよう private にしない。
     private(set) var surfaces: DocumentSurfaces
@@ -258,6 +265,7 @@ final class ViewerWindowController: NSWindowController {
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         gitStatusStore: GitStatusStore = GitStatusStore(),
         initialSidebarCollapsed: Bool = true,
+        kind: ViewerWindowKind = .viewer,
         initialFrameDescriptor: String? = nil,
         // CLI の `--sort` による初期並び順の指定。nil なら保存された既定値から始める。
         initialSortOrder: SortOrder? = nil,
@@ -268,6 +276,7 @@ final class ViewerWindowController: NSWindowController {
         // 「空 → 列挙 → 描画」の 2 段階を通らせない(TASK-532)。引き継げるかの判定は
         // SidebarListingSeed.canApply(to:) が持つ。nil なら従来どおり空から始める。
         initialListing: SidebarListingSeed? = nil,
+        initialExpansion: [String: URL] = [:],
         showLineNumbersOverride: Bool? = nil,
         sourceModeOverride: Bool? = nil,
         store: ViewerStore? = nil,
@@ -289,6 +298,7 @@ final class ViewerWindowController: NSWindowController {
         self.bookmarkStore = bookmarkStore
         self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
+        self.kind = kind
         self.openFileElsewhere = openFileElsewhere
         self.externalOpener = externalOpener
         // 後段の makeWebViewCommands と makeSplitViewController が両方これを読む。
@@ -306,14 +316,13 @@ final class ViewerWindowController: NSWindowController {
             ),
             gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
         )
-        let window = ViewerWindowChrome.makeWindow(fileURL: fileURL)
+        let window = ViewerWindowChrome.makeWindow(fileURL: fileURL, kind: kind)
 
         super.init(window: window)
 
         // ここから先は self を使う。toolbarController は self(ViewerToolbarHost)を要るため
-        // super.init より前には作れない。ツールバーの生成・デリゲート設定・取り付けの
-        // 順序制約は ViewerToolbarController.init の中に閉じている。
-        toolbarController = ViewerToolbarController(window: window, host: self)
+        // super.init より前には作れない。
+        toolbarController = ViewerWindowAssembler.makeToolbarController(for: self, on: window)
         documentCommands = ViewerWindowAssembler.makeWebViewCommands(for: self)
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
@@ -331,7 +340,7 @@ final class ViewerWindowController: NSWindowController {
         swipeMonitor = ViewerWindowAssembler.makeSwipeMonitor(for: self, on: window)
         ViewerWindowAssembler.wirePresentationTargetChange(for: self)
         ViewerWindowAssembler.openInitialDocument(
-            for: self, at: fileURL, adopting: initialListing
+            for: self, at: fileURL, adopting: initialListing, expanding: initialExpansion
         )
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)

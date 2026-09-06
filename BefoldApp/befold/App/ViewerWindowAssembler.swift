@@ -33,12 +33,29 @@ enum ViewerWindowAssembler {
     /// 3. ストアのコールバックを配線してから開く(開いた直後の通知を取り落とさない)
     static func openInitialDocument(
         for controller: ViewerWindowController, at fileURL: URL,
-        adopting initialListing: SidebarListingSeed?
+        adopting initialListing: SidebarListingSeed?,
+        expanding initialExpansion: [String: URL] = [:]
     ) {
-        controller.sidebar.attach(to: controller, adopting: initialListing)
+        controller.sidebar.attach(
+            to: controller, adopting: initialListing, expanding: initialExpansion
+        )
         controller.sidebar.refreshFileList()
         wireStoreCallbacks(for: controller)
         controller.store.openFile(fileURL)
+    }
+
+    /// ツールバーを作って取り付ける。**種別が持たないなら作らない**(TASK-593.2)。
+    ///
+    /// 隠すのではなく作らないのが要点。ツールバーを残したまま隠すと
+    /// `.system(.toggleSidebar)` が生きていて、サイドバーを開く経路が 1 つ増える。
+    ///
+    /// 生成・デリゲート設定・取り付けの順序制約は `ViewerToolbarController.init` の中に
+    /// 閉じているので、ここが持つのは「作るかどうか」だけ。
+    static func makeToolbarController(
+        for controller: ViewerWindowController, on window: NSWindow
+    ) -> ViewerToolbarController? {
+        guard controller.kind.hasToolbar else { return nil }
+        return ViewerToolbarController(window: window, host: controller)
     }
 
     static func makeSidebarNavigator(
@@ -53,8 +70,7 @@ enum ViewerWindowAssembler {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
-            displayDefaults: displayDefaults, sortOrder: overrides.sortOrder,
-            showHiddenFiles: overrides.showHiddenFiles,
+            displayDefaults: displayDefaults, overrides: overrides,
             git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
@@ -142,6 +158,7 @@ enum ViewerWindowAssembler {
             sidebar: makeFileListView(for: controller),
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
+            allowsSidebar: controller.kind.allowsSidebar,
             onCollapsedChange: { [weak controller] collapsed in
                 guard let controller else { return }
                 controller.perFileState.sidebar.recordToggle(collapsed, for: controller.fileURL)

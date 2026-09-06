@@ -34,6 +34,8 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
 
     private let sidebarItem: NSSplitViewItem
     private var didForceInitialCollapse = false
+    /// サイドバーを開けるか(窓の種別が決める / TASK-593.2)。
+    private let allowsSidebar: Bool
     private let initialCollapsed: Bool
     private let onCollapsedChange: (Bool) -> Void
     private let onSidebarDidReveal: () -> Void
@@ -44,11 +46,13 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     /// (TASK-563)。渡し忘れをコンパイルエラーにする。
     init(
         sidebar: Sidebar, content: Content, initialCollapsed: Bool = true,
+        allowsSidebar: Bool = true,
         onCollapsedChange: @escaping (Bool) -> Void = { _ in },
         onSidebarDidReveal: @escaping () -> Void = {},
         onSidebarDidHide: @escaping () -> Void
     ) {
         self.initialCollapsed = initialCollapsed
+        self.allowsSidebar = allowsSidebar
         self.onCollapsedChange = onCollapsedChange
         self.onSidebarDidReveal = onSidebarDidReveal
         self.onSidebarDidHide = onSidebarDidHide
@@ -87,7 +91,18 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         sidebarItem.isCollapsed = initialCollapsed
     }
 
+    /// サイドバーの開閉。**開かせない窓ではここで止める**(TASK-593.2)。
+    ///
+    /// `setSidebarCollapsed(_:)` もこれを呼ぶので、CLI の `--sidebar` と
+    /// `forceSidebarVisible` を含む**すべての開閉経路がこの 1 箇所を通る**。
+    /// メニュー検証(⌘S の無効化)は利用者に押させないための表示側の手当てで、
+    /// 実際に開かせない担保はこちら。
+    ///
+    /// ここで止まると `onCollapsedChange` が発火しないため、`SidebarStateStore.recordToggle`
+    /// にも届かない。「種別の帰結である折りたたみを利用者の選択として保存しない」
+    /// (ADR 0002)は、別のガードではなくこの構造が担保している。
     override func toggleSidebar(_ sender: Any?) {
+        guard allowsSidebar else { return }
         let wasCollapsed = sidebarItem.isCollapsed
         super.toggleSidebar(sender)
         onCollapsedChange(sidebarItem.isCollapsed)

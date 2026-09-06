@@ -77,6 +77,7 @@ struct SidebarContextMenu: View {
     static let openElsewhereEntries: [(titleKey: String, disposition: OpenDisposition)] = [
         ("sidebar.context.openInNewTab", .newTab),
         ("sidebar.context.openInNewWindow", .newWindow),
+        ("sidebar.context.openInSlideMode", .slide),
     ]
 
     private var openElsewhereButtons: some View {

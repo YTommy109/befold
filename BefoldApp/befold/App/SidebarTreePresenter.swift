@@ -132,6 +132,25 @@ final class SidebarTreePresenter {
         rebuildRows()
     }
 
+    /// 展開中フォルダの pathKey → URL。別の窓へ引き継ぐための読み取り窓。
+    var expandedFolderURLs: [String: URL] {
+        expansion.expandedFolderURLs
+    }
+
+    /// 別の窓から引き継いだ展開を当てる(TASK-593.2)。
+    ///
+    /// **行の材料が入った後に呼ぶこと。** `expandFolder` は子リストの着地時に行を
+    /// 組み直すので、`lastListing` が空のまま呼ぶと空の一覧に対して組み直す。
+    ///
+    /// 展開はツリー表示でしか行に効かないので、リスト表示では引き継がない
+    /// (引き継ぐと、この窓が一度もツリーにしていないのに展開キーだけ溜まる)。
+    func adoptExpansion(_ inherited: [String: URL]) {
+        guard fileListModel.layoutMode == .tree else { return }
+        for (key, url) in inherited {
+            expandFolder(key, at: url)
+        }
+    }
+
     /// 走行中の子リスト取得をすべて無効化し、展開状態を捨てる(snapshotRoot も一緒に消える)。
     /// ツリー表示中のルート切り替え・ウィンドウを閉じるとき・スナップショット root の外で
     /// ツリー表示へ戻るときに呼ぶ。
