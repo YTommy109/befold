@@ -185,6 +185,42 @@ struct SlideWindowIntegrationTests {
         #expect(controller.fileURL.normalizedPathKey == second.normalizedPathKey)
     }
 
+    @Test("スライド窓は保存された寸法が無ければ 16:9 で開く")
+    func opensAtSixteenByNineByDefault() throws {
+        let fixture = makeFixture()
+        defer { fixture.closeAll() }
+
+        let controller = try #require(
+            fixture.manager.openViewer(for: first, disposition: .slide)
+        )
+        let size = try #require(controller.window?.contentView?.frame.size)
+
+        #expect(abs(size.width / size.height - 16.0 / 9.0) < 0.01, "実測 \(size)")
+    }
+
+    /// 種別で寸法の壺が分かれていることを、窓を実際にリサイズして測る(TASK-593.5)。
+    /// 分かれていないと、プレゼン用に広げた寸法が次に開く通常窓へそのまま漏れる。
+    @Test("スライド窓をリサイズしても通常窓の既定寸法は変わらない")
+    func resizingASlideWindowDoesNotChangeTheViewerDefault() throws {
+        let fixture = makeFixture()
+        defer { fixture.closeAll() }
+        fixture.windowFrame.recordUserAdjustedFrame("0 0 900 700 0 0 1920 1080", for: .viewer)
+        let slide = try #require(
+            fixture.manager.openViewer(for: first, disposition: .slide)
+        )
+        let window = try #require(slide.window)
+
+        window.setFrame(NSRect(x: 0, y: 0, width: 1600, height: 900), display: false)
+        // ライブリサイズの確定と同じ契機を直接叩く（実 UI のドラッグは再現できない）。
+        slide.windowDidEndLiveResize(Notification(name: NSWindow.didEndLiveResizeNotification))
+
+        #expect(
+            fixture.windowFrame.lastUserAdjustedFrameDescriptor(for: .viewer)
+                == "0 0 900 700 0 0 1920 1080"
+        )
+        #expect(fixture.windowFrame.lastUserAdjustedFrameDescriptor(for: .slide) != nil)
+    }
+
     @Test("スライドモードは既に開いているファイルでも必ず新しい窓を開く")
     func alwaysOpensANewWindow() throws {
         let fixture = makeFixture()

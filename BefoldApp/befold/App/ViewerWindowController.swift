@@ -333,7 +333,7 @@ final class ViewerWindowController: NSWindowController {
             for: self, contentOverride: makeContentView
         )
         ViewerWindowChrome.applyInitialFrame(
-            initialFrameDescriptor, to: window,
+            initialFrameDescriptor, to: window, kind: kind,
             isOccupied: ViewerWindowAssembler.isOriginOccupiedByAnotherViewer(excluding: window)
         )
         // delegate の設定はフレーム確定後にする。init 中のリサイズ

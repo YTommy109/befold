@@ -13,9 +13,6 @@ import AppKit
 /// - 「他のビューア窓と重なっているか」の判定はコントローラ側(述語として受け取る)
 @MainActor
 enum ViewerWindowChrome {
-    /// 保存済みフレームが無いときに使う既定サイズ。
-    static let defaultContentSize = NSSize(width: 1100, height: 850)
-
     /// ビューアウィンドウを 1 枚作る。
     ///
     /// ウィンドウの実サイズは `contentViewController` の設定後に確定させるため、
@@ -81,11 +78,14 @@ enum ViewerWindowChrome {
     ///   どちらでも、既存ウィンドウと位置が完全に一致すると重なって見分けが付かなくなるため、
     ///   埋まっている間はカスケード量だけずらす。判定に必要な「他のビューア窓」の知識は
     ///   呼び出し側が持つ(この型は `NSApp` を知らない)。
+    /// - Parameter kind: 保存済みフレームが無いときの既定サイズを決める。**既定値を持たせない**
+    ///   ——渡し忘れると、スライド窓が 16:9 ではない寸法で開く形が静かにできる。
     static func applyInitialFrame(
-        _ descriptor: String?, to window: NSWindow, isOccupied: (NSPoint) -> Bool
+        _ descriptor: String?, to window: NSWindow, kind: ViewerWindowKind,
+        isOccupied: (NSPoint) -> Bool
     ) {
         guard let descriptor else {
-            window.setContentSize(defaultContentSize)
+            window.setContentSize(kind.defaultContentSize)
             window.center()
             return
         }

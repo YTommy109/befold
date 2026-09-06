@@ -62,7 +62,7 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     }
 
     func viewerWindow(_ controller: ViewerWindowController, didAdjustFrameTo descriptor: String) {
-        manager.windowFrame.recordUserAdjustedFrame(descriptor)
+        manager.windowFrame.recordUserAdjustedFrame(descriptor, for: controller.kind)
     }
 
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {

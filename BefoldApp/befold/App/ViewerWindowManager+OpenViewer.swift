@@ -142,7 +142,7 @@ extension ViewerWindowManager {
         // 寸法はアプリ全体で 1 個。**ここで書き戻さない**——かつては解決結果をファイルへ
         // 書き戻しており、一度開いたファイルが自分の古い値に固定されていた(TASK-583)。
         // 再起動時に窓ごとの寸法を戻すのは SessionRestorer の仕事。
-        let initialFrameDescriptor = windowFrame.lastUserAdjustedFrameDescriptor
+        let initialFrameDescriptor = windowFrame.lastUserAdjustedFrameDescriptor(for: kind)
 
         return ViewerWindowController(
             fileURL: url,
