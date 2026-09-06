@@ -78,6 +78,21 @@ scripts/check-doc-symbols.sh --self-test  # 検知が働くことだけを確認
 SPM がディレクトリを走査するため通ってしまい、`.app` バンドルを作る `xcodebuild` だけが
 `cannot find 'X' in scope` で落ちる（実機確認の直前に気付くことになる）。
 
+### ビルドが反映されているか確かめる
+
+`.app` フォルダの**作成日は最初に作られた日のまま**で、`xcodebuild` は中身だけを
+差し替える（実測: bundle 2026-08-17 / 実行体 2026-09-06）。Finder の「作成日」が古くても
+ビルドされていないとは限らない。反映を確かめるなら
+`Contents/MacOS/befold` と `Contents/Frameworks/*.framework` の**更新時刻**を見る。
+
+**`strings` で確認するときはメイン実行体だけを見ない。** BefoldRenderKit / BefoldKit の
+コードは `Contents/Frameworks/<名前>.framework` 側に入るため、メイン実行体を探して
+「入っていない」と誤結論する（実測で 1 回やった。診断ログは framework 側にあった）。
+
+`/run` は `-derivedDataPath .build/xcode` を固定する。`~/Library/Developer/Xcode/DerivedData`
+配下の別バンドルと**混在させない**——同一セッションで両方を起動すると、どちらを見て
+いるのか分からなくなる。
+
 ## JS/TS コーディング規約（Oxlint / Oxfmt）
 
 方針は **リポジトリルートの `.oxlintrc.json` と `.oxfmtrc.json` が単一の情報源**。
@@ -193,6 +208,13 @@ NSWindowDelegate / ArgumentParser など）は静的な呼び出し元を持た�
 - FileWatcher: 一時ファイルによる実ファイルシステムテスト
 - ViewerStore: `@MainActor` テスト（状態遷移検証）
 - WebView/GUI 層: 自動テスト対象外（リリース前手動チェック）
+- **環境に依存する実測値をアサートしない。** 窓の寸法・画面サイズ・レイアウト結果は
+  AppKit がディスプレイに合わせて切り詰めるため、手元で通っても CI の仮想ディスプレイで
+  落ちる。守りたい値そのもの（定数・純粋関数の戻り値）を測ること。
+  実測（TASK-593.5）: スライド窓の既定サイズが 16:9 であることを
+  `window.contentView.frame.size` の比で測ったテストが、手元では通り GitHub Actions の
+  macOS ランナーで比 1.52 になって落ちた。`ViewerWindowKind.slide.defaultContentSize` を
+  直接測る形へ移して解消した（実現された寸法は AppKit の都合であって、守りたい値ではない）
 
 ## 設計・方針を提示するときは前提と裏付けを明示する
 
