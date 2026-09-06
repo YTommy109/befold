@@ -4,6 +4,7 @@ title: スライドモードのマスクを行のツールチップと VoiceOver
 status: To Do
 assignee: []
 created_date: '2026-09-05 02:48'
+updated_date: '2026-09-06 09:25'
 labels:
   - sidebar
   - slide-mode
@@ -30,3 +31,9 @@ TASK-587 は「FileListEntryRow を無改変にする」方針で FileListView �
 - [ ] #3 スライドモードでないとき、および FolderListingView（プレビュー内のフォルダー一覧）ではツールチップと読み上げが従来どおり出る
 - [ ] #4 redactionReasons が非空のときにツールチップが空になることをテストが確認している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+見送り予定: スライドモードを専用ウィンドウへ移す（TASK-593）の決定により、サイドバー内のマスク自体が撤去対象になった。撤去サブタスク TASK-593.1 の完了時に見送りの要約付きで Done にする。
+<!-- SECTION:NOTES:END -->

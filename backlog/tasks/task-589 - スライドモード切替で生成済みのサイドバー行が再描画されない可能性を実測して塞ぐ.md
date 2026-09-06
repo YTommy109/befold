@@ -4,6 +4,7 @@ title: スライドモード切替で生成済みのサイドバー行が再描�
 status: To Do
 assignee: []
 created_date: '2026-09-05 02:48'
+updated_date: '2026-09-06 09:25'
 labels:
   - sidebar
   - slide-mode
@@ -29,3 +30,9 @@ TASK-587 の目視確認は幅変更（`splitView.setPosition`）と同時だっ
 - [ ] #2 追跡されない場合、isSlideMode の読み取りを行 body で評価される形へ移し、切替直後に行が再描画される
 - [ ] #3 追跡される場合、FileListEntryRow.swift 冒頭の「Observation の追跡外」の記述を実測に合わせて直す
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+見送り予定: スライドモードを専用ウィンドウへ移す（TASK-593）の決定により、行のマスク自体が撤去対象になった。撤去サブタスク TASK-593.1 の完了時に見送りの要約付きで Done にする。
+<!-- SECTION:NOTES:END -->
