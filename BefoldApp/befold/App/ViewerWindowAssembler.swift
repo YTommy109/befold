@@ -155,19 +155,12 @@ enum ViewerWindowAssembler {
         return splitViewController
     }
 
-    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨て、スライドモードを解除する。
+    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨てる。
     ///
-    /// 畳んだままスライドモードが残ると、次に開いたときアイコン幅のまま戻り、
-    /// ヘッダーの解除ボタンにしか出口が無くなる。**自動で開閉はしない**ので、
-    /// `SidebarStateStore` の「最後にユーザーが操作した開閉状態」は汚れない。
+    /// 保留のまま残すと「開いた要求が、閉じた後に成立する」形になる(TASK-563)。
     private static func makeSidebarDidHide(for controller: ViewerWindowController) -> () -> Void {
         { [weak controller] in
-            guard let controller else { return }
-            controller.fileListModel.tableFocuser.cancelPendingFocus()
-            SlideModeCoordinator.setEnabled(
-                false, model: controller.fileListModel,
-                collapsible: controller.sidebarCollapsible
-            )
+            controller?.fileListModel.tableFocuser.cancelPendingFocus()
         }
     }
 

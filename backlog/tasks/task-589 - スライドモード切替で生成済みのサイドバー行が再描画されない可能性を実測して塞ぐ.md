@@ -1,10 +1,10 @@
 ---
 id: TASK-589
 title: スライドモード切替で生成済みのサイドバー行が再描画されない可能性を実測して塞ぐ
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 02:48'
-updated_date: '2026-09-06 09:25'
+updated_date: '2026-09-06 09:40'
 labels:
   - sidebar
   - slide-mode
@@ -36,3 +36,9 @@ TASK-587 の目視確認は幅変更（`splitView.setPosition`）と同時だっ
 <!-- SECTION:NOTES:BEGIN -->
 見送り予定: スライドモードを専用ウィンドウへ移す（TASK-593）の決定により、行のマスク自体が撤去対象になった。撤去サブタスク TASK-593.1 の完了時に見送りの要約付きで Done にする。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+見送り。TASK-593.1 で行のマスク（`FileListView` の `.redacted(reason: model.transient.isSlideMode ? .placeholder : [])`）を撤去したため、「行ビルダークロージャ内の isSlideMode 読み取りが Observation で追跡されるか」という問いの対象が消えた。実測は行っていない。`FileListEntryRow.swift` 冒頭の「Observation の追跡外」という記述は今回の変更で真偽が変わらないため、そのまま残してある。
+<!-- SECTION:FINAL_SUMMARY:END -->

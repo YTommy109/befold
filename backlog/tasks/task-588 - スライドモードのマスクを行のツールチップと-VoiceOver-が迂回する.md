@@ -1,10 +1,10 @@
 ---
 id: TASK-588
 title: スライドモードのマスクを行のツールチップと VoiceOver が迂回する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-05 02:48'
-updated_date: '2026-09-06 09:25'
+updated_date: '2026-09-06 09:40'
 labels:
   - sidebar
   - slide-mode
@@ -37,3 +37,9 @@ TASK-587 は「FileListEntryRow を無改変にする」方針で FileListView �
 <!-- SECTION:NOTES:BEGIN -->
 見送り予定: スライドモードを専用ウィンドウへ移す（TASK-593）の決定により、サイドバー内のマスク自体が撤去対象になった。撤去サブタスク TASK-593.1 の完了時に見送りの要約付きで Done にする。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+見送り。TASK-593.1 でサイドバー内スライドモード（`FileListView` の `.redacted(.placeholder)` と `SidebarTransientState.isSlideMode`）を撤去したため、ツールチップと VoiceOver が迂回する対象そのものが消えた。`FileListEntryRow` の `.help` / accessibility には手を入れていない（スライドモード以外では従来どおり出るべきもので、変更する理由が無い）。スライドモードは専用ウィンドウ（TASK-593.2 / 593.3）へ移り、サイドバーを持たないためファイル名の漏れ経路自体が無い。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -30,12 +30,9 @@ extension ViewerWindowController: FileListViewDelegate {
     }
 
     /// サイドバーヘッダーのトグル。表示 4 値は窓ごとのライブ値なので(ADR 0002)、
-    /// **この窓のサイドバーへ直接届ける。** メニュー(⌃⌘T・⌃⌘P)と同じ経路を通り、
+    /// **この窓のサイドバーへ直接届ける。** メニュー(⌃⌘T ほか)と同じ経路を通り、
     /// ボタン専用の経路は持たせない。
-    func fileListDidRequestDisplayChange(_ request: SidebarDisplayRequest) {
-        switch request {
-        case let .display(change): sidebar.applyDisplayChange(change)
-        case .slideMode: toggleSlideMode(nil)
-        }
+    func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange) {
+        sidebar.applyDisplayChange(change)
     }
 }
