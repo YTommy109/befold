@@ -444,6 +444,11 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   **サイドバーを持てない窓（スライド窓）では 3 項目すべてが無効**になる。切り替える先の
   一覧そのものが無く、押しても結果が見えないため。判定は `isEnabled` の
   `allowsSidebar` で、項目ごとには書かない（TASK-593）。
+  **「その切り替えが今 ON か」の判定は `SidebarDisplaySettings.isOn(_:)` の 1 箇所**で、
+  View メニューのチェック状態（`SidebarDisplayMenuState`）もサイドバーヘッダーの ⋯ メニューの
+  チェックマーク（`SidebarOverflowItem`）もここから導く。⋯ の項目は自分が起こす
+  `SidebarDisplayChange` を identity として持ち、項目用の Kind を別に立てない——
+  Kind を置くと Kind → 切り替えの対応表が要り、交差した対応がコンパイルを通る（TASK-592）。
   ツリー⇄リストの切り替えは開閉状態とカレントフォルダーを引き継ぐ:
   ツリー→リストで展開集合を温存したまま root を `SidebarExpansion` のスナップショットに
   記録し、選択ファイルの親フォルダーへカレントを移す。リスト→ツリーはカレントが

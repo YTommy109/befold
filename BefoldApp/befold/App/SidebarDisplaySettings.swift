@@ -24,6 +24,25 @@ struct SidebarDisplaySettings: Equatable {
         showHiddenFiles: false, showChangedFilesOnly: false,
         layoutMode: .drillDown, sortOrder: .foldersFirst
     )
+
+    /// その切り替えが今 ON か。**チェックマークを出す側は全部ここを読む**——View
+    /// メニュー(`SidebarDisplayMenuState`)とサイドバーの ⋯ メニュー
+    /// (`SidebarOverflowItem`)が別々に符号化していると、片方だけ直したときに
+    /// 「メニューにはチェックが付くのに ⋯ には付かない」形が作れる(TASK-592)。
+    ///
+    /// **`default` を置かない。** 切り替えを足したときに「適用はするがチェックは
+    /// 決して付かない」へ静かに倒れるため、網羅をコンパイラに見張らせる。
+    /// 表示形式は 2 値なので「ON」はツリー側と決めてある(元の
+    /// `SidebarDisplayMenuState.checksTreeLayout` の定義をそのまま引き継ぐ)。
+    func isOn(_ change: SidebarDisplayChange) -> Bool {
+        switch change {
+        case .toggleHiddenFiles: showHiddenFiles
+        case .toggleChangedFilesOnly: showChangedFilesOnly
+        case .toggleLayoutMode: layoutMode == .tree
+        // 並び順だけは反転ではなく「指定した値にする」なので、一致で判定する。
+        case let .setSortOrder(order): sortOrder == order
+        }
+    }
 }
 
 /// 窓の生成時に初期値へ混ぜる「指定のあった値」。指定されていない値は nil で表し、
@@ -64,7 +83,9 @@ struct SidebarDisplayOverrides: Equatable {
 /// トグルの入口(メニュー・サイドバーヘッダー・ショートカット)を 1 本の API へ集めるために
 /// enum にしてある。値ごとにメソッドを生やすと、後処理(再列挙するのか・展開を捨てるのか・
 /// git を取り直すのか)の非対称が入口ごとに写経され、片方だけ直す事故になる。
-enum SidebarDisplayChange: Equatable {
+/// **`Hashable`** なのは、⋯ メニューが項目の identity にこの値を使うため
+/// (`SidebarHeaderControls` の `ForEach(id: \.change)`、TASK-592)。
+enum SidebarDisplayChange: Hashable {
     /// 不可視ファイル表示を反転する。
     case toggleHiddenFiles
     /// 「変更ファイルのみ表示」を反転する。
@@ -145,9 +166,11 @@ struct SidebarDisplayMenuState: Equatable {
         allowsSidebar: Bool
     ) {
         isEnabled = settings != nil && allowsSidebar
-        hidesHiddenFiles = settings?.showHiddenFiles ?? false
-        checksChangedFilesOnly = settings?.showChangedFilesOnly ?? false
-        checksTreeLayout = settings?.layoutMode == .tree
+        // 3 値とも `isOn(_:)` から導く。⋯ メニューのチェックと同じ定義を読むため、
+        // 「メニューと ⋯ でチェックの意味がずれる」形を作れない(TASK-592)。
+        hidesHiddenFiles = settings?.isOn(.toggleHiddenFiles) ?? false
+        checksChangedFilesOnly = settings?.isOn(.toggleChangedFilesOnly) ?? false
+        checksTreeLayout = settings?.isOn(.toggleLayoutMode) ?? false
         self.canFilterChangedFiles = canFilterChangedFiles
     }
 

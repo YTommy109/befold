@@ -69,10 +69,7 @@ struct SidebarHeaderView: View {
 
     private var controls: SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
-            layoutMode: model.layoutMode,
-            sortOrder: model.sortOrder,
-            showHiddenFiles: model.showHiddenFiles,
-            showChangedFilesOnly: model.showChangedFilesOnly,
+            settings: model.displaySettings,
             canFilterChangedFiles: model.canFilterChangedFiles,
             isFilterActive: model.transient.isFilterActive,
             isFilterTextEmpty: model.transient.filterText.isEmpty
@@ -94,14 +91,15 @@ struct SidebarHeaderView: View {
         }
     }
 
-    /// 対応表を持つメソッドをそのまま渡す。**ここで包みクロージャを書かない**——
-    /// 包むとテストの通らない場所に配線が戻る(TASK-590)。
+    /// 受け口のメソッドをそのまま渡す。**ここで包みクロージャを書かない**——
+    /// 包むとテストの通らない場所に配線が戻る(TASK-590)。⋯ の項目は自分が起こす
+    /// 切り替えを持っているので、`perform` へ直結できる(TASK-592)。
     private func headerControls(placement: SidebarHeaderControls.Placement) -> some View {
         SidebarHeaderControls(
             controls: controls,
             placement: placement,
             onSelectControl: selectControl,
-            onSelectOverflowItem: selectOverflowItem
+            onSelectOverflowItem: perform
         )
     }
 
@@ -125,22 +123,6 @@ struct SidebarHeaderView: View {
             model.transient.closeFilter()
         } else {
             model.transient.isFilterActive = true
-        }
-    }
-
-    /// ⋯ メニューの項目 Kind → 動作。テストから呼べるよう internal。
-    func selectOverflowItem(_ kind: SidebarOverflowItem.Kind) {
-        perform(Self.displayChange(for: kind))
-    }
-
-    /// オーバーフローメニューの項目が表す切り替え。**分岐をボタンの中に書かない**
-    /// ——項目を足したときに配線漏れが起きたかどうかを、この対応表のテストで測れる。
-    /// テストから呼べるよう internal。
-    static func displayChange(for kind: SidebarOverflowItem.Kind) -> SidebarDisplayChange {
-        switch kind {
-        case .sortFoldersFirst: .setSortOrder(.foldersFirst)
-        case .sortAlphabetical: .setSortOrder(.alphabetical)
-        case .hiddenFiles: .toggleHiddenFiles
         }
     }
 

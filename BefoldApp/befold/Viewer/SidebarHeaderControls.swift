@@ -22,7 +22,9 @@ struct SidebarHeaderControls: View {
     let placement: Placement
     /// ボタンが押された。`.overflow` は `Menu` が自前で開くので、ここからは発行されない。
     let onSelectControl: (SidebarHeaderControl.Kind) -> Void
-    let onSelectOverflowItem: (SidebarOverflowItem.Kind) -> Void
+    /// ⋯ の項目が選ばれた。項目は自分が起こす切り替えを持っているので、**ここでも
+    /// 対応表を挟まない**(TASK-592)。
+    let onSelectOverflowItem: (SidebarDisplayChange) -> Void
 
     var body: some View {
         ForEach(items, id: \.kind) { control in
@@ -51,9 +53,9 @@ struct SidebarHeaderControls: View {
 
     private func overflowMenu(_ control: SidebarHeaderControl) -> some View {
         Menu {
-            ForEach(controls.overflowItems, id: \.kind) { item in
+            ForEach(controls.overflowItems, id: \.change) { item in
                 Button {
-                    onSelectOverflowItem(item.kind)
+                    onSelectOverflowItem(item.change)
                 } label: {
                     // チェックは Label ではなくテキスト側に持たせる(Menu 内の Toggle は
                     // 3 項目のうち 2 つが排他選択で意味がずれるため使わない)。

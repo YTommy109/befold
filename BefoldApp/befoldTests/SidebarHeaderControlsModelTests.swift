@@ -17,10 +17,10 @@ struct SidebarHeaderControlsModelTests {
         isFilterTextEmpty: Bool = true
     ) -> SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
-            layoutMode: layoutMode,
-            sortOrder: sortOrder,
-            showHiddenFiles: showHiddenFiles,
-            showChangedFilesOnly: showChangedFilesOnly,
+            settings: SidebarDisplaySettings(
+                showHiddenFiles: showHiddenFiles, showChangedFilesOnly: showChangedFilesOnly,
+                layoutMode: layoutMode, sortOrder: sortOrder
+            ),
             canFilterChangedFiles: canFilterChangedFiles,
             isFilterActive: isFilterActive,
             isFilterTextEmpty: isFilterTextEmpty
@@ -76,11 +76,18 @@ struct SidebarHeaderControlsModelTests {
         #expect(overflow?.isAccented == false)
     }
 
-    @Test("⋯ の中身はソート順 2 択と不可視ファイルの順に並ぶ")
-    func overflowItemsAreSortThenHiddenFiles() {
+    /// **並びと「どの切り替えを表すか」を 1 本のアサートで固定する**(TASK-592)。
+    /// 項目の identity が `SidebarDisplayChange` そのものなので、以前のように
+    /// 対応表をテスト側へ手書きで再掲する必要が無い(再掲は同じ取り違えを写せば通った)。
+    @Test("⋯ の中身はソート順 2 択と不可視ファイルの順に並び、それぞれの切り替えを表す")
+    func overflowItemsMapToDisplayChanges() {
         let model = makeModel()
 
-        #expect(model.overflowItems.map(\.kind) == [.sortFoldersFirst, .sortAlphabetical, .hiddenFiles])
+        #expect(model.overflowItems.map(\.change) == [
+            .setSortOrder(.foldersFirst),
+            .setSortOrder(.alphabetical),
+            .toggleHiddenFiles,
+        ])
     }
 
     @Test("⋯ のチェックは現在のソート順の側に付く", arguments: [
@@ -90,7 +97,10 @@ struct SidebarHeaderControlsModelTests {
     func overflowChecksFollowSortOrder(sortOrder: SortOrder, expected: [Bool]) {
         let model = makeModel(sortOrder: sortOrder)
 
-        let sortItems = model.overflowItems.filter { $0.kind != .hiddenFiles }
+        let sortItems = model.overflowItems.filter { item in
+            if case .setSortOrder = item.change { return true }
+            return false
+        }
         #expect(sortItems.map(\.isChecked) == expected)
     }
 
@@ -98,7 +108,7 @@ struct SidebarHeaderControlsModelTests {
     func hiddenFilesItemIsCheckedWhenShown(showHiddenFiles: Bool) {
         let model = makeModel(showHiddenFiles: showHiddenFiles)
 
-        let item = model.overflowItems.first { $0.kind == .hiddenFiles }
+        let item = model.overflowItems.first { $0.change == .toggleHiddenFiles }
         #expect(item?.isChecked == showHiddenFiles)
     }
 
