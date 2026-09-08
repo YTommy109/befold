@@ -1,11 +1,11 @@
 ---
 id: TASK-595
 title: ViewerRenderer の WebView 依存をプロトコル境界へ寄せ、描画エンジンを差し替え可能にする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-07 15:00'
-updated_date: '2026-09-08 13:22'
+updated_date: '2026-09-08 14:04'
 labels: []
 dependencies:
   - TASK-594
@@ -29,12 +29,12 @@ Windows 版を作ると決めなくても着手できる範囲であり、決め
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ViewerRenderer が WKWebView 型に直接依存せず、抽象（プロトコル）越しに描画面を操作している
-- [ ] #2 抽象が提供する操作の一覧と、それぞれが必要な理由が doc コメントで示されている（WKWebView の API をそのまま写したものではない）
-- [ ] #3 WKWebView 実装が 1 つの型に閉じており、BefoldRenderKit で WebKit を import するファイル数が現状の 16 から有意に減っている（着手時に実測して before/after を Notes に記録する）
-- [ ] #4 抽象のテスト用実装（fake）を使い、WKWebView 実体なしに描画コマンドの送出経路を検証するテストが 1 つ以上ある
-- [ ] #5 既存の描画まわりのテストが通り、/webview-smoke と手動の表示確認で回帰が無いことを確認している
-- [ ] #6 着手前に /review-design を回し、結果を Implementation Plan に反映している
+- [x] #1 ViewerRenderer が WKWebView 型に直接依存せず、抽象（プロトコル）越しに描画面を操作している
+- [x] #2 抽象が提供する操作の一覧と、それぞれが必要な理由が doc コメントで示されている（WKWebView の API をそのまま写したものではない）
+- [x] #3 WKWebView 実装が 1 つの型に閉じており、BefoldRenderKit で WebKit を import するファイル数が現状の 16 から有意に減っている（着手時に実測して before/after を Notes に記録する）
+- [x] #4 抽象のテスト用実装（fake）を使い、WKWebView 実体なしに描画コマンドの送出経路を検証するテストが 1 つ以上ある
+- [x] #5 既存の描画まわりのテストが通り、/webview-smoke と手動の表示確認で回帰が無いことを確認している
+- [x] #6 着手前に /review-design を回し、結果を Implementation Plan に反映している
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -149,4 +149,38 @@ exit=1
 - `scripts/webview-smoke.swift` の最終変更は `df5a0122`（2026-08-24）で **#610 より前**。追随していない
 
 つまり PDF は WKWebView で描かなくなったのに、スモークテストだけが iframe の存在を要求し続けている。守るべき対象が既に無い検証なので、判定を緩めるのではなく**検証項目ごと削除する**のが正しい（TASK-595 の実装前に片付ける）。
+
+## 完了（2026-09-08）— 3 サブタスクすべて Done
+
+### AC#3 の before / after（実測）
+| 指標 | before | 595.1 | 595.2 | **after** |
+| --- | --- | --- | --- | --- |
+| `import WebKit` を含むファイル | 15 | 13 | 8 | **7** |
+| `WKWebView` に言及するファイル | 11 | 9 | 9 | **9**（うち 4 はコメントのみ） |
+
+**コード上で WKWebView に触るのは 6 ファイル**（ViewerWebViewFactory / WebKitRenderSurface / WebKitSurfaceEventBridge / RemoteLoadBlocker / OneShotRenderer は返り値のみ / WebViewProxy は対象外）。着手時は 8 ファイルが実操作していた。
+
+### AC ごとの達成
+- **#1**: `ViewerRenderer.swift` と `ViewerRenderer+*.swift` の WKWebView 言及はコメントのみ、コード参照 0（595.3）
+- **#2**: `RenderSurface`（送出 8 操作）と `SurfaceNavigationObserver` / `SurfaceBridgeMessageObserver`（受信）に、各操作の「なぜこの層が要るか」を doc で明記。WKWebView の API の写しではなく、着手時に全 20 ファイルを実測して列挙したもの
+- **#3**: 上表のとおり。**指標を 2 本にしたのは /review-design の F5**（import 数だけだと未使用 import を消すだけで見かけ上減らせる）
+- **#4**: `RenderSurfaceDispatchTests` 3 件が fake で **0.001 秒**。加えて 595.2 で既存の追記・参照解決・寿命テストからも WebKit 実体が消えた
+- **#5**: `swift test` 1926 件 pass / `/webview-smoke` PASS / `xcodebuild` BUILD SUCCEEDED
+- **#6**: 親で 1 回（7 指摘）＋サブタスクごとに実施
+
+### 副産物
+- `/webview-smoke` が 2026-08-30 から FAIL していた件を修復（コミット 1a9289cc）
+- テストから WKWebView / WKScriptMessage のサブクラス（計 40 行）が不要になり削除
+- swiftlint に `webview_creation_outside_webkit_layer` を追加（違反を入れると落ちることを実測）
+
+### 残した依存（意図的。/review-design の F3・F4）
+- `WebViewProxy`（SwiftUI が作った実体を AppKit のメニューへ持ち出す配線。境界とは方向が逆）
+- `OneShotResult.webView` と `ViewerWebView.makeNSView`（ホストがプレビュー／ビュー階層へ埋め込むために具体型を要求する）
+- 「Kit を非依存にする」であって「アプリ全体から WKWebView を消す」ではない、という AC の解釈は着手前に確定させてある
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+BefoldRenderKit の WKWebView 依存をプロトコル境界へ寄せた。送出は RenderSurface（8 操作）、受信は SurfaceNavigationObserver / SurfaceBridgeMessageObserver、WebKit のデリゲート準拠は WebKitSurfaceEventBridge 1 型、生成は WebKitRenderSurface.make 1 入口。ViewerRenderer のコード上の WKWebView 参照は 0 になった。import WebKit は 15→7 ファイル、実操作するファイルは 8→6。fake による送出経路のテストが 0.001 秒で回り、既存テストからも WebKit サブクラス 40 行が消えた。担保は swiftlint の webview_creation_outside_webkit_layer。3 サブタスクに分割し、各段で /review-design を回している。着手前に /webview-smoke が 9 日間 FAIL していたのを修復した。swift test 1926 件 pass、/webview-smoke PASS、xcodebuild BUILD SUCCEEDED、swiftlint 新規違反 0 件。
+<!-- SECTION:FINAL_SUMMARY:END -->
