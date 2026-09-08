@@ -1,8 +1,8 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import BefoldTestSupport
+import Foundation
 import Testing
-import WebKit
 
 /// 表示時パス解決 (resolveReferences) のブリッジを検証する。
 /// JS 側は応答を要求へ FIFO で対応づけるため、「要求 1 つにつき応答 1 つ」「要求順 = 応答順」の
@@ -15,8 +15,8 @@ struct ViewerRendererResolveReferencesTests {
     @Test("resolveReferences が onResolveReferences へ paths を渡し、解決結果を適用スクリプトで評価する")
     func resolveReferencesDispatchesPathsAndAppliesResult() async {
         let renderer = ViewerRenderer()
-        let webView = Stubs.WebView()
-        renderer.webView = webView
+        let surface = Stubs.Surface()
+        renderer.surface = surface
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
         var receivedPaths: [String]?
@@ -33,7 +33,7 @@ struct ViewerRendererResolveReferencesTests {
 
         #expect(receivedPaths == ["./other.md", "./missing.md"])
         #expect(
-            webView.lastEvaluatedScript
+            surface.lastEvaluatedScript
                 == ViewerBridge.applyResolvedReferencesScript(["./other.md": "/repo/other.md"])
         )
     }
@@ -44,8 +44,8 @@ struct ViewerRendererResolveReferencesTests {
     @Test("解決が遅い要求が先にあっても、応答は要求と同じ順序で評価される")
     func resolveReferencesRepliesInRequestOrder() async {
         let renderer = ViewerRenderer()
-        let webView = Stubs.WebView()
-        renderer.webView = webView
+        let surface = Stubs.Surface()
+        renderer.surface = surface
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
         let firstResult = ["./slow.md": "/repo/slow.md"]
@@ -73,7 +73,7 @@ struct ViewerRendererResolveReferencesTests {
         await renderer.referenceQueue.responseChain?.value
 
         #expect(
-            webView.evaluatedScripts == [
+            surface.evaluatedScripts == [
                 ViewerBridge.applyResolvedReferencesScript(firstResult),
                 ViewerBridge.applyResolvedReferencesScript(secondResult),
             ]
@@ -94,8 +94,8 @@ struct ViewerRendererResolveReferencesTests {
 
         for body in invalidBodies {
             let renderer = ViewerRenderer()
-            let webView = Stubs.WebView()
-            renderer.webView = webView
+            let surface = Stubs.Surface()
+            renderer.surface = surface
             let delegate = Stubs.Delegate()
             renderer.delegate = delegate
             var called = false
@@ -109,7 +109,7 @@ struct ViewerRendererResolveReferencesTests {
 
             #expect(called == false, "不正ペイロードをアプリ層へ渡している: \(body)")
             #expect(
-                webView.lastEvaluatedScript == ViewerBridge.applyResolvedReferencesScript([:]),
+                surface.lastEvaluatedScript == ViewerBridge.applyResolvedReferencesScript([:]),
                 "応答を返していない: \(body)"
             )
         }
@@ -121,8 +121,8 @@ struct ViewerRendererResolveReferencesTests {
     @Test("ページを読み直したら、飛行中の解決応答は評価しない")
     func resolveReferencesDropsResponseAcrossPageReload() async {
         let renderer = ViewerRenderer()
-        let webView = Stubs.WebView()
-        renderer.webView = webView
+        let surface = Stubs.Surface()
+        renderer.surface = surface
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
         let slowResolution = AsyncGate()
@@ -141,11 +141,11 @@ struct ViewerRendererResolveReferencesTests {
         )
         _ = await waitUntilOnMainActor(timeout: testTimeout(fallback: 5)) { isResolving }
         // 直接 HTML モードからの復帰。ここで viewer.html を読み直し、JS の状態が捨てられる。
-        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
+        renderer.directHTML.exit(surface: surface) {}
         slowResolution.open()
         await renderer.referenceQueue.responseChain?.value
 
-        let applied = webView.evaluatedScripts.filter {
+        let applied = surface.evaluatedScripts.filter {
             $0 == ViewerBridge.applyResolvedReferencesScript(["./old.md": "/repo/old.md"])
         }
         #expect(applied.isEmpty, "読み直し前の応答が、新しいページのバッチへ適用される")
@@ -157,7 +157,7 @@ struct ViewerRendererResolveReferencesTests {
     /// queue が renderer を unowned で持っていると、ここでトラップしてアプリが落ちる(TASK-448)。
     @Test("ViewerRenderer が解放済みでも、応答 Task はトラップせず中断する")
     func resolveReferencesStopsWhenRendererIsReleased() async {
-        let webView = Stubs.WebView()
+        let surface = Stubs.Surface()
         let delegate = Stubs.Delegate()
         var called = false
         delegate.onResolveReferences = { _ in
@@ -169,7 +169,7 @@ struct ViewerRendererResolveReferencesTests {
         weak var releasedRenderer: ViewerRenderer?
         do {
             let renderer = ViewerRenderer()
-            renderer.webView = webView
+            renderer.surface = surface
             renderer.delegate = delegate
             queue = renderer.referenceQueue
             releasedRenderer = renderer
@@ -180,7 +180,7 @@ struct ViewerRendererResolveReferencesTests {
         await queue.responseChain?.value
 
         #expect(called == false)
-        #expect(webView.evaluatedScripts.isEmpty)
+        #expect(surface.evaluatedScripts.isEmpty)
     }
 
     /// 上の破棄が広すぎないことを担保する。読み直しをまたがない要求は、読み直しの後に
@@ -188,13 +188,13 @@ struct ViewerRendererResolveReferencesTests {
     @Test("読み直しの後に出した要求は、従来どおり応答される")
     func resolveReferencesStillRepliesForCurrentPage() async {
         let renderer = ViewerRenderer()
-        let webView = Stubs.WebView()
-        renderer.webView = webView
+        let surface = Stubs.Surface()
+        renderer.surface = surface
         let delegate = Stubs.Delegate()
         renderer.delegate = delegate
         delegate.onResolveReferences = { _ in ["./new.md": "/repo/new.md"] }
 
-        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
+        renderer.directHTML.exit(surface: surface) {}
         Stubs.dispatch(
             renderer, name: ViewerBridge.resolveReferencesMessageName,
             body: ["paths": ["./new.md"]]
@@ -202,7 +202,7 @@ struct ViewerRendererResolveReferencesTests {
         await renderer.referenceQueue.responseChain?.value
 
         #expect(
-            webView.lastEvaluatedScript
+            surface.lastEvaluatedScript
                 == ViewerBridge.applyResolvedReferencesScript(["./new.md": "/repo/new.md"])
         )
     }

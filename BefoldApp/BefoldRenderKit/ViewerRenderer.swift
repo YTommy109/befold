@@ -67,14 +67,20 @@ public final class ViewerRenderer {
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
     var isLoadingMoreLines = false
-    /// JS からの postMessage の受信・デコード・配達。
-    /// makeWebView が WKUserContentController へ登録する実ハンドラ。
+    /// JS からの postMessage の受信・デコード・配達。WebKit は知らない。
     private(set) lazy var messageRouter = BridgeMessageRouter(renderer: self)
     /// パス参照解決の FIFO 直列化とページ世代の管理。
     private(set) lazy var referenceQueue = ReferenceResolutionQueue(renderer: self)
-    /// WKWebView のナビゲーション事象の受け口。makeWebView が navigationDelegate へ設定する
-    /// 実ハンドラで、ViewerRenderer 側に転送メソッドは置かない(受け口をここ 1 つに限る)。
+    /// ナビゲーション事象の受け口。WebKit は知らない。ViewerRenderer 側に転送メソッドは
+    /// 置かない(受け口をここ 1 つに限る)。
     private(set) lazy var navigationCoordinator = ViewerNavigationCoordinator(renderer: self)
+    /// WebKit のコールバックを上の 2 つへ翻訳する唯一の場所（TASK-595.2）。
+    /// makeWebView が navigationDelegate と postMessage ハンドラの両方にこれを設定する。
+    /// **強参照で保持する。** navigationDelegate は weak、postMessage ハンドラは
+    /// WeakScriptMessageHandler 越しなので、ここが手放すと誰も持たなくなる。
+    private(set) lazy var surfaceEventBridge = WebKitSurfaceEventBridge(
+        navigation: navigationCoordinator, bridge: messageRouter
+    )
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
@@ -172,9 +178,9 @@ public final class ViewerRenderer {
                 csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
                 features: rendererFeatures
             ),
-            messageHandler: messageRouter
+            messageHandler: surfaceEventBridge
         )
-        webView.navigationDelegate = navigationCoordinator
+        webView.navigationDelegate = surfaceEventBridge
         // setter が surface（唯一の状態）を更新する。以降は surface 越しに扱う。
         self.webView = webView
         if let surface { ViewerWebViewFactory.loadViewerHTML(into: surface) }

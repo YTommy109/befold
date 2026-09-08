@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 // MARK: - Content update
 

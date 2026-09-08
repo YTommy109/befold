@@ -1,7 +1,7 @@
 import BefoldKit
-import WebKit
+import Foundation
 
-/// WKWebView のナビゲーション事象を受け取り、readiness ゲートと直接 HTML モードへ振り分ける。
+/// 描画面のナビゲーション事象を受け取り、readiness ゲートと直接 HTML モードへ振り分ける。
 ///
 /// ViewerRenderer から切り出してあるのは、JS からの postMessage を受ける
 /// BridgeMessageRouter と同じ理由——framework の delegate 面という関心が
@@ -15,34 +15,27 @@ import WebKit
 /// サスペンド中に renderer だけが解放されうる。unowned のままだと再開時にトラップする
 /// (ReferenceResolutionQueue の TASK-448 と同型)。
 ///
-/// あわせて `decidePolicyFor` は **async 版を使わない**。completion-handler 版なら
-/// サスペンドが無く、renderer が消える窓そのものが生まれない。ここへ delegate メソッドを
-/// 足すときも同じ理由で completion-handler 版を選ぶこと。
+/// あわせて `surfaceShouldNavigate` は **同期で返す**。WebKit 側で completion-handler 版の
+/// デリゲートを選んでいるのと対になっていて、サスペンドが無ければ renderer が消える窓
+/// そのものが生まれない。ここへ受信メソッドを足すときも同じ理由で同期を選ぶこと
+/// （翻訳は `WebKitSurfaceEventBridge` が行う）。
 @MainActor
-final class ViewerNavigationCoordinator: NSObject, WKNavigationDelegate {
+final class ViewerNavigationCoordinator: SurfaceNavigationObserver {
     private weak var renderer: ViewerRenderer?
 
     init(renderer: ViewerRenderer) {
         self.renderer = renderer
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    func surfaceDidFinishLoad() {
         guard let renderer, let surface = renderer.surface else { return }
         renderer.directHTML.applyPendingZoom(to: surface)
         renderer.pageZoom.applyIfReady(assumingReady: true)
         renderer.readiness.markReady()
     }
 
-    func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        handleNavigationFailure(webView: webView)
-    }
-
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        handleNavigationFailure(webView: webView)
+    func surfaceDidFailLoad() {
+        handleNavigationFailure()
     }
 
     /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
@@ -50,21 +43,12 @@ final class ViewerNavigationCoordinator: NSObject, WKNavigationDelegate {
     /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
     ///
     /// renderer が既に無ければ表示先が無いので `.cancel` を返す。
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let renderer, let surface = renderer.surface else {
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(
-            renderer.directHTML.decidePolicy(surface: surface, navigationAction: navigationAction)
-        )
+    func surfaceShouldNavigate(_ request: SurfaceNavigationRequest) -> SurfaceNavigationDecision {
+        guard let renderer, let surface = renderer.surface else { return .cancel }
+        return renderer.directHTML.decidePolicy(surface: surface, request: request)
     }
 
-    private func handleNavigationFailure(webView _: WKWebView) {
+    private func handleNavigationFailure() {
         guard let renderer else { return }
         renderer.directHTML.discardPendingZoom()
         if renderer.directHTML.isActive, let surface = renderer.surface {

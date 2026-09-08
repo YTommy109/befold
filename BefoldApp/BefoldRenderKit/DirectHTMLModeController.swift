@@ -1,6 +1,6 @@
 import AppKit
 import BefoldKit
-import WebKit
+import Foundation
 
 /// HTML を viewer.html を介さず loadFileURL で直接ロードするモードの状態機械。
 ///
@@ -137,20 +137,18 @@ final class DirectHTMLModeController {
     /// それ以外のナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。
     /// 直接 HTML モードではリンククリック(.linkActivated)のみ分類して処理する。
     func decidePolicy(
-        surface: any RenderSurface, navigationAction: WKNavigationAction
-    ) -> WKNavigationActionPolicy {
-        if navigationAction.navigationType == .other {
+        surface: any RenderSurface, request: SurfaceNavigationRequest
+    ) -> SurfaceNavigationDecision {
+        if request.kind == .programmatic {
             return .allow
         }
         guard isActive else { return .cancel }
-        guard navigationAction.navigationType == .linkActivated,
-              let url = navigationAction.request.url
-        else {
+        guard request.kind == .linkActivated, let url = request.url else {
             return .cancel
         }
 
         switch DirectHTMLLinkPolicy.classify(
-            url: url, currentURL: surface.currentURL, modifierFlags: navigationAction.modifierFlags
+            url: url, currentURL: surface.currentURL, modifierFlags: request.modifiers
         ) {
         case .allowNativeNavigation:
             return .allow

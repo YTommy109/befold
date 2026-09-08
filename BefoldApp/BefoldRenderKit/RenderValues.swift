@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 /// ソース表示へ重ねる git 差分の状態。本文とレイアウトは必ず一緒に動くため
 /// 1 つの値として持つ(片方だけ送られて、旧レイアウトで新しい差分が描かれるのを防ぐ)。

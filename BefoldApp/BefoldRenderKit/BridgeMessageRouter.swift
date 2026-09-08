@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 /// JS からの postMessage を受け取り、ペイロードを解いて宛先へ配る。
 ///
@@ -8,7 +8,7 @@ import WebKit
 /// 第 1 引数に ViewerRenderer を取るため、通知元として renderer を unowned で持つ
 /// (renderer がこのルータを所有するので、寿命は必ず renderer が長い)。
 @MainActor
-final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
+final class BridgeMessageRouter: SurfaceBridgeMessageObserver {
     private typealias ReferenceKey = ViewerBridgeMessage.PayloadKey.ReferenceActivated
     private typealias ZoomKey = ViewerBridgeMessage.PayloadKey.ZoomChanged
     private typealias FindKey = ViewerBridgeMessage.PayloadKey.FindOptionsChanged
@@ -25,19 +25,16 @@ final class BridgeMessageRouter: NSObject, WKScriptMessageHandler {
     /// メッセージを追加してルーティングを書き忘れるとコンパイルエラーになる。
     /// ペイロードの取り出しは各ケース内で行い、不正なら早期 return する
     /// (名前判定と混ぜると、body が不正なだけで次の分岐へ静かに落ちてしまう)。
-    func userContentController(
-        _ userContentController: WKUserContentController,
-        didReceive message: WKScriptMessage
-    ) {
-        guard let kind = ViewerBridgeMessage(rawValue: message.name) else { return }
+    func surfaceDidReceiveBridgeMessage(name: String, body: Any) {
+        guard let kind = ViewerBridgeMessage(rawValue: name) else { return }
         switch kind {
-        case .zoomChanged: handleZoomChanged(body: message.body)
-        case .referenceActivated: handleReferenceActivated(body: message.body)
-        case .referenceContextMenu: handleReferenceContextMenu(body: message.body)
-        case .findOptionsChanged: handleFindOptionsChanged(body: message.body)
-        case .jumpLevelsChanged: handleJumpLevelsChanged(body: message.body)
+        case .zoomChanged: handleZoomChanged(body: body)
+        case .referenceActivated: handleReferenceActivated(body: body)
+        case .referenceContextMenu: handleReferenceContextMenu(body: body)
+        case .findOptionsChanged: handleFindOptionsChanged(body: body)
+        case .jumpLevelsChanged: handleJumpLevelsChanged(body: body)
         case .loadMoreLines: renderer.handleLoadMoreLines()
-        case .resolveReferences: renderer.referenceQueue.handle(body: message.body)
+        case .resolveReferences: renderer.referenceQueue.handle(body: body)
         }
     }
 

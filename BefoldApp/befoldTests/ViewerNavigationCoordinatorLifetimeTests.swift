@@ -1,6 +1,5 @@
 @testable import BefoldRenderKit
 import Testing
-import WebKit
 
 /// ナビゲーション delegate は `webView.navigationDelegate` から weak で参照されるため、
 /// コーディネータだけが生き残った状態でコールバックが届きうる。ViewerRenderer を
@@ -12,7 +11,6 @@ struct ViewerNavigationCoordinatorLifetimeTests {
     /// 素通りすることを確かめる。`renderer` を weak から unowned へ戻すと落ちる。
     @Test("ViewerRenderer が解放済みでも、ナビゲーション通知はトラップせず無視される")
     func navigationCallbacksStopWhenRendererIsReleased() {
-        let webView = WKWebView(frame: .zero)
         let coordinator: ViewerNavigationCoordinator
         weak var releasedRenderer: ViewerRenderer?
         do {
@@ -22,25 +20,22 @@ struct ViewerNavigationCoordinatorLifetimeTests {
         }
         #expect(releasedRenderer == nil, "renderer が解放されておらず、前提が成り立っていない")
 
-        coordinator.webView(webView, didFinish: nil)
-        coordinator.webView(webView, didFail: nil, withError: CancellationError())
-        coordinator.webView(webView, didFailProvisionalNavigation: nil, withError: CancellationError())
+        coordinator.surfaceDidFinishLoad()
+        coordinator.surfaceDidFailLoad()
     }
 
     /// 表示先が無い以上、遷移は通さない。
     @Test("ViewerRenderer が解放済みなら、遷移の可否は .cancel を返す")
     func decidePolicyCancelsWhenRendererIsReleased() {
-        let webView = WKWebView(frame: .zero)
         let coordinator: ViewerNavigationCoordinator
         do {
             let renderer = ViewerRenderer()
             coordinator = renderer.navigationCoordinator
         }
 
-        var decided: WKNavigationActionPolicy?
-        coordinator.webView(
-            webView, decidePolicyFor: WKNavigationAction()
-        ) { decided = $0 }
+        let decided = coordinator.surfaceShouldNavigate(
+            SurfaceNavigationRequest(kind: .linkActivated, url: nil, modifiers: [])
+        )
         #expect(decided == .cancel)
     }
 }
