@@ -155,7 +155,7 @@ enum ViewerWindowAssembler {
             diffDisplayPreference: controller.diffDisplayPreference
         ))
         let splitViewController = ViewerSplitViewController(
-            sidebar: makeFileListView(for: controller),
+            sidebar: FileListView(model: controller.fileListModel, delegate: controller),
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
             allowsSidebar: controller.kind.allowsSidebar,
@@ -179,14 +179,6 @@ enum ViewerWindowAssembler {
         { [weak controller] in
             controller?.fileListModel.tableFocuser.cancelPendingFocus()
         }
-    }
-
-    /// サイドバーのファイル一覧ビューを組み立てる。
-    ///
-    /// 行操作(選択・移動・別の場所で開く・展開/畳み)も表示切り替えも controller が
-    /// `FileListViewDelegate` として直接受けるため、ここでは配線しない(TASK-586)。
-    private static func makeFileListView(for controller: ViewerWindowController) -> FileListView {
-        FileListView(model: controller.fileListModel, delegate: controller)
     }
 
     // MARK: - 配線
