@@ -4,8 +4,13 @@ import SwiftUI
 /// サイドバーヘッダーの操作行のボタン群。
 ///
 /// 何をどこに出すかは `SidebarHeaderControlsModel` が決める。ここは受け取った記述を
-/// 描いて、押されたら対応するクロージャを呼ぶだけにしてある(判定をビューに書くと
-/// ユニットテストで固定できなくなる)。
+/// 描いて、押されたら**どのボタンが押されたか(Kind)を発行するだけ**にしてある。
+/// 押した先で何をするかの対応表は `SidebarHeaderView.selectControl(_:)` が 1 箇所で持つ。
+///
+/// **ボタンごとにクロージャを持たない(TASK-590)。** トグルごとの optional クロージャを
+/// 並べると、対応の入れ替えや `{}` での埋め忘れがコンパイルを通り、ユニットテストの
+/// 通らない場所(SwiftUI ビューの中)に配線が残る。Kind を 1 本で発行すれば、この型に
+/// 残る判断は無くなり、対応表はテストで固定できる場所へ移る。
 struct SidebarHeaderControls: View {
     /// 左群と右群のどちらを描くか。
     enum Placement {
@@ -15,9 +20,8 @@ struct SidebarHeaderControls: View {
 
     let controls: SidebarHeaderControlsModel
     let placement: Placement
-    let onToggleLayoutMode: (() -> Void)?
-    let onToggleChangedFilesOnly: (() -> Void)?
-    let onToggleFilter: () -> Void
+    /// ボタンが押された。`.overflow` は `Menu` が自前で開くので、ここからは発行されない。
+    let onSelectControl: (SidebarHeaderControl.Kind) -> Void
     let onSelectOverflowItem: (SidebarOverflowItem.Kind) -> Void
 
     var body: some View {
@@ -37,7 +41,7 @@ struct SidebarHeaderControls: View {
 
     private func button(_ control: SidebarHeaderControl) -> some View {
         Button {
-            action(for: control.kind)?()
+            onSelectControl(control.kind)
         } label: {
             icon(control)
         }
@@ -76,14 +80,5 @@ struct SidebarHeaderControls: View {
 
     private func title(for item: SidebarOverflowItem) -> String {
         String(localized: String.LocalizationValue(item.titleKey), bundle: .l10n)
-    }
-
-    private func action(for kind: SidebarHeaderControl.Kind) -> (() -> Void)? {
-        switch kind {
-        case .layoutMode: onToggleLayoutMode
-        case .changedFilesOnly: onToggleChangedFilesOnly
-        case .filter: onToggleFilter
-        case .overflow: nil
-        }
     }
 }
