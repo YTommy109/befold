@@ -1,9 +1,11 @@
 ---
 id: TASK-600
 title: '`surfaceDidFinishLoad` が surface 未設定だと readiness ゲートを永久に開かない'
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-08 14:17'
+updated_date: '2026-09-08 14:24'
 labels: []
 dependencies: []
 priority: medium
@@ -32,6 +34,26 @@ func surfaceDidFinishLoad() {
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `surfaceDidFinishLoad` で `renderer.surface` が nil でも `readiness.markReady()` が呼ばれる（surface を要るのは `applyPendingZoom` だけに閉じる）
-- [ ] #2 surface が nil のまま didFinish が届いても readiness ゲートが開くことを見るテストがある
+- [x] #1 `surfaceDidFinishLoad` で `renderer.surface` が nil でも `readiness.markReady()` が呼ばれる（surface を要るのは `applyPendingZoom` だけに閉じる）
+- [x] #2 surface が nil のまま didFinish が届いても readiness ゲートが開くことを見るテストがある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 修正と検証（2026-09-08）
+
+surface を要る 1 行（`applyPendingZoom(to:)`）だけを `if let` に閉じ、`guard` は main と同じ `guard let renderer` へ戻した。`markReady()` と `applyIfReady` は surface の有無に依存しない。
+
+担保として `SurfaceReadinessGateTests` を追加（`RenderSurfaceDispatchTests.swift` 内）。surface を入れずに `runWhenReady` を積み、`surfaceDidFinishLoad()` で走ることを見る。
+
+**修正を戻すと落ちることを実測**: guard を併合した形へ戻すと `Expectation failed: didRender` で失敗し、戻すと通る。通っただけのテストになっていない。
+
+検証: `swift test` **1927 tests / 317 suites すべて pass**、`/webview-smoke` PASS（exit 0）、swiftlint ベースライン main 51 / HEAD 51 で真の新規 0 件。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+surface を必要とする applyPendingZoom の 1 行だけを if let に閉じ、readiness ゲートを surface の有無から切り離した。TASK-595.2 で guard へ併合してしまった自己回帰で、マージ前に修正済み。SurfaceReadinessGateTests が担保し、修正を戻すと Expectation failed: didRender で落ちることを実測した。swift test 1927 件 pass、/webview-smoke PASS、swiftlint 新規違反 0 件。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -93,3 +93,29 @@ struct RenderSurfaceDispatchTests {
         #expect(surface.loads == [htmlPath])
     }
 }
+
+/// 描画面が未設定でも readiness ゲートが開くことの担保（TASK-600）。
+///
+/// TASK-595.2 で `didFinish` を `surfaceDidFinishLoad` へ移した際、旧実装が
+/// デリゲート引数で受けていた WebView を `renderer.surface` の読み出しへ替え、
+/// それを guard へ併合してしまった。surface を要るのは倍率の当て直しだけなのに、
+/// nil だと `markReady()` まで飛ばされ、`runWhenReady` に積まれた描画要求が
+/// 全部落ちて窓が白いままになる。
+@Suite
+struct SurfaceReadinessGateTests {
+    @Test("描画面が未設定でも、ロード完了で保留中の描画が走る")
+    @MainActor
+    func readinessOpensWithoutSurface() {
+        let renderer = ViewerRenderer()
+        // surface は入れない（makeSurface / adopt の前に didFinish が届いた状況）。
+        #expect(renderer.surface == nil)
+
+        var didRender = false
+        renderer.runWhenReady { didRender = true }
+        #expect(didRender == false, "ready 前に走っては前提が成り立たない")
+
+        renderer.navigationCoordinator.surfaceDidFinishLoad()
+
+        #expect(didRender, "surface が nil でも readiness ゲートは開かなければならない")
+    }
+}

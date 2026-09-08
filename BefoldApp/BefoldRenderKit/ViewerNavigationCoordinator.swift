@@ -28,8 +28,13 @@ final class ViewerNavigationCoordinator: SurfaceNavigationObserver {
     }
 
     func surfaceDidFinishLoad() {
-        guard let renderer, let surface = renderer.surface else { return }
-        renderer.directHTML.applyPendingZoom(to: surface)
+        guard let renderer else { return }
+        // **surface を要るのは倍率の当て直しだけ。** ここを guard へ併合すると、
+        // surface が未設定のときに markReady まで飛ばされ、runWhenReady に積まれた
+        // 描画要求が全部落ちて窓が白いままになる（倍率が当たらないより重い故障）。
+        if let surface = renderer.surface {
+            renderer.directHTML.applyPendingZoom(to: surface)
+        }
         renderer.pageZoom.applyIfReady(assumingReady: true)
         renderer.readiness.markReady()
     }
