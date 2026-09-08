@@ -63,7 +63,7 @@ struct RendererFeaturesTests {
     private func injectedSpaceScroll(for features: RendererFeatures) -> Bool? {
         let renderer = ViewerRenderer()
         renderer.rendererFeatures = features
-        let webView = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        let webView = ViewerRendererMessageStubs.makeWebView(with: renderer)
         let sources = webView.configuration.userContentController.userScripts.map(\.source)
         guard let script = sources.first(where: { $0.contains("_mmdHostFeatures") }) else {
             return nil

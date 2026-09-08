@@ -42,15 +42,15 @@ extension ViewerRenderer {
         var state = rendered
         state.filePath = newURL
         recordRendered(state)
-        webView?.evaluateJavaScript(
-            ViewerBridge.renameDocPathScript(from: oldURL, to: newURL), completionHandler: nil
+        surface?.evaluateScript(
+            ViewerBridge.renameDocPathScript(from: oldURL, to: newURL), completion: nil
         )
     }
 
     /// 呼び出し前に `DirectHTMLModeController.exit` が空のミラーを確定させて一括破棄済みで
     /// ある前提。再ロードで viewer.html の JS 状態(_mmdViewOptions: 行番号 false, モード rendered)が
     /// 初期化されるのに合わせ、次回更新時に setLineNumbers / setViewMode を再注入させる。
-    func reloadViewerHTML(webView: WKWebView, then completion: @escaping () -> Void) {
+    func reloadViewerHTML(surface: any RenderSurface, then completion: @escaping () -> Void) {
         readiness.markNotReady()
         // 読み直すと JS 側の状態(参照解決の FIFO キューを含む)が捨てられる。飛行中の
         // 応答を新しいページへ適用しないよう世代を進める(TASK-421)。
@@ -61,12 +61,12 @@ extension ViewerRenderer {
         // 当てない(同じ倍率を 2 度流すだけで、適用済みの記録も経由しない)。
         readiness.run(completion)
         // viewer.html（mermaid.js）は JS 必須のため、直接ロードで無効化した JS を再有効化する。
-        webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        surface.isContentJavaScriptEnabled = true
         // canvas の所有権も同時に戻す。viewer.html を描くのは befold なので透過が既定
         // （ここへ戻る経路に外部 HTML 文書はない。ソース表示の HTML は code として描く）。
-        ViewerWebViewFactory.setDocumentOwnsCanvas(false, on: webView)
+        surface.setDocumentOwnsCanvas(false)
         // canvas の所有権も同時に戻す。viewer.html を描くのは befold なので透過が既定
         // （ここへ戻る経路に外部 HTML 文書はない。ソース表示の HTML は code として描く）。
-        ViewerWebViewFactory.loadViewerHTML(into: webView)
+        ViewerWebViewFactory.loadViewerHTML(into: surface)
     }
 }

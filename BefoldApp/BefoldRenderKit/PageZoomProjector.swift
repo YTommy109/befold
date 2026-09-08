@@ -1,5 +1,4 @@
 import BefoldKit
-import WebKit
 
 /// ファイル毎の初期倍率を viewer.js へ投影する。望む倍率(`desired`)と適用済みの記録
 /// (`applied`)を 1 型へ集め、記録の書き込み入口を型の中に閉じる。
@@ -54,9 +53,9 @@ final class PageZoomProjector {
     /// - Parameter assumingReady: didFinish の中からは ready 確定前に呼ぶため true を渡す。
     func applyIfReady(assumingReady: Bool = false) {
         guard assumingReady || renderer.readiness.isReady else { return }
-        guard !renderer.directHTML.isActive, let webView = renderer.webView else { return }
+        guard !renderer.directHTML.isActive, let surface = renderer.surface else { return }
         guard applied != desired else { return }
         applied = desired
-        webView.evaluateJavaScript(ViewerBridge.applyZoomScript(desired))
+        surface.evaluateScript(ViewerBridge.applyZoomScript(desired), completion: nil)
     }
 }

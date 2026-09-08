@@ -52,7 +52,7 @@ struct ViewerReadinessGateTests {
     func navigationFailureKeepsPendingRender() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         renderer.directHTML.simulateForTesting(
             active: true, lastPath: URL(fileURLWithPath: "/tmp/task446-direct.html")
         )
@@ -63,7 +63,7 @@ struct ViewerReadinessGateTests {
         renderer.runWhenReady { didRender = true }
 
         // 直接ロードが失敗する(ファイル削除・policy cancel 由来の中断など)。
-        renderer.navigationCoordinator.webView(webView, didFail: nil, withError: URLError(.cancelled))
+        renderer.navigationCoordinator.surfaceDidFailLoad()
         #expect(didRender == false)
 
         // 読み直した viewer.html のロードが完了した。

@@ -1,8 +1,8 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import BefoldTestSupport
+import Foundation
 import Testing
-import WebKit
 
 /// applyAppend の「切り詰めバナーの送信とミラー確定を同一の同期区間に置く」規則を守らせる。
 /// 発行点は TASK-440 で ViewerScriptDispatcher へ移したため、そちら経由で呼ぶ。
@@ -20,9 +20,9 @@ struct ViewerRendererAppendTruncationTests {
 
     /// 直近描画の状態。各ケースはここを起点に applyAppend を直接呼ぶ。
     @MainActor
-    private static func makeRenderer(_ webView: WKWebView) -> ViewerRenderer {
+    private static func makeRenderer(_ surface: any RenderSurface) -> ViewerRenderer {
         let renderer = ViewerRenderer()
-        renderer.webView = webView
+        renderer.surface = surface
         renderer.readiness.markReady()
         // ミラーの確定入口は recordRendered 1 つだけ(TASK-320 / 334 / 440)。
         renderer.recordRendered(RenderedStateMirror(
@@ -44,28 +44,34 @@ struct ViewerRendererAppendTruncationTests {
     @Test("世代を追い越された追記は JS へ何も送らない")
     @MainActor
     func supersededAppendSendsNothing() async {
-        let webView = ViewerRendererMessageStubs.WebView()
-        let renderer = Self.makeRenderer(webView)
+        let surface = ViewerRendererMessageStubs.Surface()
+        let renderer = Self.makeRenderer(surface)
         // 呼び出し後に別の updateContent が世代を進めた状況を模す。
         renderer.contentUpdateGeneration = 9
 
-        await renderer.scriptDispatcher.applyAppend(webView: webView, request: Self.makeRequest(generation: 8))
+        await renderer.scriptDispatcher.applyAppend(
+            surface: surface,
+            request: Self.makeRequest(generation: 8)
+        )
 
         // 1 つでも送っていれば、ミラーが旧値のまま JS だけ進んだ状態を作ってしまう。
-        #expect(webView.evaluatedScripts.isEmpty)
+        #expect(surface.evaluatedScripts.isEmpty)
         #expect(renderer.rendered.truncation == Self.renderedTruncation)
     }
 
     @Test("世代が一致する追記は切り詰めバナーを送り、同じ呼び出しでミラーへ確定する")
     @MainActor
     func currentAppendSendsTruncationAndRecordsIt() async {
-        let webView = ViewerRendererMessageStubs.WebView()
-        let renderer = Self.makeRenderer(webView)
+        let surface = ViewerRendererMessageStubs.Surface()
+        let renderer = Self.makeRenderer(surface)
         renderer.contentUpdateGeneration = 9
 
-        await renderer.scriptDispatcher.applyAppend(webView: webView, request: Self.makeRequest(generation: 9))
+        await renderer.scriptDispatcher.applyAppend(
+            surface: surface,
+            request: Self.makeRequest(generation: 9)
+        )
 
-        #expect(webView.evaluatedScripts.contains(Self.incomingTruncation.script))
+        #expect(surface.evaluatedScripts.contains(Self.incomingTruncation.script))
         #expect(renderer.rendered.truncation == Self.incomingTruncation)
         #expect(renderer.rendered.contentRevision == 6)
     }

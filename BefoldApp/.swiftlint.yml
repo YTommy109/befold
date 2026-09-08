@@ -63,6 +63,24 @@ custom_rules:
     message: "リポジトリを開くのは GitLibrary.withRepository(at:_:) だけ（ADR 0006）"
     severity: error
 
+  # WKWebView を作ってよいのは WebKit 側の一群だけ（TASK-595）。
+  # BefoldRenderKit の上の層は RenderSurface しか知らず、描画エンジンを差し替える
+  # 余地を保つ。ここが破れると「境界はあるが実体があちこちで作られる」状態になり、
+  # 差し替えの単位が見えなくなる。実測（TASK-595.3 時点）: 本番コードでの
+  # WKWebView 生成は ViewerWebViewFactory の 1 箇所だけ。
+  # テストは実 WebView を要る統合テスト（実 JS の実行・KVC の読み出し）が作るため対象外。
+  webview_creation_outside_webkit_layer:
+    name: "WebKit 層以外での WKWebView 生成"
+    included: "BefoldApp/(befold|BefoldKit|BefoldCLI|BefoldRenderKit|BefoldQuickLook)/.*\\.swift$"
+    excluded:
+      - "BefoldApp/BefoldRenderKit/ViewerWebViewFactory\\.swift$"
+    regex: 'WKWebView\('
+    match_kinds:
+      - identifier
+      - typeidentifier
+    message: "WKWebView を作るのは ViewerWebViewFactory だけ。上の層は RenderSurface を使う（TASK-595）"
+    severity: error
+
   # PDF として開けるかの判定は 1 つの事実（`PDFDocument(data:)` が nil を返すか）に
   # 保つ。読み込み側（拒否理由を決める）と表示側（`PDFView` へ渡す文書を作る）が
   # 別々に判定すると「読み込みは通ったのに描画面は空白」という食い違いが生まれる

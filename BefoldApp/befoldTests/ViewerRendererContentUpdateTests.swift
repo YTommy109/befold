@@ -22,7 +22,7 @@ struct ViewerRendererContentUpdateTests {
     func directHTMLExitDiscardsEntireMirror() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         renderer.recordRendered(RenderedStateMirror(
             contentRevision: 3,
             fileType: .markdown,
@@ -33,7 +33,7 @@ struct ViewerRendererContentUpdateTests {
             diffState: DiffState(text: "@@ -1 +1 @@", layout: .sideBySide)
         ))
 
-        renderer.directHTML.exit(webView: webView) {}
+        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
 
         #expect(renderer.rendered == RenderedStateMirror())
     }
@@ -42,7 +42,7 @@ struct ViewerRendererContentUpdateTests {
     @MainActor
     func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {
         let renderer = ViewerRenderer()
-        renderer.webView = WKWebView()
+        renderer.surface = WebKitRenderSurface(WKWebView())
         renderer.readiness.markReady()
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-same-a.md")

@@ -1,5 +1,4 @@
 import BefoldKit
-import WebKit
 
 /// JS が要求したパス参照の解決を、要求順のまま応答へ直列化する。
 ///
@@ -76,10 +75,8 @@ final class ReferenceResolutionQueue {
             // 判定はここ 1 箇所。解決(git subprocess を伴いうる)を待つ間にもページは
             // 差し替わるため、要求受付時ではなく評価の直前に見る必要がある。
             guard generation == requestGeneration else { return }
-            // async 文脈では completionHandler 版を明示しないと throwing/async の
-            // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。
-            renderer.webView?.evaluateJavaScript(
-                ViewerBridge.applyResolvedReferencesScript(resolutions), completionHandler: nil
+            renderer.surface?.evaluateScript(
+                ViewerBridge.applyResolvedReferencesScript(resolutions), completion: nil
             )
         }
     }

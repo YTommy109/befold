@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 // MARK: - Content update
 
@@ -31,9 +31,9 @@ public extension ViewerRenderer {
         )
 
         runWhenReady { [weak self] in
-            guard let self, let webView else { return }
+            guard let self, let surface else { return }
             let plan = plan(for: input)
-            execute(plan, input: input, webView: webView)
+            execute(plan, input: input, surface: surface)
             // 倍率は**描き直すときだけ**、内容と同じ同期区間で当てる。
             //
             // `updateContent` はホストの状態が変わるたびに呼ばれ、内容に差が無ければ
@@ -60,11 +60,11 @@ extension ViewerRenderer {
         )
     }
 
-    private func execute(_ plan: UpdatePlan, input: ContentUpdateInput, webView: WKWebView) {
+    private func execute(_ plan: UpdatePlan, input: ContentUpdateInput, surface: any RenderSurface) {
         switch plan {
         case let .directHTMLLoad(filePath):
             _ = directHTML.enter(
-                webView: webView, filePath: filePath,
+                surface: surface, filePath: filePath,
                 request: DirectHTMLLoadRequest(
                     content: input.content, contentRevision: input.contentRevision,
                     fileType: input.fileType, isSourceMode: input.isSourceMode,
@@ -72,26 +72,26 @@ extension ViewerRenderer {
                 )
             )
         case let .exitDirectThenRender(request, restore):
-            directHTML.exit(webView: webView) { [weak self] in
-                self?.scheduleRender(webView: webView, request: request, restoreFromPersistedPosition: restore)
+            directHTML.exit(surface: surface) { [weak self] in
+                self?.scheduleRender(surface: surface, request: request, restoreFromPersistedPosition: restore)
             }
         case let .append(request):
             Task { @MainActor in
-                await self.scriptDispatcher.applyAppend(webView: webView, request: request)
+                await self.scriptDispatcher.applyAppend(surface: surface, request: request)
             }
         case let .render(request, restore):
-            scheduleRender(webView: webView, request: request, restoreFromPersistedPosition: restore)
+            scheduleRender(surface: surface, request: request, restoreFromPersistedPosition: restore)
         case .skip:
             break
         }
     }
 
     private func scheduleRender(
-        webView: WKWebView, request: RenderRequest, restoreFromPersistedPosition: Bool
+        surface: any RenderSurface, request: RenderRequest, restoreFromPersistedPosition: Bool
     ) {
         Task { @MainActor in
             await self.scriptDispatcher.applyRender(
-                webView: webView, request: request,
+                surface: surface, request: request,
                 restoreFromPersistedPosition: restoreFromPersistedPosition
             )
         }

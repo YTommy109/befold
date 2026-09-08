@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 /// 直近に描画した表示状態のミラー。呼び出し側 content の全文を保持せず、
 /// contentRevision の整数比較で再描画要否を判定することで重複バッファを避ける。

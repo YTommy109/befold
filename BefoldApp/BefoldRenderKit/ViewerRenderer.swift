@@ -1,5 +1,5 @@
 import BefoldKit
-import WebKit
+import Foundation
 
 /// ViewerRenderer が JS 側の出来事を通知する先。アプリ本体では ViewerWindowController が実装する。
 ///
@@ -41,12 +41,15 @@ public extension ViewerRendererDelegate {
     }
 }
 
-/// WKWebView の構成・viewer.html ロード・render() 評価を担う WKWebView ドライバ。
+/// 描画面の構成・viewer.html ロード・render() 評価を担うドライバ。
 /// find/loadMore/リンク遷移などアプリ専用機能はフック注入・オプショナルにしてあり、
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
 @MainActor
 public final class ViewerRenderer {
-    public var webView: WKWebView?
+    /// 描画面。**状態はここ 1 つだけ。** WebKit 実装か、テストの fake が入る。
+    /// この型は WKWebView を知らない（TASK-595.3）。
+    public var surface: (any RenderSurface)?
+
     public var webViewProxy: WebViewProxy?
     /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
     /// 循環参照を避けるため weak。QuickLook 拡張のような静的 1 回描画ホストは
@@ -55,14 +58,20 @@ public final class ViewerRenderer {
     /// 「続きを読み込む」の実行中フラグ。非同期読み込み中の再押下を無視し、
     /// 追記の交錯(順序の入れ替わり)を防ぐ。
     var isLoadingMoreLines = false
-    /// JS からの postMessage の受信・デコード・配達。
-    /// makeWebView が WKUserContentController へ登録する実ハンドラ。
+    /// JS からの postMessage の受信・デコード・配達。WebKit は知らない。
     private(set) lazy var messageRouter = BridgeMessageRouter(renderer: self)
     /// パス参照解決の FIFO 直列化とページ世代の管理。
     private(set) lazy var referenceQueue = ReferenceResolutionQueue(renderer: self)
-    /// WKWebView のナビゲーション事象の受け口。makeWebView が navigationDelegate へ設定する
-    /// 実ハンドラで、ViewerRenderer 側に転送メソッドは置かない(受け口をここ 1 つに限る)。
+    /// ナビゲーション事象の受け口。WebKit は知らない。ViewerRenderer 側に転送メソッドは
+    /// 置かない(受け口をここ 1 つに限る)。
     private(set) lazy var navigationCoordinator = ViewerNavigationCoordinator(renderer: self)
+    /// WebKit のコールバックを上の 2 つへ翻訳する唯一の場所（TASK-595.2）。
+    /// makeWebView が navigationDelegate と postMessage ハンドラの両方にこれを設定する。
+    /// **強参照で保持する。** navigationDelegate は weak、postMessage ハンドラは
+    /// WeakScriptMessageHandler 越しなので、ここが手放すと誰も持たなくなる。
+    private(set) lazy var surfaceEventBridge = WebKitSurfaceEventBridge(
+        navigation: navigationCoordinator, bridge: messageRouter
+    )
     /// 検索バーの3トグルの永続化ストア。findOptionsChanged 受信時に書き戻す。
     /// QuickLook 拡張等、検索 UI を持たないホストでは nil のまま省略できる。
     public var findOptionsPreference: FindOptionsPreference?
@@ -130,7 +139,7 @@ public final class ViewerRenderer {
 
     public init() {}
 
-    /// WKWebView を構成し、viewer.html をロードして返す。
+    /// 描画面を構成し、viewer.html をロードして返す。
     /// - Parameters:
     ///   - initialZoom: ロード前に JS へ注入する初期倍率。
     ///   - findOptionsPreference: 検索バー3トグルの永続化ストア。QuickLook 等では nil を渡す。
@@ -144,33 +153,57 @@ public final class ViewerRenderer {
     ///   - csvNegativeStyle: CSV/TSV の負の数の表記。同じく既定の .plain のままでよい。
     ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。保存値を持たない
     ///     呼び出し側(QuickLook 等)は既定の `.default` のままでよい(JS 側の既定と同じ意味)。
-    public func makeWebView(
+    public func makeSurface(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
         codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
         csvGrouping: Bool = true, csvNegativeStyle: CsvNegativeStyle = .plain,
         headingJumpLevels: HeadingJumpLevels = .default
-    ) -> WKWebView {
-        self.findOptionsPreference = findOptionsPreference
-        initialPageZoom = initialZoom
-        let webView = ViewerWebViewFactory.makeWebView(
-            options: ViewerWebViewFactory.Options(
-                initialZoom: initialZoom, findOptions: findOptionsPreference,
-                headingJumpLevels: headingJumpLevels,
+    ) -> any RenderSurface {
+        let surface = WebKitRenderSurface.make(
+            options: surfaceOptions(
+                initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
                 codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
                 csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
-                features: rendererFeatures
+                headingJumpLevels: headingJumpLevels
             ),
-            messageHandler: messageRouter
+            eventHandler: surfaceEventBridge
         )
-        webView.navigationDelegate = navigationCoordinator
-        self.webView = webView
-        ViewerWebViewFactory.loadViewerHTML(into: webView)
-        return webView
+        adopt(surface, initialZoom: initialZoom, findOptionsPreference: findOptionsPreference)
+        return surface
     }
 
-    /// makeWebView で登録した postMessage ハンドラを解除する。
-    public func dismantle(_ webView: WKWebView) {
-        ViewerWebViewFactory.dismantle(webView, features: rendererFeatures)
+    /// 描画面へ焼き込む値を組み立てる。`makeSurface` と、実体の WKWebView を必要とする
+    /// ホスト（`OneShotRenderer`）の両方が使う。**組み立ての規則をここ 1 箇所に置く**ため
+    /// 切り出してあり、ホストごとに違う値が焼かれる経路を作らない。
+    func surfaceOptions(
+        initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
+        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
+        csvGrouping: Bool = true, csvNegativeStyle: CsvNegativeStyle = .plain,
+        headingJumpLevels: HeadingJumpLevels = .default
+    ) -> ViewerWebViewFactory.Options {
+        ViewerWebViewFactory.Options(
+            initialZoom: initialZoom, findOptions: findOptionsPreference,
+            headingJumpLevels: headingJumpLevels,
+            codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
+            csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
+            features: rendererFeatures
+        )
+    }
+
+    /// 構成済みの描画面を受け取り、この型の状態と結びつける。
+    /// 自前で構成したホストが `makeSurface` と同じ状態へ揃えるための入口。
+    func adopt(
+        _ surface: any RenderSurface, initialZoom: Double,
+        findOptionsPreference: FindOptionsPreference?
+    ) {
+        self.findOptionsPreference = findOptionsPreference
+        initialPageZoom = initialZoom
+        self.surface = surface
+    }
+
+    /// makeSurface で登録した postMessage ハンドラを解除する。
+    public func dismantle(_ surface: any RenderSurface) {
+        (surface as? WebKitRenderSurface)?.dismantle(features: rendererFeatures)
     }
 
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。

@@ -279,33 +279,27 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             let hasIframe = (result["hasIframe"] as? Bool) ?? true
             if !hasIframe {
                 // DOMPurify が <iframe> ごと除去した(sanitizer 層で防御達成)。
-                self.checkPdfBlobRenders()
+                self.finish()
                 return
             }
             guard let directive = result["violation"] as? String,
                   directive.hasPrefix("frame-src") || directive.hasPrefix("child-src") else {
                 self.fail("data: iframe が sanitizer にも CSP にもブロックされなかった")
             }
-            self.checkPdfBlobRenders()
+            self.finish()
         }
     }
 
-    // 6. PDF が blob: URL の iframe として生成されるか
-    func checkPdfBlobRenders() {
-        let pdfBase64 = Data("%PDF-1.4\n%%EOF".utf8).base64EncodedString()
-        asyncJS(
-            "await render(\(jsString(pdfBase64)), 'pdf'); "
-                + "var f = document.querySelector('#diagram-wrap iframe'); "
-                + "return f ? f.src.slice(0, 5) : 'noframe';",
-            "pdf-render"
-        ) { r in
-            print("pdf iframe src scheme: \(String(describing: r))")
-            if (r as? String) != "blob:" {
-                self.fail("PDF iframe が blob: URL で生成されなかった")
-            }
-            print("PASS: CSP 下で全スクリプト稼働・mmd/md 描画・外部画像/data: iframe ブロック・PDF blob 表示を確認")
-            exit(0)
-        }
+    // PDF の検証はここに無い。**viewer.html は PDF を描かない。**
+    // かつては blob: URL の <iframe> で描いており、この位置にその検証があったが、
+    // TASK-564（PR #610・2026-08-30）で PDF 表示を PDFKit の `PDFView` へ移し、
+    // viewer 側の PDF 専用コードと CSP の `frame-src blob:` を撤去した。
+    // 検証だけが残って 9 日間 FAIL し続けていたため、判定を緩めるのではなく
+    // 検証項目ごと外してある(守る対象が存在しない検証は、通しても落としても無意味)。
+    // PDF 面の回帰は `PDFSurface*Tests` と `PDFDataProbe` 側で見る。
+    func finish() {
+        print("PASS: CSP 下で全スクリプト稼働・mmd/md 描画・外部画像/data: iframe ブロックを確認")
+        exit(0)
     }
 }
 
