@@ -75,9 +75,19 @@ CI 側が本命）。判定は **許可するモジュールの列挙**（allowl
 `import class AppKit.NSEvent` のような修飾つき import も拾う（型 1 つだけ借りる形で
 依存が静かに戻る経路を塞ぐ）。
 
-現時点の許可一覧は `Foundation` / `CryptoKit` と、既知の例外である `PDFKit`。
-PDFKit は `BefoldKit/PDFDataProbe.swift` が `PDFDocument(data:)` の可否を
-PDF 読み取り可能性の唯一の判定に使っているもので、除去は TASK-598 に切り出してある。
+2 つ目の前例は `PDFDataProbe`（TASK-598）。こちらは変換ではなく**判定**なので、
+専用のターゲット `BefoldPDFProbe` へ隔離し、`BefoldKit` へは
+`ViewerLoadPipeline.PDFReadabilityProbe`（`@Sendable (Data) -> Bool`）として注入する。
+`OpenDisposition` と違って `BefoldRenderKit` に置けないのは、`ViewerLoadPipeline.load` の
+呼び出し元が `befold` / `BefoldCLI` / `BefoldRenderKit` の 3 つに分かれており、
+`BefoldRenderKit` へ置くと WebKit が CLI に入り、`BefoldCLI` へ置くと ArgumentParser が
+appex に入るため。3 つ全部から見える層は `BefoldKit` の隣にしか作れない。
+
+**この probe には既定値が無い。** `BefoldKit` から実装を参照できないので、
+デフォルト引数は方針ではなく**構造上置けない**。渡し忘れは必ずコンパイルエラーになり、
+ホストごとに PDF の可否判定が食い違う経路が生まれない。
+
+現時点の許可一覧は `Foundation` / `CryptoKit` の 2 つだけ。
 
 ### MainActor の外へ逃がす処理は `withBlockingWork` を通す
 
@@ -130,6 +140,8 @@ BefoldApp/
 │   └── Resources/                  # viewer.html / viewer-bundle.js（viewer-src/ から
 │                                    # esbuild でビルドした成果物。コミット済み）/
 │                                    # mermaid / markdown-it / highlight.js / DOMPurify 等
+├── BefoldPDFProbe/             # PDF の解釈（PDFDocument の生成）だけを持つ最小の層。
+│   └── PDFDataProbe.swift      # PDFKit を要する判定を BefoldKit から隔離する（TASK-598）
 ├── BefoldRenderKit/            # 描画エンジン（本体 / QuickLook で共有）
 │   ├── ViewerRenderer.swift + ViewerRenderer+*.swift    # WKWebView ドライバ
 │   └── RemoteLoadBlocker.swift # WKContentRuleList でリモート読み込みを遮断
@@ -599,7 +611,7 @@ Info.plist で以下を宣言する。
 | Sparkle 2（SPM 依存） | 自動アップデート（appcast 取得・署名検証・インストール） |
 | swift-argument-parser（SPM 依存） | CLI の引数解析（コマンド定義は `BefoldCLI` にある） |
 | XcodeGen | `.xcodeproj` 生成（`project.yml` が単一の定義元） |
-| Swift Package Manager | ビルド（`BefoldKit` / `BefoldRenderKit` / `BefoldCLI` / `befold` / `befold-cli` / `BefoldTestSupport` / `befoldTests` / `befoldCLITests` の 8 ターゲット） |
+| Swift Package Manager | ビルド（`BefoldKit` / `BefoldPDFProbe` / `BefoldRenderKit` / `BefoldCLI` / `befold` / `befold-cli` / `BefoldTestSupport` / `befoldTests` / `befoldCLITests` の 9 ターゲット） |
 | SwiftLint / SwiftFormat | ビルドプラグインとして実行 |
 | Swift Testing | ユニットテスト |
 

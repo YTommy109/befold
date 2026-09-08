@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldPDFProbe
 import BefoldTestSupport
 import Foundation
 import PDFKit
@@ -17,11 +18,13 @@ struct PDFSurfaceLoadTests {
         let reader = InMemoryFileReader()
         reader.setDataFile(data, at: url)
         return await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .pdf,
-            fileReader: reader,
-            contentLoader: ContentLoader(fileReader: reader),
-            chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory
+            ViewerLoadPipeline.Inputs(
+                resolved: url,
+                fileType: .pdf,
+                fileReader: reader,
+                chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
+                isPDFReadable: PDFDataProbe.isReadable
+            )
         )
     }
 
@@ -61,11 +64,13 @@ struct PDFSurfaceLoadTests {
         reader.setDataFile(Data([0x89, 0x50, 0x4E, 0x47]), at: url)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .image(mimeType: "image/png"),
-            fileReader: reader,
-            contentLoader: ContentLoader(fileReader: reader),
-            chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory
+            ViewerLoadPipeline.Inputs(
+                resolved: url,
+                fileType: .image(mimeType: "image/png"),
+                fileReader: reader,
+                chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
+                isPDFReadable: PDFDataProbe.isReadable
+            )
         )
 
         guard case .full = outcome else {

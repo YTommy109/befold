@@ -1,4 +1,5 @@
 import BefoldKit
+import BefoldPDFProbe
 import Foundation
 
 /// `befold --check <path>` — 既存の FileType・サイズ上限定数を再利用し、befold が開けるファイルかどうかを判定する。
@@ -59,11 +60,13 @@ public enum CLICheckCommand {
         for fileType: FileType, target: URL, fileReader: any FileReading
     ) async -> RejectReason? {
         let outcome = await ViewerLoadPipeline.load(
-            resolved: target,
-            fileType: fileType,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
+            ViewerLoadPipeline.Inputs(
+                resolved: target,
+                fileType: fileType,
+                fileReader: fileReader,
+                chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
+                isPDFReadable: PDFDataProbe.isReadable
+            ),
             oneShotLoad: true,
             embedLocalImages: false
         )

@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldPDFProbe
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -85,12 +86,13 @@ struct ViewerStoreLoadStartTests {
     func loadStartsWhileTheMainActorIsBusy() {
         let signal = StartSignal()
         let task = ViewerLoadStarter.start(
-            LoadInputs(
+            ViewerLoadPipeline.Inputs(
                 resolved: URL(fileURLWithPath: "/mock/does-not-matter.md"),
                 fileType: .markdown,
                 fileReader: SignallingFileReader(signal: signal),
                 contentLoader: ContentLoader(),
-                chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory
+                chunkedReaderFactory: ViewerLoadPipeline.defaultChunkedReaderFactory,
+                isPDFReadable: PDFDataProbe.isReadable
             ),
             apply: { _ in }
         )

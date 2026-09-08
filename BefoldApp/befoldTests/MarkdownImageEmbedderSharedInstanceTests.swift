@@ -1,4 +1,5 @@
 import BefoldKit
+import BefoldPDFProbe
 @testable import BefoldRenderKit
 import BefoldTestSupport
 import Foundation
@@ -35,13 +36,15 @@ struct MarkdownImageEmbedderSharedInstanceTests {
         // 本番の既定値(imageEmbedder 未指定 = .shared)でウォームアップする。
         let fileReader = DefaultFileReader()
         _ = await ViewerLoadPipeline.load(
-            resolved: markdownURL,
-            fileType: .markdown,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: { cache, fileType in
-                try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
-            },
+            ViewerLoadPipeline.Inputs(
+                resolved: markdownURL,
+                fileType: .markdown,
+                fileReader: fileReader,
+                chunkedReaderFactory: { cache, fileType in
+                    try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
+                },
+                isPDFReadable: PDFDataProbe.isReadable
+            ),
             embedLocalImages: true
         )
 
