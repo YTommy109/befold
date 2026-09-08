@@ -68,11 +68,19 @@ public enum ViewerWebViewFactory {
     /// まま文書が描かれる」余地が構造的に無くなる(ルールリストの用意は非同期のため、
     /// 適用の完了を待ってから読み込む)。用意に失敗しても読み込みは必ず行う。
     @MainActor
-    public static func loadViewerHTML(into webView: WKWebView, bundle: Bundle = .befoldKitResources) {
+    public static func loadViewerHTML(
+        into surface: any RenderSurface, bundle: Bundle = .befoldKitResources
+    ) {
         guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
         let resourceDir = htmlURL.deletingLastPathComponent()
-        RemoteLoadBlocker.apply(to: webView) {
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
+        // ルールリストの適用は WKWebView の configuration を触るため、実装型を通す。
+        // fake の描画面にはリモート読み込みの経路自体が無いので、そのままロードする。
+        guard let webKitSurface = surface as? WebKitRenderSurface else {
+            surface.loadLocalFile(htmlURL, allowingReadAccessTo: resourceDir)
+            return
+        }
+        RemoteLoadBlocker.apply(to: webKitSurface.webView) {
+            surface.loadLocalFile(htmlURL, allowingReadAccessTo: resourceDir)
         }
     }
 

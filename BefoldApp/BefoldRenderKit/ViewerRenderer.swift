@@ -46,7 +46,19 @@ public extension ViewerRendererDelegate {
 /// QuickLook 拡張(.appex)のような静的1回描画ホストではそれらを省いて利用できる。
 @MainActor
 public final class ViewerRenderer {
-    public var webView: WKWebView?
+    /// 描画面。**状態はここ 1 つだけ。** WKWebView か、テストの fake が入る。
+    public var surface: (any RenderSurface)?
+
+    /// 実体の WKWebView。
+    ///
+    /// **`surface` から導く読み書き口であって、独立した状態ではない。** WKWebView を
+    /// 直接要求する経路（NSViewRepresentable の dismantle、AppKit のメニューアクション、
+    /// 生成まわり）がまだ残っているため置いてある。TASK-595.3 でそれらを畳んだら消す。
+    public var webView: WKWebView? {
+        get { (surface as? WebKitRenderSurface)?.webView }
+        set { surface = newValue.map { WebKitRenderSurface($0) } }
+    }
+
     public var webViewProxy: WebViewProxy?
     /// JS 側で起きた出来事の通知先。アプリ本体では ViewerWindowController が実装する。
     /// 循環参照を避けるため weak。QuickLook 拡張のような静的 1 回描画ホストは
@@ -163,8 +175,9 @@ public final class ViewerRenderer {
             messageHandler: messageRouter
         )
         webView.navigationDelegate = navigationCoordinator
+        // setter が surface（唯一の状態）を更新する。以降は surface 越しに扱う。
         self.webView = webView
-        ViewerWebViewFactory.loadViewerHTML(into: webView)
+        if let surface { ViewerWebViewFactory.loadViewerHTML(into: surface) }
         return webView
     }
 

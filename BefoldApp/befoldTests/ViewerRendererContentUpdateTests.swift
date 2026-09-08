@@ -33,7 +33,7 @@ struct ViewerRendererContentUpdateTests {
             diffState: DiffState(text: "@@ -1 +1 @@", layout: .sideBySide)
         ))
 
-        renderer.directHTML.exit(webView: webView) {}
+        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
 
         #expect(renderer.rendered == RenderedStateMirror())
     }

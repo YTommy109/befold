@@ -27,8 +27,8 @@ final class ViewerNavigationCoordinator: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard let renderer else { return }
-        renderer.directHTML.applyPendingZoom(to: webView)
+        guard let renderer, let surface = renderer.surface else { return }
+        renderer.directHTML.applyPendingZoom(to: surface)
         renderer.pageZoom.applyIfReady(assumingReady: true)
         renderer.readiness.markReady()
     }
@@ -55,22 +55,22 @@ final class ViewerNavigationCoordinator: NSObject, WKNavigationDelegate {
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
-        guard let renderer else {
+        guard let renderer, let surface = renderer.surface else {
             decisionHandler(.cancel)
             return
         }
         decisionHandler(
-            renderer.directHTML.decidePolicy(webView: webView, navigationAction: navigationAction)
+            renderer.directHTML.decidePolicy(surface: surface, navigationAction: navigationAction)
         )
     }
 
-    private func handleNavigationFailure(webView: WKWebView) {
+    private func handleNavigationFailure(webView _: WKWebView) {
         guard let renderer else { return }
         renderer.directHTML.discardPendingZoom()
-        if renderer.directHTML.isActive {
+        if renderer.directHTML.isActive, let surface = renderer.surface {
             // 削除起因の失敗は呼び出し側がウィンドウを閉じる等の対応をするため、
             // ここでは viewer.html へ戻すだけでよい
-            renderer.directHTML.exit(webView: webView) {}
+            renderer.directHTML.exit(surface: surface) {}
         } else {
             renderer.readiness.flushPending()
         }

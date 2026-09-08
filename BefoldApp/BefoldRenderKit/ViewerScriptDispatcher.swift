@@ -1,6 +1,6 @@
 import BefoldKit
+import Foundation
 import os
-import WebKit
 
 /// 描画のために viewer.js へスクリプトを発行する経路。
 ///
@@ -28,8 +28,8 @@ final class ViewerScriptDispatcher {
 
     /// evaluateJavaScript の共通口。失敗したスクリプトの用途（label）とエラーを残す。
     /// この型からの評価は必ずここを通すこと（nil の completionHandler を直接渡さない）。
-    private func evaluate(_ script: String, on webView: WKWebView, label: String) {
-        webView.evaluateJavaScript(script) { _, error in
+    private func evaluate(_ script: String, on surface: any RenderSurface, label: String) {
+        surface.evaluateScript(script) { error in
             guard let error else { return }
             Self.log
                 .error(
@@ -59,7 +59,7 @@ final class ViewerScriptDispatcher {
     /// 画像埋め込み(embeddedContent)は MainActor 外で行うため、完了後に
     /// contentUpdateGeneration が呼び出し時から変わっていないか確認してから
     /// evaluateJavaScript/recordRendered を行う(後続の updateContent に追い越された場合は破棄)。
-    func applyAppend(webView: WKWebView, request: AppendRequest) async {
+    func applyAppend(surface: any RenderSurface, request: AppendRequest) async {
         // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
         // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
         // ローカル画像だけが data URI に差し替わらず画像割れになる。
@@ -72,11 +72,11 @@ final class ViewerScriptDispatcher {
         // 送信と recordRendered は同じ同期区間に閉じ込める(applyRender と同じ理由)。
         // ガードより前で送ると、追い越された呼び出しが「JS へは送ったのにミラーは旧値の
         // まま」を残し、次の truncation が旧値と一致したとき再送が飛ぶ(TASK-336・417)。
-        evaluate(request.truncation.script, on: webView, label: "truncation(append)")
+        evaluate(request.truncation.script, on: surface, label: "truncation(append)")
         if !renderable.isEmpty,
            let script = ViewerBridge.appendChunkScript(chunk: renderable, fileType: request.fileType)
         {
-            evaluate(script, on: webView, label: "appendChunk")
+            evaluate(script, on: surface, label: "appendChunk")
         }
         var state = renderer.rendered
         state.contentRevision = request.contentRevision
@@ -96,7 +96,7 @@ final class ViewerScriptDispatcher {
     /// 一続きで並べ、間に await を挟まないこと**(理由は本文中のコメント)。
     /// - Parameter restoreFromPersistedPosition: `isFileOrModeSwitch` 参照。
     func applyRender(
-        webView: WKWebView, request: RenderRequest, restoreFromPersistedPosition: Bool
+        surface: any RenderSurface, request: RenderRequest, restoreFromPersistedPosition: Bool
     ) async {
         let renderable = await embeddedContent(
             request.content, fileType: request.fileType,
@@ -114,21 +114,21 @@ final class ViewerScriptDispatcher {
         // incoming == rendered と判定して描画を握り潰す(TASK-334)。両方を避けられるのは、
         // 送信と確定を同じ同期区間に閉じ込めるこの位置だけ。
         let sentDiffState = renderer.diffState
-        sendDisplayOptions(webView: webView, request: request, diffState: sentDiffState)
+        sendDisplayOptions(surface: surface, request: request, diffState: sentDiffState)
         // 次の render が表示する文書パスの予告。JS は render 開始時に採用し、以後の
         // スクロール通知の保存キー(payload の path)として位置と同じターンで読んで返す。
         // 切替以外の再描画でも毎回送る(viewer.html 再ロードで JS 状態が飛んでも
         // 次の render で自己修復させるため)。
         evaluate(
-            ViewerBridge.renderDocPathScript(request.filePath), on: webView, label: "renderDocPath"
+            ViewerBridge.renderDocPathScript(request.filePath), on: surface, label: "renderDocPath"
         )
         if restoreFromPersistedPosition {
             evaluate(
                 ViewerBridge.restoreScrollPositionScript(renderer.scrollPositionToRestore),
-                on: webView, label: "restoreScrollPosition"
+                on: surface, label: "restoreScrollPosition"
             )
         }
-        evaluate(script, on: webView, label: "render")
+        evaluate(script, on: surface, label: "render")
         renderer.recordRendered(
             RenderedStateMirror(
                 contentRevision: request.contentRevision, fileType: request.fileType,
@@ -141,29 +141,29 @@ final class ViewerScriptDispatcher {
 
     /// 描画済みミラーと違うものだけを送る。呼び出し元と同じ同期区間で実行すること。
     private func sendDisplayOptions(
-        webView: WKWebView, request: RenderRequest, diffState: DiffState
+        surface: any RenderSurface, request: RenderRequest, diffState: DiffState
     ) {
         let rendered = renderer.rendered
         if request.showLineNumbers != rendered.showLineNumbers {
             evaluate(
-                ViewerBridge.lineNumbersScript(request.showLineNumbers), on: webView,
+                ViewerBridge.lineNumbersScript(request.showLineNumbers), on: surface,
                 label: "lineNumbers"
             )
         }
         if request.isSourceMode != rendered.isSourceMode {
             evaluate(
                 ViewerBridge.viewModeScript(.init(isSourceMode: request.isSourceMode)),
-                on: webView, label: "viewMode"
+                on: surface, label: "viewMode"
             )
         }
         // 差分は本文とレイアウトを 1 つの値として比較し、変わったときだけ両方送る。
         // 直後の render で JS 側が読み出すため、ここでは送るだけ(再描画はしない)。
         if diffState != rendered.diffState {
-            evaluate(ViewerDiffBridge.textScript(diffState.text), on: webView, label: "diffText")
-            evaluate(ViewerDiffBridge.layoutScript(diffState.layout), on: webView, label: "diffLayout")
+            evaluate(ViewerDiffBridge.textScript(diffState.text), on: surface, label: "diffText")
+            evaluate(ViewerDiffBridge.layoutScript(diffState.layout), on: surface, label: "diffLayout")
         }
         if request.truncation != rendered.truncation {
-            evaluate(request.truncation.script, on: webView, label: "truncation")
+            evaluate(request.truncation.script, on: surface, label: "truncation")
         }
     }
 }

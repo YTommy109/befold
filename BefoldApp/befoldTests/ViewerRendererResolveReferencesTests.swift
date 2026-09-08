@@ -141,7 +141,7 @@ struct ViewerRendererResolveReferencesTests {
         )
         _ = await waitUntilOnMainActor(timeout: testTimeout(fallback: 5)) { isResolving }
         // 直接 HTML モードからの復帰。ここで viewer.html を読み直し、JS の状態が捨てられる。
-        renderer.directHTML.exit(webView: webView) {}
+        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
         slowResolution.open()
         await renderer.referenceQueue.responseChain?.value
 
@@ -194,7 +194,7 @@ struct ViewerRendererResolveReferencesTests {
         renderer.delegate = delegate
         delegate.onResolveReferences = { _ in ["./new.md": "/repo/new.md"] }
 
-        renderer.directHTML.exit(webView: webView) {}
+        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
         Stubs.dispatch(
             renderer, name: ViewerBridge.resolveReferencesMessageName,
             body: ["paths": ["./new.md"]]

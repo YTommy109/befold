@@ -49,7 +49,10 @@ struct ViewerRendererAppendTruncationTests {
         // 呼び出し後に別の updateContent が世代を進めた状況を模す。
         renderer.contentUpdateGeneration = 9
 
-        await renderer.scriptDispatcher.applyAppend(webView: webView, request: Self.makeRequest(generation: 8))
+        await renderer.scriptDispatcher.applyAppend(
+            surface: WebKitRenderSurface(webView),
+            request: Self.makeRequest(generation: 8)
+        )
 
         // 1 つでも送っていれば、ミラーが旧値のまま JS だけ進んだ状態を作ってしまう。
         #expect(webView.evaluatedScripts.isEmpty)
@@ -63,7 +66,10 @@ struct ViewerRendererAppendTruncationTests {
         let renderer = Self.makeRenderer(webView)
         renderer.contentUpdateGeneration = 9
 
-        await renderer.scriptDispatcher.applyAppend(webView: webView, request: Self.makeRequest(generation: 9))
+        await renderer.scriptDispatcher.applyAppend(
+            surface: WebKitRenderSurface(webView),
+            request: Self.makeRequest(generation: 9)
+        )
 
         #expect(webView.evaluatedScripts.contains(Self.incomingTruncation.script))
         #expect(renderer.rendered.truncation == Self.incomingTruncation)

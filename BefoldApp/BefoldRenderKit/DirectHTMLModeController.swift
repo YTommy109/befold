@@ -46,7 +46,7 @@ final class DirectHTMLModeController {
 
     /// 直接ロードを実行する。同一ファイル・同一内容で既に直接ロード中なら何もしない。
     /// - Returns: ロードを行った(または不要と判断した)場合 true。呼び出し側はここで打ち切る。
-    func enter(webView: WKWebView, filePath: URL, request: DirectHTMLLoadRequest) -> Bool {
+    func enter(surface: any RenderSurface, filePath: URL, request: DirectHTMLLoadRequest) -> Bool {
         let pathChanged = filePath != lastPath
         let contentChanged = request.contentRevision != renderer.rendered.contentRevision
         guard !isActive || pathChanged || contentChanged else { return true }
@@ -54,7 +54,7 @@ final class DirectHTMLModeController {
         // 初回ロード・ファイル切替では保存済みの per-file 倍率を使い、
         // ライブリロード（同一ファイルの content 変更）では現在の倍率を維持する。
         let isFirstLoadOrSwitch = !isActive || pathChanged
-        pendingPageZoom = isFirstLoadOrSwitch ? renderer.pageZoom.desired : webView.pageZoom
+        pendingPageZoom = isFirstLoadOrSwitch ? renderer.pageZoom.desired : surface.zoom
         // 直接ロードでは viewer.js が居らず行番号・切り詰め・差分は適用されないため、
         // それらは現在のミラー値のまま持ち越す(復帰時に exit が空のミラーを確定させて
         // 一括破棄する)。フィールドを並べず現在値から組み立てて丸ごと確定させるのは、
@@ -71,16 +71,15 @@ final class DirectHTMLModeController {
         // 直接ロードへ入ると viewer.js が居なくなる。復帰時に再適用させる。
         renderer.pageZoom.invalidateApplied()
         // 直接ロードする HTML 内の <script> 実行を無効化する（設計スコープ外）。
-        webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        surface.isContentJavaScriptEnabled = false
         // 直接ロード中は外部の HTML 文書が canvas ごと所有する。復帰時に reloadViewerHTML が
         // 透過へ戻す（allowsContentJavaScript と同じく、ミラーの外で enter/exit と対に倒す状態）。
-        ViewerWebViewFactory.setDocumentOwnsCanvas(
+        surface.setDocumentOwnsCanvas(
             ViewerWebViewFactory.documentOwnsCanvas(
                 fileType: request.fileType, isSourceMode: request.isSourceMode
-            ),
-            on: webView
+            )
         )
-        load(webView: webView, filePath: filePath, request: request)
+        load(surface: surface, filePath: filePath, request: request)
         return true
     }
 
@@ -91,14 +90,14 @@ final class DirectHTMLModeController {
     /// allowingReadAccessTo を伴わず宣言なし HTML から相対参照した兄弟リソースは読めなく
     /// なるが、宣言なし HTML は簡易な断片が大半で影響は小さい。判定不能(nil)時は
     /// loadFileURL へフォールバックする。
-    private func load(webView: WKWebView, filePath: URL, request: DirectHTMLLoadRequest) {
+    private func load(surface: any RenderSurface, filePath: URL, request: DirectHTMLLoadRequest) {
         if request.hasDeclaredHTMLCharset == false {
-            webView.load(
+            surface.loadHTML(
                 Data(request.content.utf8), mimeType: "text/html",
-                characterEncodingName: "UTF-8", baseURL: filePath
+                encoding: "UTF-8", baseURL: filePath
             )
         } else {
-            webView.loadFileURL(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
+            surface.loadLocalFile(filePath, allowingReadAccessTo: filePath.deletingLastPathComponent())
         }
     }
 
@@ -112,20 +111,20 @@ final class DirectHTMLModeController {
     /// `pendingAppend` は `rendered` の一部ではないが、直接 HTML モードへの切替
     /// (pendingAppend 消費前に return する分岐)を挟んで残留した増分チャンクが復帰後に
     /// 誤って古い内容へ適用されないよう、ここで併せて破棄する。
-    func exit(webView: WKWebView, completion: @escaping () -> Void) {
+    func exit(surface: any RenderSurface, completion: @escaping () -> Void) {
         isActive = false
         // viewer.html を読み直すと JS 側の倍率も初期化されるため、適用済みの記録も捨てる。
         renderer.pageZoom.invalidateApplied()
         lastPath = nil
         renderer.recordRendered(RenderedStateMirror())
         renderer.pendingAppend = nil
-        renderer.reloadViewerHTML(webView: webView, then: completion)
+        renderer.reloadViewerHTML(surface: surface, then: completion)
     }
 
     /// ロード完了時に、直接ロードへ入る前に控えた倍率を当てる。
-    func applyPendingZoom(to webView: WKWebView) {
+    func applyPendingZoom(to surface: any RenderSurface) {
         guard isActive, let zoom = pendingPageZoom else { return }
-        webView.pageZoom = zoom
+        surface.zoom = zoom
         pendingPageZoom = nil
     }
 
@@ -138,7 +137,7 @@ final class DirectHTMLModeController {
     /// それ以外のナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。
     /// 直接 HTML モードではリンククリック(.linkActivated)のみ分類して処理する。
     func decidePolicy(
-        webView: WKWebView, navigationAction: WKNavigationAction
+        surface: any RenderSurface, navigationAction: WKNavigationAction
     ) -> WKNavigationActionPolicy {
         if navigationAction.navigationType == .other {
             return .allow
@@ -151,7 +150,7 @@ final class DirectHTMLModeController {
         }
 
         switch DirectHTMLLinkPolicy.classify(
-            url: url, currentURL: webView.url, modifierFlags: navigationAction.modifierFlags
+            url: url, currentURL: surface.currentURL, modifierFlags: navigationAction.modifierFlags
         ) {
         case .allowNativeNavigation:
             return .allow

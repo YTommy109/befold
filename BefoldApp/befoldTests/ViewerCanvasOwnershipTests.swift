@@ -36,7 +36,7 @@ struct ViewerCanvasOwnershipTests {
 
         let url = URL(fileURLWithPath: "/tmp/task511-enter.html")
         _ = renderer.directHTML.enter(
-            webView: webView,
+            surface: WebKitRenderSurface(webView),
             filePath: url,
             request: DirectHTMLLoadRequest(
                 content: "<h1>x</h1>", contentRevision: 1, fileType: .html,
@@ -55,7 +55,7 @@ struct ViewerCanvasOwnershipTests {
         renderer.webView = webView
         ViewerWebViewFactory.setDocumentOwnsCanvas(true, on: webView)
 
-        renderer.directHTML.exit(webView: webView) {}
+        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
 
         #expect(!Self.drawsBackground(webView))
     }
