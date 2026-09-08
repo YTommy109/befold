@@ -18,6 +18,7 @@ struct ViewerCapabilitiesTests {
         supportsFind: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
+        codeLanguage: String? = "swift",
         isDocumentJumpEnabled: Bool = true
     ) -> ViewerCapabilities {
         ViewerCapabilities(
@@ -33,6 +34,7 @@ struct ViewerCapabilitiesTests {
             supportsFind: supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
+            codeLanguage: codeLanguage,
             isDocumentJumpEnabled: isDocumentJumpEnabled
         )
     }
@@ -207,6 +209,43 @@ struct ViewerCapabilitiesTests {
             .canJump(to: .heading))
     }
 
+    @Test("定義へのジャンプは対応言語のソース表示中だけ可能")
+    func allowsFunctionDefinitionJumpOnlyForSupportedSourceLanguages() {
+        #expect(makeCapabilities(codeLanguage: "swift").canJump(to: .functionDefinition))
+        #expect(makeCapabilities(codeLanguage: "typescript").canJump(to: .functionDefinition))
+        // 非対応言語。FunctionJumpLanguages.supported に無い hljs 言語名。
+        #expect(!makeCapabilities(codeLanguage: "ruby").canJump(to: .functionDefinition))
+        // コード種別でない(md のレンダリング表示など)。
+        #expect(!makeCapabilities(codeLanguage: nil).canJump(to: .functionDefinition))
+    }
+
+    /// showsCodeContent は差分表示中も true(ViewerStore の isSourceMode 経由)なので、
+    /// !showsDiff を落とすと差分表示中にメニューが有効のまま 0 件になる。
+    /// この条件が消えたら落ちるように、差分表示中と非ソース表示の両方を固定する。
+    @Test("定義へのジャンプは差分表示中と非ソース表示中は不可")
+    func deniesFunctionDefinitionJumpOutsideSourceDisplay() {
+        #expect(!makeCapabilities(showsDiff: true, codeLanguage: "swift")
+            .canJump(to: .functionDefinition))
+        #expect(!makeCapabilities(showsCodeContent: false, codeLanguage: "swift")
+            .canJump(to: .functionDefinition))
+        // 変更ブロックは逆に差分表示中だけ可能(条件が種類ごとに分かれていることの確認)。
+        #expect(makeCapabilities(showsDiff: true, codeLanguage: "swift")
+            .canJump(to: .changeBlock))
+    }
+
+    /// 変更ブロックと定義は排他（前者は差分表示中だけ、後者は差分表示でないときだけ）。
+    /// この排他はバーのモード切替スイッチの見た目にも効いていて、**同時に見える
+    /// セグメントは最大 3 つ**（検索 + 見出し + どちらか一方）に保たれる。
+    /// ここが破れると 4 つ並んでバーが横に広がるため、能力の側で固定しておく。
+    @Test("変更ブロックと定義のジャンプは同時には使えない")
+    func changeBlockAndFunctionDefinitionJumpsAreMutuallyExclusive() {
+        for showsDiff in [true, false] {
+            let capabilities = makeCapabilities(showsDiff: showsDiff, codeLanguage: "swift")
+
+            #expect(!(capabilities.canJump(to: .changeBlock) && capabilities.canJump(to: .functionDefinition)))
+        }
+    }
+
     @Test("何も提示していない既定値はすべて不可")
     func noneDeniesEverything() {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
@@ -214,7 +253,7 @@ struct ViewerCapabilitiesTests {
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
             supportsDiffDisplay: false, supportsFind: false,
             gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
-            isDocumentJumpEnabled: false
+            codeLanguage: nil, isDocumentJumpEnabled: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -233,6 +272,7 @@ extension ViewerCapabilities {
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
+        codeLanguage: "swift",
         isDocumentJumpEnabled: true
     )
 
@@ -250,6 +290,7 @@ extension ViewerCapabilities {
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
+        codeLanguage: "swift",
         isDocumentJumpEnabled: true
     )
 }
