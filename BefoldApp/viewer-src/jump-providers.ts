@@ -284,7 +284,7 @@ function codeTextOf(cell: HTMLElement): string {
 }
 
 function collectFunctionDefinitions(root: HTMLElement): JumpTarget[] {
-  var pattern = definitionPattern();
+  const pattern = definitionPattern();
   if (!pattern) {
     return [];
   }

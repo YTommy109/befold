@@ -16591,7 +16591,7 @@
     return text3;
   }
   function collectFunctionDefinitions(root) {
-    var pattern = definitionPattern();
+    const pattern = definitionPattern();
     if (!pattern) {
       return [];
     }
