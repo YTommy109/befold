@@ -139,39 +139,6 @@ public final class ViewerRenderer {
 
     public init() {}
 
-    /// 描画面を構成し、viewer.html をロードして返す。
-    /// - Parameters:
-    ///   - initialZoom: ロード前に JS へ注入する初期倍率。
-    ///   - findOptionsPreference: 検索バー3トグルの永続化ストア。QuickLook 等では nil を渡す。
-    ///   - codeFontFamily: ロード前に JS へ注入するソースビュー等幅フォントファミリー名。
-    ///     nil はシステム既定(QuickLook 等では nil を渡す)。
-    ///   - codeFontSizePoints: ロード前に JS へ注入するソースビューのコードフォントサイズ(pt)。
-    ///     nil は未カスタマイズ(CSS 側の calc(本文*0.75) フォールバックへ委ね、
-    ///     アクセシビリティ文字サイズに追従する)。
-    ///   - csvGrouping: CSV/TSV の数値列に桁区切りを入れるか。設定を持たない呼び出し側
-    ///     (QuickLook 等)は既定の true のままでよい(JS 側の既定と同じ意味)。
-    ///   - csvNegativeStyle: CSV/TSV の負の数の表記。同じく既定の .plain のままでよい。
-    ///   - headingJumpLevels: 見出しジャンプで目印にするレベルの初期値。保存値を持たない
-    ///     呼び出し側(QuickLook 等)は既定の `.default` のままでよい(JS 側の既定と同じ意味)。
-    public func makeSurface(
-        initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
-        codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
-        csvGrouping: Bool = true, csvNegativeStyle: CsvNegativeStyle = .plain,
-        headingJumpLevels: HeadingJumpLevels = .default
-    ) -> any RenderSurface {
-        let surface = WebKitRenderSurface.make(
-            options: surfaceOptions(
-                initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
-                codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
-                csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
-                headingJumpLevels: headingJumpLevels
-            ),
-            eventHandler: surfaceEventBridge
-        )
-        adopt(surface, initialZoom: initialZoom, findOptionsPreference: findOptionsPreference)
-        return surface
-    }
-
     /// 描画面へ焼き込む値を組み立てる。`makeSurface` と、実体の WKWebView を必要とする
     /// ホスト（`OneShotRenderer`）の両方が使う。**組み立ての規則をここ 1 箇所に置く**ため
     /// 切り出してあり、ホストごとに違う値が焼かれる経路を作らない。
@@ -192,7 +159,7 @@ public final class ViewerRenderer {
 
     /// 構成済みの描画面を受け取り、この型の状態と結びつける。
     /// 自前で構成したホストが `makeSurface` と同じ状態へ揃えるための入口。
-    func adopt(
+    public func adopt(
         _ surface: any RenderSurface, initialZoom: Double,
         findOptionsPreference: FindOptionsPreference?
     ) {
@@ -202,8 +169,14 @@ public final class ViewerRenderer {
     }
 
     /// makeSurface で登録した postMessage ハンドラを解除する。
-    public func dismantle(_ surface: any RenderSurface) {
-        (surface as? WebKitRenderSurface)?.dismantle(features: rendererFeatures)
+    ///
+    /// 面の実装型で分岐しない（TASK-599）。引数を取らず自分の `surface` を使うのは、
+    /// 解除すべき面が「いま結びついている面」に他ならないため——呼び出し側が別の面を
+    /// 渡せる形にすると、登録した面と解除する面がずれる余地が残る。
+    public func dismantle() {
+        surface?.removeMessageHandlers(
+            named: ViewerWebViewFactory.messageHandlerNames(for: rendererFeatures)
+        )
     }
 
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。

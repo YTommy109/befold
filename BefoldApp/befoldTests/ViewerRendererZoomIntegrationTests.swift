@@ -115,7 +115,7 @@ struct ViewerRendererZoomIntegrationTests {
     @Test("同じ倍率を流し込んでも再適用はしない")
     func doesNotReapplyIdenticalZoom() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeSurface(initialZoom: 1.25, findOptionsPreference: nil)
+        _ = WebKitRenderSurface.make(for: renderer, initialZoom: 1.25, findOptionsPreference: nil)
         await waitUntilReady(renderer)
         #expect(renderer.pageZoom.applied == 1.25)
 

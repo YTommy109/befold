@@ -43,9 +43,48 @@ public final class WebKitRenderSurface: RenderSurface {
         return surface
     }
 
-    /// `make` で登録した postMessage ハンドラを解除する。
-    func dismantle(features: RendererFeatures) {
-        ViewerWebViewFactory.dismantle(webView, features: features)
+    /// レンダラと結びついた描画面を構成して返す。**構成経路はこれ 1 本。**
+    ///
+    /// 実体の NSView を要るホスト（`NSViewRepresentable` の `makeNSView`、QuickLook の
+    /// プレビュー）が使う。戻り値が具体型なので降格が要らず、失敗しうる経路が無い
+    /// （TASK-599 以前はアプリ側で `as?` に失敗したら `preconditionFailure` していた）。
+    ///
+    /// この入口を `ViewerRenderer` ではなくこちらへ置くことで、`ViewerRenderer` は
+    /// WKWebView を知らないままでいられる。
+    @MainActor
+    public static func make(
+        for renderer: ViewerRenderer,
+        initialZoom: Double,
+        findOptionsPreference: FindOptionsPreference?,
+        codeFontFamily: String? = nil,
+        codeFontSizePoints: Double? = nil,
+        csvGrouping: Bool = true,
+        csvNegativeStyle: CsvNegativeStyle = .plain,
+        headingJumpLevels: HeadingJumpLevels = .default
+    ) -> WebKitRenderSurface {
+        let surface = make(
+            options: renderer.surfaceOptions(
+                initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
+                codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
+                csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
+                headingJumpLevels: headingJumpLevels
+            ),
+            eventHandler: renderer.surfaceEventBridge
+        )
+        renderer.adopt(
+            surface, initialZoom: initialZoom, findOptionsPreference: findOptionsPreference
+        )
+        return surface
+    }
+
+    public func applyRemoteLoadPolicy(then completion: @escaping () -> Void) {
+        RemoteLoadBlocker.apply(to: webView, then: completion)
+    }
+
+    public func removeMessageHandlers(named names: [String]) {
+        for name in names {
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: name)
+        }
     }
 
     public func evaluateScript(_ script: String, completion: ((Error?) -> Void)?) {

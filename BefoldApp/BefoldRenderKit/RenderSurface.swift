@@ -65,6 +65,25 @@ public protocol RenderSurface: AnyObject {
     /// 入れ直す（viewer.html は mermaid.js のため JS 必須）。
     var isContentJavaScriptEnabled: Bool { get set }
 
+    /// リモート読み込みの遮断ポリシーを適用し、終わったら `completion` を呼ぶ。
+    ///
+    /// **この操作を境界に出しているのは、適用を無条件にするため。** 以前は
+    /// 「WebKit 実装だったら適用する」という形で、実装型が変わると遮断が黙って
+    /// 外れた（TASK-599）。ここに置けば、新しい描画エンジンは実装しないと
+    /// コンパイルが通らない——空実装を書くのは意図的な選択として残り、
+    /// 「気づかず外れる」経路が消える。
+    ///
+    /// 適用に失敗しても `completion` は必ず呼ぶこと。握り潰すとビューアが空のまま
+    /// 何も表示されない状態になり、「外部画像が出る」より重い故障になる。
+    func applyRemoteLoadPolicy(then completion: @escaping () -> Void)
+
+    /// 名前つきの postMessage ハンドラを取り外す。
+    ///
+    /// 面を捨てるときの後始末。`applyRemoteLoadPolicy` と同じ理由で境界に置いてある
+    /// （実装型への downcast にすると、解除が黙って行われない形になる）。
+    /// 名前で受けるのは、どのハンドラを登録したかを決めるのが呼び出し側だから。
+    func removeMessageHandlers(named names: [String])
+
     /// 背景の描画を文書側に委ねるか。
     ///
     /// 直接 HTML モードで外部文書が背景ごと所有する場合に true。viewer.html を

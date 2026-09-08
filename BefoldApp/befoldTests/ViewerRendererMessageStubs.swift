@@ -10,11 +10,9 @@ enum ViewerRendererMessageStubs {
     /// 統合テスト（実 JS の実行・KVC の読み出し）だけがこれを使う。
     @MainActor
     static func makeWebView(with renderer: ViewerRenderer) -> WKWebView {
-        let surface = renderer.makeSurface(initialZoom: 1.0, findOptionsPreference: nil)
-        guard let webView = (surface as? WebKitRenderSurface)?.webView else {
-            fatalError("makeSurface が WebKit 実装以外を返した")
-        }
-        return webView
+        WebKitRenderSurface.make(
+            for: renderer, initialZoom: 1.0, findOptionsPreference: nil
+        ).webView
     }
 
     /// **WKWebView 実体を作らない描画面**（TASK-595.1）。
@@ -61,6 +59,21 @@ enum ViewerRendererMessageStubs {
 
         func setDocumentOwnsCanvas(_ documentOwns: Bool) {
             documentOwnsCanvasHistory.append(documentOwns)
+        }
+
+        /// 遮断ポリシーの適用が何回呼ばれたか。**呼ばれていないことを検知する**ために
+        /// 数える（TASK-599 で「WebKit 実装でなければ適用しない」形を潰した担保）。
+        private(set) var remoteLoadPolicyApplications = 0
+
+        func applyRemoteLoadPolicy(then completion: @escaping () -> Void) {
+            remoteLoadPolicyApplications += 1
+            completion()
+        }
+
+        private(set) var removedMessageHandlerNames: [String] = []
+
+        func removeMessageHandlers(named names: [String]) {
+            removedMessageHandlerNames.append(contentsOf: names)
         }
     }
 
