@@ -52,7 +52,7 @@ struct ViewerReadinessGateTests {
     func navigationFailureKeepsPendingRender() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         renderer.directHTML.simulateForTesting(
             active: true, lastPath: URL(fileURLWithPath: "/tmp/task446-direct.html")
         )

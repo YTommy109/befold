@@ -31,7 +31,7 @@ struct ViewerCanvasOwnershipTests {
     func enterHandsCanvasToDocument() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         ViewerWebViewFactory.setDocumentOwnsCanvas(false, on: webView)
 
         let url = URL(fileURLWithPath: "/tmp/task511-enter.html")
@@ -52,7 +52,7 @@ struct ViewerCanvasOwnershipTests {
     func exitRestoresTransparentCanvas() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         ViewerWebViewFactory.setDocumentOwnsCanvas(true, on: webView)
 
         renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}

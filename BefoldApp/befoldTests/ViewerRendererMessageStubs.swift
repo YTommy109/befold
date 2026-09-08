@@ -1,10 +1,22 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import Foundation
+import WebKit
 
 /// JS → Swift の postMessage 経路を検証するテストで共有するスタブ群。
 /// ViewerRendererMessageHandlingTests と ViewerRendererResolveReferencesTests の双方から使う。
 enum ViewerRendererMessageStubs {
+    /// `makeSurface` の戻りから実体の WKWebView を取り出す。実 WebView を要る
+    /// 統合テスト（実 JS の実行・KVC の読み出し）だけがこれを使う。
+    @MainActor
+    static func makeWebView(with renderer: ViewerRenderer) -> WKWebView {
+        let surface = renderer.makeSurface(initialZoom: 1.0, findOptionsPreference: nil)
+        guard let webView = (surface as? WebKitRenderSurface)?.webView else {
+            fatalError("makeSurface が WebKit 実装以外を返した")
+        }
+        return webView
+    }
+
     /// **WKWebView 実体を作らない描画面**（TASK-595.1）。
     ///
     /// `RenderSurface` は「この層が描画面へ送る操作」だけを持つので、記録する

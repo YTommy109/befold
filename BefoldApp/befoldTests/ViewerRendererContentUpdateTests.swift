@@ -22,7 +22,7 @@ struct ViewerRendererContentUpdateTests {
     func directHTMLExitDiscardsEntireMirror() {
         let renderer = ViewerRenderer()
         let webView = WKWebView()
-        renderer.webView = webView
+        renderer.surface = WebKitRenderSurface(webView)
         renderer.recordRendered(RenderedStateMirror(
             contentRevision: 3,
             fileType: .markdown,
@@ -42,7 +42,7 @@ struct ViewerRendererContentUpdateTests {
     @MainActor
     func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {
         let renderer = ViewerRenderer()
-        renderer.webView = WKWebView()
+        renderer.surface = WebKitRenderSurface(WKWebView())
         renderer.readiness.markReady()
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-same-a.md")

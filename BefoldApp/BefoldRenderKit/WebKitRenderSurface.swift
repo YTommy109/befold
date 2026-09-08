@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 import WebKit
 
@@ -17,6 +18,34 @@ public final class WebKitRenderSurface: RenderSurface {
 
     public init(_ webView: WKWebView) {
         self.webView = webView
+    }
+
+    /// 描画面を構成して返す。**WKWebView を作る唯一の入口。**
+    ///
+    /// 構成の中身（configuration・user script の注入・postMessage ハンドラの登録・
+    /// コンテンツルールリストの適用）は `ViewerWebViewFactory` が持つ。あちらを
+    /// この型へ物理的に畳まないのは、責務が 4 つある 330 行の型になり、型を小さく
+    /// 保つ方針と逆になるため。**閉じているのは入口**で、上の層は
+    /// `WebKitRenderSurface` しか呼ばない。
+    ///
+    /// 生成した面には viewer.html まで読み込ませて返す（呼び出し側が読み込みを
+    /// 忘れた面を配れないようにするため）。
+    static func make(
+        options: ViewerWebViewFactory.Options,
+        eventHandler: WebKitSurfaceEventBridge
+    ) -> WebKitRenderSurface {
+        let webView = ViewerWebViewFactory.makeWebView(
+            options: options, messageHandler: eventHandler
+        )
+        webView.navigationDelegate = eventHandler
+        let surface = WebKitRenderSurface(webView)
+        ViewerWebViewFactory.loadViewerHTML(into: surface)
+        return surface
+    }
+
+    /// `make` で登録した postMessage ハンドラを解除する。
+    func dismantle(features: RendererFeatures) {
+        ViewerWebViewFactory.dismantle(webView, features: features)
     }
 
     public func evaluateScript(_ script: String, completion: ((Error?) -> Void)?) {

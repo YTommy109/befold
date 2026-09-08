@@ -52,7 +52,12 @@ public final class OneShotRenderer {
     /// 直近に構成した WebView。内包するレンダラが保持し続けていること
     /// (描画完了前に解放されないこと)をテストから確認するためのもの。
     var webView: WKWebView? {
-        renderer.webView
+        (renderer.surface as? WebKitRenderSurface)?.webView
+    }
+
+    /// 直近に構成した描画面。内部の描画はこちらを通す。
+    private var surface: (any RenderSurface)? {
+        renderer.surface
     }
 
     public init(features: RendererFeatures = .allEnabled) {
@@ -132,21 +137,28 @@ public final class OneShotRenderer {
         )
         let render = Self.render(from: outcome, url: url, fileType: resolvedFileType)
 
-        let webView = renderer.makeWebView(initialZoom: initialZoom, findOptionsPreference: nil)
+        // ホスト（QuickLook 拡張）がプレビューへ埋め込む NSView を返す必要があるため、
+        // ここは実装型を保ったまま構成する。Kit の内側の描画は surface 越しに行う。
+        let surface = WebKitRenderSurface.make(
+            options: renderer.surfaceOptions(
+                initialZoom: initialZoom, findOptionsPreference: nil
+            ),
+            eventHandler: renderer.surfaceEventBridge
+        )
+        renderer.adopt(surface, initialZoom: initialZoom, findOptionsPreference: nil)
         // QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で
         // 描くが、外部の HTML 文書であることは変わらないので canvas は文書に所有させる
         // (透過のままだと子文書の color-scheme 宣言が届かない。setDocumentOwnsCanvas 参照)。
         // renderOnce は常に isSourceMode: false で描画する。
-        ViewerWebViewFactory.setDocumentOwnsCanvas(
+        surface.setDocumentOwnsCanvas(
             ViewerWebViewFactory.documentOwnsCanvas(
                 fileType: resolvedFileType, isSourceMode: false
-            ),
-            on: webView
+            )
         )
         if render.rejectReason == nil {
-            await renderOnce(webView: webView, render: render)
+            await renderOnce(surface: surface, render: render)
         }
-        return OneShotResult(webView: webView, rejectReason: render.rejectReason)
+        return OneShotResult(webView: surface.webView, rejectReason: render.rejectReason)
     }
 
     /// viewer.html のロード完了を待ってから 1 回だけ描画し、その完了までを await する。
@@ -154,7 +166,7 @@ public final class OneShotRenderer {
     /// 差分判定用の rendered ミラー)は使わない。1 回しか描画しないため差分判定が不要で、
     /// かつ描画完了を待つには render() の返す Promise を callAsyncJavaScript で
     /// 受け取る必要があるため、専用の一本道にしている。
-    private func renderOnce(webView: WKWebView, render: OneShotRender) async {
+    private func renderOnce(surface: any RenderSurface, render: OneShotRender) async {
         guard let script = ViewerBridge.awaitRenderScript(
             content: RenderableContent.make(
                 render.content, fileType: render.fileType,
@@ -173,21 +185,16 @@ public final class OneShotRenderer {
 
             // viewer.html のロード完了を待つゲートは既存の pendingUpdate をそのまま使う
             // (didFinish / ナビゲーション失敗のどちらでも必ず呼ばれる)。
-            let evaluate: @MainActor () -> Void = { [weak webView] in
+            let evaluate: @MainActor () -> Void = { [weak self] in
                 _ = Task { @MainActor in
-                    guard let webView else {
+                    guard let surface = self?.surface else {
                         completion.finish()
                         return
                     }
                     if render.truncation.isTruncated {
-                        // async 文脈では completionHandler 版を明示しないと throwing/async の
-                        // オーバーロードが選ばれてしまうため、nil を明示して同期版へ固定する。
-                        webView.evaluateJavaScript(
-                            render.truncation.script,
-                            completionHandler: nil
-                        )
+                        surface.evaluateScript(render.truncation.script, completion: nil)
                     }
-                    _ = try? await webView.callAsyncJavaScript(script, in: nil, contentWorld: .page)
+                    _ = try? await surface.callScript(script)
                     completion.finish()
                 }
             }

@@ -38,7 +38,7 @@ struct ViewerRendererZoomIntegrationTests {
     func appliesZoomDecidedAfterCreation() async {
         let renderer = ViewerRenderer()
         // 生成時点では対象ファイルが未確定で、既定倍率しか渡せない状況を再現する。
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
 
         // 対象が確定して保存倍率が判明した(updateNSView が値を流し込んだ)状態。
         renderer.initialPageZoom = 1.5
@@ -58,7 +58,7 @@ struct ViewerRendererZoomIntegrationTests {
     @Test("倍率は代入では当たらず、次に描かれるときに当たる")
     func appliesZoomWhenTheDocumentIsRendered() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         renderer.isVisible = true
         await waitUntilReady(renderer)
         #expect(renderer.pageZoom.applied == 1.0)
@@ -86,7 +86,7 @@ struct ViewerRendererZoomIntegrationTests {
     @Test("内容に差が無い更新では倍率を当てない")
     func doesNotApplyZoomWhenNothingIsRedrawn() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         renderer.isVisible = true
         await waitUntilReady(renderer)
         let file = URL(fileURLWithPath: "/files/a.md")
@@ -115,7 +115,7 @@ struct ViewerRendererZoomIntegrationTests {
     @Test("同じ倍率を流し込んでも再適用はしない")
     func doesNotReapplyIdenticalZoom() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.25, findOptionsPreference: nil)
+        _ = renderer.makeSurface(initialZoom: 1.25, findOptionsPreference: nil)
         await waitUntilReady(renderer)
         #expect(renderer.pageZoom.applied == 1.25)
 

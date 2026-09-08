@@ -43,7 +43,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("直接HTMLモード離脱の再ロード中にupdateContentが再発火しても最終的に描画される")
     func directHTMLExitSurvivesRaceDuringReload() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-race-a.md")
@@ -91,7 +91,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("画像埋め込みでの中断中は差分を「反映済み」として先行確定しない")
     func diffStateIsNotConfirmedBeforeRender() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let dir = URL(fileURLWithPath: "/tmp/task334-diff")
@@ -154,7 +154,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("中断された描画は表示オプションを JS へ送り残さない")
     func abortedRenderDoesNotLeaveOptionsInJS() async throws {
         let renderer = ViewerRenderer()
-        let webView = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        let webView = ViewerRendererMessageStubs.makeWebView(with: renderer)
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let markdownURL = URL(fileURLWithPath: "/tmp/task336-abort/doc.md")
@@ -220,7 +220,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("画像埋め込みが遅延した古いupdateContentの結果は新しい呼び出しを上書きしない")
     func staleImageEmbedDoesNotClobberNewerRender() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let dir = URL(fileURLWithPath: "/tmp/task224-race")
@@ -263,10 +263,14 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("makeWebView がコードフォント設定をロード前スクリプトへ注入する")
     func makeWebViewInjectsCodeFontScripts() {
         let renderer = ViewerRenderer()
-        let webView = renderer.makeWebView(
+        let surface = renderer.makeSurface(
             initialZoom: 1.0, findOptionsPreference: nil,
             codeFontFamily: "Menlo", codeFontSizePoints: 14
         )
+        guard let webView = (surface as? WebKitRenderSurface)?.webView else {
+            Issue.record("makeSurface が WebKit 実装以外を返した")
+            return
+        }
 
         let sources = webView.configuration.userContentController.userScripts.map(\.source)
 
@@ -281,7 +285,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     @Test("差分が未確定の間は前の描画を保持し、確定後に一度で差分付きへ遷移する")
     func pendingDiffHoldsPreviousFrameUntilResolved() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeWebView(initialZoom: 1.0, findOptionsPreference: nil)
+        _ = ViewerRendererMessageStubs.makeWebView(with: renderer)
         await Self.waitForWebViewLoad { renderer.readiness.isReady }
         let url = URL(fileURLWithPath: "/tmp/task407-hold/doc.md")
         let update = { (isSourceMode: Bool) in
