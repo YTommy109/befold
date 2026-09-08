@@ -107,7 +107,8 @@ struct SurfaceReadinessGateTests {
     @MainActor
     func readinessOpensWithoutSurface() {
         let renderer = ViewerRenderer()
-        // surface は入れない（makeSurface / adopt の前に didFinish が届いた状況）。
+        // surface は入れない（`WebKitRenderSurface.make(for:…)` の adopt より前に
+        // didFinish が届いた状況）。
         #expect(renderer.surface == nil)
 
         var didRender = false

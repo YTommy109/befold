@@ -11,8 +11,9 @@ import WebKit
 /// WKWebView 参照を包むだけで、自前の状態は持たない。参照型にしてあるのは
 /// `zoom` / `isContentJavaScriptEnabled` が `any RenderSurface` 越しに代入される
 /// ため（値型だとコピーへの代入になり、optional chain 越しでは代入自体が書けない）。
-/// 生成は `ViewerRenderer.webView` の setter 1 箇所だけで、そこが唯一の状態
-/// （`surface`）を更新する。
+/// この型を作るのは `make(for:…)` と、テストが面を差し替える場合の直接生成だけ。
+/// レンダラ側の状態（`ViewerRenderer.surface`）を更新するのは `ViewerRenderer.adopt`
+/// で、`make(for:…)` がその中から呼ぶ。
 public final class WebKitRenderSurface: RenderSurface {
     public let webView: WKWebView
 
@@ -20,13 +21,14 @@ public final class WebKitRenderSurface: RenderSurface {
         self.webView = webView
     }
 
-    /// 描画面を構成して返す。**WKWebView を作る唯一の入口。**
+    /// 描画面を構成して返す。**構成済みの面を得る唯一の入口。**
     ///
-    /// 構成の中身（configuration・user script の注入・postMessage ハンドラの登録・
-    /// コンテンツルールリストの適用）は `ViewerWebViewFactory` が持つ。あちらを
-    /// この型へ物理的に畳まないのは、責務が 4 つある 330 行の型になり、型を小さく
-    /// 保つ方針と逆になるため。**閉じているのは入口**で、上の層は
-    /// `WebKitRenderSurface` しか呼ばない。
+    /// `WKWebView` そのものを組み立てるのは `ViewerWebViewFactory`（configuration・
+    /// user script の注入・postMessage ハンドラの登録）で、生成をそこ 1 箇所に限る規約は
+    /// `.swiftlint.yml` の `webview_creation_outside_webkit_layer` が守っている。
+    /// この 2 つは別のことを言っている——**組み立ての置き場が factory、呼び出し側から
+    /// 見た入口がここ**。factory をこの型へ物理的に畳まないのは、責務が 4 つある
+    /// 330 行の型になり、型を小さく保つ方針と逆になるため。
     ///
     /// 生成した面には viewer.html まで読み込ませて返す（呼び出し側が読み込みを
     /// 忘れた面を配れないようにするため）。

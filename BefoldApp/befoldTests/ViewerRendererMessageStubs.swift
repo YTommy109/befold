@@ -6,7 +6,7 @@ import WebKit
 /// JS → Swift の postMessage 経路を検証するテストで共有するスタブ群。
 /// ViewerRendererMessageHandlingTests と ViewerRendererResolveReferencesTests の双方から使う。
 enum ViewerRendererMessageStubs {
-    /// `makeSurface` の戻りから実体の WKWebView を取り出す。実 WebView を要る
+    /// 構成済みの面から実体の WKWebView を取り出す。実 WebView を要る
     /// 統合テスト（実 JS の実行・KVC の読み出し）だけがこれを使う。
     @MainActor
     static func makeWebView(with renderer: ViewerRenderer) -> WKWebView {

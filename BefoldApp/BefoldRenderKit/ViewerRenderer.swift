@@ -66,7 +66,8 @@ public final class ViewerRenderer {
     /// 置かない(受け口をここ 1 つに限る)。
     private(set) lazy var navigationCoordinator = ViewerNavigationCoordinator(renderer: self)
     /// WebKit のコールバックを上の 2 つへ翻訳する唯一の場所（TASK-595.2）。
-    /// makeWebView が navigationDelegate と postMessage ハンドラの両方にこれを設定する。
+    /// `WebKitRenderSurface.make` が navigationDelegate と postMessage ハンドラの
+    /// 両方にこれを設定する。
     /// **強参照で保持する。** navigationDelegate は weak、postMessage ハンドラは
     /// WeakScriptMessageHandler 越しなので、ここが手放すと誰も持たなくなる。
     private(set) lazy var surfaceEventBridge = WebKitSurfaceEventBridge(
@@ -139,9 +140,9 @@ public final class ViewerRenderer {
 
     public init() {}
 
-    /// 描画面へ焼き込む値を組み立てる。`makeSurface` と、実体の WKWebView を必要とする
-    /// ホスト（`OneShotRenderer`）の両方が使う。**組み立ての規則をここ 1 箇所に置く**ため
-    /// 切り出してあり、ホストごとに違う値が焼かれる経路を作らない。
+    /// 描画面へ焼き込む値を組み立てる。`WebKitRenderSurface.make(for:…)` が使う。
+    /// **組み立ての規則をここ 1 箇所に置く**ため切り出してあり、ホストごとに違う値が
+    /// 焼かれる経路を作らない。
     func surfaceOptions(
         initialZoom: Double, findOptionsPreference: FindOptionsPreference?,
         codeFontFamily: String? = nil, codeFontSizePoints: Double? = nil,
@@ -158,7 +159,8 @@ public final class ViewerRenderer {
     }
 
     /// 構成済みの描画面を受け取り、この型の状態と結びつける。
-    /// 自前で構成したホストが `makeSurface` と同じ状態へ揃えるための入口。
+    /// `WebKitRenderSurface.make(for:…)` がこれを呼ぶ。**`surface` を書く経路はここと、
+    /// テストが面を差し替える直接代入の 2 つだけ。**
     public func adopt(
         _ surface: any RenderSurface, initialZoom: Double,
         findOptionsPreference: FindOptionsPreference?
@@ -168,7 +170,7 @@ public final class ViewerRenderer {
         self.surface = surface
     }
 
-    /// makeSurface で登録した postMessage ハンドラを解除する。
+    /// `WebKitRenderSurface.make(for:…)` が登録した postMessage ハンドラを解除する。
     ///
     /// 面の実装型で分岐しない（TASK-599）。引数を取らず自分の `surface` を使うのは、
     /// 解除すべき面が「いま結びついている面」に他ならないため——呼び出し側が別の面を

@@ -185,9 +185,14 @@ public final class OneShotRenderer {
 
             // viewer.html のロード完了を待つゲートは既存の pendingUpdate をそのまま使う
             // (didFinish / ナビゲーション失敗のどちらでも必ず呼ばれる)。
-            let evaluate: @MainActor () -> Void = { [weak self] in
+            // **その回の面を捕まえる。** `self?.surface` を読み直すと、同じ
+            // OneShotRenderer で `load` が 2 回呼ばれたとき、1 回目の飛行中の評価が
+            // 2 回目の面へ当たる（`load` は public で、PreviewViewController は
+            // コントローラを再利用しうる）。weak なのは、面が捨てられた後まで
+            // 生かさないため（旧実装の `[weak webView]` と同じ意図）。
+            let evaluate: @MainActor () -> Void = { [weak surface] in
                 _ = Task { @MainActor in
-                    guard let surface = self?.surface else {
+                    guard let surface else {
                         completion.finish()
                         return
                     }
