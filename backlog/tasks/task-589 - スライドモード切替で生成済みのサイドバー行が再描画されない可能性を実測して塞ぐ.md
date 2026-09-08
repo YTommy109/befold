@@ -4,10 +4,11 @@ title: スライドモード切替で生成済みのサイドバー行が再描�
 status: Done
 assignee: []
 created_date: '2026-09-05 02:48'
-updated_date: '2026-09-06 09:40'
+updated_date: '2026-09-08 11:44'
 labels:
   - sidebar
   - slide-mode
+  - wontfix
 dependencies: []
 priority: medium
 type: bug
