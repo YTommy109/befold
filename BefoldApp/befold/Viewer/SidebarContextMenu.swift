@@ -16,6 +16,15 @@ struct SidebarContextMenu: View {
     /// 行操作の受け手。ウィンドウ側が保持するため弱参照で持つ。
     weak var delegate: FileListViewDelegate?
 
+    /// **delegate は必須引数(TASK-590)。** `FileListView` / `SidebarHeaderView` と同じ
+    /// 理由で、memberwise init の暗黙 `= nil` を残さない。弱参照の写しを受けるため
+    /// 型は optional だが、既定値は置かない。
+    init(entry: FileListEntry, model: FileListModel, delegate: FileListViewDelegate?) {
+        self.entry = entry
+        self.model = model
+        self.delegate = delegate
+    }
+
     var body: some View {
         Group {
             Button(String(localized: "sidebar.context.copy", bundle: .l10n)) {

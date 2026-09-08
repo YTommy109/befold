@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-04 13:41'
-updated_date: '2026-09-05 02:48'
+updated_date: '2026-09-08 10:10'
 labels: []
 dependencies: []
 ordinal: 851000
@@ -26,7 +26,7 @@ FileListView / SidebarHeaderView が親から受け取る注入クロージャ�
 - [x] #1 FileListView / SidebarHeaderView の表示切り替え用の注入クロージャが 3 本以下になっている
 - [x] #2 切り替えは FileListViewDelegate 経由で受け、種別は列挙型の引数で表す（切り替えを 1 つ足すたびにプロトコルのメソッドが増えない）
 - [x] #3 ViewerWindowAssembler から controller の弱キャプチャを伴うトグル用クロージャが消えている
-- [x] #4 既存のサイドバー操作のテストが通り、スライドモード・不可視ファイル・変更のみ・ツリー表示・並び順の 5 つがすべて delegate 経由で動くことをテストが確認している
+- [x] #4 既存のサイドバー操作のテストが通り、表示切り替え 4 種(不可視ファイル・変更のみ・ツリー表示・並び順)が delegate 経由で動くことをテストが確認している。ボタン Kind → SidebarDisplayChange の対応表ごとの担保(ヘッダーのボタン側も含む)は TASK-590 で足した
 <!-- AC:END -->
 
 ## Implementation Plan

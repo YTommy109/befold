@@ -8,6 +8,14 @@ struct FileListView: View {
     /// ウィンドウ側(ViewerWindowController)が保持するため弱参照で持つ。
     weak var delegate: FileListViewDelegate?
 
+    /// **delegate は必須引数(TASK-590)。** memberwise init に任せると `weak var` の
+    /// 暗黙 `= nil` で `FileListView(model:)` がコンパイルも描画も通り、行操作も
+    /// 表示切り替えもすべて捨てられる。渡し忘れをコンパイルエラーにする。
+    init(model: FileListModel, delegate: FileListViewDelegate) {
+        self.model = model
+        self.delegate = delegate
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SidebarHeaderView(model: model, delegate: delegate)

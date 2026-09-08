@@ -23,6 +23,15 @@ struct SidebarHeaderView: View {
 
     @FocusState private var isFilterFieldFocused: Bool
 
+    /// **delegate は必須引数(TASK-590)。** memberwise init に任せると `weak var` の
+    /// 暗黙 `= nil` で `SidebarHeaderView(model:)` が通り、すべてのトグルが「押しても
+    /// 何も起きないボタン」へ静かに倒れる。`FileListView` の弱参照の写しを受けるため
+    /// 型は optional だが、既定値は置かない。
+    init(model: FileListModel, delegate: FileListViewDelegate?) {
+        self.model = model
+        self.delegate = delegate
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             baseDirectoryIndicator
@@ -85,15 +94,30 @@ struct SidebarHeaderView: View {
         }
     }
 
+    /// 対応表を持つメソッドをそのまま渡す。**ここで包みクロージャを書かない**——
+    /// 包むとテストの通らない場所に配線が戻る(TASK-590)。
     private func headerControls(placement: SidebarHeaderControls.Placement) -> some View {
         SidebarHeaderControls(
             controls: controls,
             placement: placement,
-            onToggleLayoutMode: { perform(.toggleLayoutMode) },
-            onToggleChangedFilesOnly: { perform(.toggleChangedFilesOnly) },
-            onToggleFilter: toggleFilter,
+            onSelectControl: selectControl,
             onSelectOverflowItem: selectOverflowItem
         )
+    }
+
+    /// ヘッダーのボタン Kind → 動作の対応表。**ボタンの中に分岐を書かない**——
+    /// ボタンを足したときに配線漏れが起きたかどうかを、この表のテスト
+    /// (`SidebarDisplayChangeRoutingTests`)で測れる。テストから呼べるよう internal。
+    func selectControl(_ kind: SidebarHeaderControl.Kind) {
+        switch kind {
+        case .layoutMode: perform(.toggleLayoutMode)
+        case .changedFilesOnly: perform(.toggleChangedFilesOnly)
+        // 名前フィルターは delegate へ上げない。一覧の絞り込みは窓の一時状態で、
+        // 表示 4 値(SidebarDisplayDefaults)には属さない。
+        case .filter: toggleFilter()
+        // ⋯ は Menu が自前で開き、項目の選択は selectOverflowItem が受ける。
+        case .overflow: break
+        }
     }
 
     private func toggleFilter() {
@@ -104,7 +128,8 @@ struct SidebarHeaderView: View {
         }
     }
 
-    private func selectOverflowItem(_ kind: SidebarOverflowItem.Kind) {
+    /// ⋯ メニューの項目 Kind → 動作。テストから呼べるよう internal。
+    func selectOverflowItem(_ kind: SidebarOverflowItem.Kind) {
         perform(Self.displayChange(for: kind))
     }
 
@@ -119,8 +144,8 @@ struct SidebarHeaderView: View {
         }
     }
 
-    /// 表示切り替えを delegate へ配る唯一の口。テストから呼べるよう internal。
-    func perform(_ change: SidebarDisplayChange) {
+    /// 表示切り替えを delegate へ配る唯一の口。
+    private func perform(_ change: SidebarDisplayChange) {
         delegate?.fileListDidRequestDisplayChange(change)
     }
 }
