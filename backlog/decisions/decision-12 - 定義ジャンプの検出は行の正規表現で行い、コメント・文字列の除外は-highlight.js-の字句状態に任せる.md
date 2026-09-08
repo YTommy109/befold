@@ -1,5 +1,5 @@
 ---
-id: decision-11
+id: decision-12
 title: 定義ジャンプの検出は行の正規表現で行い、コメント・文字列の除外は highlight.js の字句状態に任せる
 date: '2026-08-23 16:28'
 status: accepted
