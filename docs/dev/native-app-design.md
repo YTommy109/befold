@@ -53,6 +53,32 @@ BefoldQuickLook.appex (QuickLook 拡張)
 同一プロセス内の伝搬で反映する（詳細は
 [ビューア描画データフロー](./viewer-rendering-dataflow.md#監視--store--webview--js-の一気通貫)）。
 
+### `BefoldKit` はプラットフォーム非依存に保つ
+
+`BefoldKit` は本体アプリ・QuickLook 拡張・CLI の 3 つが共有するコアロジック層で、
+**AppKit / SwiftUI / WebKit を import しない**。UI フレームワークが要る処理は
+`BefoldRenderKit` か `befold` へ置く。依存は 1 つ入るたびに外すコストが上がるため、
+「気をつける」ではなく import の一覧そのものを固定する。
+
+前例は `OpenDisposition`（TASK-594）。修飾キーと「開き方」の対応表そのものは
+`BefoldKit/OpenDisposition.swift` の `OpenDisposition(commandKey:shiftKey:)` に閉じたまま、
+`NSEvent.ModifierFlags` からの変換だけを `BefoldRenderKit/OpenDisposition+NSEvent.swift` の
+`OpenDisposition(modifiers:)` が担う。判定規則を 2 箇所に分けずに、依存だけを上の層へ寄せる形。
+置き場が `BefoldRenderKit` なのは、呼び出し元が同ターゲットの `DirectHTMLLinkPolicy` と
+上位の `befold` の `FileListView` の両方にあり、依存が
+`befold → BefoldRenderKit → BefoldKit` の一方向なので両方から見える最下層がそこになるため。
+
+破れないよう `scripts/check-befoldkit-platform-free.sh` が担保する（pre-commit と CI の両方。
+pre-commit は `scripts/setup-git-hooks.sh` を実行したクローンにしか入らないので、
+CI 側が本命）。判定は **許可するモジュールの列挙**（allowlist）で行う。「AppKit が無いこと」を
+見る denylist だと、名前を挙げていない `Carbon` や `CoreGraphics` が素通りするため。
+`import class AppKit.NSEvent` のような修飾つき import も拾う（型 1 つだけ借りる形で
+依存が静かに戻る経路を塞ぐ）。
+
+現時点の許可一覧は `Foundation` / `CryptoKit` と、既知の例外である `PDFKit`。
+PDFKit は `BefoldKit/PDFDataProbe.swift` が `PDFDocument(data:)` の可否を
+PDF 読み取り可能性の唯一の判定に使っているもので、除去は TASK-598 に切り出してある。
+
 ### MainActor の外へ逃がす処理は `withBlockingWork` を通す
 
 git サブプロセスの起動・`stat`・ディレクトリ列挙・ファイル読み込みのように

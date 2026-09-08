@@ -9,6 +9,7 @@ on:
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
+      - 'scripts/check-befoldkit-platform-free.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -21,6 +22,7 @@ on:
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
+      - 'scripts/check-befoldkit-platform-free.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -75,7 +77,7 @@ jobs:
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-befoldkit-platform-free\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -104,6 +106,13 @@ jobs:
         run: |
           scripts/check-no-detached-blocking.sh --self-test
           scripts/check-no-detached-blocking.sh
+
+      # pre-commit は scripts/setup-git-hooks.sh を実行したクローンにしか入らないため、
+      # BefoldKit のプラットフォーム非依存は CI 側でも見る(TASK-594)。
+      - name: BefoldKit がプラットフォーム依存を import していないことを検査する
+        run: |
+          scripts/check-befoldkit-platform-free.sh --self-test
+          scripts/check-befoldkit-platform-free.sh
 
       # 終了コード 2 は「不要になった恒久例外が残っている」。判定が緩むのはその 1 グループ
       # だけで、返済した側を赤くするのは筋が悪いのでここでは落とさず警告に留める。

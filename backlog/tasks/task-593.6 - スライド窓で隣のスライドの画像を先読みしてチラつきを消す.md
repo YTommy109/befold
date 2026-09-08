@@ -4,10 +4,11 @@ title: スライド窓で隣のスライドの画像を先読みしてチラつ�
 status: Done
 assignee: []
 created_date: '2026-09-06 11:42'
-updated_date: '2026-09-06 13:38'
+updated_date: '2026-09-08 11:44'
 labels:
   - slide-mode
   - performance
+  - wontfix
 dependencies: []
 parent_task_id: TASK-593
 priority: medium
