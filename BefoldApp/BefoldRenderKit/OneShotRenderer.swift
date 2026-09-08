@@ -1,4 +1,5 @@
 import BefoldKit
+import BefoldPDFProbe
 import WebKit
 
 /// ViewerLoadPipeline.Outcome を初回描画に必要な値へ写した静的スナップショット。
@@ -119,11 +120,13 @@ public final class OneShotRenderer {
     ) async -> OneShotResult {
         let resolvedFileType = fileType ?? FileType(url: url)
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url.resolvingSymlinksInPath(),
-            fileType: resolvedFileType,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            ViewerLoadPipeline.Inputs(
+                resolved: url.resolvingSymlinksInPath(),
+                fileType: resolvedFileType,
+                fileReader: fileReader,
+                chunkedReaderFactory: chunkedReaderFactory,
+                isPDFReadable: PDFDataProbe.isReadable
+            ),
             oneShotLoad: true,
             embedLocalImages: renderer.rendererFeatures.embedImages
         )

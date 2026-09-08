@@ -23,17 +23,11 @@ enum ViewerLoadStarter {
     ///
     /// - Parameter apply: 読み込み結果を表示へ渡す処理。MainActor 上で 1 回だけ呼ばれる。
     nonisolated static func start(
-        _ inputs: LoadInputs,
+        _ inputs: ViewerLoadPipeline.Inputs,
         apply: @escaping @MainActor (ViewerLoadPipeline.Outcome) -> Void
     ) -> Task<Void, Never> {
         Task {
-            let outcome = await ViewerLoadPipeline.load(
-                resolved: inputs.resolved,
-                fileType: inputs.fileType,
-                fileReader: inputs.fileReader,
-                contentLoader: inputs.contentLoader,
-                chunkedReaderFactory: inputs.chunkedReaderFactory
-            )
+            let outcome = await ViewerLoadPipeline.load(inputs)
             // キャンセルの確認は MainActor へ戻る前に行う。戻ってから見ると、
             // 閉じた窓の状態へ触りに行くぶんだけ無駄が増える。
             guard !Task.isCancelled else { return }

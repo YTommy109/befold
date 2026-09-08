@@ -65,6 +65,21 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.kit
       PRODUCT_NAME: BefoldKit
       GENERATE_INFOPLIST_FILE: true
+  # PDF の解釈(PDFDocument の生成)だけを持つ最小のフレームワーク。
+  # BefoldKit を Foundation だけで成立する層に保つため、PDFKit を要する判定を
+  # ここへ隔離する(TASK-598)。befold / BefoldCLI / BefoldRenderKit の 3 つが
+  # ViewerLoadPipeline.load へ probe を渡す必要があり、その 3 つ全部から見える
+  # 層は BefoldKit の隣にしか作れない(BefoldRenderKit へ置くと WebKit が CLI に
+  # 入り、BefoldCLI へ置くと ArgumentParser が appex に入る)。
+  BefoldPDFProbe:
+    type: framework
+    platform: macOS
+    sources:
+      - path: BefoldPDFProbe
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.pdfprobe
+      PRODUCT_NAME: BefoldPDFProbe
+      GENERATE_INFOPLIST_FILE: true
   BefoldRenderKit:
     type: framework
     platform: macOS
@@ -72,6 +87,7 @@ targets:
       - path: BefoldRenderKit
     dependencies:
       - target: BefoldKit
+      - target: BefoldPDFProbe
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.renderkit
       PRODUCT_NAME: BefoldRenderKit
@@ -83,6 +99,7 @@ targets:
       - path: BefoldCLI
     dependencies:
       - target: BefoldKit
+      - target: BefoldPDFProbe
       # コマンド定義（BefoldCLICommand / OpenCLIOptions）がこの framework にあるため、
       # ArgumentParser もここの依存になる（Package.swift 側と揃える / TASK-456）。
       - package: swift-argument-parser
@@ -101,6 +118,8 @@ targets:
           - BefoldQuickLook.entitlements
     dependencies:
       - target: BefoldKit
+        embed: false
+      - target: BefoldPDFProbe
         embed: false
       - target: BefoldRenderKit
         embed: false
@@ -150,6 +169,9 @@ targets:
         buildPhase: resources
     dependencies:
       - target: BefoldKit
+      # appex はこれを埋め込まず、本体アプリの Contents/Frameworks を rpath で辿る。
+      # ここで同梱が外れると QuickLook 拡張が dyld で静かに起動しなくなる。
+      - target: BefoldPDFProbe
       - target: BefoldRenderKit
       - target: BefoldCLI
       # CLI 実行ファイルを Contents/MacOS へ同梱する。CLIInstaller が設置する
@@ -208,6 +230,7 @@ targets:
     dependencies:
       - target: befold
       - target: BefoldKit
+      - target: BefoldPDFProbe
       - target: BefoldRenderKit
       - target: BefoldTestSupport
     settings:
@@ -226,6 +249,7 @@ targets:
     dependencies:
       - target: BefoldCLI
       - target: BefoldKit
+      - target: BefoldPDFProbe
       - target: BefoldTestSupport
     settings:
       GENERATE_INFOPLIST_FILE: true

@@ -63,6 +63,25 @@ custom_rules:
     message: "リポジトリを開くのは GitLibrary.withRepository(at:_:) だけ（ADR 0006）"
     severity: error
 
+  # PDF として開けるかの判定は 1 つの事実（`PDFDocument(data:)` が nil を返すか）に
+  # 保つ。読み込み側（拒否理由を決める）と表示側（`PDFView` へ渡す文書を作る）が
+  # 別々に判定すると「読み込みは通ったのに描画面は空白」という食い違いが生まれる
+  # （TASK-564.1 で `RejectReason.damagedDocument` を足した理由そのもの）。
+  # 入口は BefoldPDFProbe の `PDFDataProbe.isReadable` / `.makeDocument` の 2 つだけ。
+  # テストは fixture 生成で `PDFDocument()` を直接使うため対象外にしてある。
+  pdf_document_creation_outside_probe:
+    name: "PDFDataProbe 以外での PDFDocument 生成"
+    included: "BefoldApp/(befold|BefoldKit|BefoldCLI|BefoldRenderKit|BefoldQuickLook)/.*\\.swift$"
+    regex: 'PDFDocument\(data:'
+    # コメントで規約を説明するときに `PDFDocument(data:)` と書けるよう、
+    # 型名として現れた場合だけを見る（doc コメントで自分自身が鳴ると、
+    # 規約を書けなくなるか match_kinds 無しの回避策が常態化する）。
+    match_kinds:
+      - identifier
+      - typeidentifier
+    message: "PDF の解釈は PDFDataProbe を通す（BefoldPDFProbe/PDFDataProbe.swift・TASK-598）"
+    severity: error
+
   # 上限なしの `DispatchSemaphore.wait()` は、待つ間そのスレッドを協調スレッド
   # プールから外す。プール幅はコア数で決まるため、ローカル（10 コア）では表面化
   # せず、CI の macOS ランナー（3〜4 コア）で埋まり切るとテストプロセス全体が

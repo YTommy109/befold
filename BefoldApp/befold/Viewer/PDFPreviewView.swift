@@ -1,3 +1,4 @@
+import BefoldPDFProbe
 import PDFKit
 import SwiftUI
 
@@ -51,7 +52,7 @@ struct PDFPreviewView: NSViewRepresentable {
         // (TASK-574.1)。data が nil の間は文書を外す——残すと、別種別を見ている
         // 最中に PDF 面が古い文書を抱え続け、印刷が前のファイルを刷る。
         pdfView.present(
-            document: data.flatMap { PDFDocument(data: $0) },
+            document: data.flatMap { PDFDataProbe.makeDocument($0) },
             rotation: rotation,
             zoom: initialZoom,
             scrollFraction: scrollPositionToRestore

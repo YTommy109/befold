@@ -13,8 +13,12 @@ set -euo pipefail
 # なぜ denylist ではなく allowlist か:
 # 「AppKit / Cocoa / WebKit / SwiftUI が無いこと」を見る形だと、名前を挙げていない
 # プラットフォーム依存(Carbon・CoreGraphics・UIKit・Quartz など)が素通りする。
-# 実際 TASK-594 の着手時、AppKit を外しても PDFKit が残っていた。許可する側を
-# 列挙すれば、新しい依存は必ずこのファイルの編集(= 明示的な判断)を伴う。
+# 実際 TASK-594 の着手時、AppKit を外しても PDFKit が残っていた(TASK-598 で除去)。
+# 許可する側を列挙すれば、新しい依存は必ずこのファイルの編集(= 明示的な判断)を伴う。
+#
+# 検査するのは BefoldKit だけ。上の層(befold / BefoldCLI / BefoldRenderKit)と、
+# PDFKit を隔離するための BefoldPDFProbe は対象外で、それが意図した設計である
+# (プラットフォーム依存はそちらへ寄せる)。
 #
 # grep で検索する(rg は GitHub Actions の ubuntu ランナーに入っていない。
 # scripts/check-no-detached-blocking.sh が同じ理由で grep を使っている)。
@@ -22,17 +26,14 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 
 # BefoldKit が import してよいモジュール。
+# どちらもプラットフォーム非依存(swift-corelibs 側にも実装がある)。
 #
-# - Foundation / CryptoKit: プラットフォーム非依存(swift-corelibs 側にも実装がある)。
-# - PDFKit: **既知の例外。** Apple 専用フレームワークで、BefoldKit/PDFDataProbe.swift が
-#   `PDFDocument(data:)` の可否を PDF の読み取り可能性の唯一の判定に使っている。
-#   除去には ViewerLoadPipeline へ判定をシームとして注入する設計変更が要るため、
-#   TASK-598 へ切り出してある。**TASK-598 を終えたらこの行を消すこと**
-#   (消した時点でこのスクリプトが違反として検知するので、取りこぼしは起きない)。
+# ここへ足すのは最後の手段。PDF の判定(PDFKit)は TASK-598 で BefoldPDFProbe へ
+# 隔離し、BefoldKit へは `@Sendable (Data) -> Bool` として注入する形にした。
+# 同じ形が使えないか先に検討すること。
 ALLOWED_MODULES=(
   Foundation
   CryptoKit
-  PDFKit
 )
 
 # import 行からモジュール名(最初の "." より前)を取り出す。

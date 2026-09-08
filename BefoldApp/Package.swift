@@ -28,6 +28,7 @@ let package = Package(
             name: "BefoldCLI",
             dependencies: [
                 "BefoldKit",
+                "BefoldPDFProbe",
                 // コマンド定義(BefoldCLICommand / OpenCLIOptions)がここにあるため、
                 // ArgumentParser も framework 側の依存になる。実行ファイルを薄い入口に
                 // 保つ代償で、この依存は本体アプリ(BefoldCLI に依存する)にも乗る。
@@ -35,6 +36,20 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "BefoldCLI",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
+            ]
+        ),
+        // PDF の解釈(PDFDocument の生成)だけを持つ最小のターゲット。
+        // BefoldKit を Foundation だけで成立する層に保つため、PDFKit を要する判定を
+        // ここへ隔離する(TASK-598)。befold / BefoldCLI / BefoldRenderKit の 3 つが
+        // ViewerLoadPipeline.load へ probe を渡す必要があり、その 3 つ全部から見える
+        // 層は BefoldKit の隣にしか作れない(BefoldRenderKit へ置くと WebKit が CLI に
+        // 入り、BefoldCLI へ置くと ArgumentParser が appex に入る)。
+        // BefoldKit には依存しない——判定は `(Data) -> Bool` で完結する。
+        .target(
+            name: "BefoldPDFProbe",
+            path: "BefoldPDFProbe",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
             ]
@@ -66,7 +81,7 @@ let package = Package(
         ),
         .target(
             name: "BefoldRenderKit",
-            dependencies: ["BefoldKit"],
+            dependencies: ["BefoldKit", "BefoldPDFProbe"],
             path: "BefoldRenderKit",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),
@@ -76,6 +91,7 @@ let package = Package(
             name: "befold",
             dependencies: [
                 "BefoldKit",
+                "BefoldPDFProbe",
                 "BefoldCLI",
                 "BefoldRenderKit",
                 // git 連携は本体アプリだけが使う。QuickLook 拡張(appex)と CLI へは
@@ -122,7 +138,7 @@ let package = Package(
         .testTarget(
             name: "befoldTests",
             dependencies: [
-                "befold", "BefoldKit", "BefoldCLI", "BefoldRenderKit", "BefoldTestSupport",
+                "befold", "BefoldKit", "BefoldPDFProbe", "BefoldCLI", "BefoldRenderKit", "BefoldTestSupport",
                 // GitLibrary のテストが libgit2 の C API と C シムを直接叩く
                 // (検索パスの往復・config 読み出しの検証)。
                 "CGitShim",
@@ -135,7 +151,7 @@ let package = Package(
         ),
         .testTarget(
             name: "befoldCLITests",
-            dependencies: ["BefoldCLI", "BefoldKit", "BefoldTestSupport"],
+            dependencies: ["BefoldCLI", "BefoldKit", "BefoldPDFProbe", "BefoldTestSupport"],
             path: "befoldCLITests",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLintPlugins"),

@@ -1,4 +1,5 @@
 import BefoldKit
+import BefoldPDFProbe
 import Foundation
 
 /// 読み込み経路。pendingURL の内容をバックグラウンドで取得し、着地した結果を
@@ -50,10 +51,11 @@ extension ViewerStore {
         let resolved = target.resolvingSymlinksInPath()
         let fileType = pendingFileType
         loadTask = ViewerLoadStarter.start(
-            LoadInputs(
+            ViewerLoadPipeline.Inputs(
                 resolved: resolved, fileType: fileType,
                 fileReader: fileReader, contentLoader: contentLoader,
-                chunkedReaderFactory: makeChunkedReader
+                chunkedReaderFactory: makeChunkedReader,
+                isPDFReadable: PDFDataProbe.isReadable
             )
         ) { [weak self] outcome in
             self?.applyLoaded(outcome, url: target, fileType: fileType, generation: generation)

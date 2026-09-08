@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldPDFProbe
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -15,6 +16,23 @@ struct ViewerLoadPipelineTests {
         try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
     }
 
+    /// このスイート共通の `Inputs` 組み立て。`chunkedReaderFactory` と
+    /// `isPDFReadable` は全ケースで同じなので、テストごとに書かない
+    /// (書き分けが必要なケースは `ViewerLoadPipeline.Inputs` を直接組む)。
+    private func inputs(
+        _ url: URL, _ fileType: FileType, _ fileReader: any FileReading,
+        contentLoader: ContentLoader? = nil
+    ) -> ViewerLoadPipeline.Inputs {
+        ViewerLoadPipeline.Inputs(
+            resolved: url,
+            fileType: fileType,
+            fileReader: fileReader,
+            contentLoader: contentLoader ?? ContentLoader(fileReader: fileReader),
+            chunkedReaderFactory: chunkedReaderFactory,
+            isPDFReadable: PDFDataProbe.isReadable
+        )
+    }
+
     @Test("oneShotLoad: true では行指向ファイル(chunked)経路で dataHash が nil になる")
     func oneShotLoadSkipsHashForChunkedOutcome() async {
         let url = URL(fileURLWithPath: "/tmp/oneshot.log")
@@ -22,11 +40,7 @@ struct ViewerLoadPipelineTests {
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .code(language: "plaintext"),
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .code(language: "plaintext"), fileReader, contentLoader: contentLoader),
             oneShotLoad: true
         )
 
@@ -46,11 +60,7 @@ struct ViewerLoadPipelineTests {
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .html,
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .html, fileReader, contentLoader: contentLoader),
             oneShotLoad: true
         )
 
@@ -68,11 +78,7 @@ struct ViewerLoadPipelineTests {
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .code(language: "plaintext"),
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: chunkedReaderFactory
+            inputs(url, .code(language: "plaintext"), fileReader, contentLoader: contentLoader)
         )
 
         guard case let .chunked(_, cache, _, _) = outcome else {
@@ -90,11 +96,7 @@ struct ViewerLoadPipelineTests {
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .image(mimeType: "image/png"),
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .image(mimeType: "image/png"), fileReader, contentLoader: contentLoader),
             oneShotLoad: true
         )
 
@@ -115,11 +117,7 @@ struct ViewerLoadPipelineTests {
         let contentLoader = ContentLoader(fileReader: fileReader)
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .image(mimeType: "image/png"),
-            fileReader: fileReader,
-            contentLoader: contentLoader,
-            chunkedReaderFactory: chunkedReaderFactory
+            inputs(url, .image(mimeType: "image/png"), fileReader, contentLoader: contentLoader)
         )
 
         guard case let .full(loaded, cache) = outcome else {
@@ -141,11 +139,7 @@ struct ViewerLoadPipelineTests {
         let embedder = MarkdownImageEmbedder(fileReader: fileReader)
 
         _ = await ViewerLoadPipeline.load(
-            resolved: markdownURL,
-            fileType: .markdown,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(markdownURL, .markdown, fileReader),
             embedLocalImages: true,
             imageEmbedder: embedder
         )
@@ -170,11 +164,7 @@ struct ViewerLoadPipelineTests {
         let embedder = MarkdownImageEmbedder(fileReader: fileReader)
 
         _ = await ViewerLoadPipeline.load(
-            resolved: markdownURL,
-            fileType: .markdown,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(markdownURL, .markdown, fileReader),
             embedLocalImages: false,
             imageEmbedder: embedder
         )
@@ -199,11 +189,7 @@ struct ViewerLoadPipelineTests {
         let fileReader = InMemoryFileReader(files: [url.path: content])
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .html,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .html, fileReader),
             oneShotLoad: true
         )
 
@@ -223,11 +209,7 @@ struct ViewerLoadPipelineTests {
         let fileReader = InMemoryFileReader(files: [url.path: content])
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .html,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .html, fileReader),
             oneShotLoad: false
         )
 
@@ -247,11 +229,7 @@ struct ViewerLoadPipelineTests {
         let fileReader = InMemoryFileReader(files: [url.path: content])
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: .code(language: "python"),
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory,
+            inputs(url, .code(language: "python"), fileReader),
             oneShotLoad: true
         )
 
@@ -277,11 +255,7 @@ struct ViewerLoadPipelineTests {
         let fileReader = InMemoryFileReader(files: [url.path: contents])
 
         let outcome = await ViewerLoadPipeline.load(
-            resolved: url,
-            fileType: fileType,
-            fileReader: fileReader,
-            contentLoader: ContentLoader(fileReader: fileReader),
-            chunkedReaderFactory: chunkedReaderFactory
+            inputs(url, fileType, fileReader)
         )
 
         guard case let .full(loaded, _) = outcome else {
