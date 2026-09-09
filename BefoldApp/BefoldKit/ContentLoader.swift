@@ -10,6 +10,17 @@ public struct ContentLoader: Sendable {
     /// 非行指向テキスト(Markdown/Mermaid/HTML/SVG)の上限。
     public static let maxTextFileSizeBytes = 10 * 1024 * 1024
 
+    /// XSLT 変換表示(法令XML など)での上限。本体アプリ専用。
+    ///
+    /// 変換後は素の HTML で、mermaid のような描画エンジンを通らないため、
+    /// 同じ「全量を DOM 化する」経路でも非行指向テキストよりはるかに軽い。
+    /// 実測(WKWebView / macOS 26.5.2、e-Gov 法令XML、パース→XSLT→サニタイズ→挿入):
+    /// 1.8MB→0.37 秒、5.4MB→1.05 秒 / WebContent 221MB、17.0MB→1.53 秒 / 686MB。
+    /// e-Gov 一括ダウンロードの実データ 1,124 件の最大が 17.0MB だったため、
+    /// 余裕を見て 20MB を上限にする。超えるものは従来どおりソースのチャンク表示へ
+    /// 落ちる(表示できない状態にはならない)。
+    public static let maxXMLTransformSizeBytes = 20 * 1024 * 1024
+
     /// 静的1回描画ホスト(QuickLook 拡張)での非行指向テキストの上限。
     ///
     /// 非行指向はチャンク読み込みが効かず全量を DOM 化するため、WebContent プロセスの
