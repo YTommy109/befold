@@ -1,10 +1,10 @@
 ---
 id: TASK-607
 title: ViewerRendererZoomIntegrationTests が CI で「準備完了が永久に来ない」形で間欠的に落ちる
-status: Done
+status: In Progress
 assignee: []
 created_date: '2026-09-09 02:06'
-updated_date: '2026-09-09 02:51'
+updated_date: '2026-09-09 03:25'
 labels: []
 dependencies: []
 priority: high
@@ -73,56 +73,56 @@ main と等価）。main で顕在化していないだけの潜在的なもの�
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## 真因: テストの並列実行がメインキューを飽和させ、WebKit のコールバックが着地しない
+## 真因（実測で確定）: 並列実行がメインキューを飽和させ WebKit のコールバックが着地しない
 
-`swift test` は swift-testing のテストを並列に走らせる。実 WKWebView を使う統合テストは
-`didFinish` が**メインキュー経由**で届くが、~1900 件の `@MainActor` テストが同じキューを
-埋め続けるため、コールバックがその後ろで待たされる。**待機予算をいくら延ばしても
-間に合わない**（キューは走行中ずっと伸び続けるため）。
+`swift test` は swift-testing のテストを並列に走らせる。実 WKWebView の `didFinish` は
+**メインキュー経由**で届くが、~1900 件の `@MainActor` テストが同じキューを埋め続けるため、
+コールバックがその後ろで待たされる。**キューは走行中ずっと伸びるので、待機予算を
+いくら延ばしても間に合わない。**
 
-### 実測（ローカルで再現。診断ログ `RenderDiagnostics` による）
-
-並列（失敗した回）:
+ローカルで再現した並列実行の内訳（診断ログ `RenderDiagnostics`）:
 
 | 事象 | 件数 |
 |---|---|
 | `loadFileURL viewer.html` | 25 |
-| `didFinish` | 12（**すべて実行の最後 11:43:53〜54 に集中**） |
-| `shouldNavigate を cancel (surface が未設定)` | **0** |
-| `webContentProcessDidTerminate` | **0** |
-| `didFail` / `didFailProvisional` | **0** |
+| `didFinish` | 12（**11:43:20 から 35 秒間 1 件も届かず、実行終了時の 11:43:53〜54 に集中**） |
+| `shouldNavigate を cancel (surface が未設定)` | 0 |
+| `webContentProcessDidTerminate` | 0 |
+| `didFail` / `didFailProvisional` | 0 |
 
-ロードは 11:43:20 から出続けているのに、`didFinish` は 35 秒間 1 件も届かず、
-テスト実行が終わる時点でまとめて 12 件着地した。これが「60 秒待っても ready にならない」
-の正体。`--no-parallel` では着地が時間軸に分散し、全件緑になる。
+ロードは出続けているのに着地が 1 件も無い。これが「60 秒待っても ready にならない」の正体。
 
-### 対処
+## 対処は未確定。**3 案とも失敗した**ので設計判断が要る
 
-`ci.yml` の `swift test` を 2 ステップとも `--no-parallel` にした。
-代償は実行時間 40 秒 → 56 秒（ローカル実測）。ローカルで直列 3 回連続緑。
+| # | 案 | 結果 |
+|---|---|---|
+| 1 | 自前ポーリングを共有ヘルパーへ（予算 5 秒 → 60 秒） | **失敗**。60 秒でも落ちる（TASK-606 で訂正済み） |
+| 2 | `make(for:)` の順序固定（adopt → デリゲート → ロード） | **失敗**。診断で `surface が未設定` の cancel は 0 件 |
+| 3 | `swift test --no-parallel` | **失敗**。手元では直列 3 回とも 56 秒で緑だが、**CI ではハング**。02:57:57 の `SurfaceNavigationPolicyTests` を最後に 24 分間出力が止まり打ち切られた（run 34304889554）。CI を悪化させるので revert 済み |
 
-検知を緩める方向（待機を伸ばす・テストを外す・再実行で通す）は採っていない。
+案 3 が手元で通り CI でハングした差は未調査。**次に試す前にここを説明できるようにすること**
+（GitHub の macOS ランナーは仮想化されており、ログに
+`IOServiceMatching failed for: AppleM2ScalerParavirtDriver` が出る）。
 
-## 訂正 2 件
+## 次の一手の候補（未検証・要判断）
 
-1. **「5 秒予算の枯渇」は原因ではなかった**（TASK-606 の Notes で訂正済み）。60 秒でも落ちる。
-2. **「adopt より前の初回ロードが `.cancel` される」も原因ではなかった。**
-   1 回目の診断で観測した `shouldNavigate を cancel` 1 件は、意図的な寿命テスト
-   `ViewerNavigationCoordinatorLifetimeTests.decidePolicyCancelsWhenRendererIsReleased`
-   が出していたもの（renderer 解放であって surface 未設定ではない）。
-   メッセージが両者を畳んでいたため取り違えた。理由を分けて記録するよう直し、
-   再測したところ `surface が未設定` は 0 件だった。
+- **A. 実 WKWebView の統合テストだけを別パスへ出す。** 本体は並列のまま、
+  該当スイートを `--skip` し、2 本目で `--filter` して直列に走らせる。案 3 の全体直列より
+  範囲が狭いのでハングを踏みにくい可能性があるが、対象一覧が drift する
+- **B. 待つ側で run loop を回す。** 待機ヘルパーが `RunLoop.main.run(mode:before:)` を
+  小刻みに回し、キューに積まれた WebKit のコールバックを能動的に流す。
+  対象が待機ヘルパー 1 箇所で済むが、Swift 並行性とランループの混在になる
+- **C. 実 WKWebView への依存を減らす。** 4 件のうち何件が本当に実 WebView を要るかを問う。
+  `ViewerRendererMessageStubs.Surface`（WKWebView 実体を作らない面）で足りるものは移す
 
-## 残した変更（原因ではないが有効なもの）
+**採ってはいけない方向**: 待機の延長・テストの無効化・再実行で通す。
+60 秒で来ないものは待っても来ないことが実測で分かっている。
 
-- **`WebKitRenderSurface.make(for:)` の順序固定**: 組み立て → 結びつけ →
-  デリゲート接続 → ロード開始。窓そのものは実在した（デリゲートを繋いだ直後に
-  ロードを始めており、`renderer.surface` 未設定でコールバックを受けうる）ので閉じてある。
-  `SurfaceConstructionOrderTests` が担保する（修正前は落ちることを確認済み）。
-- **`webViewWebContentProcessDidTerminate`** を `WKNavigationDelegate` に追加。
-  この経路は didFinish も didFail も出さないため、握っていないと同じ症状になる。
-  今回は 0 件だったが、握っていない状態を残す理由が無い。
-- **`RenderDiagnostics`**（`BEFOLD_RENDER_DIAGNOSTICS=1` のときだけ動く）を残す。
-  面ごとの識別子でロードと着地を突き合わせられる。次に同種の障害が出たときの入口。
-  CI での常時有効化は外した。
+## 残してある変更（原因ではないが有効）
+
+- `RenderDiagnostics`（`BEFOLD_RENDER_DIAGNOSTICS=1` のときだけ動く）。面ごとの識別子で
+  ロードと着地を突き合わせられる。**この調査の再開はここから**
+- `WebKitRenderSurface.make(for:)` の順序固定。窓自体は実在するので閉じてある
+  （`SurfaceConstructionOrderTests` が担保）
+- `webViewWebContentProcessDidTerminate` の追加。この経路は didFinish も didFail も出さない
 <!-- SECTION:NOTES:END -->
