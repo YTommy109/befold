@@ -4,7 +4,7 @@ title: ViewerRendererZoomIntegrationTests の自前ポーリングが CI 予算�
 status: Done
 assignee: []
 created_date: '2026-09-09 01:47'
-updated_date: '2026-09-09 01:48'
+updated_date: '2026-09-09 02:06'
 labels: []
 dependencies: []
 priority: medium
@@ -53,34 +53,44 @@ GPU の無い CI ランナー（ログに `IOServiceMatching failed for: AppleM2
 <!-- SECTION:NOTES:BEGIN -->
 ## 実施
 
-`waitUntilReady` の自前ループと、裸のポーリング 2 箇所（`:77` の `pageZoom.applied`、
-`:99` の `rendered.contentRevision`）を共有ヘルパー `waitUntilOnMainActor` へ置き換えた。
-`befoldTests` から自前ポーリングは無くなった。
+`waitUntilReady` の自前ループと、裸のポーリング 2 箇所（`pageZoom.applied` /
+`rendered.contentRevision`）を共有ヘルパー `waitUntilOnMainActor` へ置き換えた。
+`befoldTests` から自前ポーリングは無くなり、予算は `BEFOLD_TEST_TIMEOUT_SECONDS`
+（`ci.yml` が build-and-test に 60、thread-sanitizer に 120 を設定）へ追随する。
 
-## 切り分けの実測
+## 訂正: 5 秒予算は間欠失敗の原因ではなかった
 
-- CI（PR #643 / run 34299261374）で 1 件だけ失敗。**同じコミットのまま再実行したら成功**した。
-- ブランチが `BefoldRenderKit` を触っているので差分を確認した。
-  `git diff origin/main...HEAD -- BefoldApp/BefoldRenderKit | grep -E '^[+-].*(isVisible|readiness|pageZoom|isReady)'`
-  は **0 件**。`PageZoomProjector.swift` / `ViewerReadinessGate.swift` はこのブランチで
-  1 コミットも触っていない。失敗したテストの本体も未変更（TASK-599 が同ファイルで
-  変えたのは別テスト `:115` の 1 行）。
-- ローカルでは同テストが 0.58 秒 × 3 回とも緑。CI は同じテスト 1 件に 127 秒。
-  ランナーのログに `IOServiceMatching failed for: AppleM2ScalerParavirtDriver`。
-- `ci.yml` は `BEFOLD_TEST_TIMEOUT_SECONDS` を build-and-test に 60、
-  thread-sanitizer に 120 で設定しているが、**このスイートの自前ループだけがそれを読まず
-  5 秒固定**だった。
+着手時は「5 秒固定の自前ループが CI の 60 秒予算を読まないので枯渇している」と
+判断したが、**これは誤りだった。** 修正を入れた CI 実行では、同じスイートが
+**60 秒待っても準備完了に到達せず 4 件すべて失敗**した。予算の問題なら 60 秒で通る。
 
-## 修正が効くことの確認
+CI 4 回の実測（PR #643）:
 
-`BEFOLD_TEST_TIMEOUT_SECONDS=0.05` で枯渇を再現すると、失敗が待機地点で報告される。
+| 実行 | コミット | 結果 |
+|---|---|---|
+| A | f33ff1ba | 1 件失敗（`applied == nil`） |
+| A 再実行 | 同一 | 成功 |
+| B | 本タスクの修正入り | **4 件すべて失敗**（60 秒で ready にならず） |
+| B 再実行 | 同一 | 成功 |
+
+**同一コミットが再実行で 2 回とも成功している。** 準備完了は「速く来る」か
+「60 秒待っても来ない」かの二極で、遅いのではない。真因は別にあり、TASK-607 へ分けた。
+
+## このタスクの修正が残す価値
+
+原因ではなかったが、**失敗が読めるようになった**のは事実。修正前は待機が黙って
+素通りするため、症状が下流の `applied == nil` としてしか出ず、待機が失敗している
+ことが分からなかった。修正後の CI ログは待機地点を名指しする。
 
 ```
-✘ ... recorded an issue at ViewerRendererZoomIntegrationTests.swift:38:36
-  ↳ waitUntilOnMainActor が 0.05 seconds 以内に条件を満たさなかった
+✘ ... at ViewerRendererZoomIntegrationTests.swift:38:36
+  ↳ waitUntilOnMainActor が 60.0 seconds 以内に条件を満たさなかった
 ```
 
-修正前はここが黙って素通りし、`applied == nil` として下流でしか出なかった（CI の症状と一致）。
-通常予算では 4 tests 緑、`BEFOLD_TEST_TIMEOUT_SECONDS=60`（CI と同条件）の full suite で
+`BEFOLD_TEST_TIMEOUT_SECONDS=0.05` で枯渇を再現し、この形で落ちることを手元でも確認した。
+
+## 検証
+
+通常予算で 4 tests 緑。`BEFOLD_TEST_TIMEOUT_SECONDS=60`（CI と同条件）の full suite で
 1945 tests / 323 suites すべて成功。swiftlint 差分なし、swiftformat 変更なし。
 <!-- SECTION:NOTES:END -->
