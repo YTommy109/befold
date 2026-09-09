@@ -66,6 +66,9 @@ let package = Package(
                 // ここでは通常のリソースとして扱う。
                 .copy("Resources/viewer-bundle.js"),
                 .copy("Resources/style.css"),
+                // 法令標準XML(e-Gov 法令検索)用の内蔵スタイルシート。文書側に
+                // XSLT が付いてこないため befold が供給する(TASK-597)。
+                .copy("Resources/japanese-law.xsl"),
                 // npm 依存から node_modules をコピーした生成物
                 // （scripts/copy-viewer-vendor.mjs）。mermaid だけは遅延ロードのため
                 // バンドルへ取り込まず、ファイルのまま同梱する。

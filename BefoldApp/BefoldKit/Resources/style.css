@@ -228,6 +228,161 @@ body {
   font-size: var(--mmd-markdown-font-size, 16px);
 }
 
+/*
+  法令標準XML の内蔵スタイルシート(japanese-law.xsl)が出すクラス。TASK-597。
+
+  XSL 側は構造とクラス名だけを決め、見た目はここが持つ。<style> を XSL に埋めても
+  DOMPurify を通るうえ、通った場合は見た目の定義が 2 箇所に分かれるため。
+  配色は既存のカスタムプロパティ(--fg / --fg-muted / --panel-border / --csv-th-bg)を
+  使う。ダーク配色はそれらの側で切り替わるので、ここに @media を足さないこと。
+*/
+.law-title {
+  margin: 0 0 0.2em;
+  font-size: 1.6em;
+  border: none;
+}
+
+.law-num {
+  margin: 0 0 1.5em;
+  color: var(--fg-muted);
+}
+
+.law-toc {
+  margin: 0 0 2em;
+  padding: 0.5em 1em;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.law-toc-label {
+  margin: 0.3em 0;
+  font-size: 1.1em;
+  border: none;
+}
+
+/* 目次の見出しは本文の見出しと同じ要素で出るため、目次の中だけ本文サイズへ戻す */
+.law-toc .law-heading {
+  margin: 0.2em 0;
+  font-size: 1em;
+  font-weight: 400;
+  border: none;
+}
+
+.law-toc-entry .law-toc-entry {
+  margin-left: 1.5em;
+}
+
+.law-heading {
+  margin: 1.6em 0 0.6em;
+  border: none;
+}
+
+.law-caption {
+  margin: 1.4em 0 0;
+  color: var(--fg-muted);
+}
+
+.law-article-title,
+.law-paragraph-num,
+.law-item-title {
+  font-weight: 600;
+}
+
+.law-paragraph-body,
+.law-item-body {
+  margin: 0.5em 0;
+  /* 法令の本文は各項・各号が一字下げで始まる */
+  text-indent: 1em;
+}
+
+/* 号・細分は入れ子の深さだけ字下げする(XSL 側は種別のクラスを持たない) */
+.law-item {
+  margin-left: 1.5em;
+}
+
+/* 欄(Column)は横並びの区画。区切りが消えないよう間隔を空ける */
+.law-column + .law-column::before {
+  content: "　";
+}
+
+.law-struct,
+.law-formula,
+.law-list,
+.law-class {
+  margin: 0.8em 0;
+}
+
+.law-struct-title,
+.law-related,
+.law-suppl-amend {
+  margin: 0.3em 0;
+  color: var(--fg-muted);
+}
+
+/* 表は本文より広くなりうるので、はみ出しは表だけを横スクロールさせる */
+.law-table-scroll {
+  overflow-x: auto;
+}
+
+.law-table {
+  border-collapse: collapse;
+}
+
+.law-table-cell {
+  padding: 0.3em 0.6em;
+  border: 1px solid var(--panel-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.law-table th.law-table-cell {
+  background: var(--csv-th-bg);
+}
+
+.law-no-border-top {
+  border-top-style: none;
+}
+
+.law-no-border-bottom {
+  border-bottom-style: none;
+}
+
+.law-no-border-left {
+  border-left-style: none;
+}
+
+.law-no-border-right {
+  border-right-style: none;
+}
+
+.law-remarks {
+  margin: 0.6em 0 0.6em 1.5em;
+  color: var(--fg-muted);
+}
+
+.law-remarks-label {
+  margin: 0.3em 0;
+  font-weight: 600;
+}
+
+.law-quote {
+  margin: 0.8em 0 0.8em 1.5em;
+  padding-left: 0.8em;
+  border-left: 3px solid var(--panel-border);
+}
+
+/* 図は元データが別ファイルへの参照で、法令XML単体には含まれない(XSL 側の注記を参照) */
+.law-fig {
+  color: var(--fg-muted);
+}
+
+.law-suppl,
+.law-appdx {
+  margin-top: 2.5em;
+  padding-top: 1em;
+  border-top: 1px solid var(--panel-border);
+}
+
 /* ベンダー CSS の固定 12px(基準 16px の 0.75 倍)を em にし、本文サイズに追従させる */
 #diagram-wrap.markdown-body tt,
 #diagram-wrap.markdown-body code,

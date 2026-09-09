@@ -14,6 +14,10 @@ public enum XSLStylesheetResolver {
     /// 1. `<?xml-stylesheet ... href="..."?>` 処理命令が指すファイル
     /// 2. 同名の `.xsl`
     ///
+    /// どちらも無ければ、最後に内蔵スタイルシート(`JapaneseLawStylesheet`)を見る。
+    /// 文書に添えられたものが常に優先される —— 利用者が置いた `.xsl` を
+    /// 内蔵版が上書きしないため。
+    ///
     /// - Parameters:
     ///   - xml: XML の本文。処理命令の探索に使う。
     ///   - fileURL: XML ファイルのパス。相対 href の解決基準になる。
@@ -32,7 +36,7 @@ public enum XSLStylesheetResolver {
             else { continue }
             return text
         }
-        return nil
+        return JapaneseLawStylesheet.stylesheet(forXML: xml)
     }
 
     /// プロローグ(ルート要素の開始タグより前)にある `<?xml-stylesheet?>` の href。
@@ -59,8 +63,9 @@ public enum XSLStylesheetResolver {
     }
 
     /// ルート要素の開始位置(最初の `<` のうち `<?` / `<!` でないもの)。
-    /// 見つからなければ末尾を返す。
-    private static func rootElementStart(in xml: String) -> String.Index {
+    /// 見つからなければ末尾を返す。`JapaneseLawStylesheet` のルート要素判定も
+    /// これを使う(走査範囲の規則を 2 箇所に持たせない)。
+    static func rootElementStart(in xml: String) -> String.Index {
         var index = xml.startIndex
         while let open = xml.range(of: "<", range: index ..< xml.endIndex) {
             let next = xml.index(after: open.lowerBound)

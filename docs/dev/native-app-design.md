@@ -125,6 +125,7 @@ BefoldApp/
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
 │   ├── XSLStylesheetResolver.swift # XML に添えられた .xsl の探索と読み出し（XSLT 表示）
+│   ├── JapaneseLawStylesheet.swift # 法令標準XML の判定と内蔵 XSL の供給
 │   ├── ViewerXSLTBridge.swift      # XSLT 表示の Swift → JS 契約（type トークン・payload）
 │   ├── ViewerBridge.swift          # Swift → JS（関数名・注入スクリプトの組み立て）
 │   ├── ViewerBridgeMessage.swift   # JS → Swift（メッセージ名・ペイロードキーの契約）
@@ -330,7 +331,17 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   全量読み込み（`.full`）へ切り替える。`FileType.isChunkable` に持たせないのは、
   XSL の有無が拡張子から決まらないため。切り替えるとサイズ上限が 100MB から
   10MB（QuickLook は 2MB）へ下がるので、それを超えるものは切り替えず従来どおり
-  段階描画する——変換はできないが `fileTooLarge` の空表示よりソースが読めるほうがよい
+  段階描画する——変換はできないが `fileTooLarge` の空表示よりソースが読めるほうがよい。
+  **法令標準XML（e-Gov 法令検索の法令XML）だけは、スタイルシートを befold が供給する**
+  （TASK-597）。e-Gov は表示用 XSLT を配布しておらず、法令XMLには処理命令も同名 `.xsl` も
+  付いてこないため、`XSLStylesheetResolver` の最後の候補として
+  `JapaneseLawStylesheet` が同梱の `Resources/japanese-law.xsl` を返す。
+  文書に添えられた `.xsl` が常に優先される（利用者が置いたものを内蔵版が上書きしない）。
+  判定は **namespace ではできない**——法令標準XMLスキーマ v3 は `targetNamespace` を
+  宣言しておらず、ルート要素 `Law` も無名前空間にある。代わりに「ルート要素が `Law` で
+  必須属性 `Era` と `Num` を持つ」ことで判定し、走査はルート要素の開始タグに限る。
+  XSL は構造とクラス名（`.law-*`）だけを決め、見た目は `style.css` が持つ
+  （XSL に `<style>` を埋めると DOMPurify を通るうえ見た目の定義が二重化する）
 - **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
   （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
   `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。
