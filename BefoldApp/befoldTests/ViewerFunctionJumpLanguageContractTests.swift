@@ -16,11 +16,10 @@ import Testing
 /// のどちらも「何も落ちない」形で成立してしまう。`HeadingJumpLevels` が
 /// `ViewerJumpLevelContractTests` で塞いだのと同じ穴なので、同じ手口で結ぶ。
 @Suite
-@MainActor // 借りる ViewerBridgeContractTests の static ヘルパーが @MainActor 隔離のため
 struct ViewerFunctionJumpLanguageContractTests {
     @Test("viewer-bundle.js の FUNCTION_JUMP_LANGUAGES が FunctionJumpLanguages.supported と一致する")
     func supportedLanguagesMatchViewerTable() throws {
-        let source = try ViewerBridgeContractTests.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
 
         #expect(try Self.jsStringArray(named: "FUNCTION_JUMP_LANGUAGES", in: source)
             == FunctionJumpLanguages.supported)
@@ -48,7 +47,7 @@ struct ViewerFunctionJumpLanguageContractTests {
     /// `var NAME = ["a", "b"];` 形式の宣言から文字列集合を取り出す。
     private static func jsStringArray(named name: String, in source: String) throws -> Set<String> {
         let pattern = #"(?:var|let|const)\s+"# + name + #"\s*=\s*\[([^\]]*)\]\s*;"#
-        let found = try ViewerBridgeContractTests.matches(of: pattern, in: source)
+        let found = try ViewerBridgeContractSupport.matches(of: pattern, in: source)
         let first = try #require(found.first, "JS 側に \(name) の配列宣言が見つからない")
         return Set(first[1].split(separator: ",").map { element in
             element.trimmingCharacters(in: CharacterSet(charactersIn: " \n\t\"'"))
