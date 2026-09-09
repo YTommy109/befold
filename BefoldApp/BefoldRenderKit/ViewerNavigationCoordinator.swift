@@ -49,7 +49,17 @@ final class ViewerNavigationCoordinator: SurfaceNavigationObserver {
     ///
     /// renderer が既に無ければ表示先が無いので `.cancel` を返す。
     func surfaceShouldNavigate(_ request: SurfaceNavigationRequest) -> SurfaceNavigationDecision {
-        guard let renderer, let surface = renderer.surface else { return .cancel }
+        // 理由を分けて記録する。**renderer 解放は正常**(窓を閉じた後・寿命テスト)だが、
+        // surface 未設定は初回ロードを弾いて準備完了を永久に来なくする(TASK-607)。
+        // 1 つのメッセージに畳むと、正常な 1 件と異常な 1 件を取り違える。
+        guard let renderer else {
+            RenderDiagnostics.log("shouldNavigate を cancel (renderer が解放済み)")
+            return .cancel
+        }
+        guard let surface = renderer.surface else {
+            RenderDiagnostics.log("shouldNavigate を cancel (surface が未設定)")
+            return .cancel
+        }
         return renderer.directHTML.decidePolicy(surface: surface, request: request)
     }
 

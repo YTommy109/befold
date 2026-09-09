@@ -30,19 +30,28 @@ public final class WebKitRenderSurface: RenderSurface {
     /// 見た入口がここ**。factory をこの型へ物理的に畳まないのは、責務が 4 つある
     /// 330 行の型になり、型を小さく保つ方針と逆になるため。
     ///
-    /// 生成した面には viewer.html まで読み込ませて返す（呼び出し側が読み込みを
-    /// 忘れた面を配れないようにするため）。
+    /// **ここは組み立てるだけ。** ナビゲーションデリゲートの接続と viewer.html の
+    /// 読み込みは `make(for:…)` が、レンダラへ結びつけた**後で**行う（TASK-607）。
+    ///
+    /// かつてはここでデリゲートを繋いでロードまで始めていた（「読み込みを忘れた面を
+    /// 配れないようにするため」）。しかしそれは `renderer.surface` が設定される前に
+    /// WebKit のコールバックが届きうることを意味する。その窓に初回ロードの
+    /// `decidePolicyFor` が当たると、`surfaceShouldNavigate` が
+    /// `renderer.surface == nil` で `.cancel` を返し、**キャンセルされた
+    /// ナビゲーションは didFinish も didFail も出さない**ので準備完了が永久に来ない。
+    ///
+    /// **これは TASK-607 の間欠障害の原因ではなかった**（真因はテストの並列実行による
+    /// メインキューの飽和で、診断ログでは `surface が未設定` の cancel は 0 件だった）。
+    /// ただし窓そのものは実在するので、順序を固定して閉じてある。
+    /// 読み込みを忘れた面が配られない担保は、外へ出す入口を `make(for:…)` 1 本に
+    /// 絞ることで保つ（この関数は internal で、呼ぶのは向こうとテストだけ）。
     static func make(
         options: ViewerWebViewFactory.Options,
         eventHandler: WebKitSurfaceEventBridge
     ) -> WebKitRenderSurface {
-        let webView = ViewerWebViewFactory.makeWebView(
-            options: options, messageHandler: eventHandler
+        WebKitRenderSurface(
+            ViewerWebViewFactory.makeWebView(options: options, messageHandler: eventHandler)
         )
-        webView.navigationDelegate = eventHandler
-        let surface = WebKitRenderSurface(webView)
-        ViewerWebViewFactory.loadViewerHTML(into: surface)
-        return surface
     }
 
     /// レンダラと結びついた描画面を構成して返す。**構成経路はこれ 1 本。**
@@ -73,9 +82,14 @@ public final class WebKitRenderSurface: RenderSurface {
             ),
             eventHandler: renderer.surfaceEventBridge
         )
+        // **順序が要点（TASK-607）。** 結びつけ → デリゲート接続 → 読み込み開始。
+        // 逆にすると、`renderer.surface` が nil の間に `decidePolicyFor` が届き、
+        // 初回ロードが `.cancel` されて準備完了が永久に来ない。
         renderer.adopt(
             surface, initialZoom: initialZoom, findOptionsPreference: findOptionsPreference
         )
+        surface.webView.navigationDelegate = renderer.surfaceEventBridge
+        ViewerWebViewFactory.loadViewerHTML(into: surface)
         return surface
     }
 
@@ -104,6 +118,7 @@ public final class WebKitRenderSurface: RenderSurface {
     }
 
     public func loadLocalFile(_ url: URL, allowingReadAccessTo directory: URL) {
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): loadFileURL \(url.lastPathComponent)")
         webView.loadFileURL(url, allowingReadAccessTo: directory)
     }
 

@@ -162,6 +162,12 @@ jobs:
       - name: SwiftFormat の整形を検証する
         run: swift package plugin --allow-writing-to-package-directory swiftformat -- --lint
 
+      # TASK-607: 実 WKWebView の統合テストが間欠的に落ちる原因は、swift-testing の
+      # 並列実行で ~1900 件の @MainActor テストがメインキューを埋め、WebKit の
+      # didFinish がその後ろで待たされることだと実測で分かっている。
+      # ただし `--no-parallel` は**採れない**——手元では直列 3 回とも 56 秒で緑だが、
+      # CI では別のところでハングし 24 分間出力が止まって打ち切られた（run 34304889554）。
+      # 対処は未確定。詳細と次の一手は TASK-607 の Notes を参照。
       - name: テストを実行する
         run: swift test
 
