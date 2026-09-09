@@ -321,7 +321,16 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   通してから差し込む。xml か xsl が不正なら `#mmd-error` に理由を出し、原文の
   ソース表示へ落とす。兄弟ファイルを読めないホスト（QuickLook /
   `RendererFeatures.allowsSiblingFileReads` が false）と、追記チャンク・切り詰められた
-  内容（構文として閉じておらず必ずパースエラーになる）では差し替えない
+  内容（構文として閉じておらず必ずパースエラーになる）では差し替えない。
+  そのため **XSL を解決できる XML はチャンク読み込みしない**（TASK-608）。
+  `.xml` は `FileType.isChunkable` が true で、1000 行（`StringChunkReader.linesPerChunk`）を
+  超えると打ち切られるため、放置すると実在の文書では変換経路を一度も通らない
+  （実測: e-Gov 法令XMLは最小の日本国憲法 1,476 行でも該当する）。
+  判定は `ViewerLoadPipeline.needsWholeDocument` が先頭チャンクを読んだ直後に行い、
+  全量読み込み（`.full`）へ切り替える。`FileType.isChunkable` に持たせないのは、
+  XSL の有無が拡張子から決まらないため。切り替えるとサイズ上限が 100MB から
+  10MB（QuickLook は 2MB）へ下がるので、それを超えるものは切り替えず従来どおり
+  段階描画する——変換はできないが `fileTooLarge` の空表示よりソースが読めるほうがよい
 - **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
   （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
   `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。

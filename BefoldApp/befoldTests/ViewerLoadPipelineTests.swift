@@ -264,4 +264,73 @@ struct ViewerLoadPipelineTests {
         }
         #expect(loaded.hasDeclaredHTMLCharset == expected)
     }
+
+    // MARK: - XSL を伴う XML の全量読み込み(TASK-608)
+
+    /// 1000 行(`StringChunkReader.linesPerChunk`)を超える XML。
+    /// XSL があれば全量読み込みへ、無ければ従来どおりチャンク読み込みへ落ちる。
+    private func longXML() -> String {
+        "<?xml version=\"1.0\"?>\n<root>\n"
+            + String(repeating: "  <item>x</item>\n", count: 2000)
+            + "</root>\n"
+    }
+
+    private let stylesheet = """
+    <?xml version="1.0"?>
+    <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+      <xsl:template match="/"><div/></xsl:template>
+    </xsl:stylesheet>
+    """
+
+    @Test("XSL を解決できる XML は 1000 行を超えても全量読み込みになる")
+    func xmlWithStylesheetLoadsWhole() async {
+        let url = URL(fileURLWithPath: "/tmp/law.xml")
+        let xml = longXML()
+        let fileReader = InMemoryFileReader(files: [
+            url.path: xml,
+            "/tmp/law.xsl": stylesheet,
+        ])
+
+        let outcome = await ViewerLoadPipeline.load(inputs(url, .xml, fileReader))
+
+        guard case let .full(loaded, _) = outcome else {
+            Issue.record("full outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(loaded.rejectReason == nil)
+        // 打ち切られていれば末尾の閉じタグが欠ける = XSLT 変換が必ず失敗する。
+        #expect(loaded.content.hasSuffix("</root>\n"))
+    }
+
+    @Test("XSL を解決できない XML は従来どおりチャンク読み込みで段階描画する")
+    func xmlWithoutStylesheetStaysChunked() async {
+        let url = URL(fileURLWithPath: "/tmp/plain.xml")
+        let fileReader = InMemoryFileReader(files: [url.path: longXML()])
+
+        let outcome = await ViewerLoadPipeline.load(inputs(url, .xml, fileReader))
+
+        guard case let .chunked(_, _, _, isAtEnd) = outcome else {
+            Issue.record("chunked outcome を期待したが \(outcome) だった")
+            return
+        }
+        #expect(!isAtEnd)
+    }
+
+    @Test("全量読み込みの上限を超える XML は XSL があってもチャンク読み込みのまま")
+    func oversizedXMLWithStylesheetStaysChunked() async {
+        let url = URL(fileURLWithPath: "/tmp/huge.xml")
+        // 1 行 16 バイト × 上限バイト数 / 8 で、上限の 2 倍規模にする。
+        let body = String(repeating: "  <item>x</item>\n", count: ContentLoader.maxTextFileSizeBytes / 8)
+        let fileReader = InMemoryFileReader(files: [
+            url.path: "<?xml version=\"1.0\"?>\n<root>\n" + body + "</root>\n",
+            "/tmp/huge.xsl": stylesheet,
+        ])
+
+        let outcome = await ViewerLoadPipeline.load(inputs(url, .xml, fileReader))
+
+        guard case .chunked = outcome else {
+            Issue.record("chunked outcome を期待したが \(outcome) だった")
+            return
+        }
+    }
 }
