@@ -39,6 +39,10 @@ public final class WebKitRenderSurface: RenderSurface {
     /// `decidePolicyFor` が当たると、`surfaceShouldNavigate` が
     /// `renderer.surface == nil` で `.cancel` を返し、**キャンセルされた
     /// ナビゲーションは didFinish も didFail も出さない**ので準備完了が永久に来ない。
+    ///
+    /// **これは TASK-607 の間欠障害の原因ではなかった**（真因はテストの並列実行による
+    /// メインキューの飽和で、診断ログでは `surface が未設定` の cancel は 0 件だった）。
+    /// ただし窓そのものは実在するので、順序を固定して閉じてある。
     /// 読み込みを忘れた面が配られない担保は、外へ出す入口を `make(for:…)` 1 本に
     /// 絞ることで保つ（この関数は internal で、呼ぶのは向こうとテストだけ）。
     static func make(
