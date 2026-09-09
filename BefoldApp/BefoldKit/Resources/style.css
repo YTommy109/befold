@@ -236,9 +236,20 @@ body {
   配色は既存のカスタムプロパティ(--fg / --fg-muted / --panel-border / --csv-th-bg)を
   使う。ダーク配色はそれらの側で切り替わるので、ここに @media を足さないこと。
 */
+/*
+  法令本文は漢字の密度が高く 1 段落が長い。既定の行間・段落間のままだと
+  条と項の境が見えず 1 枚の壁になるため、法令表示だけ行間と読み幅を広げる。
+*/
+.law {
+  max-width: 44em;
+  margin: 0 auto;
+  line-height: 1.9;
+}
+
 .law-title {
   margin: 0 0 0.2em;
   font-size: 1.6em;
+  line-height: 1.4;
   border: none;
 }
 
@@ -279,6 +290,7 @@ body {
 
 .law-caption {
   margin: 1.4em 0 0;
+  padding-left: 1em;
   color: var(--fg-muted);
 }
 
@@ -288,16 +300,36 @@ body {
   font-weight: 600;
 }
 
+/* 条どうしが地続きに見えないよう、条を段落より広い間隔で切る */
+.law-article {
+  margin: 1.8em 0;
+}
+
+.law-paragraph {
+  margin: 0.9em 0;
+}
+
+/*
+  法令の本文は各項・各号が一字下げで始まる。折り返した行は下げ幅より内側へ
+  戻す(ぶら下げ)ことで、行頭に残るのが条名・項番号・号番号だけになる。
+*/
 .law-paragraph-body,
 .law-item-body {
   margin: 0.5em 0;
-  /* 法令の本文は各項・各号が一字下げで始まる */
-  text-indent: 1em;
+  padding-left: 2em;
+  text-indent: -1em;
+}
+
+/* 番号が本文と一緒に折り返すと行頭の目印にならない */
+.law-article-title,
+.law-paragraph-num,
+.law-item-title {
+  white-space: nowrap;
 }
 
 /* 号・細分は入れ子の深さだけ字下げする(XSL 側は種別のクラスを持たない) */
 .law-item {
-  margin-left: 1.5em;
+  margin-left: 1em;
 }
 
 /* 欄(Column)は横並びの区画。区切りが消えないよう間隔を空ける */
