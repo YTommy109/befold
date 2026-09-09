@@ -39,6 +39,7 @@ const EXPECTED_DECLARATIONS = [
   'codeExtensions',
   'imageExtensionMimeTypes',
   'pdfExtensions',
+  'xmlExtensions',
   'plaintextFallback',
   'allExtensions',
   'quickLookSupportedExtensions',
@@ -55,6 +56,7 @@ const EXPECTED_LITERAL_GROUPS = [
   'codeExtensionLanguages',
   'imageExtensionMimeTypes',
   'pdfExtensions',
+  'xmlExtensions',
 ]
 
 function sorted(values: Iterable<string>): string[] {
