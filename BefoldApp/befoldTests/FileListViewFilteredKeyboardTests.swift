@@ -116,7 +116,7 @@ struct FileListViewFilteredKeyboardTests {
         let model = FileListModel(
             currentDirectory: directory, entries: rows, selection: child.id
         )
-        model.layoutMode = .tree
+        model.display.apply(.toggleLayoutMode)
         let view = FileListView(
             model: model,
             delegate: delegates.makeSpy()

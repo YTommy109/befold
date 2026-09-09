@@ -91,7 +91,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
         // 取得は非同期なので、発行されていれば待つと件数が増える。増えなければ発行されていない。
         await navigator.awaitSettled()
 
-        #expect(navigator.fileListModel.showChangedFilesOnly == testCase.targetState)
+        #expect(navigator.fileListModel.display.showChangedFilesOnly == testCase.targetState)
         #expect(listings.get() == listingsAfterLoad)
         #expect(gitCalls.get() == gitCallsAfterLoad + testCase.expectedGitCalls)
     }

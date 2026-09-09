@@ -69,7 +69,7 @@ struct SidebarHeaderView: View {
 
     private var controls: SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
-            settings: model.displaySettings,
+            settings: model.display.settings,
             canFilterChangedFiles: model.canFilterChangedFiles,
             isFilterActive: model.transient.isFilterActive,
             isFilterTextEmpty: model.transient.filterText.isEmpty

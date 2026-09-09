@@ -46,7 +46,7 @@ struct SessionRestorerTests {
         restorer.restoreLastSession(options: CLIOpenOptions(showHiddenFiles: true))
 
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
-        #expect(controller.fileListModel.showHiddenFiles)
+        #expect(controller.fileListModel.display.showHiddenFiles)
         #expect(!fixture.displayDefaults.settings.showHiddenFiles)
     }
 
@@ -77,7 +77,7 @@ struct SessionRestorerTests {
         restorer.restoreLastSession(options: CLIOpenOptions(sortOrder: .alphabetical))
 
         let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
-        #expect(controller?.fileListModel.sortOrder == .alphabetical)
+        #expect(controller?.fileListModel.display.sortOrder == .alphabetical)
     }
 
     @Test("オプション未指定時は従来どおり復元される(既定のフォルダー優先ソート)")

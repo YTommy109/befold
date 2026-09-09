@@ -39,7 +39,7 @@ struct SidebarListingSeed {
         !listing.didFailEnumeration
             && !model.hasLoadedEntries
             && directory.normalizedPathKey == model.currentDirectory.normalizedPathKey
-            && sortOrder == model.sortOrder
-            && showHiddenFiles == model.showHiddenFiles
+            && sortOrder == model.display.sortOrder
+            && showHiddenFiles == model.display.showHiddenFiles
     }
 }

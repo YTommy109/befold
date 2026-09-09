@@ -59,4 +59,52 @@ struct SidebarDisplaySettingsTests {
             }
         }
     }
+
+    /// `applying` は `isOn` と対。**適用した直後は必ず `isOn` が反転している**ことで
+    /// 両者の網羅が食い違っていないことを測る(片方だけ足すと「チェックは付くが
+    /// 適用されない」形が作れる)。並び順だけは反転ではなく指定なので別に測る。
+    @Test("トグル 3 種は適用すると isOn が反転する", arguments: [
+        SidebarDisplayChange.toggleHiddenFiles,
+        .toggleChangedFilesOnly,
+        .toggleLayoutMode,
+    ])
+    func applyingFlipsIsOnForToggles(change: SidebarDisplayChange) {
+        let allOn = settings(showHiddenFiles: true, showChangedFilesOnly: true, layoutMode: .tree)
+        for start in [SidebarDisplaySettings.initial, allOn] {
+            #expect(start.applying(change).isOn(change) == !start.isOn(change))
+        }
+    }
+
+    @Test("並び順の適用は指定した順序を ON にする")
+    func applyingSortOrderSetsRequestedOrder() {
+        for current in SortOrder.allCases {
+            for requested in SortOrder.allCases {
+                let next = settings(sortOrder: current).applying(.setSortOrder(requested))
+
+                #expect(next.sortOrder == requested)
+                #expect(next.isOn(.setSortOrder(requested)))
+            }
+        }
+    }
+
+    /// 切り替えは互いに独立。1 つ適用したときに他の 3 値が動かないことを見る
+    /// (`applying` が `var next = self` を土台にしていることの担保)。
+    @Test("1 つの適用は他の値を動かさない", arguments: [
+        SidebarDisplayChange.toggleHiddenFiles,
+        .toggleChangedFilesOnly,
+        .toggleLayoutMode,
+        .setSortOrder(.alphabetical),
+    ])
+    func applyingLeavesOtherValuesUntouched(change: SidebarDisplayChange) {
+        let start = SidebarDisplaySettings.initial
+        let next = start.applying(change)
+        let all: [SidebarDisplayChange] = [
+            .toggleHiddenFiles, .toggleChangedFilesOnly, .toggleLayoutMode, .setSortOrder(.alphabetical),
+        ]
+        let others = all.filter { $0 != change }
+
+        for other in others {
+            #expect(next.isOn(other) == start.isOn(other))
+        }
+    }
 }

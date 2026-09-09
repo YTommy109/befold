@@ -256,7 +256,7 @@ extension AppDelegate: NSMenuItemValidation {
         let controller = ActiveViewerProvider.fromMainWindow()
         let model = controller?.fileListModel
         let state = SidebarDisplayMenuState(
-            activeWindow: model?.displaySettings,
+            activeWindow: model?.display.settings,
             canFilterChangedFiles: model?.canFilterChangedFiles ?? false,
             allowsSidebar: controller?.kind.allowsSidebar ?? false
         )

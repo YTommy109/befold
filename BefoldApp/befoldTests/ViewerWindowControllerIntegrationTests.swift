@@ -49,7 +49,7 @@ struct ViewerWindowControllerIntegrationTests {
         await controller.sidebar.awaitSettled()
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains(".hidden.mmd"))
-        #expect(controller.fileListModel.showHiddenFiles)
+        #expect(controller.fileListModel.display.showHiddenFiles)
     }
 
     @Test("displayDefaults.showHiddenFiles が false(デフォルト)のとき不可視ファイルは含まれない")
@@ -70,7 +70,7 @@ struct ViewerWindowControllerIntegrationTests {
         let names = controller.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains("visible.mmd"))
         #expect(!names.contains(".hidden.mmd"))
-        #expect(!controller.fileListModel.showHiddenFiles)
+        #expect(!controller.fileListModel.display.showHiddenFiles)
     }
 
     @Test("rename でサイドバーの一覧が再取得され新名が選択される")

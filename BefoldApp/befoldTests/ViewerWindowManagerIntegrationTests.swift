@@ -49,15 +49,15 @@ struct ViewerWindowManagerIntegrationTests {
         ),
         DisplayChangeCase(
             name: "変更ファイルのみ表示(⌘⌃G)", change: .toggleChangedFilesOnly,
-            applied: { $0.fileListModel.showChangedFilesOnly }
+            applied: { $0.fileListModel.display.showChangedFilesOnly }
         ),
         DisplayChangeCase(
             name: "表示形式(⌃⌘T)", change: .toggleLayoutMode,
-            applied: { $0.fileListModel.layoutMode == .tree }
+            applied: { $0.fileListModel.display.layoutMode == .tree }
         ),
         DisplayChangeCase(
             name: "並び順", change: .setSortOrder(.alphabetical),
-            applied: { $0.fileListModel.sortOrder == .alphabetical }
+            applied: { $0.fileListModel.display.sortOrder == .alphabetical }
         ),
     ]
 

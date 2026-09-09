@@ -5,6 +5,15 @@ import Foundation
 /// サイドバーのファイル一覧と選択状態を保持する監視可能モデル。
 /// リネームやディレクトリの変化に追従して一覧・選択を更新できるよう、
 /// ウィンドウ側(ViewerWindowController)が参照型で保持して書き換える。
+///
+/// **この型から何が出せて何が固定かの判断**(閾値へ近づくたびに同じ調査を繰り返さない
+/// ため。TASK-585 → TASK-604 → TASK-604.6 で 3 回目)。
+/// - 出した: 表示 4 値 → `SidebarDisplayState`(書き込み口を 2 メソッドへ絞るのが本体で
+///   行数削減は副次)、名前フィルター・スライドモード → `SidebarTransientState`
+///   (境界は「保存値の対を持つか」)、スクロール追随 → `SidebarTableFocuser`
+/// - 出せない: git 状態の反映は ADR 0003 が `applyGitStatus` 一本化を決めている
+///   (判定は `FileListGitStatusGate` へ切れるが、観測対象へ書くのはこの型)。
+///   `previewTarget` は ADR 0002 の単一導出点で、5 つの材料を同時に要るため結合が増える
 @MainActor
 @Observable
 final class FileListModel {
@@ -171,25 +180,11 @@ final class FileListModel {
         onPresentationTargetChange?()
     }
 
-    // MARK: - サイドバー表示設定(窓ごとのライブ値)
+    // MARK: - 窓ごとの見せ方(兄弟型へ出してある)
 
-    //
-    // 次の 4 値は ADR 0002「窓の状態」にあたる。**この窓での真実の源はここ**で、
-    // アプリ全体の保存値(`SidebarDisplayDefaults`)は窓の生成時に読む初期値にすぎない。
-    // 生きている窓は保存値を読み直さない(読み直すと他窓の操作が後から効く)。
-    // 変更の入口は `SidebarListingCoordinator.applyDisplayChange(_:)` の 1 本だけで、
-    // ここへ外から直接代入しないこと(ライブ値の更新と既定値の書き戻しが対で走らなくなる)。
-
-    /// 一覧の並び順(フォルダー優先 / アルファベット順)。
-    var sortOrder: SortOrder
-    /// 不可視ファイル(ドットファイル)を一覧に出すか。
-    /// サイドバーのアイコンボタン・メニュー・ショートカットの見た目もこの値を読む。
-    var showHiddenFiles: Bool
-    /// git 変更のあるエントリだけに絞るか。
-    var showChangedFilesOnly: Bool
-    /// 行の並べ方(ドリルダウン / ツリー展開)。
-    /// View はキー操作の割り当てをこの値で切り替える。
-    var layoutMode: SidebarLayoutMode
+    /// サイドバー表示 4 値のライブ値(ADR 0002「窓の状態」)。書き込み口は
+    /// `SidebarDisplayState` の 2 メソッドだけ。詳しくは向こうの doc を参照。
+    let display: SidebarDisplayState
     /// 絞り込みとスライドモード(窓ごと・永続化しない)。保存値の対がある表示 4 値とは
     /// 分けてある。詳しくは `SidebarTransientState` の doc を参照。
     let transient = SidebarTransientState()
@@ -312,7 +307,7 @@ final class FileListModel {
                 currentDirectory: currentDirectory,
                 entriesDirectory: entriesDirectory,
                 hasLoadedEntries: hasLoadedEntries,
-                showChangedFilesOnly: showChangedFilesOnly,
+                showChangedFilesOnly: display.showChangedFilesOnly,
                 didFailListing: didFailListing
             ),
             filteredRows: { listSnapshot.filtered }
@@ -325,13 +320,16 @@ final class FileListModel {
     var listFilter: FileListFilter {
         FileListFilter(
             filterText: transient.filterText,
-            gitStatus: showChangedFilesOnly ? gitStatus : nil,
+            gitStatus: display.showChangedFilesOnly ? gitStatus : nil,
             presentedPathKey: storedSelectionPathKey
         )
     }
 
     /// - Parameter display: この窓のサイドバー表示 4 値の初期値。本番のウィンドウ生成経路
     ///   (`SidebarNavigator.init`)は `SidebarDisplayDefaults.settings` を流し込む。
+    ///   **既定値 `.initial` を残してあるのはテストのため**——本番の呼び出し元は
+    ///   `SidebarNavigator.init` の 1 箇所きり(実測)で、そこは必ず保存値を渡す。
+    ///   共有インスタンスの受け渡しではないので TASK-319 の形にはならない。
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: FileListEntry.ID?,
         display: SidebarDisplaySettings = .initial
@@ -343,10 +341,7 @@ final class FileListModel {
         let normalizedSelection = selection?.nativeBackedFileURL
         storedSelection = normalizedSelection
         storedSelectionPathKey = normalizedSelection?.normalizedPathKey
-        sortOrder = display.sortOrder
-        showHiddenFiles = display.showHiddenFiles
-        showChangedFilesOnly = display.showChangedFilesOnly
-        layoutMode = display.layoutMode
+        self.display = SidebarDisplayState(settings: display)
         // 各プロパティの didSet は init 中には走らないため、派生する値をここで揃える。
         entryIndex = FileListEntryIndex(entries: entries)
         lastNotifiedTarget = .undetermined

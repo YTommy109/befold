@@ -242,6 +242,7 @@ BefoldApp/
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `SidebarTransientState` | サイドバーの**保存値の対を持たない**見せ方（名前フィルター）。窓ごとで永続化せず、再起動すれば必ず初期値へ戻る。保存値を持つ表示 4 値（`SidebarDisplayDefaults`）と分ける境界がこれ |
+| `SidebarDisplayState` | サイドバー表示 4 値の**この窓でのライブ値**（ADR 0002「窓の状態」）。`settings` は `private(set)` で、書き込み口は利用者の操作（`apply`）と CLI のこの起動限りの上書き（`applyCLIOverride`）の 2 メソッドだけ。かつては `FileListModel` の 4 プロパティで、「入口は 1 本」を doc コメントで宣言していたが守られていなかった（`ViewerDisplayOptionsApplier` が直接代入）。区別を型に持たせた |
 | `SidebarDisplayOverrides` | 窓の生成時に既定値へ重ねる「指定のあった値」。ADR 0002 の窓ごと **4 値すべて**（並び順・不可視・変更のみ・レイアウト）を運び、出どころは CLI の `--sort` / `--hidden-files` と、起点の窓からの引き継ぎの 2 つ。混ぜるのは `applied(to:)` の 1 箇所だけ |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |

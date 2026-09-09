@@ -42,7 +42,7 @@ struct ViewerWindowManagerDisplayOverridesIntegrationTests {
         manager.openViewer(for: file, options: CLIOpenOptions(sortOrder: .alphabetical))
         await controller.sidebar.awaitSettled()
 
-        #expect(controller.fileListModel.sortOrder == .alphabetical)
+        #expect(controller.fileListModel.display.sortOrder == .alphabetical)
         #expect(controller.fileListModel.entries.map(\.kind) == [.file, .folder])
         manager.allControllers.forEach { $0.close() }
     }

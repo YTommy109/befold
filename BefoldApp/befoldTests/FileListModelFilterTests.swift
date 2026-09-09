@@ -70,7 +70,7 @@ struct FileListModelFilterTests {
         let changed = makeEntry("changed.md")
         let model = makeModel(entries: [changed, makeEntry("clean.md")])
         applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
     }
@@ -82,7 +82,7 @@ struct FileListModelFilterTests {
         let model = makeModel(entries: [folder, cleanFolder])
         let nested = folder.url.appendingPathComponent("inner.md").normalizedPathKey
         applyGitStatus([nested: modifiedStatus()], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["src"])
     }
@@ -96,7 +96,7 @@ struct FileListModelFilterTests {
             [changedMatching.pathKey: modifiedStatus(), changedOther.pathKey: modifiedStatus()],
             to: model
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
         model.transient.filterText = "read*"
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["README.md"])
@@ -106,7 +106,7 @@ struct FileListModelFilterTests {
     func changedFilesOnlyDegradesOutsideRepository() {
         let entries = [makeEntry("a.md"), makeEntry("b.md")]
         let model = makeModel(entries: entries)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.gitStatus == nil)
         #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
@@ -118,7 +118,7 @@ struct FileListModelFilterTests {
     func changedFilesOnlyAppliesInCleanRepository() {
         let model = makeModel(entries: [makeEntry("a.md"), makeEntry("b.md")])
         applyGitStatus([:], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.isEmpty)
     }
@@ -143,7 +143,7 @@ struct FileListModelFilterTests {
             [changedShallow.pathKey: modifiedStatus(), changedDeep.pathKey: modifiedStatus()],
             to: model, directory: root
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(
             model.visibleEntries.map(\.url.lastPathComponent) == ["top.md", "changed.md"]
@@ -161,7 +161,7 @@ struct FileListModelFilterTests {
         let subdirectory = model.currentDirectory.appendingPathComponent("src")
         // 移動先(同じリポジトリ内のサブディレクトリ)の状態だけが先に着地した状態。
         applyGitStatus([:], to: model, directory: subdirectory)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         // 保留されているので、手元の一覧(移動元)は絞り込まれない。
         #expect(model.visibleEntries.map(\.id) == entries.map(\.id))

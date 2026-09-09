@@ -92,7 +92,7 @@ struct FileListModelTreeFilterTests {
             ),
             for: root, sequence: gitStatusSequence.next()
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["sub", "a.txt"])
     }
@@ -207,7 +207,7 @@ struct FileListModelTreeFilterTests {
         let entries = [makeEntry("a.md"), makeEntry("b.md")]
         let model = makeModel(entries: entries)
         applyGitStatus([:], to: model, directory: URL(fileURLWithPath: "/tmp/OtherRepository"))
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.id) == entries.map(\.id))
     }
@@ -220,7 +220,7 @@ struct FileListModelTreeFilterTests {
         let inside = FileListEntry(url: directory.appendingPathComponent("b.md"), kind: .file)
         let model = FileListModel(currentDirectory: directory, entries: [inside], selection: nil)
         applyGitStatus([directory.normalizedPathKey: GitFileStatus(isUntracked: true)], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["b.md"])
     }
@@ -243,7 +243,7 @@ struct FileListModelTreeFilterTests {
         let model = makeModel(entries: [changed, opened, makeEntry("other.md")])
         applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
         model.selection = opened.id
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md", "README.md"])
     }
@@ -253,7 +253,7 @@ struct FileListModelTreeFilterTests {
         let changed = makeEntry("changed.md")
         let model = makeModel(entries: [changed, makeEntry("README.md")])
         applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
     }
@@ -279,7 +279,7 @@ struct FileListModelTreeFilterTests {
         let changed = makeEntry("changed.md")
         let model = makeModel(entries: [changed, makeEntry("clean.md")])
         applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
         #expect(model.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
 
         model.currentDirectory = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")
@@ -296,7 +296,7 @@ struct FileListModelTreeFilterTests {
         let model = makeModel(entries: [])
         model.entries = [changed, makeEntry("clean.md")]
         applyGitStatus([changed.pathKey: modifiedStatus()], to: model)
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         // 移動要求。一覧はまだ移動元のものが出ている。
         let next = URL(fileURLWithPath: "/tmp/FileListModelFilterTests/sub")

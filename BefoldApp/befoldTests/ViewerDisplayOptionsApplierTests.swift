@@ -24,13 +24,13 @@ struct ViewerDisplayOptionsApplierTests {
         defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
-        controller.fileListModel.sortOrder = .alphabetical
+        controller.fileListModel.display.apply(.setSortOrder(.alphabetical))
 
         ViewerDisplayOptionsApplier.apply(
             CLIOpenOptions(showLineNumbers: true), to: controller, forceSidebarVisible: false
         )
 
-        #expect(controller.fileListModel.sortOrder == .alphabetical)
+        #expect(controller.fileListModel.display.sortOrder == .alphabetical)
         #expect(controller.store.showLineNumbers)
     }
 

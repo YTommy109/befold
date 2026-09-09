@@ -82,7 +82,7 @@ final class SidebarTreePresenter {
     @discardableResult
     func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
         lastListing = listing
-        let isTree = fileListModel.layoutMode == .tree
+        let isTree = fileListModel.display.layoutMode == .tree
         // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
         // 行は 1 階層ぶんに戻る(モードを戻したのにツリーのままになるのを防ぐ)。
         let rows = listing.rows(
@@ -145,7 +145,7 @@ final class SidebarTreePresenter {
     /// 展開はツリー表示でしか行に効かないので、リスト表示では引き継がない
     /// (引き継ぐと、この窓が一度もツリーにしていないのに展開キーだけ溜まる)。
     func adoptExpansion(_ inherited: [String: URL]) {
-        guard fileListModel.layoutMode == .tree else { return }
+        guard fileListModel.display.layoutMode == .tree else { return }
         for (key, url) in inherited {
             expandFolder(key, at: url)
         }
@@ -195,7 +195,7 @@ final class SidebarTreePresenter {
         // リスト(ドリルダウン)表示中は展開が行に出ない(applyRows が材料を渡さない)。
         // 温存中の子リストを取り直しても描画されず、不可視のサブツリーへ列挙が飛ぶ
         // だけなので何もしない。鮮度はツリーへ戻ったあとの取り直しで追いつく(TASK-481)。
-        guard fileListModel.layoutMode == .tree else { return }
+        guard fileListModel.display.layoutMode == .tree else { return }
         for token in expansion.invalidateChildren() {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
@@ -207,8 +207,8 @@ final class SidebarTreePresenter {
     /// 券が指すフォルダの子リストを取り直し、着地したら行を組み直す。
     /// 列挙先の URL は券が運ぶ(一覧から pathKey で引き当て直さない / TASK-442.3)。
     private func loadChildren(for token: SidebarExpansion.ExpansionToken) {
-        let sortOrder = fileListModel.sortOrder
-        let showHiddenFiles = fileListModel.showHiddenFiles
+        let sortOrder = fileListModel.display.sortOrder
+        let showHiddenFiles = fileListModel.display.showHiddenFiles
         Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
             self.expansion.apply(children, for: token)

@@ -63,7 +63,7 @@ struct SidebarHeaderControlsModel: Equatable {
     let overflowItems: [SidebarOverflowItem]
 
     /// - Parameters:
-    ///   - settings: この窓のサイドバー表示 4 値(`FileListModel.displaySettings`)。
+    ///   - settings: この窓のサイドバー表示 4 値(`FileListModel.display.settings`)。
     ///     **4 値を個別の引数で持ち回らない**——経路が増えるたびに引数が伸びて片方だけ
     ///     通し忘れる(`SidebarDisplayOverrides` と同じ理由、TASK-413 と同型)。⋯ の
     ///     チェックを `isOn(_:)` で導くのにも 4 値が揃っている必要がある。

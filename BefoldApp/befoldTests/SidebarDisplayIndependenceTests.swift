@@ -37,22 +37,22 @@ struct SidebarDisplayIndependenceTests {
     private nonisolated static let values: [DisplayValue] = [
         DisplayValue(
             name: "不可視ファイル表示", change: .toggleHiddenFiles,
-            live: { $0.fileListModel.showHiddenFiles },
+            live: { $0.fileListModel.display.showHiddenFiles },
             stored: { $0.settings.showHiddenFiles }
         ),
         DisplayValue(
             name: "変更ファイルのみ表示", change: .toggleChangedFilesOnly,
-            live: { $0.fileListModel.showChangedFilesOnly },
+            live: { $0.fileListModel.display.showChangedFilesOnly },
             stored: { $0.settings.showChangedFilesOnly }
         ),
         DisplayValue(
             name: "表示形式(ツリー)", change: .toggleLayoutMode,
-            live: { $0.fileListModel.layoutMode == .tree },
+            live: { $0.fileListModel.display.layoutMode == .tree },
             stored: { $0.settings.layoutMode == .tree }
         ),
         DisplayValue(
             name: "並び順(アルファベット順)", change: .setSortOrder(.alphabetical),
-            live: { $0.fileListModel.sortOrder == .alphabetical },
+            live: { $0.fileListModel.display.sortOrder == .alphabetical },
             stored: { $0.settings.sortOrder == .alphabetical }
         ),
     ]

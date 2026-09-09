@@ -117,6 +117,6 @@ struct ViewerWindowControllerCLIOptionsTests {
 
         // 一覧の取得自体は非同期(SidebarNavigator)へ寄せたため、ここでは並び順が
         // サイドバーのモデルへ届いていることを見る。実際の並べ替えは DirectoryLister 側のテストが担う。
-        #expect(controller.fileListModel.sortOrder == .alphabetical)
+        #expect(controller.fileListModel.display.sortOrder == .alphabetical)
     }
 }

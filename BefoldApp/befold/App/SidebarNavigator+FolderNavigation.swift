@@ -50,7 +50,7 @@ extension SidebarNavigator {
         selectionMemory.remember(in: fileListModel.currentDirectory)
         fileListModel.currentDirectory = url
         updateRootDirectory(with: url.standardizedFileURL)
-        if fileListModel.layoutMode == .tree {
+        if fileListModel.display.layoutMode == .tree {
             discardExpansion()
         }
     }

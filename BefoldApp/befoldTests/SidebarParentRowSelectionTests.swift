@@ -110,7 +110,7 @@ struct SidebarParentRowSelectionTests {
     func leftArrowSelectsParentRowWithoutChangingRoot() {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: fixture.deep.id)
-        model.layoutMode = .tree
+        model.display.apply(.toggleLayoutMode)
         var navigated: [URL] = []
         let view = makeView(model: model) { navigated.append($0) }
 
@@ -124,7 +124,7 @@ struct SidebarParentRowSelectionTests {
     func collapsedFolderMovesSelectionToParentRow() {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: fixture.lib.id)
-        model.layoutMode = .tree
+        model.display.apply(.toggleLayoutMode)
         // 畳んだ状態の lib を選んでいる、という形にする(展開済みなら ← は畳む)。
         model.entries = fixture.rows.filter { $0.id != fixture.deep.id }
             .map { $0.id == fixture.lib.id ? $0.disclosing(.collapsed) : $0 }
@@ -141,7 +141,7 @@ struct SidebarParentRowSelectionTests {
     func topLevelRowIgnoresLeftArrow() {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: fixture.top.id)
-        model.layoutMode = .tree
+        model.display.apply(.toggleLayoutMode)
         var navigated: [URL] = []
         let view = makeView(model: model) { navigated.append($0) }
 
@@ -157,7 +157,7 @@ struct SidebarParentRowSelectionTests {
         let fixture = makeTreeFixture()
         for key in [KeyEquivalent.upArrow, .delete] {
             let model = makeModel(entries: fixture.rows, selection: fixture.deep.id)
-            model.layoutMode = .tree
+            model.display.apply(.toggleLayoutMode)
             var navigated: [URL] = []
             let view = makeView(model: model) { navigated.append($0) }
             let modifiers: EventModifiers = key == .upArrow ? .command : []
@@ -173,7 +173,8 @@ struct SidebarParentRowSelectionTests {
     func drillDownLeftArrowStillNavigatesToParent() {
         let fixture = makeTreeFixture()
         let model = makeModel(entries: fixture.rows, selection: fixture.deep.id)
-        model.layoutMode = .drillDown
+        // 既定がドリルダウン。前提として固定しておく（既定が変わったらここで落ちる）。
+        #expect(model.display.layoutMode == .drillDown)
         var navigated: [URL] = []
         let view = makeView(model: model) { navigated.append($0) }
 

@@ -114,12 +114,12 @@ struct SidebarLayoutTransitionTests {
 
         navigator.applyDisplayChange(.toggleLayoutMode)
         await drainChildLoads(navigator)
-        #expect(navigator.fileListModel.layoutMode == .drillDown)
+        #expect(navigator.fileListModel.display.layoutMode == .drillDown)
 
         navigator.applyDisplayChange(.toggleLayoutMode)
         await drainChildLoads(navigator)
 
-        #expect(navigator.fileListModel.layoutMode == .tree)
+        #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(navigator.expandedFolderKeys == savedKeys)
         #expect(
             navigator.fileListModel.currentDirectory.normalizedPathKey
@@ -149,7 +149,7 @@ struct SidebarLayoutTransitionTests {
         navigator.applyDisplayChange(.toggleLayoutMode)
         await drainChildLoads(navigator)
 
-        #expect(navigator.fileListModel.layoutMode == .drillDown)
+        #expect(navigator.fileListModel.display.layoutMode == .drillDown)
         #expect(
             navigator.fileListModel.currentDirectory.normalizedPathKey
                 == fixture.inner.normalizedPathKey
@@ -204,7 +204,7 @@ struct SidebarLayoutTransitionTests {
         navigator.applyDisplayChange(.toggleLayoutMode)
         await drainChildLoads(navigator)
 
-        #expect(navigator.fileListModel.layoutMode == .tree)
+        #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(
             navigator.fileListModel.currentDirectory.normalizedPathKey
                 == fixture.base.normalizedPathKey
@@ -246,7 +246,7 @@ struct SidebarLayoutTransitionTests {
         navigator.applyDisplayChange(.toggleLayoutMode)
         await drainChildLoads(navigator)
 
-        #expect(navigator.fileListModel.layoutMode == .tree)
+        #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(
             navigator.fileListModel.currentDirectory.normalizedPathKey
                 == fixture.outside.normalizedPathKey

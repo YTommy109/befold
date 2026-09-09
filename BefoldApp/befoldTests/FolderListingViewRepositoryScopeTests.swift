@@ -53,7 +53,7 @@ struct FolderListingViewRepositoryScopeTests {
             ),
             for: directory, sequence: 1
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         let childEntries = [
             FileListEntry(url: child, kind: .file), FileListEntry(url: sibling, kind: .file),
@@ -79,7 +79,7 @@ struct FolderListingViewRepositoryScopeTests {
             ),
             for: directory, sequence: 1
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         let childEntries = [
             FileListEntry(url: child, kind: .file), FileListEntry(url: sibling, kind: .file),

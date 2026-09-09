@@ -31,7 +31,7 @@ extension FileListView {
             SidebarKeyAction.action(
                 key: key, modifiers: modifiers,
                 target: snapshot.entry(for: model.selection).map(SidebarKeyAction.Target.init(entry:)),
-                mode: model.layoutMode
+                mode: model.display.layoutMode
             ),
             in: snapshot
         )

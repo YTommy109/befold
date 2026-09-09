@@ -43,7 +43,7 @@ final class SidebarLayoutTransition {
     /// ツリー⇄リストのトグル。`SidebarNavigator.applyDisplayChange` から
     /// `.toggleLayoutMode` のときだけ呼ばれる。
     func toggleLayoutMode() {
-        if fileListModel.layoutMode == .tree {
+        if fileListModel.display.layoutMode == .tree {
             switchToDrillDown()
         } else {
             switchToTree()

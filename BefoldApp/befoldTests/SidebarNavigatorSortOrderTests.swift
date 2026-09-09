@@ -41,7 +41,7 @@ struct SidebarNavigatorSortOrderTests {
         let preference = makePreference()
         preference.record { $0.sortOrder = .alphabetical }
 
-        #expect(makeNavigator(preference: preference).fileListModel.sortOrder == .alphabetical)
+        #expect(makeNavigator(preference: preference).fileListModel.display.sortOrder == .alphabetical)
     }
 
     @Test("setSortOrder はこの窓のライブ値と保存された既定値の両方を更新する")
@@ -51,7 +51,7 @@ struct SidebarNavigatorSortOrderTests {
 
         navigator.applyDisplayChange(.setSortOrder(.alphabetical))
 
-        #expect(navigator.fileListModel.sortOrder == .alphabetical)
+        #expect(navigator.fileListModel.display.sortOrder == .alphabetical)
         #expect(preference.settings.sortOrder == .alphabetical)
     }
 
@@ -61,7 +61,7 @@ struct SidebarNavigatorSortOrderTests {
         let preference = makePreference()
         makeNavigator(preference: preference).applyDisplayChange(.setSortOrder(.alphabetical))
 
-        #expect(makeNavigator(preference: preference).fileListModel.sortOrder == .alphabetical)
+        #expect(makeNavigator(preference: preference).fileListModel.display.sortOrder == .alphabetical)
     }
 
     /// **粒度の担保**: 並び順は窓ごとのライブ値なので、片方の窓での変更が
@@ -74,8 +74,8 @@ struct SidebarNavigatorSortOrderTests {
 
         first.applyDisplayChange(.setSortOrder(.alphabetical))
 
-        #expect(first.fileListModel.sortOrder == .alphabetical)
-        #expect(second.fileListModel.sortOrder == .foldersFirst)
+        #expect(first.fileListModel.display.sortOrder == .alphabetical)
+        #expect(second.fileListModel.display.sortOrder == .foldersFirst)
     }
 
     /// CLI の `--sort` はその起動限りの窓単位の上書きなので、既定値を書き換えない。
@@ -85,7 +85,7 @@ struct SidebarNavigatorSortOrderTests {
 
         let navigator = makeNavigator(preference: preference, sortOrder: .alphabetical)
 
-        #expect(navigator.fileListModel.sortOrder == .alphabetical)
+        #expect(navigator.fileListModel.display.sortOrder == .alphabetical)
         #expect(preference.settings.sortOrder == .foldersFirst)
     }
 }

@@ -46,8 +46,8 @@ enum SidebarInheritance {
         return SidebarListingSeed(
             directory: model.entriesDirectory,
             listing: controller.sidebar.lastListing,
-            sortOrder: model.sortOrder,
-            showHiddenFiles: model.showHiddenFiles
+            sortOrder: model.display.sortOrder,
+            showHiddenFiles: model.display.showHiddenFiles
         )
     }
 
