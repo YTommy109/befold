@@ -126,9 +126,14 @@
     <div class="law-paragraph">
       <xsl:apply-templates select="ParagraphCaption"/>
       <p class="law-paragraph-body">
+        <!--
+          番号（条名 or 項番号）は必ず 1 つの span に入れる。空でも出すのは、
+          style.css が「番号 | 本文」の 2 列で本文の折り返し位置を揃えるため
+          （列が欠けると本文が番号の列へ入り、字下げが崩れる）。
+        -->
+        <span class="law-label">
         <xsl:if test="not(preceding-sibling::Paragraph)">
           <xsl:apply-templates select="../ArticleTitle"/>
-          <xsl:if test="../ArticleTitle"><xsl:text>　</xsl:text></xsl:if>
         </xsl:if>
         <!--
           項番号は ParagraphNum を使う。ただし日本国憲法のように全項で
@@ -139,14 +144,13 @@
         <xsl:choose>
           <xsl:when test="string(ParagraphNum)">
             <span class="law-paragraph-num"><xsl:value-of select="ParagraphNum"/></span>
-            <xsl:text>　</xsl:text>
           </xsl:when>
           <xsl:when test="@Num and @Num != '1'">
             <span class="law-paragraph-num"><xsl:value-of select="@Num"/></span>
-            <xsl:text>　</xsl:text>
           </xsl:when>
         </xsl:choose>
-        <xsl:apply-templates select="ParagraphSentence"/>
+        </span>
+        <span class="law-text"><xsl:apply-templates select="ParagraphSentence"/></span>
       </p>
       <xsl:apply-templates select="*[not(self::ParagraphCaption or self::ParagraphNum
         or self::ParagraphSentence or self::ArticleTitle)]"/>
@@ -158,14 +162,17 @@
                      | Subitem6 | Subitem7 | Subitem8 | Subitem9 | Subitem10">
     <div class="law-item">
       <p class="law-item-body">
-        <xsl:if test="string(*[substring(local-name(), string-length(local-name()) - 4) = 'Title'])">
-          <span class="law-item-title">
-            <xsl:value-of select="*[substring(local-name(), string-length(local-name()) - 4) = 'Title']"/>
-          </span>
-          <xsl:text>　</xsl:text>
-        </xsl:if>
-        <xsl:apply-templates
-          select="*[substring(local-name(), string-length(local-name()) - 7) = 'Sentence']"/>
+        <span class="law-label">
+          <xsl:if test="string(*[substring(local-name(), string-length(local-name()) - 4) = 'Title'])">
+            <span class="law-item-title">
+              <xsl:value-of select="*[substring(local-name(), string-length(local-name()) - 4) = 'Title']"/>
+            </span>
+          </xsl:if>
+        </span>
+        <span class="law-text">
+          <xsl:apply-templates
+            select="*[substring(local-name(), string-length(local-name()) - 7) = 'Sentence']"/>
+        </span>
       </p>
       <xsl:apply-templates select="*[substring(local-name(), string-length(local-name()) - 4) != 'Title'
         and substring(local-name(), string-length(local-name()) - 7) != 'Sentence']"/>
