@@ -13,23 +13,18 @@ import UserNotifications
 /// - CLI 要求の受信: `AppCLIRequestReceiver` / CLI シムの設置: `CLIShimCoordinator`
 /// - Quick Open: `QuickOpenCoordinator`
 /// - 自動アップデート: `AppUpdaterController`
-/// - 単一インスタンスのパネル: `AppDelegate+HostedPanels`
+/// - 単一インスタンスのパネル: `HostedPanelPresenter`
+/// - ウィンドウ生成の合成: `ViewerWindowManagerFactory`
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) static var shared: AppDelegate?
     /// アプリ全体で共有する永続化ストアと表示設定。束ねた 1 個を各機能へ配る。
-    ///
-    /// `private` にできないのは、`AppDelegate+HostedPanels` が設定パネルの組み立てで
-    /// `codeFontPreference` を読むため(Swift の `private` はファイルスコープ)。
-    /// **読んでよいのは同じ型グループの extension だけ**で、他の型からは
-    /// init で渡された `AppStores` を通すこと。
-    let stores: AppStores
-    let windowManager: ViewerWindowManager
+    private let stores: AppStores
+    private let windowManager: ViewerWindowManager
     private let sessionRestorer: SessionRestorer
-    /// 単一インスタンスのパネルウィンドウ(About・設定・Help 配下)。初回のトグルで生成し、
-    /// 以降は同じインスタンスを使い回す。
-    var hostedPanels: [HostedPanel: HostedPanelWindowController] = [:]
+    /// 単一インスタンスのパネルウィンドウ(About・設定・Help 配下)。
+    private let panels: HostedPanelPresenter
     private let documentOpener: DocumentOpener
     private let quickOpen: QuickOpenCoordinator
     /// Sparkle の updater は delegate を weak で持つため、strong に保持し続ける必要がある
@@ -41,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     override init() {
         let stores = AppStores()
-        let windowManager = Self.makeWindowManager(stores: stores)
+        let windowManager = ViewerWindowManagerFactory.make(stores: stores)
         let documentOpener = DocumentOpener(
             windowManager: windowManager,
             activeViewer: ActiveViewerProvider.fromMainWindow
@@ -51,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.windowManager = windowManager
         self.documentOpener = documentOpener
         self.sessionRestorer = sessionRestorer
+        panels = HostedPanelPresenter(stores: stores, windowManager: windowManager)
         quickOpen = QuickOpenCoordinator(
             stores: stores,
             gitIndex: windowManager.gitFileIndex,
@@ -69,38 +65,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openHandler: { documentOpener.openViewer(for: $0) }
         )
         super.init()
-    }
-
-    /// ウィンドウ生成の合成点。`GitStatusStore` の差し込みまで含めてここで組み立てる。
-    private static func makeWindowManager(stores: AppStores) -> ViewerWindowManager {
-        let windowManager = ViewerWindowManager(
-            sessionStore: stores.sessionStore,
-            recentDocumentsStore: stores.recentDocumentsStore,
-            displayDefaults: stores.displayDefaults,
-            diffDisplayPreference: stores.diffDisplayPreference,
-            findOptionsPreference: stores.findOptionsPreference,
-            headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
-            codeFontPreference: stores.codeFontPreference,
-            csvNumberFormatPreference: stores.csvNumberFormatPreference,
-            perFileState: stores.perFileState,
-            windowFrame: stores.windowFrame,
-            bookmarkStore: stores.bookmarkStore,
-            recentRepositoriesStore: stores.recentRepositoriesStore,
-            // リポジトリを記録したら、その本体ルートの worktree 一覧も裏で解決し直しておく。
-            // 次にメニューを開いた時点でキャッシュに載っていれば階層表示になる。
-            onRepositoryRecorded: { [worktreeCatalog = stores.worktreeCatalog] mainRoot in
-                Task { await worktreeCatalog.refresh(mainRoots: [mainRoot]) }
-            }
-        )
-        // git 状態の取得は、ルート解決を全ウィンドウ共有の索引へ一本化する
-        // (Store が独自に GitRepository を生成して rev-parse を重ねない)。
-        // 索引の実体は windowManager が握っているため、生成後にここで差し込む。
-        windowManager.gitStatusStore = GitStatusStore(
-            resolveRepositoryRoot: { [gitFileIndex = windowManager.gitFileIndex] directory in
-                gitFileIndex.repositoryRoot(forDirectoryAt: directory)
-            }
-        )
-        return windowManager
     }
 
     nonisolated static func main() {
@@ -202,27 +166,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showAbout(_ sender: Any?) {
-        togglePanel(.about)
+        panels.toggle(.about)
     }
 
     /// Help > 機能説明。
     @objc func showFeatureOverview(_ sender: Any?) {
-        togglePanel(.featureOverview)
+        panels.toggle(.featureOverview)
     }
 
     /// Help > キーボードショートカット。
     @objc func showKeyboardShortcuts(_ sender: Any?) {
-        togglePanel(.keyboardShortcuts)
+        panels.toggle(.keyboardShortcuts)
     }
 
     /// Help > AI コーディングエージェント連携。
     @objc func showAIIntegration(_ sender: Any?) {
-        togglePanel(.aiIntegration)
+        panels.toggle(.aiIntegration)
     }
 
     /// Help > OSS 謝辞。
     @objc func showOSSLicenses(_ sender: Any?) {
-        togglePanel(.ossLicenses)
+        panels.toggle(.ossLicenses)
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
@@ -270,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// App > Settings…(⌘,)。単一インスタンスで、
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
-        togglePanel(.settings)
+        panels.toggle(.settings)
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。

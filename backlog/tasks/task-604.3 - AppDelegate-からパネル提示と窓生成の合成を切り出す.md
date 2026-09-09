@@ -1,9 +1,10 @@
 ---
 id: TASK-604.3
 title: AppDelegate からパネル提示と窓生成の合成を切り出す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:01'
+updated_date: '2026-09-09 00:34'
 labels:
   - refactor
 dependencies: []
@@ -37,7 +38,21 @@ ordinal: 879000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 AppDelegate グループが 300 行以下になっている
-- [ ] #2 hostedPanels のレジストリが AppDelegate から出ており、stores を private にできない理由が解消しているか、解消しない理由が doc にある
-- [ ] #3 メニューからのパネル表示が実機で動くことを確認してある
+- [x] #1 AppDelegate グループが 300 行以下になっている
+- [x] #2 hostedPanels のレジストリが AppDelegate から出ており、stores を private にできない理由が解消しているか、解消しない理由が doc にある
+- [x] #3 メニューからのパネル表示が実機で動くことを確認してある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+(a) 単一インスタンスパネルのレジストリと組み立てを HostedPanelPresenter（新規・独立型）へ。(b) 窓生成の合成点を ViewerWindowManagerFactory（新規）へ。AppDelegate+HostedPanels.swift は削除した。
+
+AC #2: stores は private に戻せた。extension が codeFontPreference を読むことだけが internal の理由だったため、レジストリごと出して制約が消えた。同じ理由で windowManager も private にできた（外部の読み手が無いことを事前 grep で確認）。AppDelegate の可変 stored property は 0 個になった。
+
+(c)（pruneRecentRepositories → RecentRepositoryRecorder / UNUserNotificationCenterDelegate → ForegroundNotificationPresenter）は実施しなかった。(a)+(b) で 398 → 291 行になり AC #1 を満たすため必要がなく、いずれも移すと得より損が大きい。prune は worktreeCatalog を必要とするが RecentRepositoryRecorder はそれを持っておらず、依存を 1 本足すことになる。通知 delegate は 1 メソッド 6 行の準拠で、専用の型と保持先を新設するほうが行数も概念も増える。
+
+AC #3（実機確認）: xcodebuild で .app を作って起動し、System Events でメニューから 6 パネルすべてを開けることを確認した（befold について / 機能説明 / キーボードショートカット / AI コーディングエージェント連携 / オープンソースソフトウェア謝辞 / 設定…）。単一インスタンスのトグル（同じ項目を再度選ぶと閉じる）も OSS 謝辞で確認済み。
+
+実測: AppDelegate グループ 398 → 291 行。HostedPanelPresenter 93 行 / ViewerWindowManagerFactory 40 行。swift test 1941 tests / 320 suites 全通過、check-type-group-size.sh exit=0、swiftformat 差分なし。swiftlint は移設で持ち込まれた function_body_length（main にもあった既存警告）を設定ビューの抽出で解消し、新規指摘 0 件。
+<!-- SECTION:NOTES:END -->
