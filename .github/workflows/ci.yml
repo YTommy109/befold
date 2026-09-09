@@ -162,15 +162,14 @@ jobs:
       - name: SwiftFormat の整形を検証する
         run: swift package plugin --allow-writing-to-package-directory swiftformat -- --lint
 
-      # `--no-parallel` は必須(TASK-607)。実 WKWebView を使う統合テストは
-      # WebKit のコールバック(didFinish)がメインキュー経由で届くが、swift-testing の
-      # 並列実行では ~1900 件の @MainActor テストが同じキューを埋め続けるため、
-      # コールバックがその後ろで待たされて着地しない。実測: 並列だと 25 回の
-      # loadFileURL に対し didFinish が 35 秒間 1 件も届かず、実行の最後に 12 件
-      # まとめて着地した(= 待機予算をいくら延ばしても間に合わない)。
-      # 直列なら着地が分散し、全件緑になる。代償は実行時間 40 秒 → 56 秒。
+      # TASK-607: 実 WKWebView の統合テストが間欠的に落ちる原因は、swift-testing の
+      # 並列実行で ~1900 件の @MainActor テストがメインキューを埋め、WebKit の
+      # didFinish がその後ろで待たされることだと実測で分かっている。
+      # ただし `--no-parallel` は**採れない**——手元では直列 3 回とも 56 秒で緑だが、
+      # CI では別のところでハングし 24 分間出力が止まって打ち切られた（run 34304889554）。
+      # 対処は未確定。詳細と次の一手は TASK-607 の Notes を参照。
       - name: テストを実行する
-        run: swift test --no-parallel
+        run: swift test
 
       # 協調スレッドプールの幅を 1 に絞って回す。同期的に塞ぐ処理を
       # `Task.detached`(= 協調スレッド)へ置くと、幅ぶんの同時ブロックで
@@ -179,7 +178,7 @@ jobs:
       # 幅 1 なら 1 本でも塞いだ時点で決定的に落ちるため、TSan の稀なフレークを
       # 待たずにここで捕まえる。実測: 手元で 40 秒(通常実行は 36 秒)。
       - name: 協調スレッドプール幅 1 でテストを実行する
-        run: swift test --no-parallel
+        run: swift test
         env:
           LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
 
