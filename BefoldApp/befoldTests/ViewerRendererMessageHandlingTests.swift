@@ -41,7 +41,7 @@ struct ViewerRendererMessageHandlingTests {
         delegate.onOpenReference = { received = ($0, $1) }
 
         dispatch(
-            renderer, name: ViewerBridge.referenceActivatedMessageName,
+            renderer, name: ViewerBridgeMessage.referenceActivated.rawValue,
             body: ["href": "./other.md", "metaKey": metaKey, "shiftKey": shiftKey]
         )
 
@@ -56,7 +56,7 @@ struct ViewerRendererMessageHandlingTests {
         delegate.onContextMenu = { received = $0 }
 
         dispatch(
-            renderer, name: ViewerBridge.referenceContextMenuMessageName,
+            renderer, name: ViewerBridgeMessage.referenceContextMenu.rawValue,
             body: ["href": "./other.md"]
         )
 
@@ -70,7 +70,7 @@ struct ViewerRendererMessageHandlingTests {
         delegate.onContextMenu = { _ in called = true }
 
         dispatch(
-            renderer, name: ViewerBridge.referenceContextMenuMessageName,
+            renderer, name: ViewerBridgeMessage.referenceContextMenu.rawValue,
             body: ["href": 123]
         )
 
@@ -89,7 +89,7 @@ struct ViewerRendererMessageHandlingTests {
         renderer.findOptionsPreference = preference
 
         dispatch(
-            renderer, name: ViewerBridge.findOptionsChangedMessageName,
+            renderer, name: ViewerBridgeMessage.findOptionsChanged.rawValue,
             body: ["caseSensitive": true, "wholeWord": false, "useRegex": true]
         )
 
@@ -104,7 +104,7 @@ struct ViewerRendererMessageHandlingTests {
         defer { withExtendedLifetime(delegate) {} } // renderer.delegate は weak
         #expect(renderer.isLoadingMoreLines == false)
 
-        dispatch(renderer, name: ViewerBridge.loadMoreLinesMessageName, body: [])
+        dispatch(renderer, name: ViewerBridgeMessage.loadMoreLines.rawValue, body: [])
 
         // handleLoadMoreLines は非同期 Task を張る前に同期でフラグを立てる。
         // 同期テストのため spawn した Task はまだ走らず、ここでは true のままとなる。
@@ -175,7 +175,7 @@ struct ViewerRendererMessageHandlingTests {
 
         // shiftKey が欠落
         dispatch(
-            renderer, name: ViewerBridge.referenceActivatedMessageName,
+            renderer, name: ViewerBridgeMessage.referenceActivated.rawValue,
             body: ["href": "./other.md", "metaKey": true]
         )
 
@@ -189,7 +189,7 @@ struct ViewerRendererMessageHandlingTests {
         delegate.onOpenReference = { _, _ in called = true }
 
         dispatch(
-            renderer, name: ViewerBridge.referenceActivatedMessageName,
+            renderer, name: ViewerBridgeMessage.referenceActivated.rawValue,
             body: ["href": 42, "metaKey": true, "shiftKey": false]
         )
 
@@ -209,7 +209,7 @@ struct ViewerRendererMessageHandlingTests {
 
         // useRegex が Bool でない
         dispatch(
-            renderer, name: ViewerBridge.findOptionsChangedMessageName,
+            renderer, name: ViewerBridgeMessage.findOptionsChanged.rawValue,
             body: ["caseSensitive": true, "wholeWord": false, "useRegex": "yes"]
         )
 
@@ -252,10 +252,10 @@ struct ViewerRendererMessageHandlingTests {
     func handlerNamesIncludeInteractiveWhenEnabled() {
         let names = ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)
 
-        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
-        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
-        #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
+        #expect(names.contains(ViewerBridgeMessage.findOptionsChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.zoomChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
     }
 
     @Test("allowsInteractiveBridging=false では referenceActivated/loadMoreLines を登録しない")
@@ -264,10 +264,10 @@ struct ViewerRendererMessageHandlingTests {
         let names = ViewerWebViewFactory.messageHandlerNames(for: features)
 
         // 非インタラクティブでも必要な 2 種は残る
-        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
-        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
+        #expect(names.contains(ViewerBridgeMessage.findOptionsChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.zoomChanged.rawValue))
         // 攻撃面となる 2 種は登録されない
-        #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
+        #expect(!names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
     }
 }

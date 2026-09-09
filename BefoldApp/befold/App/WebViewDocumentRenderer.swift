@@ -66,19 +66,19 @@ final class WebViewDocumentRenderer: DocumentRendering {
     }
 
     func openFind() {
-        evaluate(ViewerBridge.openFindScript)
+        evaluate(ViewerFindBridge.openFindScript)
     }
 
     func findNext() {
-        evaluate(ViewerBridge.findNextScript)
+        evaluate(ViewerFindBridge.findNextScript)
     }
 
     func findPrevious() {
-        evaluate(ViewerBridge.findPrevScript)
+        evaluate(ViewerFindBridge.findPrevScript)
     }
 
     func openJump(kind: DocumentJumpKind) {
-        evaluate(ViewerBridge.openJumpScript(kind: kind.rawValue))
+        evaluate(ViewerJumpBridge.openJumpScript(kind: kind.rawValue))
     }
 
     /// 文字列へ落とすのは openJump と同じくこの JS 境界だけ。順序を安定させるため
@@ -86,7 +86,7 @@ final class WebViewDocumentRenderer: DocumentRendering {
     /// 送信スクリプトの比較やログが読みにくくなる)。
     func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>) {
         let ordered = DocumentJumpKind.allCases.filter { kinds.contains($0) }.map(\.rawValue)
-        evaluate(ViewerBridge.jumpAvailabilityScript(kinds: ordered))
+        evaluate(ViewerJumpBridge.jumpAvailabilityScript(kinds: ordered))
     }
 
     func printDocument(over window: NSWindow?) {

@@ -164,16 +164,16 @@ public enum ViewerWebViewFactory {
             ViewerBridge.codeFontSizeScript(options.codeFontSizePoints),
             ViewerCsvBridge.csvNumberGroupingScript(options.csvGrouping),
             ViewerCsvBridge.csvNegativeStyleScript(options.csvNegativeStyle),
-            ViewerBridge.initialFindOptionsScript(
-                ViewerBridge.FindOptions(
+            ViewerFindBridge.initialFindOptionsScript(
+                ViewerFindBridge.FindOptions(
                     caseSensitive: options.findOptions?.caseSensitive ?? false,
                     wholeWord: options.findOptions?.wholeWord ?? false,
                     useRegex: options.findOptions?.useRegex ?? false
                 )
             ),
-            ViewerBridge.initialJumpLevelsScript(options.headingJumpLevels),
-            ViewerBridge.findStringsScript(),
-            ViewerBridge.jumpStringsScript(),
+            ViewerJumpBridge.initialJumpLevelsScript(options.headingJumpLevels),
+            ViewerFindBridge.findStringsScript(),
+            ViewerJumpBridge.jumpStringsScript(),
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.imageStringsScript(),
             ViewerBridge.hostFeaturesScript(

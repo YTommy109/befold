@@ -1,9 +1,10 @@
 ---
 id: TASK-604.1
 title: ViewerBridge の受信方向の別名を消し、検索・ジャンプの契約を兄弟型へ出す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:01'
+updated_date: '2026-09-09 00:20'
 labels:
   - refactor
 dependencies: []
@@ -43,8 +44,20 @@ ordinal: 877000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 受信方向のメッセージ名の別名がすべて削除され、テストが ViewerBridgeMessage を直接読んでいる
-- [ ] #2 検索とジャンプの契約が兄弟型へ出ており、extension ではないことが doc に書いてある
-- [ ] #3 ViewerBridge グループが 320 行以下になっている
-- [ ] #4 swift test と ViewerBridgeContractTests が通り、viewer-bundle.js との突き合わせが壊れていない
+- [x] #1 受信方向のメッセージ名の別名がすべて削除され、テストが ViewerBridgeMessage を直接読んでいる
+- [x] #2 検索とジャンプの契約が兄弟型へ出ており、extension ではないことが doc に書いてある
+- [x] #3 ViewerBridge グループが 320 行以下になっている
+- [x] #4 swift test と ViewerBridgeContractTests が通り、viewer-bundle.js との突き合わせが壊れていない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+段階 1: 受信方向の別名 7 本（zoomChanged / referenceActivated / referenceContextMenu / loadMoreLines / resolveReferences / jumpLevelsChanged / findOptionsChanged）を削除し、テスト 9 ファイルを ViewerBridgeMessage.<case>.rawValue へ書き換えた。本番参照は事前 grep で 0 件を確認済み。あわせて `!rawValue.isEmpty` を見るだけの loadMoreLinesMessageNameIsDefined を削除（String enum の rawValue は空にならないので何も検証していなかった）。
+
+段階 2: 検索の契約を ViewerFindBridge、ジャンプの契約を ViewerJumpBridge へ兄弟型として切り出した（extension にしない理由を両ファイルの doc に明記）。FindOptions も ViewerFindBridge へ移動（呼び出し 2 箇所を更新）。
+
+実測: ViewerBridge グループ 387 → 271 行（AC #3 の 320 以下を満たす）。swift test 1941 tests / 320 suites すべて通過。scripts/check-type-group-size.sh exit=0、swiftformat 差分なし、swiftlint の新規指摘なし。
+
+なお ViewerBridgeContractTests が 381 行で閾値に近い（TASK-604.2 の対象）。
+<!-- SECTION:NOTES:END -->

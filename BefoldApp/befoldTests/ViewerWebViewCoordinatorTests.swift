@@ -119,13 +119,13 @@ struct ViewerWebViewCoordinatorTests {
     func messageHandlerNamesIncludesAllWhenInteractiveBridgingEnabled() {
         let names = ViewerWebViewFactory.messageHandlerNames(for: .allEnabled)
 
-        #expect(names.contains(ViewerBridge.referenceActivatedMessageName))
-        #expect(names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(names.contains(ViewerBridge.resolveReferencesMessageName))
-        #expect(names.contains(ViewerBridge.referenceContextMenuMessageName))
-        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
-        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
-        #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
+        #expect(names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.resolveReferences.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.referenceContextMenu.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.zoomChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.findOptionsChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.jumpLevelsChanged.rawValue))
         #expect(names.count == 7)
     }
 
@@ -134,14 +134,14 @@ struct ViewerWebViewCoordinatorTests {
         let features = RendererFeatures.quickLookRestricted
         let names = ViewerWebViewFactory.messageHandlerNames(for: features)
 
-        #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
-        #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
+        #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.resolveReferences.rawValue))
         // ズーム・検索の通知は静的1回読込でも安全なため登録を維持する。
-        #expect(names.contains(ViewerBridge.zoomChangedMessageName))
-        #expect(names.contains(ViewerBridge.findOptionsChangedMessageName))
+        #expect(names.contains(ViewerBridgeMessage.zoomChanged.rawValue))
+        #expect(names.contains(ViewerBridgeMessage.findOptionsChanged.rawValue))
         // 見出しジャンプのレベル通知も静的 1 回読込で安全（受け手の記録口は nil で無害化される）。
-        #expect(names.contains(ViewerBridge.jumpLevelsChangedMessageName))
+        #expect(names.contains(ViewerBridgeMessage.jumpLevelsChanged.rawValue))
         #expect(names.count == 3)
     }
 

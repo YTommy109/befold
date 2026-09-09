@@ -38,11 +38,11 @@ struct ViewerBridgeContractTests {
         // 外れるので、ここで明示的に定義の存在を確かめる(TASK-485.1)。
         #expect(Self.definesFunction(html, "_mmdOpenJump", parameterCount: 1))
         #expect(Self.definesFunction(html, "_mmdApplyJumpAvailability", parameterCount: 1))
-        #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridge.zoomChangedMessageName)\""))
-        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridge.referenceActivatedMessageName)\""))
-        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridge.findOptionsChangedMessageName)\""))
-        #expect(html.contains("_MSG_LOAD_MORE_LINES = \"\(ViewerBridge.loadMoreLinesMessageName)\""))
-        #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridge.resolveReferencesMessageName)\""))
+        #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridgeMessage.zoomChanged.rawValue)\""))
+        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridgeMessage.referenceActivated.rawValue)\""))
+        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridgeMessage.findOptionsChanged.rawValue)\""))
+        #expect(html.contains("_MSG_LOAD_MORE_LINES = \"\(ViewerBridgeMessage.loadMoreLines.rawValue)\""))
+        #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridgeMessage.resolveReferences.rawValue)\""))
         // 表示時解決: JS が候補を集めて要求する側(_mmdResolveReferences)と、
         // Swift の応答を適用する側(applyResolvedReferencesScript が呼ぶ関数)の両方を確認する。
         #expect(Self.definesFunction(html, "_mmdResolveReferences", parameterCount: 0))
@@ -133,7 +133,7 @@ struct ViewerBridgeContractTests {
     func findStringsKeysAreReadInJS() throws {
         let source = try Self.viewerBundleSource()
         let keys = try bridgeGlobalKeys(
-            from: ViewerBridge.findStringsScript(), global: "window._mmdFindStrings"
+            from: ViewerFindBridge.findStringsScript(), global: "window._mmdFindStrings"
         )
         #expect(keys.count == 8)
         for key in keys {

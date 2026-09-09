@@ -30,7 +30,7 @@ struct ViewerRendererJumpMessageTests {
         renderer.headingJumpLevelRecording = recorder
 
         dispatch(
-            renderer, name: ViewerBridge.jumpLevelsChangedMessageName,
+            renderer, name: ViewerBridgeMessage.jumpLevelsChanged.rawValue,
             body: ["levels": ["h1", "h3"]]
         )
 
@@ -46,7 +46,7 @@ struct ViewerRendererJumpMessageTests {
         let recorder = HeadingJumpLevelRecorderSpy()
         renderer.headingJumpLevelRecording = recorder
 
-        dispatch(renderer, name: ViewerBridge.jumpLevelsChangedMessageName, body: ["levels": [String]()])
+        dispatch(renderer, name: ViewerBridgeMessage.jumpLevelsChanged.rawValue, body: ["levels": [String]()])
 
         #expect(recorder.recorded == [HeadingJumpLevels(levels: [])])
     }
@@ -70,7 +70,7 @@ struct ViewerRendererJumpMessageTests {
 
         // Swift 側の保存表現をそのまま送り返しても同じ値になる（往復で崩れない）。
         let sent = HeadingJumpLevels(levels: [1, 3]).storedValue
-        dispatch(renderer, name: ViewerBridge.jumpLevelsChangedMessageName, body: ["levels": sent])
+        dispatch(renderer, name: ViewerBridgeMessage.jumpLevelsChanged.rawValue, body: ["levels": sent])
 
         #expect(recorder.recorded == [HeadingJumpLevels(levels: [1, 3])])
     }
@@ -82,7 +82,7 @@ struct ViewerRendererJumpMessageTests {
         let recorder = HeadingJumpLevelRecorderSpy()
         renderer.headingJumpLevelRecording = recorder
 
-        dispatch(renderer, name: ViewerBridge.jumpLevelsChangedMessageName, body: ["levels": "h1"])
+        dispatch(renderer, name: ViewerBridgeMessage.jumpLevelsChanged.rawValue, body: ["levels": "h1"])
 
         #expect(recorder.recorded.isEmpty)
     }
