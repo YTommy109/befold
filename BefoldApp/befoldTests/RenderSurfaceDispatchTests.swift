@@ -159,3 +159,50 @@ struct SurfacePolicyApplicationTests {
         #expect(surface.removedMessageHandlerNames == expected)
     }
 }
+
+/// 初回の viewer.html ロードが**キャンセルされない**ことの担保（TASK-607）。
+///
+/// `ViewerNavigationCoordinator.surfaceShouldNavigate` は `renderer.surface` が nil の間
+/// `.cancel` を返す。キャンセルされたナビゲーションは `didFinish` も `didFail` も
+/// 発火しないため、そこに初回ロードが当たると `ViewerReadinessGate` が**永久に開かない**。
+///
+/// 実測（PR #644 の CI 診断ログ）: `loadLocalFile 発行` 27 回に対し `didFinish` は 12 回、
+/// `shouldNavigate を cancel (renderer/surface が未設定)` が 1 回出ていた。
+/// WebContent プロセスの終了は 0 回で、バンドル欠落も遮断ポリシーの取りこぼしも無い。
+///
+/// 対処は「面を組み立ててから結びつけ、**その後で**デリゲートを繋いでロードを始める」。
+/// ここが崩れると窓が白いまま開かなくなるので、組み立て単体では
+/// ナビゲーションが始まっていないことを測る。
+@Suite
+struct SurfaceConstructionOrderTests {
+    @Test("組み立てただけの面は、まだデリゲートも繋がずロードも始めていない")
+    @MainActor
+    func buildingASurfaceDoesNotStartNavigation() {
+        let renderer = ViewerRenderer()
+        let surface = WebKitRenderSurface.make(
+            options: renderer.surfaceOptions(initialZoom: 1.0, findOptionsPreference: nil),
+            eventHandler: renderer.surfaceEventBridge
+        )
+
+        #expect(
+            surface.webView.navigationDelegate == nil,
+            "組み立ての時点でデリゲートを繋ぐと、adopt より前のコールバックを受けてしまう"
+        )
+        #expect(
+            surface.webView.url == nil,
+            "組み立ての時点でロードを始めると、adopt より前に .cancel されうる"
+        )
+    }
+
+    @Test("make(for:) を通した面は、結びつけ済みでロードが始まっている")
+    @MainActor
+    func makeForRendererAdoptsThenLoads() {
+        let renderer = ViewerRenderer()
+        let surface = WebKitRenderSurface.make(
+            for: renderer, initialZoom: 1.0, findOptionsPreference: nil
+        )
+
+        #expect(renderer.surface != nil, "ロードを始める前に面が結びついていなければならない")
+        #expect(surface.webView.navigationDelegate != nil)
+    }
+}
