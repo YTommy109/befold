@@ -1,12 +1,15 @@
 import PDFKit
 
-/// PDF の面。**この面への書き込みはすべてここを通る**(TASK-574.1)。
+/// PDF の面。**倍率・回転・スクロール位置の書き込みはすべてここを通る**
+/// (TASK-574.1。検索の一致表示は `PDFFindHighlighter` が持つ = TASK-604.5)。
 ///
 /// 面の中で完結する倍率操作(ピンチ・Ctrl+ホイール)を受け、文書の差し替え手順を
 /// `present(document:rotation:zoom:scrollFraction:)` として同期 1 本で持つ。
 /// 換算(いまの倍率・フィット倍率・表示位置)は `PDFSurfaceLayout` が持ち、
-/// こちらはそれを読んで面へ書くだけ。書き込み口が 1 つであることが、
-/// 倍率が別経路から上書きされる形(TASK-572)を型で防ぐ。
+/// こちらはそれを読んで面へ書くだけ。この 3 つの書き込み口が 1 つであることが、
+/// 倍率が別経路から上書きされる形(TASK-572)を型で防ぐ。検索の一致は
+/// `highlightedSelections`(ユーザー選択とも倍率とも別系統の表示)なのでこの範囲の外だが、
+/// 一致まで送るスクロールは `scroll(toFindMatch:)` を通してここへ戻す。
 ///
 /// スクロールそのものは `PDFView` に任せる。かつてはホイールをページ送りへ
 /// 振り替えていたが(`PagingPDFView` / TASK-564.2)、連続スクロールへ改めた時点で
@@ -148,46 +151,7 @@ final class ZoomingPDFView: PDFView {
         }
         // フィットで見ていたなら回転後もフィット、拡大していたなら同じ拡大率のまま。
         apply(zoom: zoom)
-        settleRotation()
-    }
-
-    /// 回転の**補間を残さない**。回した結果の矩形を最初のフレームから見せる。
-    ///
-    /// PDFKit は回転後の再レイアウトで、ページのレイヤーへ position / bounds の
-    /// `CAAnimation` を明示的に積む。モデル値(`layer.bounds`)は同期に確定するが
-    /// `presentation()` だけが約 250ms かけて追いつくため、ページの矩形が
-    /// 書き変わっていく過程が見える(実測 / 1 ページ 612x792 の PDF を 90 度:
-    /// +14.0ms 612x792 → +87.5ms 703x701 → +237.5ms 791x613 / TASK-576)。
-    /// Preview.app は同じ操作が一瞬で終わる。
-    ///
-    /// 抑止できるのは**剥がすことだけ**で、積ませない手は無い。
-    /// `CATransaction.setDisableActions(true)` も `setAnimationDuration(0)` も
-    /// 効かない(どちらも暗黙アニメーションへの手当てで、明示的に `add` された
-    /// ものは止まらない)。同じ `PDFDocument` を入れ直してレイヤーごと作り直す形も
-    /// 試したが、PDFKit はレイヤーを使い回すので補間はそのまま出た(実測 / TASK-576)。
-    ///
-    /// **`CATransaction.flush()` に依存している。** ここまで来た時点ではまだ
-    /// アニメーションは積まれておらず(実測: 回した直後の走査で 0 件)、PDFKit は
-    /// CoreAnimation のコミットに合わせて積む。`flush()` でそのコミットを同期に
-    /// 走らせて初めて剥がす対象が現れる(実測: 10 件)。
-    ///
-    /// これは PDFKit が「いつ積むか」への依存であって、そこが変われば
-    /// **剥がす対象が 0 件になり、補間がまた見えるようになる**。落ちはせず、
-    /// 見た目だけが起票時の状態へ戻る。`PDFSurfaceRotationTests` の
-    /// `rotationLeavesNoLayerAnimations` がその状態で落ちる。
-    ///
-    /// 剥がす範囲を `documentView` 配下のレイヤー木全体にしてあるのは、
-    /// PDFKit の内部レイヤー構成(クラス名・階層の深さ)を判定に持ち込まないため。
-    /// この面のこの瞬間に走っていてよいレイヤーアニメーションは他に無い
-    /// (キーボードスクロールの `NSAnimationContext` は `clipView` の側で、
-    /// `documentView` の外)。
-    private func settleRotation() {
-        CATransaction.flush()
-        var stack = [documentView?.layer].compactMap(\.self)
-        while let layer = stack.popLast() {
-            layer.removeAllAnimations()
-            stack += layer.sublayers ?? []
-        }
+        PDFRotationAnimationStripper.strip(under: documentView)
     }
 
     /// 文書全体に対する表示位置(0…1)を復元する。
@@ -236,50 +200,11 @@ final class ZoomingPDFView: PDFView {
     /// キーボードスクロールのアニメーション時間。
     private static let scrollAnimationDuration: Double = 0.25
 
-    // MARK: - 検索の表示
-
-    /// 検索の一致を面へ映す（TASK-570）。
-    ///
-    /// `highlightedSelections` は**ユーザー選択とは別の系統**で、クリックしても消えない
-    /// （PDFKit のヘッダが全マッチのハイライト用途として挙げている）。全件をここへ入れ、
-    /// 現在の 1 件だけ色を変えて、web 面の `mark.mmd-find-match` / `-current` の
-    /// 2 段階に対応させる。
-    ///
-    /// **`currentSelection` は使わない。** そちらは PDFKit がシステムの選択色で描く
-    /// 系統で、`PDFSelection.color` を見ない。実機で入れたところ、指定した色ではなく
-    /// 青が出たうえ、一致の位置とずれた範囲（前の行にまたがる矩形）が描かれた。
-    /// 選択は「ユーザーが選んだ範囲」を表すものとして空けておく。
-    ///
-    /// - Parameter scroll: 現在の一致まで送るか。検索の進行中に件数だけが増えていく間は
-    ///   false にする。毎回送ると、まだ読んでいる最中に画面が飛び続ける。
-    func showFindMatches(_ selections: [PDFSelection], current: PDFSelection?, scroll: Bool = true) {
-        for selection in selections {
-            selection.color = Self.findMatchColor
-        }
-        current?.color = Self.currentFindMatchColor
-        // **入れ直す前に一度外す。** 同じ配列を入れ直しても PDFKit は再描画せず、
-        // `PDFSelection.color` の変更だけでは現在の一致の色が更新されない
-        // （実機で確認: 次へ送っても橙のままの位置が動かない / TASK-570）。
-        highlightedSelections = nil
-        highlightedSelections = selections.isEmpty ? nil : selections
-        guard scroll, let current else { return }
-        go(to: current)
+    /// 検索の一致まで送る。**スクロールの書き込みは面が持つ**ので、
+    /// `PDFFindHighlighter` は PDFKit の `go(to:)` を直接叩かない(`go(toPageAt:)` と同じ形)。
+    func scroll(toFindMatch selection: PDFSelection) {
+        go(to: selection)
     }
-
-    /// 検索の表示を消す。バーを閉じたときと、文書を差し替えたときに呼ぶ。
-    func clearFindMatches() {
-        highlightedSelections = nil
-    }
-
-    /// 一致の色。web 面の `mark.mmd-find-match`（rgba(255, 213, 0, 0.55)）に合わせる。
-    private static let findMatchColor = NSColor(
-        srgbRed: 1.0, green: 213.0 / 255.0, blue: 0, alpha: 0.55
-    )
-    /// 現在の一致の色。web 面の `mark.mmd-find-match-current`（--accent）に対応する。
-    /// **ユーザー選択と同じ色にしない**（PDFKit のヘッダの推奨。どれが検索結果で
-    /// どれが自分で選んだ範囲かが見分けられなくなる）。他の一致（薄い黄）との差が
-    /// 一目で分かるよう、彩度の高いオレンジにする。
-    private static let currentFindMatchColor = NSColor.systemOrange.withAlphaComponent(0.75)
 
     // MARK: - レイアウト
 

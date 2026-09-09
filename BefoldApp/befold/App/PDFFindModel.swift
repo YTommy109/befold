@@ -218,7 +218,7 @@ final class PDFFindModel {
     private func clearMatches() {
         matches = []
         currentIndex = -1
-        pdfViewProxy.pdfView?.clearFindMatches()
+        pdfViewProxy.pdfView.map { PDFFindHighlighter.clear(in: $0) }
     }
 
     // MARK: - 移動
@@ -239,11 +239,15 @@ final class PDFFindModel {
 
     private func showCurrent() {
         guard matches.indices.contains(currentIndex) else { return }
-        pdfViewProxy.pdfView?.showFindMatches(matches, current: matches[currentIndex])
+        pdfViewProxy.pdfView.map {
+            PDFFindHighlighter.show(matches, current: matches[currentIndex], in: $0)
+        }
     }
 
     private func refreshHighlights() {
         let current = matches.indices.contains(currentIndex) ? matches[currentIndex] : nil
-        pdfViewProxy.pdfView?.showFindMatches(matches, current: current, scroll: false)
+        pdfViewProxy.pdfView.map {
+            PDFFindHighlighter.show(matches, current: current, in: $0, scroll: false)
+        }
     }
 }
