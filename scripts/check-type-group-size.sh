@@ -56,7 +56,18 @@ collect() {
     dir="$(dirname "$rel")"
     base="$(basename "$rel" .swift)"
     # `Foo+Bar` は `Foo` へ畳む。`+` を含まない名前はそのまま。
-    base="${base%%+*}"
+    #
+    # **テストは `Tests` を残したまま畳む**(TASK-605)。素朴に畳むと
+    # `FooTests+BarTests.swift` ではなく `Foo+BarTests.swift` の形が
+    # キー `Foo` になり、`FooTests.swift`(キー `FooTests`)と**合算されない**。
+    # 実測: `DocumentCommandController+JumpTests` / `+OpenBarTests` の 206 行が
+    # `DocumentCommandControllerTests` の 308 行と分かれ、合算 514 行が
+    # 命名の形だけで閾値を通っていた。extension による分割は返済にならない
+    # (TASK-431)ので、その形が閾値を素通りする穴を塞ぐ。
+    case "$base" in
+      *Tests) base="${base%%+*}"; case "$base" in *Tests) ;; *) base="${base}Tests" ;; esac ;;
+      *) base="${base%%+*}" ;;
+    esac
     key="$dir/$base"
     lines="$(wc -l < "$file")"
     printf '%s\t%s\n' "$key" "$lines"
@@ -134,6 +145,10 @@ case "${1:-}" in
     printf 'a\nb\nc\nd\n' > "$tmp/Other/Foo.swift"
     # 本体の無い孤児 extension も 1 グループとして数える
     printf 'a\nb\nc\nd\ne\n' > "$tmp/App/URL+Orphan.swift"
+    # テストの `+` 分割は `Tests` を残して本体と合算する(TASK-605)。
+    # 畳んだ結果が `Baz` になると `BazTests.swift` と分かれてしまう。
+    printf 'a\nb\n' > "$tmp/App/BazTests.swift"
+    printf 'a\n' > "$tmp/App/Baz+MoreTests.swift"
     # excluded は集計に含めない
     printf 'a\nb\nc\nd\ne\nf\ng\n' > "$tmp/befold/Resources/Excluded.swift"
 
@@ -155,13 +170,15 @@ case "${1:-}" in
     expect '6\tApp/Foo'
     expect '4\tOther/Foo'
     expect '5\tApp/URL'
+    # 合算されていれば 3 行。分かれていると 2 行と 1 行になり、この行は現れない。
+    expect '3\tApp/BazTests'
     if echo "$out" | grep -q 'Excluded'; then
       echo "self-test 失敗: excluded 配下のファイルが集計に含まれています" >&2
       echo "$out" >&2
       fail=1
     fi
-    if [ "$(echo "$out" | wc -l)" -ne 3 ]; then
-      echo "self-test 失敗: グループ数が 3 ではありません" >&2
+    if [ "$(echo "$out" | wc -l)" -ne 4 ]; then
+      echo "self-test 失敗: グループ数が 4 ではありません" >&2
       echo "$out" >&2
       fail=1
     fi

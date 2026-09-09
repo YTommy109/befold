@@ -139,6 +139,15 @@ swift package plugin --allow-writing-to-package-directory swiftformat
     そのファイル自身を見ること
   - 例外は現状値の凍結ではない。上限まで太らせてよいという意味ではなく、返済して
     閾値以下へ戻せたら行を消す（不要な例外が残っていると CI が警告する）
+  - **テストも同じ規則で合算される。`Foo+BarTests` は `FooTests` と合算する**
+    （TASK-605）。素朴に `Foo+Bar` → `Foo` と畳むと、テストだけが
+    キー `Foo` になって `FooTests` と分かれ、**命名の形だけで閾値を通れてしまう**。
+    実測では `DocumentCommandController+JumpTests` / `+OpenBarTests` の 206 行が
+    `DocumentCommandControllerTests` の 308 行と分かれ、合算 514 行が素通りしていた。
+    スクリプトはテストの `Tests` を残したまま畳むので、この形はもう通らない
+    （self-test が担保する）。テストを分けるときは **extension ではなく別名の独立
+    スイート**にすること（TASK-431 / TASK-604.8）。共有するフェイクやフィクスチャは
+    `〜TestSupport` の名前で別ファイルへ出す
   - **例外行を消すときは、そこに書いた「理由」の行き先を決める。** 例外の 3 列目には
     数値の根拠だけでなく「責務で切っても分かれない」といった**判断**が書かれることがあり、
     それは行数が閾値以下へ戻っても失効しない。判断ごと消すと、次に閾値へ近づいたときに

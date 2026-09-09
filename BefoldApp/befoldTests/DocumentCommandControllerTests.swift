@@ -5,163 +5,13 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// レンダラへ「何が命じられたか」を fake で受け取り、コマンド層の方針
-/// (能力による可否・結果の保存先)を検証する(ADR 0002 段 4)。
-/// port を切る前は WebView 不在で全コマンドが無言の no-op になり、
-/// 命令が届いたかどうかをテストで区別できなかった。
-///
-/// `private` ではなく型内部可視性(既定の internal)にしてあるのは、
-/// `DocumentCommandController+OpenBarTests.swift` からも使うため
-/// (file_length 対策の分割。Swift の `private` はファイルスコープなので
-/// 分割先から見えなくなる)。
-@MainActor
-final class FakeDocumentRenderer: DocumentRendering {
-    enum Command: Equatable {
-        case applyZoom(Double)
-        case applyCodeFont(family: String?, points: Double?)
-        case applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle)
-        case changeZoom(ZoomChange)
-        case openFind
-        case findNext
-        case findPrevious
-        case openJump(kind: DocumentJumpKind)
-        case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
-        case print
-        case currentScrollPosition
-        case rotate(degrees: Int)
-        case noteRename(old: URL, new: URL)
-    }
-
-    private(set) var commands: [Command] = []
-    var isDirectHTMLMode = false
-    /// changeZoom の戻り値。直接 HTML モードの適用後倍率を模す。
-    var zoomAfterChange: Double?
-    /// currentScrollPosition が返す値。nil なら completion を呼ばない。
-    var scrollPosition: Double?
-
-    /// いまの回転角。`rotate` が積み上げる。
-    private(set) var currentRotation = 0
-
-    func applyZoom(_ zoom: Double) {
-        commands.append(.applyZoom(zoom))
-    }
-
-    func rotate(byDegrees degrees: Int) {
-        commands.append(.rotate(degrees: degrees))
-        currentRotation += degrees
-    }
-
-    func applyCodeFont(family: String?, points: Double?) {
-        commands.append(.applyCodeFont(family: family, points: points))
-    }
-
-    func applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle) {
-        commands.append(.applyCsvNumberFormat(grouping: grouping, negativeStyle: negativeStyle))
-    }
-
-    func changeZoom(_ change: ZoomChange) -> Double? {
-        commands.append(.changeZoom(change))
-        return zoomAfterChange
-    }
-
-    private(set) var focusSurfaceCount = 0
-
-    func focusSurface() {
-        focusSurfaceCount += 1
-    }
-
-    func openFind() {
-        commands.append(.openFind)
-    }
-
-    func findNext() {
-        commands.append(.findNext)
-    }
-
-    func findPrevious() {
-        commands.append(.findPrevious)
-    }
-
-    func openJump(kind: DocumentJumpKind) {
-        commands.append(.openJump(kind: kind))
-    }
-
-    func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>) {
-        commands.append(.applyJumpAvailability(kinds: kinds))
-    }
-
-    func printDocument(over _: NSWindow?) {
-        commands.append(.print)
-    }
-
-    func currentScrollPosition(_ completion: @escaping (Double) -> Void) {
-        commands.append(.currentScrollPosition)
-        guard let scrollPosition else { return }
-        completion(scrollPosition)
-    }
-
-    func noteRename(from oldURL: URL, to newURL: URL) {
-        commands.append(.noteRename(old: oldURL, new: newURL))
-    }
-}
-
-extension ZoomChange: @retroactive Equatable {}
-
 @Suite
 @MainActor
 struct DocumentCommandControllerTests {
-    private let url = URL(fileURLWithPath: "/tmp/a.md")
-
-    /// 窓のライブ倍率の代役。onZoomChanged で流れてきた値を順に記録する。
-    /// `makeController` のデフォルト引数の型として使われるため、`private` には
-    /// できない(型内部可視性のメソッドは private 型を引数に取れない)。
-    final class ZoomChangeRecorder {
-        var values: [Double] = []
-    }
-
-    /// 保存完了通知(位置・キー)を順に記録する。窓のライブ復元値の代役。
-    final class ScrollSaveRecorder {
-        struct Save: Equatable {
-            let position: Double
-            let url: URL
-            let mode: ViewerBridge.ViewMode
-        }
-
-        var saves: [Save] = []
-    }
-
-    /// `private` ではなく内部可視性にしてあるのは、`DocumentCommandController+
-    /// OpenBarTests.swift` と `DocumentCommandController+JumpTests.swift`
-    /// (どちらも file_length 対策の分割先)からも呼ぶため。
-    func makeController(
-        renderer: FakeDocumentRenderer,
-        perFileState: PerFileStateStore? = nil,
-        zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
-        scrollSaves: ScrollSaveRecorder = ScrollSaveRecorder(),
-        capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
-    ) -> DocumentCommandController {
-        let defaults = makeIsolatedDefaults(prefix: "DocumentCommandControllerTests")
-        return DocumentCommandController(
-            // 面の束ごしに差し込む。宛先の決定は DocumentSurfaces が持つので、
-            // ここでフェイクを直接コマンド側へ渡す形は取らない(TASK-564.6)。
-            surfaces: DocumentSurfaces(
-                webRenderer: renderer,
-                findOptions: FindOptionsPreference(defaults: defaults)
-            ),
-            perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
-            currentDocument: CurrentDocumentRef(store: ViewerStore(defaults: defaults), initialURL: url),
-            onZoomChanged: { zoomChanges.values.append($0) },
-            onScrollPositionSaved: {
-                scrollSaves.saves.append(ScrollSaveRecorder.Save(position: $0, url: $1, mode: $2))
-            },
-            capabilities: capabilities
-        )
-    }
-
     @Test("能力が無ければ、ユーザー操作はレンダラへ届かない")
     func blocksDocumentCommandsWithoutCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
 
         controller.zoomIn()
         controller.zoomOut()
@@ -177,7 +27,7 @@ struct DocumentCommandControllerTests {
     @Test("能力があれば、対応する命令がレンダラへ届く")
     func forwardsCommandsWhenCapable() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.zoomIn()
         controller.zoomOut()
@@ -196,7 +46,7 @@ struct DocumentCommandControllerTests {
     @Test("設定の反映は能力で止めない(フォルダー表示中の設定変更を取り残さない)")
     func settingsAreAppliedRegardlessOfCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
 
         controller.applyCodeFont(family: "Menlo", points: 12)
 
@@ -208,7 +58,7 @@ struct DocumentCommandControllerTests {
     @Test("数値表示の設定は能力に関わらず WebView へ届く")
     func appliesCsvNumberFormatRegardlessOfCapabilities() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
 
         controller.applyCsvNumberFormat(grouping: false, negativeStyle: .triangleRed)
 
@@ -223,21 +73,21 @@ struct DocumentCommandControllerTests {
         let defaults = makeIsolatedDefaults(prefix: "DocumentCommandControllerTests")
         let perFileState = PerFileStateStore(defaults: defaults)
         let zoomChanges = ZoomChangeRecorder()
-        let controller = makeController(
+        let controller = makeDocumentCommandController(
             renderer: renderer, perFileState: perFileState, zoomChanges: zoomChanges
         )
 
         // viewer.js が倍率を持つ通常モードでは nil が返り、保存も通知も JS からの経路に任せる
         renderer.zoomAfterChange = nil
         controller.zoomIn()
-        #expect(perFileState.zoom.zoom(for: url) == ZoomStore.defaultZoom)
+        #expect(perFileState.zoom.zoom(for: documentCommandTestURL) == ZoomStore.defaultZoom)
         #expect(zoomChanges.values.isEmpty)
 
         // 直接 HTML モードでは適用後の倍率が返る。viewer.js からの通知が来ない経路なので、
         // ここで窓のライブ値も更新しないと画面と食い違ったまま取り残される。
         renderer.zoomAfterChange = 1.25
         controller.zoomIn()
-        #expect(perFileState.zoom.zoom(for: url) == 1.25)
+        #expect(perFileState.zoom.zoom(for: documentCommandTestURL) == 1.25)
         #expect(zoomChanges.values == [1.25])
     }
 
@@ -247,15 +97,18 @@ struct DocumentCommandControllerTests {
     func reportsScrollPositionOnlyWhenAvailable() {
         let renderer = FakeDocumentRenderer()
         let scrollSaves = ScrollSaveRecorder()
-        let controller = makeController(renderer: renderer, scrollSaves: scrollSaves)
+        let controller = makeDocumentCommandController(renderer: renderer, scrollSaves: scrollSaves)
 
         renderer.scrollPosition = nil
-        controller.saveCurrentScrollPosition(for: url, mode: .rendered)
+        controller.saveCurrentScrollPosition(for: documentCommandTestURL, mode: .rendered)
         #expect(scrollSaves.saves.isEmpty)
 
         renderer.scrollPosition = 42
-        controller.saveCurrentScrollPosition(for: url, mode: .rendered)
-        #expect(scrollSaves.saves == [ScrollSaveRecorder.Save(position: 42, url: url, mode: .rendered)])
+        controller.saveCurrentScrollPosition(for: documentCommandTestURL, mode: .rendered)
+        let expected = ScrollSaveRecorder.Save(
+            position: 42, url: documentCommandTestURL, mode: .rendered
+        )
+        #expect(scrollSaves.saves == [expected])
     }
 
     /// 取得完了は「そのキーと値」ごと窓へ伝える。窓はこれで記憶とライブな復元値を
@@ -265,19 +118,19 @@ struct DocumentCommandControllerTests {
     func reportsSavedScrollPositionWithItsKey() {
         let renderer = FakeDocumentRenderer()
         let scrollSaves = ScrollSaveRecorder()
-        let controller = makeController(renderer: renderer, scrollSaves: scrollSaves)
+        let controller = makeDocumentCommandController(renderer: renderer, scrollSaves: scrollSaves)
 
         // 取得できなければ保存も通知もしない
         renderer.scrollPosition = nil
-        controller.saveCurrentScrollPosition(for: url, mode: .rendered)
+        controller.saveCurrentScrollPosition(for: documentCommandTestURL, mode: .rendered)
         #expect(scrollSaves.saves.isEmpty)
 
         renderer.scrollPosition = 42
-        controller.saveCurrentScrollPosition(for: url, mode: .source)
+        controller.saveCurrentScrollPosition(for: documentCommandTestURL, mode: .source)
 
         #expect(scrollSaves.saves.count == 1)
         #expect(scrollSaves.saves.first?.position == 42)
-        #expect(scrollSaves.saves.first?.url == url)
+        #expect(scrollSaves.saves.first?.url == documentCommandTestURL)
         #expect(scrollSaves.saves.first?.mode == .source)
     }
 
@@ -288,18 +141,18 @@ struct DocumentCommandControllerTests {
     @Test("rename の追随は状態の反映なので能力で止めない")
     func noteRenameIsForwardedRegardlessOfCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
         let renamed = URL(fileURLWithPath: "/tmp/b.md")
 
-        controller.noteRename(from: url, to: renamed)
+        controller.noteRename(from: documentCommandTestURL, to: renamed)
 
-        #expect(renderer.commands == [.noteRename(old: url, new: renamed)])
+        #expect(renderer.commands == [.noteRename(old: documentCommandTestURL, new: renamed)])
     }
 
     @Test("isDirectHTMLMode はレンダラの値をそのまま反映する")
     func isDirectHTMLModeReflectsRenderer() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
         #expect(!controller.isDirectHTMLMode)
 
         renderer.isDirectHTMLMode = true

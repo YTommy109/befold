@@ -1,10 +1,10 @@
 ---
 id: TASK-607
 title: ViewerRendererZoomIntegrationTests が CI で「準備完了が永久に来ない」形で間欠的に落ちる
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-09 02:06'
-updated_date: '2026-09-09 03:25'
+updated_date: '2026-09-09 04:27'
 labels: []
 dependencies: []
 priority: high
@@ -73,56 +73,54 @@ main と等価）。main で顕在化していないだけの潜在的なもの�
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## 真因（実測で確定）: 並列実行がメインキューを飽和させ WebKit のコールバックが着地しない
+## 真因
 
-`swift test` は swift-testing のテストを並列に走らせる。実 WKWebView の `didFinish` は
-**メインキュー経由**で届くが、~1900 件の `@MainActor` テストが同じキューを埋め続けるため、
-コールバックがその後ろで待たされる。**キューは走行中ずっと伸びるので、待機予算を
-いくら延ばしても間に合わない。**
+`Task.sleep` 系の待機では**メインランループが回らず、実 WKWebView のロードが前進しない**。
+姉妹スイート `ViewerRendererContentUpdateIntegrationTests` の doc が既にこれを記録していた
+——「yield スピン自体がメインランループを回してロードを前進させる」「時間ベース
+(`waitUntilOnMainActor`)は予算 60 秒でも成立しない」。
 
-ローカルで再現した並列実行の内訳（診断ログ `RenderDiagnostics`）:
+旧 25ms ループも、TASK-606 で入れた `waitUntilOnMainActor` も、どちらもこの形だった。
+並列実行では他のテストの `Task.yield` がたまたまランループを回すため、
+**通るか永久に来ないかの二極**になり、間欠失敗として現れていた。
 
-| 事象 | 件数 |
+## 対処: 実 WKWebView 依存そのものを外した
+
+待ち方を変えるのではなく依存を外した。根拠は、このスイートの全アサートが
+`renderer.pageZoom.applied` / `readiness.isReady` という **Swift 側の状態**で、
+JS を覗くアサートが 1 つも無かったこと——実 WebView に触る唯一のヘルパー
+`currentZoom(in:)` は**定義されたまま一度も呼ばれていなかった**。
+実 WebView が与えていたのは「準備完了の契機」だけで、それは本番と同じ
+`navigationCoordinator.surfaceDidFinishLoad()` で直接起こせる。
+
+`ViewerRendererZoomIntegrationTests` → **`ViewerRendererZoomProjectionTests`** へ改名し、
+`ViewerRendererMessageStubs.Surface`(WKWebView 実体を作らない面)を `adopt` する形にした。
+もう Integration ではないので名前もそれに合わせた。
+
+## 実測
+
+- 4 件が **0.051 秒**で決定的に通過（従来: ローカル 0.6 秒 / CI 92〜127 秒、間欠失敗）
+- **網羅は保たれている**: `PageZoomProjector.desired` に `didSet { applyIfReady() }` を入れて
+  TASK-567 のバグを再現させると 3 件が落ち、戻すと通る
+- フル実行 2 回連続で 1947 tests / 324 suites 緑
+
+## 残る待機について
+
+`rendered.contentRevision` と `pageZoom.applied` の 2 箇所は待ちが残るが、これは
+**Swift 側の非同期**（`applyRender` が種別によらず `await embeddedContent` を通る）で、
+スリープでも前進するので待って正しい。予算は `testTimeout(fallback: 30)` と明示した
+——既定の 10 秒だとフル実行の並列負荷で MainActor 外の埋め込みが遅れて予算切れした実測がある。
+
+## 採らなかった対処（すべて実測で否定）
+
+| 案 | 結果 |
 |---|---|
-| `loadFileURL viewer.html` | 25 |
-| `didFinish` | 12（**11:43:20 から 35 秒間 1 件も届かず、実行終了時の 11:43:53〜54 に集中**） |
-| `shouldNavigate を cancel (surface が未設定)` | 0 |
-| `webContentProcessDidTerminate` | 0 |
-| `didFail` / `didFailProvisional` | 0 |
+| 待機予算 5 秒 → 60 秒 | 60 秒でも落ちる。ランループが回らないので待っても来ない |
+| `make(for:)` の順序固定 | 診断で該当の cancel は 0 件。原因ではなかった（変更自体は残置） |
+| `swift test --no-parallel` | 手元は直列 3 回とも緑だが、**CI でハング**し 24 分で打ち切り。revert 済み |
 
-ロードは出続けているのに着地が 1 件も無い。これが「60 秒待っても ready にならない」の正体。
+## PR #644 で先行マージ済みのもの（原因ではないが有効）
 
-## 対処は未確定。**3 案とも失敗した**ので設計判断が要る
-
-| # | 案 | 結果 |
-|---|---|---|
-| 1 | 自前ポーリングを共有ヘルパーへ（予算 5 秒 → 60 秒） | **失敗**。60 秒でも落ちる（TASK-606 で訂正済み） |
-| 2 | `make(for:)` の順序固定（adopt → デリゲート → ロード） | **失敗**。診断で `surface が未設定` の cancel は 0 件 |
-| 3 | `swift test --no-parallel` | **失敗**。手元では直列 3 回とも 56 秒で緑だが、**CI ではハング**。02:57:57 の `SurfaceNavigationPolicyTests` を最後に 24 分間出力が止まり打ち切られた（run 34304889554）。CI を悪化させるので revert 済み |
-
-案 3 が手元で通り CI でハングした差は未調査。**次に試す前にここを説明できるようにすること**
-（GitHub の macOS ランナーは仮想化されており、ログに
-`IOServiceMatching failed for: AppleM2ScalerParavirtDriver` が出る）。
-
-## 次の一手の候補（未検証・要判断）
-
-- **A. 実 WKWebView の統合テストだけを別パスへ出す。** 本体は並列のまま、
-  該当スイートを `--skip` し、2 本目で `--filter` して直列に走らせる。案 3 の全体直列より
-  範囲が狭いのでハングを踏みにくい可能性があるが、対象一覧が drift する
-- **B. 待つ側で run loop を回す。** 待機ヘルパーが `RunLoop.main.run(mode:before:)` を
-  小刻みに回し、キューに積まれた WebKit のコールバックを能動的に流す。
-  対象が待機ヘルパー 1 箇所で済むが、Swift 並行性とランループの混在になる
-- **C. 実 WKWebView への依存を減らす。** 4 件のうち何件が本当に実 WebView を要るかを問う。
-  `ViewerRendererMessageStubs.Surface`（WKWebView 実体を作らない面）で足りるものは移す
-
-**採ってはいけない方向**: 待機の延長・テストの無効化・再実行で通す。
-60 秒で来ないものは待っても来ないことが実測で分かっている。
-
-## 残してある変更（原因ではないが有効）
-
-- `RenderDiagnostics`（`BEFOLD_RENDER_DIAGNOSTICS=1` のときだけ動く）。面ごとの識別子で
-  ロードと着地を突き合わせられる。**この調査の再開はここから**
-- `WebKitRenderSurface.make(for:)` の順序固定。窓自体は実在するので閉じてある
-  （`SurfaceConstructionOrderTests` が担保）
-- `webViewWebContentProcessDidTerminate` の追加。この経路は didFinish も didFail も出さない
+`RenderDiagnostics`（この調査の入口。`BEFOLD_RENDER_DIAGNOSTICS=1` で有効）、
+`WebKitRenderSurface.make(for:)` の順序固定、`webViewWebContentProcessDidTerminate` の追加。
 <!-- SECTION:NOTES:END -->

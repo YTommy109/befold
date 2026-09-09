@@ -5,18 +5,20 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-// 統合バーの単一入口(TASK-485.19.5)。openFind() / documentJump(_:) は
-// openBar(kind:) へ収斂させ、kind の有無で既定モードの振り分けと
-// 明示指定の強制を切り替える。
-//
-// DocumentCommandControllerTests.swift から分割した(file_length 対策)。
-// 共通のフェイク(FakeDocumentRenderer)・組み立てヘルパー(makeController)は
-// 元のファイルにあるものをそのまま使う。
-extension DocumentCommandControllerTests {
+/// ⌘F の入口がどのバーを開くかの振り分け。
+///
+/// 境界は**種類を指定しない `openBar` の分岐**——差分表示中は変更ブロックのジャンプへ、
+/// そうでなければ検索へ倒す。種類を指定したジャンプの可否は `DocumentJumpCommandTests`、
+/// コマンド層の一般の方針は `DocumentCommandControllerTests` にある。
+///
+/// 共有のフェイクと組み立ては `DocumentCommandControllerTestSupport.swift`。
+@Suite
+@MainActor
+struct OpenBarCommandTests {
     @Test("kind なし(⌘F相当)は、差分表示中でなければ検索を開く")
     func openBarWithoutKindOpensFindWhenNotShowingDiff() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.openBar(kind: nil)
 
@@ -26,7 +28,10 @@ extension DocumentCommandControllerTests {
     @Test("kind なし(⌘F相当)は、差分表示中なら変更ブロックジャンプを開く")
     func openBarWithoutKindOpensChangeBlockJumpWhileShowingDiff() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+        let controller = makeDocumentCommandController(
+            renderer: renderer,
+            capabilities: { .allEnabledShowingDiffForTesting }
+        )
 
         controller.openBar(kind: nil)
 
@@ -56,7 +61,7 @@ extension DocumentCommandControllerTests {
             codeLanguage: nil,
             isDocumentJumpEnabled: false
         )
-        let controller = makeController(renderer: renderer, capabilities: { capabilities })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { capabilities })
 
         controller.openBar(kind: nil)
 
@@ -66,7 +71,10 @@ extension DocumentCommandControllerTests {
     @Test("kind を明示したときは、差分表示中でも見出しジャンプを強制する")
     func openBarWithExplicitHeadingKindIgnoresDiffDefault() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+        let controller = makeDocumentCommandController(
+            renderer: renderer,
+            capabilities: { .allEnabledShowingDiffForTesting }
+        )
 
         controller.openBar(kind: .heading)
 
@@ -77,7 +85,7 @@ extension DocumentCommandControllerTests {
     func openBarWithExplicitChangeBlockKindStillRequiresCapability() {
         let renderer = FakeDocumentRenderer()
         // allEnabledForTesting は showsDiff 既定 false → canJumpToChangeBlock は false。
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.openBar(kind: .changeBlock)
 
