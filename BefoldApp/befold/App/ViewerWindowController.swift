@@ -223,13 +223,9 @@ final class ViewerWindowController: NSWindowController {
     /// 2. `super.init` 直後 — self を要る協働オブジェクトの生成とコンテンツの取り付け
     /// 3. 最後 — 購読の配線と提示開始
     ///
-    /// - Parameter displayDefaults: 本番では必ず AppDelegate → ViewerWindowManager から
-    ///   注入される単一の共有インスタンスを渡すこと。デフォルト値は、不可視ファイル挙動に
-    ///   無関心なテストが省略できるようにするためのもの。
-    /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・表示モード・
-    ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
-    /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
+    /// - Parameter shared: 窓の生成経路を素通しする共有物の束(表示設定・ストア)。本番では
+    ///   `ViewerWindowManager` が持つものをそのまま受け取る。個々のフィールドの意味と、
+    ///   束に入れていないものの理由は `ViewerWindowDependencies` の doc を参照。
     /// - Parameter gitFileIndex: git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
     ///   単一インスタンスを必ず渡し、同じリポジトリを開く複数ウィンドウで照合索引と
     ///   `git ls-files` の実行を共有する。デフォルトは git を起動しない索引であり、
@@ -256,15 +252,8 @@ final class ViewerWindowController: NSWindowController {
     /// `DisabledGitFileIndex` なのと同じ)。
     init(
         fileURL: URL, defaults: UserDefaults = .standard,
-        displayDefaults: SidebarDisplayDefaults,
-        diffDisplayPreference: DiffDisplayPreference,
+        shared: ViewerWindowDependencies,
         diffLoader: GitDiffLoader? = nil,
-        findOptionsPreference: FindOptionsPreference,
-        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
-        codeFontPreference: CodeFontPreference,
-        csvNumberFormatPreference: CsvNumberFormatPreference,
-        perFileState: PerFileStateStore,
-        bookmarkStore: BookmarkStore,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         gitStatusStore: GitStatusStore = GitStatusStore(),
         initialSidebarCollapsed: Bool = true,
@@ -290,22 +279,22 @@ final class ViewerWindowController: NSWindowController {
         },
         externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
-        self.perFileState = perFileState
-        self.diffDisplayPreference = diffDisplayPreference
+        perFileState = shared.perFileState
+        diffDisplayPreference = shared.diffDisplayPreference
         self.diffLoader = diffLoader
-        self.findOptionsPreference = findOptionsPreference
+        findOptionsPreference = shared.findOptionsPreference
         // 保存値を読むのは窓の生成時のこの 1 回だけ。以後は記録口しか触らない。
-        headingJump = headingJumpLevelDefaults.binding
-        self.codeFontPreference = codeFontPreference
-        self.csvNumberFormatPreference = csvNumberFormatPreference
-        self.bookmarkStore = bookmarkStore
+        headingJump = shared.headingJumpLevelDefaults.binding
+        codeFontPreference = shared.codeFontPreference
+        csvNumberFormatPreference = shared.csvNumberFormatPreference
+        bookmarkStore = shared.bookmarkStore
         self.gitFileIndex = gitFileIndex
         self.initialSidebarCollapsed = initialSidebarCollapsed
         self.kind = kind
         self.openFileElsewhere = openFileElsewhere
         self.externalOpener = externalOpener
         // 後段の makeWebViewCommands と makeSplitViewController が両方これを読む。
-        surfaces = DocumentSurfaces(webRenderer: documentRenderer, findOptions: findOptionsPreference)
+        surfaces = DocumentSurfaces(webRenderer: documentRenderer, findOptions: shared.findOptionsPreference)
         let store = store ?? ViewerStore(defaults: defaults)
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
@@ -313,7 +302,7 @@ final class ViewerWindowController: NSWindowController {
         self.store = store
         currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
-            fileURL: fileURL, displayDefaults: displayDefaults,
+            fileURL: fileURL, displayDefaults: shared.displayDefaults,
             overrides: SidebarDisplayOverrides(
                 sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
             ),

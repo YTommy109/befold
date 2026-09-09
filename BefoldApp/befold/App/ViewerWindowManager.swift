@@ -42,26 +42,18 @@ final class ViewerWindowManager {
 
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
-    let displayDefaults: SidebarDisplayDefaults
-    /// 全ウィンドウで共有する差分表示設定。ここで 1 つ持って openViewer で渡すことが、
-    /// 「粒度はアプリ全体」(DiffDisplayPreference の doc コメント)を成立させている。
-    let diffDisplayPreference: DiffDisplayPreference
+    /// 窓の生成経路を素通しする共有物の束(表示設定・ストア)。全ウィンドウで同じ答えに
+    /// なる必要があるものをここで 1 つ持ち、openViewer が丸ごとコントローラへ渡す。
+    let shared: ViewerWindowDependencies
     /// 全ウィンドウで共有する差分の取得元。ここで 1 つ持つことが、GitDiffLoader の
     /// 「同じ要求が重なったら git を二重起動しない」を窓をまたいで成立させている。
     /// 窓ごとに持つと、同じファイルを 2 窓で開いた状態の 1 回の保存で
     /// `git diff` が窓の数だけ起動する(TASK-325)。
     let diffLoader: GitDiffLoader
-    let findOptionsPreference: FindOptionsPreference
-    let headingJumpLevelDefaults: HeadingJumpLevelDefaults
-    let codeFontPreference: CodeFontPreference
-    /// CSV/TSV の数値表示設定。アプリ全体で 1 つ(AppStores が唯一のインスタンスを持つ)。
-    let csvNumberFormatPreference: CsvNumberFormatPreference
-    let perFileState: PerFileStateStore
     /// 新しいウィンドウの出発点になる寸法。**アプリ全体で 1 個**(AppStores が唯一の
     /// インスタンスを持つ)。既定引数を置かないのは、渡し忘れがコンパイルエラーにならず
     /// 静かに別インスタンスになるため(TASK-319 と同じ理由)。
     let windowFrame: WindowFrameStore
-    let bookmarkStore: BookmarkStore
     /// openViewer のファイル存在ガードが使う I/O 抽象。静的な DefaultFileReader を直接叩かず
     /// ここへ集約することで、テストが InMemoryFileReader を注入して存在確認をモック化できる。
     let fileReader: any FileReading
@@ -88,9 +80,9 @@ final class ViewerWindowManager {
     /// アプリ全体の表示設定を全ウィンドウへ配る一括反映。共有設定の実体(preference / store)は
     /// この型が持つものをそのまま渡すため、別インスタンスが生まれる書き方ができない。
     private(set) lazy var display = GlobalDisplayBroadcaster(
-        bookmarkStore: bookmarkStore,
-        codeFontPreference: codeFontPreference,
-        csvNumberFormatPreference: csvNumberFormatPreference,
+        bookmarkStore: shared.bookmarkStore,
+        codeFontPreference: shared.codeFontPreference,
+        csvNumberFormatPreference: shared.csvNumberFormatPreference,
         controllers: { [weak self] in self?.allControllers ?? [] }
     )
     /// 「最近使ったリポジトリ」の記録役。共有索引 `gitFileIndex` をここで渡すため、
@@ -101,15 +93,9 @@ final class ViewerWindowManager {
     /// マネージャが所有し、向こうは unowned でこちらを見る。
     private(set) lazy var sessionSync = ViewerWindowSessionSync(manager: self)
 
-    /// - Parameter displayDefaults: 本番では必ず AppDelegate が持つ単一の共有インスタンスを渡すこと。
-    ///   デフォルト値は、不可視ファイル挙動に無関心なテストが省略できるようにするためのもの。
-    /// - Parameter diffDisplayPreference: 差分レイアウトは全ウィンドウで同じ答えになる必要があるため、
-    ///   ここで受けた 1 つを openViewer が全コントローラへ渡す。既定値を持たせないのは、
-    ///   渡し忘れが静かに別インスタンスになるのを防ぐため（TASK-319）。
-    /// - Parameter findOptionsPreference: 同上。検索トグル挙動に無関心なテストが省略できるようにする。
-    /// - Parameter perFileState: 同上。ファイル毎の永続表示状態(倍率・表示モード・
-    ///   スクロール位置)の束。これらの挙動に無関心なテストが省略できるようにする。
-    /// - Parameter bookmarkStore: 同上。ブックマーク挙動に無関心なテストが省略できるようにする。
+    /// - Parameter shared: 窓の生成経路を素通しする共有物の束(表示設定・ストア)。
+    ///   本番では必ず AppStores が持つ単一のインスタンスから組むこと。束の init に既定値が
+    ///   無いことが、束の中での渡し忘れも同時に塞いでいる(ViewerWindowDependencies の doc)。
     /// - Parameter makeStore: 生成するコントローラの ViewerStore を差し替える。既定の nil では
     ///   コントローラが自前で生成するため本番挙動は変わらない。テストが実 FileWatcher と
     ///   実ファイル読込を避けて生成パイプラインごと unit 化するための唯一のシーム。
@@ -129,16 +115,9 @@ final class ViewerWindowManager {
     /// init の宣言を読んで検証する(TASK-558)。
     init(
         sessionStore: SessionStore, recentDocumentsStore: RecentDocumentsStore,
-        displayDefaults: SidebarDisplayDefaults,
-        diffDisplayPreference: DiffDisplayPreference,
+        shared: ViewerWindowDependencies,
         diffLoader: GitDiffLoader = GitDiffLoader(),
-        findOptionsPreference: FindOptionsPreference,
-        headingJumpLevelDefaults: HeadingJumpLevelDefaults,
-        codeFontPreference: CodeFontPreference,
-        csvNumberFormatPreference: CsvNumberFormatPreference,
-        perFileState: PerFileStateStore,
         windowFrame: WindowFrameStore,
-        bookmarkStore: BookmarkStore,
         fileReader: any FileReading = DefaultFileReader(),
         presentFileNotFound: @escaping (URL, (() -> Void)?) -> Void = { url, onRemoveBookmark in
             FileNotFoundUI.present(url: url, over: nil, onRemoveBookmark: onRemoveBookmark)
@@ -155,16 +134,9 @@ final class ViewerWindowManager {
         self.gitFileIndex = gitFileIndex
         self.sessionStore = sessionStore
         self.recentDocumentsStore = recentDocumentsStore
-        self.displayDefaults = displayDefaults
-        self.diffDisplayPreference = diffDisplayPreference
+        self.shared = shared
         self.diffLoader = diffLoader
-        self.findOptionsPreference = findOptionsPreference
-        self.headingJumpLevelDefaults = headingJumpLevelDefaults
-        self.codeFontPreference = codeFontPreference
-        self.csvNumberFormatPreference = csvNumberFormatPreference
-        self.perFileState = perFileState
         self.windowFrame = windowFrame
-        self.bookmarkStore = bookmarkStore
         self.fileReader = fileReader
         self.presentFileNotFound = presentFileNotFound
         self.makeStore = makeStore

@@ -18,15 +18,8 @@ struct ViewerWindowManagerIntegrationTests {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
             recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
-            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
-            diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
-            findOptionsPreference: FindOptionsPreference(defaults: defaults),
-            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
-            codeFontPreference: CodeFontPreference(defaults: defaults),
-            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
-            perFileState: PerFileStateStore(defaults: defaults),
+            shared: makeViewerWindowDependencies(defaults: defaults),
             windowFrame: WindowFrameStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults),
             makeContentView: placeholderViewerContent,
             recentRepositoriesStore: RecentRepositoriesStore(defaults: defaults)
         )

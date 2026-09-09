@@ -1,10 +1,10 @@
 ---
 id: TASK-604.4
 title: ViewerWindowManager の共有依存を束ね、窓生成の判定を純関数へ出す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:02'
-updated_date: '2026-09-09 00:39'
+updated_date: '2026-09-09 00:54'
 labels:
   - refactor
 dependencies: []
@@ -43,9 +43,9 @@ stored property 20 個・init 引数 21 個のうち 10 個は「受け取って
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ViewerWindowManager グループが 320 行以下になっている
-- [ ] #2 SharedDependencyDefaultsTests の sources に新ファイルが含まれ、既定値の再発検知が片側だけにならない
-- [ ] #3 MockedViewerWindowManager が隔離 UserDefaults のまま動く
+- [x] #1 ViewerWindowManager グループが 320 行以下になっている
+- [x] #2 SharedDependencyDefaultsTests の sources に新ファイルが含まれ、既定値の再発検知が片側だけにならない
+- [x] #3 MockedViewerWindowManager が隔離 UserDefaults のまま動く
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -126,3 +126,38 @@ MockedViewerWindowManager が隔離 UserDefaults のまま動くこと（AC #3�
 5 ライフサイクル: struct は参照を束ねる値型で、生成の回数も順序も変わらない。
 6 高頻度経路: 触るのは窓の生成経路のみで、描画・監視コールバックには乗らない。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装
+
+- `befold/App/ViewerWindowDependencies.swift`（新規）: 共有物 8 個の束。init に既定値なし。
+  windowFrame / diffLoader / gitFileIndex / gitStatusStore は計画どおり入れていない。
+- `befold/App/ViewerWindowOpenPolicy.swift`（新規）: `reusableController(from:disposition:relativeTo:)`
+  と `initialSidebarCollapsed(kind:showSidebar:forceSidebarVisible:remembered:)`（remembered は
+  @autoclosure で短絡を保つ）。`setCollapsed` の書き戻しは makeController に残した。
+- `ViewerWindowController` 側は束を受け取って init 内で既存の stored property へ展開する形にした。
+  拡張 7 本の参照を書き換えずに済み、差分が最小になる（束の再エクスポートはしない）。
+
+## 実測
+
+- 行数: ViewerWindowManager グループ 389 → 319（175 + 134 + 10）。AC #1（320 以下）を満たす。
+  ViewerWindowController グループは 970 → 959。
+- `swift test`: 1942 tests / 320 suites すべて成功。
+- swiftlint: main とのベースライン差分ゼロ（両側 50 件、行番号正規化後 diff 空）。
+- swiftformat: 変更なし。
+
+## 検査の追随（AC #2）
+
+`SharedDependencyDefaultsTests.sources` へ `ViewerWindowDependencies.swift` を追加した上で、
+`dependenciesBundleDeclaresSharedMembers` を新設した。既存 2 テストは共有物が束へ移ったことで
+「対象 0 件でも緑」になるため、束が 8 つのプロパティを宣言していること自体を見る。
+
+## テスト側（AC #3）
+
+`makeViewerWindowDependencies(defaults:...)` を `ViewerWindowControllerTestSupport.swift` に置き、
+隔離 UserDefaults から束を組む。`MockedViewerWindowManager` / `ViewerWindowControllerFixture` は
+差し替えたいフィールド（displayDefaults / diffDisplayPreference / perFileState / bookmarkStore）
+だけを渡す。本体側 init の「既定値なし」は変えていない。
+<!-- SECTION:NOTES:END -->

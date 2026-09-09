@@ -90,3 +90,28 @@ func makeMockedViewerWindowController(
         externalOpener: externalOpener
     ).controller
 }
+
+/// テスト用の `ViewerWindowDependencies`。既定では隔離 UserDefaults から全フィールドを
+/// 新しく作り、テストが気にする一部だけを差し替えられるようにする。
+///
+/// 本体側の init に既定値を置かないのがこの束の担保なので(TASK-319)、省略はここでだけ
+/// 許す。**テスト補助の既定値であって、共有インスタンスの受け渡しではない。**
+@MainActor
+func makeViewerWindowDependencies(
+    defaults: UserDefaults,
+    displayDefaults: SidebarDisplayDefaults? = nil,
+    diffDisplayPreference: DiffDisplayPreference? = nil,
+    perFileState: PerFileStateStore? = nil,
+    bookmarkStore: BookmarkStore? = nil
+) -> ViewerWindowDependencies {
+    ViewerWindowDependencies(
+        displayDefaults: displayDefaults ?? SidebarDisplayDefaults(defaults: defaults),
+        diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
+        findOptionsPreference: FindOptionsPreference(defaults: defaults),
+        headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
+        codeFontPreference: CodeFontPreference(defaults: defaults),
+        csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
+        perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
+        bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults)
+    )
+}

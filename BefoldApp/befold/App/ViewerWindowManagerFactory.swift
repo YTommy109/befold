@@ -11,15 +11,17 @@ enum ViewerWindowManagerFactory {
         let windowManager = ViewerWindowManager(
             sessionStore: stores.sessionStore,
             recentDocumentsStore: stores.recentDocumentsStore,
-            displayDefaults: stores.displayDefaults,
-            diffDisplayPreference: stores.diffDisplayPreference,
-            findOptionsPreference: stores.findOptionsPreference,
-            headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
-            codeFontPreference: stores.codeFontPreference,
-            csvNumberFormatPreference: stores.csvNumberFormatPreference,
-            perFileState: stores.perFileState,
+            shared: ViewerWindowDependencies(
+                displayDefaults: stores.displayDefaults,
+                diffDisplayPreference: stores.diffDisplayPreference,
+                findOptionsPreference: stores.findOptionsPreference,
+                headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
+                codeFontPreference: stores.codeFontPreference,
+                csvNumberFormatPreference: stores.csvNumberFormatPreference,
+                perFileState: stores.perFileState,
+                bookmarkStore: stores.bookmarkStore
+            ),
             windowFrame: stores.windowFrame,
-            bookmarkStore: stores.bookmarkStore,
             recentRepositoriesStore: stores.recentRepositoriesStore,
             // リポジトリを記録したら、その本体ルートの worktree 一覧も裏で解決し直しておく。
             // 次にメニューを開いた時点でキャッシュに載っていれば階層表示になる。

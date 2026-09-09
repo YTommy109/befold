@@ -46,7 +46,7 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
         manager.sessionStore.noteOpened(newURL)
         if isRename {
             manager.recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
-            manager.bookmarkStore.noteRenamed(from: oldURL, to: newURL)
+            manager.shared.bookmarkStore.noteRenamed(from: oldURL, to: newURL)
         } else {
             manager.recentDocumentsStore.noteOpened(newURL)
         }

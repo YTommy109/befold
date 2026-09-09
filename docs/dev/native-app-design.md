@@ -182,6 +182,8 @@ BefoldApp/
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
+| `ViewerWindowDependencies` | 窓の生成経路（`ViewerWindowManager` → `ViewerWindowController`）を素通しする共有物（アプリ全体で 1 つの表示設定・ストア）の束。init に既定値を持たないことが「渡し忘れが静かに別インスタンスになる」を塞ぐ担保（TASK-319 / TASK-558） |
+| `ViewerWindowOpenPolicy` | 窓を開くときの純粋な判定（既存ウィンドウの再利用規則・サイドバー初期開閉の解決順）。副作用は持たず、候補も記憶も引数で受ける |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |

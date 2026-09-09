@@ -106,14 +106,7 @@ struct ViewerWindowControllerIntegrationTests {
         let defaults = makeIsolatedDefaults(prefix: "Smoke")
         let controller = ViewerWindowController(
             fileURL: file,
-            displayDefaults: SidebarDisplayDefaults(defaults: defaults),
-            diffDisplayPreference: DiffDisplayPreference(defaults: defaults),
-            findOptionsPreference: FindOptionsPreference(defaults: defaults),
-            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
-            codeFontPreference: CodeFontPreference(defaults: defaults),
-            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
-            perFileState: PerFileStateStore(defaults: defaults),
-            bookmarkStore: BookmarkStore(defaults: defaults)
+            shared: makeViewerWindowDependencies(defaults: defaults)
         )
         defer { controller.close() }
         #expect(controller.window != nil)
