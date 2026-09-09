@@ -52,7 +52,7 @@ struct FolderListingViewFilterTests {
             ),
             for: directory, sequence: 1
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
 
         let view = makeView(directory: directory, filter: model.listFilter)
 
@@ -93,7 +93,7 @@ struct FolderListingViewFilterTests {
             ),
             for: directory, sequence: 1
         )
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
         model.transient.filterText = "*.md"
 
         let view = makeView(directory: model.currentDirectory, filter: model.listFilter)
@@ -169,7 +169,7 @@ struct FolderListingViewFilterTests {
     @Test("絞り込み ON なら、一覧が届く前は表示中ディレクトリのプレビューへ何も渡さない")
     func sharesNothingBeforeEntriesArrive() {
         let model = makeModel(entries: [])
-        model.showChangedFilesOnly = true
+        model.display.apply(.toggleChangedFilesOnly)
         model.entries = [makeEntry("a.md")]
         let next = directory.appendingPathComponent("sub", isDirectory: true)
         model.currentDirectory = next

@@ -27,11 +27,15 @@ struct ViewerRendererZoomIntegrationTests {
         }
     }
 
+    /// viewer.html の準備完了を待つ。**予算は共有ヘルパーに任せる**——ここで
+    /// 独自にループを組むと `BEFOLD_TEST_TIMEOUT_SECONDS`(CI が 60 秒へ延ばしている)が
+    /// 効かず、GPU の無い CI ランナーで実 WKWebView のロードが間に合わない。
+    /// かつては 25ms × 200 回 = 5 秒の自前ループで、しかも**時間切れでも黙って先へ進む**
+    /// ため、失敗が「準備できていない」ではなく後続の `applied == nil` として出ていた
+    /// (TASK-604 の PR で実際に間欠的に赤くなった)。`waitUntilOnMainActor` は
+    /// 時間切れをその場で `Issue.record` する。
     private func waitUntilReady(_ renderer: ViewerRenderer) async {
-        for _ in 0 ..< 200 {
-            if renderer.readiness.isReady { return }
-            try? await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntilOnMainActor { renderer.readiness.isReady }
     }
 
     @Test("生成後に倍率が確定しても、viewer.html の準備完了時に適用される")
@@ -74,9 +78,7 @@ struct ViewerRendererZoomIntegrationTests {
             isSourceMode: false, showLineNumbers: false,
             truncation: Self.truncation
         )
-        for _ in 0 ..< 200 where renderer.pageZoom.applied != 0.75 {
-            try? await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntilOnMainActor { renderer.pageZoom.applied == 0.75 }
         #expect(renderer.pageZoom.applied == 0.75)
     }
 
@@ -96,9 +98,7 @@ struct ViewerRendererZoomIntegrationTests {
             hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
             truncation: Self.truncation
         )
-        for _ in 0 ..< 200 where renderer.rendered.contentRevision != 1 {
-            try? await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntilOnMainActor { renderer.rendered.contentRevision == 1 }
 
         // 切り替え先の倍率が流し込まれ、同じ内容でもう一度呼ばれた状態を模す。
         renderer.initialPageZoom = 0.5
@@ -115,7 +115,7 @@ struct ViewerRendererZoomIntegrationTests {
     @Test("同じ倍率を流し込んでも再適用はしない")
     func doesNotReapplyIdenticalZoom() async {
         let renderer = ViewerRenderer()
-        _ = renderer.makeSurface(initialZoom: 1.25, findOptionsPreference: nil)
+        _ = WebKitRenderSurface.make(for: renderer, initialZoom: 1.25, findOptionsPreference: nil)
         await waitUntilReady(renderer)
         #expect(renderer.pageZoom.applied == 1.25)
 

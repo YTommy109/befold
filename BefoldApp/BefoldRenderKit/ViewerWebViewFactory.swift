@@ -73,13 +73,9 @@ public enum ViewerWebViewFactory {
     ) {
         guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
         let resourceDir = htmlURL.deletingLastPathComponent()
-        // ルールリストの適用は WKWebView の configuration を触るため、実装型を通す。
-        // fake の描画面にはリモート読み込みの経路自体が無いので、そのままロードする。
-        guard let webKitSurface = surface as? WebKitRenderSurface else {
-            surface.loadLocalFile(htmlURL, allowingReadAccessTo: resourceDir)
-            return
-        }
-        RemoteLoadBlocker.apply(to: webKitSurface.webView) {
+        // 遮断ポリシーの適用は面の実装に委ねる。**実装型で分岐しない**——
+        // 分岐にすると、WebKit 以外の面が入った瞬間に遮断が丸ごと飛ぶ（TASK-599）。
+        surface.applyRemoteLoadPolicy {
             surface.loadLocalFile(htmlURL, allowingReadAccessTo: resourceDir)
         }
     }
@@ -168,16 +164,16 @@ public enum ViewerWebViewFactory {
             ViewerBridge.codeFontSizeScript(options.codeFontSizePoints),
             ViewerCsvBridge.csvNumberGroupingScript(options.csvGrouping),
             ViewerCsvBridge.csvNegativeStyleScript(options.csvNegativeStyle),
-            ViewerBridge.initialFindOptionsScript(
-                ViewerBridge.FindOptions(
+            ViewerFindBridge.initialFindOptionsScript(
+                ViewerFindBridge.FindOptions(
                     caseSensitive: options.findOptions?.caseSensitive ?? false,
                     wholeWord: options.findOptions?.wholeWord ?? false,
                     useRegex: options.findOptions?.useRegex ?? false
                 )
             ),
-            ViewerBridge.initialJumpLevelsScript(options.headingJumpLevels),
-            ViewerBridge.findStringsScript(),
-            ViewerBridge.jumpStringsScript(),
+            ViewerJumpBridge.initialJumpLevelsScript(options.headingJumpLevels),
+            ViewerFindBridge.findStringsScript(),
+            ViewerJumpBridge.jumpStringsScript(),
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.imageStringsScript(),
             ViewerBridge.hostFeaturesScript(

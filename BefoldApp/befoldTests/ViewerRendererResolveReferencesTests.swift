@@ -26,7 +26,7 @@ struct ViewerRendererResolveReferencesTests {
         }
 
         Stubs.dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            renderer, name: ViewerBridgeMessage.resolveReferences.rawValue,
             body: ["paths": ["./other.md", "./missing.md"]]
         )
         await renderer.referenceQueue.responseChain?.value
@@ -62,11 +62,11 @@ struct ViewerRendererResolveReferencesTests {
         }
 
         Stubs.dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            renderer, name: ViewerBridgeMessage.resolveReferences.rawValue,
             body: ["paths": ["./slow.md"]]
         )
         Stubs.dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            renderer, name: ViewerBridgeMessage.resolveReferences.rawValue,
             body: ["paths": ["./fast.md"]]
         )
         slowResolution.open()
@@ -104,7 +104,7 @@ struct ViewerRendererResolveReferencesTests {
                 return ["./a.md": "/repo/a.md"]
             }
 
-            Stubs.dispatch(renderer, name: ViewerBridge.resolveReferencesMessageName, body: body)
+            Stubs.dispatch(renderer, name: ViewerBridgeMessage.resolveReferences.rawValue, body: body)
             await renderer.referenceQueue.responseChain?.value
 
             #expect(called == false, "不正ペイロードをアプリ層へ渡している: \(body)")
@@ -136,7 +136,7 @@ struct ViewerRendererResolveReferencesTests {
         }
 
         Stubs.dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            renderer, name: ViewerBridgeMessage.resolveReferences.rawValue,
             body: ["paths": ["./old.md"]]
         )
         _ = await waitUntilOnMainActor(timeout: testTimeout(fallback: 5)) { isResolving }
@@ -196,7 +196,7 @@ struct ViewerRendererResolveReferencesTests {
 
         renderer.directHTML.exit(surface: surface) {}
         Stubs.dispatch(
-            renderer, name: ViewerBridge.resolveReferencesMessageName,
+            renderer, name: ViewerBridgeMessage.resolveReferences.rawValue,
             body: ["paths": ["./new.md"]]
         )
         await renderer.referenceQueue.responseChain?.value

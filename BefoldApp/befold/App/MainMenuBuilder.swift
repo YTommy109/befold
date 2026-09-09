@@ -18,6 +18,8 @@ struct MainMenuDynamicMenuDelegates {
     let recentRepositories: NSMenuDelegate
 }
 
+/// メインメニュー全体の組み立て。**この型は「メニュー項目の定義」以上には分割しない。**
+/// 理由と、400 行を超えたときの扱いは `docs/dev/rules/product-code.md` の責務分離節にある。
 @MainActor
 enum MainMenuBuilder {
     /// - Parameter isDocumentJumpEnabled: 文書内ジャンプ項目を構築するか
@@ -185,10 +187,10 @@ enum MainMenuBuilder {
         }
     }
 
-    /// ズーム・表示モード切替・サイドバー・履歴ナビゲーションをまとめた View メニュー。
-    /// 大半は ViewerWindowController のアクションへ委譲する薄いラッパーだが、
-    /// 一部の項目は他メニューとのキーバインド衝突を避けるため既定の修飾キーを
-    /// 上書きしている(各項目の直前コメント参照)。
+    /// ウィンドウの最小化・ズームとタブ操作をまとめた Window メニュー。項目はすべて
+    /// NSWindow / NSApplication の標準セレクタで、アプリ固有の型へは委譲しない
+    /// (この型で唯一そうなっているメニュー)。末尾で NSApp.windowsMenu へ登録し、
+    /// 開いている窓とタブの一覧は AppKit に足させる。
     private static func makeWindowMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.window.title", bundle: .l10n))
@@ -223,27 +225,5 @@ enum MainMenuBuilder {
         menu.addLocalizedItem("menu.help.ossAcknowledgements", action: actions.ossAcknowledgements)
         NSApp.helpMenu = menu
         return item
-    }
-
-    /// 表示モードの選択項目(⌘1〜⌘3)と差分レイアウトの切替(⌘\\)を View メニューへ足す。
-    ///
-    /// どのモードを選ぶ項目かは NSMenuItem.tag が運ぶため、項目ごとにセレクタを増やさない。
-    /// 並びと個数は `ModeSegments.all` だけが決める(ツールバーのセグメントと同じ源)。
-    static func addDisplayModeItems(to menu: NSMenu) {
-        for mode in ModeSegments.all {
-            let item = menu.addLocalizedItem(
-                mode.menuLabelKey,
-                action: #selector(ViewerWindowController.selectDisplayMode(_:)),
-                keyEquivalent: String(mode.menuItemTag),
-                modifiers: [.command]
-            )
-            item.tag = mode.menuItemTag
-        }
-        menu.addLocalizedItem(
-            "menu.view.diffSideBySide",
-            action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
-            keyEquivalent: "\\",
-            modifiers: [.command]
-        )
     }
 }

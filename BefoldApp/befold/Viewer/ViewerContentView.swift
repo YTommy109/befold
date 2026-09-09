@@ -78,8 +78,8 @@ struct ViewerContentView: View {
             if let folderURL {
                 FolderListingView(
                     directory: folderURL,
-                    sortOrder: fileListModel.sortOrder,
-                    showHiddenFiles: fileListModel.showHiddenFiles,
+                    sortOrder: fileListModel.display.sortOrder,
+                    showHiddenFiles: fileListModel.display.showHiddenFiles,
                     filter: fileListModel.listFilter,
                     source: fileListModel.listingSource(for: folderURL),
                     openFile: store.contentState.filePath,

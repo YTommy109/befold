@@ -137,16 +137,13 @@ struct MockedViewerWindowManager {
         manager = ViewerWindowManager(
             sessionStore: sessionStore,
             recentDocumentsStore: recentDocumentsStore,
-            displayDefaults: displayDefaults,
-            diffDisplayPreference: diffDisplayPreference,
+            shared: makeViewerWindowDependencies(
+                defaults: defaults, displayDefaults: displayDefaults,
+                diffDisplayPreference: diffDisplayPreference,
+                perFileState: perFileState, bookmarkStore: bookmarkStore
+            ),
             diffLoader: diffLoader,
-            findOptionsPreference: FindOptionsPreference(defaults: defaults),
-            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
-            codeFontPreference: CodeFontPreference(defaults: defaults),
-            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
-            perFileState: perFileState,
             windowFrame: windowFrame,
-            bookmarkStore: bookmarkStore,
             fileReader: fileReader,
             presentFileNotFound: { url, onRemoveBookmark in
                 fileNotFoundPresentations.record(url: url, onRemoveBookmark: onRemoveBookmark)

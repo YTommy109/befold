@@ -146,11 +146,6 @@ struct ViewerBridgeTests {
         #expect(script == "_mmdSetTruncated(true, 5, true)")
     }
 
-    @Test
-    func loadMoreLinesMessageNameIsDefined() {
-        #expect(!ViewerBridge.loadMoreLinesMessageName.isEmpty)
-    }
-
     @Test("フォントファミリーは JSON エスケープして注入する")
     func monoFontFamilyEscapes() {
         #expect(ViewerBridge.monoFontFamilyScript("SF Mono") == "window._mmdMonoFontFamily = \"SF Mono\";")
@@ -220,24 +215,24 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.zoomInScript == "_mmdZoomIn()")
         #expect(ViewerBridge.zoomOutScript == "_mmdZoomOut()")
         #expect(ViewerBridge.zoomResetScript == "_mmdZoomReset()")
-        #expect(ViewerBridge.openFindScript == "_mmdOpenFind()")
-        #expect(ViewerBridge.findNextScript == "_mmdFindNextIfOpen()")
-        #expect(ViewerBridge.findPrevScript == "_mmdFindPrevIfOpen()")
+        #expect(ViewerFindBridge.openFindScript == "_mmdOpenFind()")
+        #expect(ViewerFindBridge.findNextScript == "_mmdFindNextIfOpen()")
+        #expect(ViewerFindBridge.findPrevScript == "_mmdFindPrevIfOpen()")
         #expect(
             ViewerBridge.currentScrollPositionScript
                 == "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"
         )
     }
 
-    @Test("findOptionsChangedMessageName が固定値である")
-    func findOptionsChangedMessageNameIsFixed() {
-        #expect(ViewerBridge.findOptionsChangedMessageName == "findOptionsChanged")
+    @Test("findOptionsChanged のメッセージ名が固定値である")
+    func findOptionsChangedRawValueIsFixed() {
+        #expect(ViewerBridgeMessage.findOptionsChanged.rawValue == "findOptionsChanged")
     }
 
     @Test("initialFindOptionsScript がトグル値を埋め込む")
     func initialFindOptionsScriptEmbedsValues() throws {
-        let options = ViewerBridge.FindOptions(caseSensitive: true, wholeWord: false, useRegex: true)
-        let script = ViewerBridge.initialFindOptionsScript(options)
+        let options = ViewerFindBridge.FindOptions(caseSensitive: true, wholeWord: false, useRegex: true)
+        let script = ViewerFindBridge.initialFindOptionsScript(options)
 
         #expect(script.hasPrefix("window._mmdInitialFindOptions = "))
         #expect(script.hasSuffix(";"))
@@ -254,15 +249,15 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が window._mmdFindStrings への代入文を生成する")
     func findStringsScriptAssignsFindStringsGlobal() {
-        let script = ViewerBridge.findStringsScript()
+        let script = ViewerFindBridge.findStringsScript()
 
         #expect(script.hasPrefix("window._mmdFindStrings = "))
         #expect(script.hasSuffix(";"))
     }
 
-    @Test("resolveReferencesMessageName が固定値である")
-    func resolveReferencesMessageNameIsFixed() {
-        #expect(ViewerBridge.resolveReferencesMessageName == "resolveReferences")
+    @Test("resolveReferences のメッセージ名が固定値である")
+    func resolveReferencesRawValueIsFixed() {
+        #expect(ViewerBridgeMessage.resolveReferences.rawValue == "resolveReferences")
     }
 
     @Test("applyResolvedReferencesScript が _mmdApplyResolvedReferences 呼び出しを組み立てる")
@@ -285,7 +280,7 @@ struct ViewerBridgeTests {
 
     @Test("findStringsScript が全キーを含む妥当な JSON を生成する")
     func findStringsScriptProducesValidJSONWithAllKeys() throws {
-        let script = ViewerBridge.findStringsScript()
+        let script = ViewerFindBridge.findStringsScript()
 
         let jsonPart = script
             .replacingOccurrences(of: "window._mmdFindStrings = ", with: "")
@@ -311,11 +306,11 @@ struct ViewerBridgeJumpLevelsTests {
     @Test("initialJumpLevelsScript は保存値をそのまま注入する（空配列も尊重される）")
     func initialJumpLevelsScriptInjectsStoredValue() {
         #expect(
-            ViewerBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: [1, 3]))
+            ViewerJumpBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: [1, 3]))
                 == "window._mmdInitialJumpLevels = [\"h1\",\"h3\"];"
         )
         #expect(
-            ViewerBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: []))
+            ViewerJumpBridge.initialJumpLevelsScript(HeadingJumpLevels(levels: []))
                 == "window._mmdInitialJumpLevels = [];"
         )
     }

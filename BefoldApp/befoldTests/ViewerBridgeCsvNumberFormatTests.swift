@@ -7,7 +7,6 @@ import Testing
 /// ViewerBridgeTests / ViewerBridgeContractTests から分けてあるのは
 /// type_body_length を超えないため。
 @Suite
-@MainActor // ViewerBridgeContractTests.viewerBundleSource() が MainActor 隔離のため
 struct ViewerBridgeCsvNumberFormatTests {
     @Test("csvNumberGroupingScript が真偽値を代入する")
     func csvNumberGroupingScriptEmitsBool() {
@@ -43,7 +42,7 @@ struct ViewerBridgeCsvNumberFormatTests {
     /// 効かない)。ここで機械的に突き合わせる。
     @Test("CsvNegativeStyle の rawValue が viewer-bundle.js の受理リストと一致する")
     func csvNegativeStylesMatchJSList() throws {
-        let source = try ViewerBridgeContractTests.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
         // 個々の rawValue を contains で探すと、800KB のバンドル内の無関係な
         // 一致("plain" 等)で通ってしまう。受理リストの配列リテラルそのものを
         // 取り出して集合ごと突き合わせる。

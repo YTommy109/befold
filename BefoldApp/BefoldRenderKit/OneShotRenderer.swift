@@ -51,6 +51,10 @@ public final class OneShotRenderer {
 
     /// 直近に構成した WebView。内包するレンダラが保持し続けていること
     /// (描画完了前に解放されないこと)をテストから確認するためのもの。
+    /// **残している downcast（TASK-599）。** テストが「内包するレンダラが描画完了まで
+    /// 面を保持し続けている」ことを確かめるためだけの窓で、本番の描画経路は通らない。
+    /// 境界へ出すと「実体の NSView を寄越せ」という WebKit 固有の要求が
+    /// `RenderSurface` の語彙に混ざるため、ここに閉じてある。
     var webView: WKWebView? {
         (renderer.surface as? WebKitRenderSurface)?.webView
     }
@@ -138,14 +142,10 @@ public final class OneShotRenderer {
         let render = Self.render(from: outcome, url: url, fileType: resolvedFileType)
 
         // ホスト（QuickLook 拡張）がプレビューへ埋め込む NSView を返す必要があるため、
-        // ここは実装型を保ったまま構成する。Kit の内側の描画は surface 越しに行う。
+        // ここは実装型を保ったまま構成する。構成経路はアプリ側と同じ 1 本。
         let surface = WebKitRenderSurface.make(
-            options: renderer.surfaceOptions(
-                initialZoom: initialZoom, findOptionsPreference: nil
-            ),
-            eventHandler: renderer.surfaceEventBridge
+            for: renderer, initialZoom: initialZoom, findOptionsPreference: nil
         )
-        renderer.adopt(surface, initialZoom: initialZoom, findOptionsPreference: nil)
         // QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で
         // 描くが、外部の HTML 文書であることは変わらないので canvas は文書に所有させる
         // (透過のままだと子文書の color-scheme 宣言が届かない。setDocumentOwnsCanvas 参照)。
@@ -185,9 +185,14 @@ public final class OneShotRenderer {
 
             // viewer.html のロード完了を待つゲートは既存の pendingUpdate をそのまま使う
             // (didFinish / ナビゲーション失敗のどちらでも必ず呼ばれる)。
-            let evaluate: @MainActor () -> Void = { [weak self] in
+            // **その回の面を捕まえる。** `self?.surface` を読み直すと、同じ
+            // OneShotRenderer で `load` が 2 回呼ばれたとき、1 回目の飛行中の評価が
+            // 2 回目の面へ当たる（`load` は public で、PreviewViewController は
+            // コントローラを再利用しうる）。weak なのは、面が捨てられた後まで
+            // 生かさないため（旧実装の `[weak webView]` と同じ意図）。
+            let evaluate: @MainActor () -> Void = { [weak surface] in
                 _ = Task { @MainActor in
-                    guard let surface = self?.surface else {
+                    guard let surface else {
                         completion.finish()
                         return
                     }

@@ -4,6 +4,33 @@ import Foundation
 /// サイドバー(ファイル一覧・選択同期・フォルダ移動)と戻る/進む履歴を管理する。
 /// ファイル切替そのものは host(ViewerWindowController)へ委譲し、本クラスは
 /// 一覧の再取得・選択同期・履歴の記録/適用に責務を絞る。
+///
+/// ## これ以上分割しない(TASK-604.7 の判断)
+///
+/// 実処理は既に 8 つの協力型へ出してある(`SidebarTreePresenter` /
+/// `SidebarListingCoordinator` / `SidebarLayoutTransition` / `SidebarPostSwitchSync` /
+/// `SidebarHistoryController` / `SidebarGitStatusCoordinator` /
+/// `SidebarBaseDirectoryResolver` / `SidebarSelectionMemory`)。本体に残るのは
+/// **協力型どうしを繋ぐハブ**で、20 本ほどの 1 行委譲がその実体。行数の大半は doc。
+///
+/// **`navigateToFolder` を別型へ出す案は採らない。** 唯一の候補だったが、
+/// `tree` / `listing` / `layoutTransition` / `baseDirectory` / `gitStatus` は意図して
+/// `private` にしてあり(下の各 doc。TASK-319 / TASK-442.5)、移した先も結局この型の
+/// 薄い委譲を通る。**行数が移るだけで結合は下がらない。** `+FolderNavigation.swift` の
+/// 分割自体が既に「file_length を超えないため」であり、その上に型を 1 つ足すのは
+/// `scripts/check-type-group-size.sh` が塞ごうとしている逃げ道そのもの。
+///
+/// **`moveCurrentDirectory(to:)` は動かせない。** `fileListModel.currentDirectory` を
+/// 書き換える唯一の経路(TASK-465)で、型外から 4 箇所が呼ぶ
+/// (`SidebarLayoutTransition` ×2 / `SidebarPostSwitchSync` / `ViewerWindowController`)。
+/// 経路を 1 本に保つことが不変条件なので、ハブから外すと呼び出し元が散る。
+///
+/// **`awaitSettled` と 3 本の `pending*Task` も出せない。** テストの待ち合わせ窓という
+/// 別の関心だが、3 つの private 協力型を跨ぐため、出すと上の `private` の理由と衝突する。
+///
+/// 関心の同居を測る指標は飽和していない(protocol 準拠 0・注入クロージャ 3 = 上限ちょうど・
+/// `@objc` 0)。行数だけが 400 に近い状態なので、恒久例外へ登録してある
+/// (`scripts/type-group-exceptions.txt`)。
 @MainActor
 final class SidebarNavigator {
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。

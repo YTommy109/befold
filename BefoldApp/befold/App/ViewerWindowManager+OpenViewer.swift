@@ -33,8 +33,8 @@ extension ViewerWindowManager {
         let key = url.normalizedPathKey
         // 既存ウィンドウを再利用できる条件は disposition ごとに reusableController が決める。
         // 再利用時の前面化・タブ選択・表示オプション適用はこの 1 ブロックへ集約する。
-        if let existing = reusableController(
-            forKey: key, disposition: disposition, relativeTo: sourceWindow
+        if let existing = ViewerWindowOpenPolicy.reusableController(
+            from: controllers[key] ?? [], disposition: disposition, relativeTo: sourceWindow
         ) {
             // 表示オプションの適用規則は ViewerDisplayOptionsApplier に一本化してある。
             // 前面化(activate / focusWindow)は開く経路の責務なのでここに残す。
@@ -74,41 +74,12 @@ extension ViewerWindowManager {
         return controller
     }
 
-    /// 同じファイルを表示中の既存コントローラを再利用できるなら返す(nil なら新規に開く)。
-    ///
-    /// - `.currentTab`: Finder/CLI/リンクからの再オープン。どのウィンドウで開いていても
-    ///   既存を前面化する(ウィンドウ内のサイドバー切替だけは openViewer を通らず
-    ///   自ウィンドウを切り替える)。
-    /// - `.newTab`: cmd+クリック等。起点ウィンドウと同じタブグループに同じファイルの
-    ///   タブが既にあればそれを選択し、重複タブを作らない(TASK-487)。別ウィンドウで
-    ///   開いているだけなら素通しし、起点のタブグループへ新しいタブを開く。
-    /// - `.newWindow` / `.slide`: ユーザーが明示的に新しい窓を求めた経路なので常に素通しする
-    ///   (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
-    ///   スライド窓は器が違うだけで、再利用の規則は `.newWindow` と同じ。
-    private func reusableController(
-        forKey key: String, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
-    ) -> ViewerWindowController? {
-        switch disposition {
-        case .currentTab:
-            return controllers[key]?.first
-        case .newTab:
-            guard let sourceWindow else { return nil }
-            let siblings = ViewerTabGrouping.tabWindows(of: sourceWindow)
-            return controllers[key]?.first { controller in
-                guard let window = controller.window else { return false }
-                return siblings.contains(window)
-            }
-        case .newWindow, .slide:
-            return nil
-        }
-    }
-
     /// 見つからなかったファイルがブックマーク済みなら、それを外す操作を返す(でなければ nil)。
     /// ブックマークは「該当ファイルを開いてトグルオフする」でしか外せないため、開けなくなった
     /// ファイルはこの経路が唯一の個別の外し口になる(issue #485)。
     private func removeBookmarkAction(for url: URL) -> (() -> Void)? {
-        guard bookmarkStore.isBookmarked(url) else { return nil }
-        return { [bookmarkStore] in bookmarkStore.remove(url) }
+        guard shared.bookmarkStore.isBookmarked(url) else { return nil }
+        return { [bookmarkStore = shared.bookmarkStore] in bookmarkStore.remove(url) }
     }
 
     /// 新規ウィンドウのコントローラを、初期表示状態(サイドバー開閉・ウィンドウ枠)を
@@ -118,26 +89,20 @@ extension ViewerWindowManager {
         for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool,
         kind: ViewerWindowKind, inheriting seed: SidebarInheritance.Seed
     ) -> ViewerWindowController {
-        let lastActivePathKey = sessionStore.savedActivePath()
-        // 開閉の解決順: 種別 > CLI の明示指定(--sidebar/--no-sidebar) > フォルダーオープンに
-        // よる強制表示 > 記憶の引き継ぎ。
-        //
-        // **サイドバーを持たない種別は記憶しない**(TASK-593.2)。畳んでいることは種別の
-        // 帰結であって利用者の選択ではないので、per-file の記憶へ書くと「そのファイルを
-        // 次に通常窓で開くとサイドバーが畳まれている」状態が残る(ADR 0002「窓の状態」)。
-        // `recordToggle` 側は toggleSidebar が no-op になることで構造的に届かないが、
-        // この `setCollapsed` は生成時に直接書くので明示的に飛ばす。
-        let initialSidebarCollapsed: Bool = if !kind.allowsSidebar {
-            true
-        } else if let showSidebar = options.showSidebar {
-            !showSidebar
-        } else if forceSidebarVisible {
-            false
-        } else {
-            perFileState.sidebar.initialCollapsed(for: url, lastActivePathKey: lastActivePathKey)
-        }
+        // 解決の規則は ViewerWindowOpenPolicy が持つ(純粋な判定)。記憶への書き戻しは
+        // 副作用なのでここに残す。**サイドバーを持たない種別は記憶しない**(TASK-593.2)。
+        // 畳んでいることは種別の帰結であって利用者の選択ではないので、per-file の記憶へ
+        // 書くと「そのファイルを次に通常窓で開くとサイドバーが畳まれている」状態が残る
+        // (ADR 0002「窓の状態」)。`recordToggle` 側は toggleSidebar が no-op になることで
+        // 構造的に届かないが、この `setCollapsed` は生成時に直接書くので明示的に飛ばす。
+        let initialSidebarCollapsed = ViewerWindowOpenPolicy.initialSidebarCollapsed(
+            kind: kind, showSidebar: options.showSidebar, forceSidebarVisible: forceSidebarVisible,
+            remembered: shared.perFileState.sidebar.initialCollapsed(
+                for: url, lastActivePathKey: sessionStore.savedActivePath()
+            )
+        )
         if kind.allowsSidebar {
-            perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
+            shared.perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
         }
         // 寸法はアプリ全体で 1 個。**ここで書き戻さない**——かつては解決結果をファイルへ
         // 書き戻しており、一度開いたファイルが自分の古い値に固定されていた(TASK-583)。
@@ -146,15 +111,8 @@ extension ViewerWindowManager {
 
         return ViewerWindowController(
             fileURL: url,
-            displayDefaults: displayDefaults,
-            diffDisplayPreference: diffDisplayPreference,
+            shared: shared,
             diffLoader: diffLoader,
-            findOptionsPreference: findOptionsPreference,
-            headingJumpLevelDefaults: headingJumpLevelDefaults,
-            codeFontPreference: codeFontPreference,
-            csvNumberFormatPreference: csvNumberFormatPreference,
-            perFileState: perFileState,
-            bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
             initialSidebarCollapsed: initialSidebarCollapsed,

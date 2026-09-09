@@ -67,15 +67,12 @@ struct ViewerWindowControllerFixture {
         controller = ViewerWindowController(
             fileURL: file,
             defaults: defaults,
-            displayDefaults: displayDefaults ?? SidebarDisplayDefaults(defaults: defaults),
-            diffDisplayPreference: diffDisplayPreference ?? DiffDisplayPreference(defaults: defaults),
+            shared: makeViewerWindowDependencies(
+                defaults: defaults, displayDefaults: displayDefaults,
+                diffDisplayPreference: diffDisplayPreference,
+                perFileState: perFileState, bookmarkStore: bookmarkStore
+            ),
             diffLoader: diffLoader,
-            findOptionsPreference: FindOptionsPreference(defaults: defaults),
-            headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
-            codeFontPreference: CodeFontPreference(defaults: defaults),
-            csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
-            perFileState: perFileState,
-            bookmarkStore: bookmarkStore,
             gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
             initialFrameDescriptor: initialFrameDescriptor,

@@ -260,17 +260,13 @@ struct ViewerRendererContentUpdateIntegrationTests {
         #expect(renderer.rendered.contentRevision == 2)
     }
 
-    @Test("makeWebView がコードフォント設定をロード前スクリプトへ注入する")
-    func makeWebViewInjectsCodeFontScripts() {
+    @Test("描画面の構成がコードフォント設定をロード前スクリプトへ注入する")
+    func surfaceConstructionInjectsCodeFontScripts() {
         let renderer = ViewerRenderer()
-        let surface = renderer.makeSurface(
-            initialZoom: 1.0, findOptionsPreference: nil,
+        let webView = WebKitRenderSurface.make(
+            for: renderer, initialZoom: 1.0, findOptionsPreference: nil,
             codeFontFamily: "Menlo", codeFontSizePoints: 14
-        )
-        guard let webView = (surface as? WebKitRenderSurface)?.webView else {
-            Issue.record("makeSurface が WebKit 実装以外を返した")
-            return
-        }
+        ).webView
 
         let sources = webView.configuration.userContentController.userScripts.map(\.source)
 

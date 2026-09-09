@@ -36,9 +36,9 @@ struct RendererFeaturesTests {
     func quickLookRestrictedRegistersNoInteractiveHandlers() {
         let names = ViewerWebViewFactory.messageHandlerNames(for: .quickLookRestricted)
 
-        #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
-        #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(!names.contains(ViewerBridge.resolveReferencesMessageName))
+        #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.resolveReferences.rawValue))
         #expect(names.count == 3)
     }
 

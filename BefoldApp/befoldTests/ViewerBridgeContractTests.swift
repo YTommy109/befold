@@ -21,8 +21,8 @@ struct ViewerBridgeContractTests {
     /// 両ファイルの内容を連結して検証する(どちらに定義があっても検知できる)。
     @Test("ViewerBridge の関数名が viewer.html / viewer-bundle.js に定義されている")
     func bridgeFunctionsExistInViewerHTML() throws {
-        let viewerHTML = try String(contentsOf: Self.resourceURL("viewer.html"), encoding: .utf8)
-        let html = try viewerHTML + Self.viewerBundleSource()
+        let viewerHTML = try String(contentsOf: ViewerBridgeContractSupport.resourceURL("viewer.html"), encoding: .utf8)
+        let html = try viewerHTML + ViewerBridgeContractSupport.viewerBundleSource()
 
         // 引数なし呼び出し(_mmd*())は ViewerBridge.PlainFunction が単一情報源なので、
         // 手書きの列挙ではなく allCases を反復して照合する(定数追加時の照合漏れを防ぐ)。
@@ -33,28 +33,28 @@ struct ViewerBridgeContractTests {
             )
         }
 
-        #expect(Self.definesFunction(html, "render", parameterCount: 3))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "render", parameterCount: 3))
         // 引数を取るため PlainFunction には載せられない入口。契約テストの網から
         // 外れるので、ここで明示的に定義の存在を確かめる(TASK-485.1)。
-        #expect(Self.definesFunction(html, "_mmdOpenJump", parameterCount: 1))
-        #expect(Self.definesFunction(html, "_mmdApplyJumpAvailability", parameterCount: 1))
-        #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridge.zoomChangedMessageName)\""))
-        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridge.referenceActivatedMessageName)\""))
-        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridge.findOptionsChangedMessageName)\""))
-        #expect(html.contains("_MSG_LOAD_MORE_LINES = \"\(ViewerBridge.loadMoreLinesMessageName)\""))
-        #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridge.resolveReferencesMessageName)\""))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdOpenJump", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdApplyJumpAvailability", parameterCount: 1))
+        #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridgeMessage.zoomChanged.rawValue)\""))
+        #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridgeMessage.referenceActivated.rawValue)\""))
+        #expect(html.contains("_MSG_FIND_OPTIONS_CHANGED = \"\(ViewerBridgeMessage.findOptionsChanged.rawValue)\""))
+        #expect(html.contains("_MSG_LOAD_MORE_LINES = \"\(ViewerBridgeMessage.loadMoreLines.rawValue)\""))
+        #expect(html.contains("_MSG_RESOLVE_REFERENCES = \"\(ViewerBridgeMessage.resolveReferences.rawValue)\""))
         // 表示時解決: JS が候補を集めて要求する側(_mmdResolveReferences)と、
         // Swift の応答を適用する側(applyResolvedReferencesScript が呼ぶ関数)の両方を確認する。
-        #expect(Self.definesFunction(html, "_mmdResolveReferences", parameterCount: 0))
-        #expect(Self.definesFunction(html, "_mmdApplyResolvedReferences", parameterCount: 1))
-        #expect(Self.definesFunction(html, "_mmdPostMessage", parameterCount: 2))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdResolveReferences", parameterCount: 0))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdApplyResolvedReferences", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdPostMessage", parameterCount: 2))
         #expect(html.contains("_mmdPostMessage(_MSG_ZOOM_CHANGED,"))
         #expect(html.contains("window._mmdInitialZoom"))
         #expect(html.contains("window._mmdSystemFontSize"))
-        #expect(Self.definesFunction(html, "setViewMode", parameterCount: 1))
-        #expect(Self.definesFunction(html, "setLineNumbers", parameterCount: 1))
-        #expect(Self.definesFunction(html, "_mmdSetTruncated", parameterCount: 3))
-        #expect(Self.definesFunction(html, "_mmdLoadMore", parameterCount: 0))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "setViewMode", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "setLineNumbers", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdSetTruncated", parameterCount: 3))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdLoadMore", parameterCount: 0))
         #expect(html.contains("window._mmdBannerStrings"))
         #expect(html.contains("window._mmdHostFeatures"))
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, \"loadMore\")"))
@@ -62,29 +62,23 @@ struct ViewerBridgeContractTests {
         // referenceActivated/loadMoreLines の postMessage 発火は hostFeatures で
         // 多層防御する(Swift 側はハンドラ未登録、JS 側はここで呼び出し自体を抑止)。
         #expect(html.contains("isHostFeatureEnabled(window._mmdHostFeatures, \"referenceActivation\")"))
-        #expect(Self.definesFunction(html, "_mmdSetRestoreScroll", parameterCount: 1))
-        #expect(Self.definesFunction(html, "_mmdSetRenderDocPath", parameterCount: 1))
-        #expect(Self.definesFunction(html, "_mmdRenameDocPath", parameterCount: 2))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdSetRestoreScroll", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdSetRenderDocPath", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdRenameDocPath", parameterCount: 2))
         // _mmdCloseFind / _mmdLoadMore は Swift から呼ばない JS 内部専用の関数だが、
         // 検索バーの Esc・バナーのボタン配線が生きていることをここで確認する。
-        #expect(Self.definesFunction(html, "_mmdCloseFind", parameterCount: 0))
-        #expect(Self.definesFunction(html, "_mmdFindRefresh", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdCloseFind", parameterCount: 0))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdFindRefresh", parameterCount: 1))
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("window._mmdFindStrings"))
-        #expect(Self.definesFunction(html, "appendChunk", parameterCount: 3))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "appendChunk", parameterCount: 3))
     }
 
     // MARK: - ペイロードキー
 
-    /// JS 側の 1 つの postMessage 送信サイト。
-    private struct PostSite {
-        let messageName: String
-        let payloadKeys: Set<String>
-    }
-
     @Test("JS の postMessage ペイロードキーが ViewerBridge の宣言と一致する")
     func payloadKeysMatchDeclaration() throws {
-        let sites = try Self.objectPayloadSites()
+        let sites = try ViewerBridgeContractSupport.objectPayloadSites()
         #expect(!sites.isEmpty, "viewer-bundle.js からオブジェクト送信サイトを抽出できていない")
 
         for site in sites {
@@ -101,7 +95,7 @@ struct ViewerBridgeContractTests {
 
     @Test("ViewerBridge が宣言する全メッセージが JS 側に送信サイトを持つ")
     func declaredMessagesHavePostSites() throws {
-        let posted = try Set(Self.objectPayloadSites().map(\.messageName))
+        let posted = try Set(ViewerBridgeContractSupport.objectPayloadSites().map(\.messageName))
 
         for messageName in ViewerBridgeMessage.payloadKeysByMessageName.keys {
             #expect(
@@ -117,8 +111,8 @@ struct ViewerBridgeContractTests {
     /// 読まれていることを検証する(タイポ時に英語文言へ静かに縮退するのを検知する)。
     @Test("bannerStrings の各キーが viewer-bundle.js で読み取られている")
     func bannerStringsKeysAreReadInJS() throws {
-        let source = try Self.viewerBundleSource()
-        let keys = try bridgeGlobalKeys(
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
+        let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(
             from: ViewerBridge.bannerStringsScript(), global: "window._mmdBannerStrings"
         )
         #expect(!keys.isEmpty)
@@ -131,9 +125,9 @@ struct ViewerBridgeContractTests {
     /// 読まれていることを検証する。
     @Test("findStrings の各キーが viewer-bundle.js で読み取られている")
     func findStringsKeysAreReadInJS() throws {
-        let source = try Self.viewerBundleSource()
-        let keys = try bridgeGlobalKeys(
-            from: ViewerBridge.findStringsScript(), global: "window._mmdFindStrings"
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
+        let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(
+            from: ViewerFindBridge.findStringsScript(), global: "window._mmdFindStrings"
         )
         #expect(keys.count == 8)
         for key in keys {
@@ -155,11 +149,11 @@ struct ViewerBridgeContractTests {
     /// "loadMore")に一致して誤って通るため。
     @Test("hostFeatures の各キーが viewer-bundle.js で読み取られている")
     func hostFeaturesKeysAreReadInJS() throws {
-        let source = try Self.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
         let script = ViewerBridge.hostFeaturesScript(
             loadMore: true, spaceScroll: true, referenceActivation: true
         )
-        let keys = try bridgeGlobalKeys(from: script, global: "window._mmdHostFeatures")
+        let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(from: script, global: "window._mmdHostFeatures")
         #expect(keys.count == 3)
         for key in keys {
             #expect(
@@ -180,7 +174,7 @@ struct ViewerBridgeContractTests {
     func fileTypeJSValuesMatchRenderBranches() throws {
         // renderShape(viewer.js 由来)も render() の分岐(viewer-main.js 由来)も
         // 同じバンドルへまとまるため、1 つのソースを両方の照合に使う。
-        let source = try Self.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
         // jsValue → renderShape がレンダリング表示で返す描画形。
         let shapeByJSValue = [
             "mmd": "mmd", "svg": "svg", "html": "html", "csv": "csv-table",
@@ -215,7 +209,7 @@ struct ViewerBridgeContractTests {
     /// すり抜けても CSP がインライン script/イベントハンドラの実行をブロックできる。
     @Test("CSP の script-src から 'unsafe-inline' が削除されている")
     func cspScriptSrcHasNoUnsafeInline() throws {
-        let html = try String(contentsOf: Self.resourceURL("viewer.html"), encoding: .utf8)
+        let html = try String(contentsOf: ViewerBridgeContractSupport.resourceURL("viewer.html"), encoding: .utf8)
 
         let cspLine = try #require(
             html.split(separator: "\n").first { $0.contains("Content-Security-Policy") }
@@ -229,153 +223,23 @@ struct ViewerBridgeContractTests {
 
     @Test("viewer-bundle.js の ZOOM_MIN / ZOOM_MAX が ZoomStore の範囲と一致する")
     func zoomRangeMatchesZoomStore() throws {
-        let source = try Self.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
 
-        #expect(try Self.jsNumber(named: "ZOOM_MIN", in: source) == ZoomStore.minZoom)
-        #expect(try Self.jsNumber(named: "ZOOM_MAX", in: source) == ZoomStore.maxZoom)
+        #expect(try ViewerBridgeContractSupport.jsNumber(named: "ZOOM_MIN", in: source) == ZoomStore.minZoom)
+        #expect(try ViewerBridgeContractSupport.jsNumber(named: "ZOOM_MAX", in: source) == ZoomStore.maxZoom)
     }
 
     @Test("viewer-bundle.js の ZOOM_STEP が ZoomStore.zoomStep と一致する")
     func zoomStepMatchesZoomStore() throws {
-        let source = try Self.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
 
-        #expect(try Self.jsNumber(named: "ZOOM_STEP", in: source) == ZoomStore.zoomStep)
+        #expect(try ViewerBridgeContractSupport.jsNumber(named: "ZOOM_STEP", in: source) == ZoomStore.zoomStep)
     }
 
     @Test("viewer-bundle.js の ZOOM_DEFAULT が ZoomStore.defaultZoom と一致する")
     func zoomDefaultMatchesZoomStore() throws {
-        let source = try Self.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
 
-        #expect(try Self.jsNumber(named: "ZOOM_DEFAULT", in: source) == ZoomStore.defaultZoom)
-    }
-
-    // MARK: - ヘルパー
-
-    /// `global = { ... };` 形式のスクリプトから、注入される JSON オブジェクトのキー集合を取り出す。
-    private func bridgeGlobalKeys(from script: String, global: String) throws -> [String] {
-        let jsonPart = script
-            .replacingOccurrences(of: "\(global) = ", with: "")
-            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
-        let data = try #require(jsonPart.data(using: .utf8))
-        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        return Array(decoded.keys)
-    }
-
-    /// viewer-bundle.js から、オブジェクトリテラルをペイロードに渡す postMessage 送信サイトを
-    /// すべて抽出する。zoomChanged のように裸の値を渡すサイトは対象外。
-    private static func objectPayloadSites() throws -> [PostSite] {
-        let source = try viewerBundleSource()
-        let messageNames = try messageNamesByJSConstant(in: source)
-
-        // 例: _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, { href, metaKey: e.metaKey, shiftKey: e.shiftKey });
-        // ペイロードはネストしないオブジェクトリテラルのみを対象にする。
-        let pattern = #"_mmdPostMessage\(\s*(_MSG_[A-Z_]+)\s*,\s*\{([^}]*)\}"#
-        return try matches(of: pattern, in: source).map { groups in
-            let constant = groups[1]
-            guard let messageName = messageNames[constant] else {
-                throw ContractError.unknownMessageConstant(constant)
-            }
-            return PostSite(messageName: messageName, payloadKeys: objectKeys(in: groups[2]))
-        }
-    }
-
-    /// `var _MSG_X = "name";` 形式の宣言から JS 定数名 → メッセージ名の対応を作る
-    /// (宣言子は同梱 JS の規約に合わせて var / const / let のいずれも受ける)。
-    private static func messageNamesByJSConstant(in source: String) throws -> [String: String] {
-        let pattern = #"(?:var|let|const)\s+(_MSG_[A-Z_]+)\s*=\s*"([A-Za-z]+)""#
-        let pairs = try matches(of: pattern, in: source).map { ($0[1], $0[2]) }
-        #expect(!pairs.isEmpty, "viewer-bundle.js に _MSG_* 定数の宣言が見つからない")
-        return Dictionary(uniqueKeysWithValues: pairs)
-    }
-
-    /// オブジェクトリテラルの中身(`href, metaKey: e.metaKey, shiftKey: e.shiftKey`)からキー名を取り出す。
-    ///
-    /// esbuild は `href: href` を短縮記法 `href` へ畳むため、`key:` 形式だけを見る
-    /// 正規表現では取りこぼす。`,` で区切り、`:` の前が識別子ならキーとして拾う
-    /// (値の側の断片は識別子にならないので落ちる)。
-    private static func objectKeys(in body: String) -> Set<String> {
-        let identifier = try? NSRegularExpression(pattern: #"^[A-Za-z_$][A-Za-z0-9_$]*$"#)
-        let keys = body.split(separator: ",").compactMap { entry -> String? in
-            let head = String(entry.split(separator: ":", maxSplits: 1)[0])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let range = NSRange(head.startIndex..., in: head)
-            guard identifier?.firstMatch(in: head, range: range) != nil else { return nil }
-            return head
-        }
-        return Set(keys)
-    }
-
-    /// 正規表現のマッチを、キャプチャグループの文字列配列(index 0 は全体)として返す。
-    static func matches(of pattern: String, in text: String) throws -> [[String]] {
-        let regex = try NSRegularExpression(pattern: pattern)
-        let range = NSRange(text.startIndex..., in: text)
-        return regex.matches(in: text, range: range).map { match in
-            (0 ..< match.numberOfRanges).map { index in
-                guard let groupRange = Range(match.range(at: index), in: text) else { return "" }
-                return String(text[groupRange])
-            }
-        }
-    }
-
-    /// `function <name>(...)` が指定した引数の個数で定義されているかを返す。
-    ///
-    /// 仮引数の**名前**では照合しない。ベンダー(markdown-it / highlight.js /
-    /// DOMPurify)を同じ IIFE へバンドルするようになったため、esbuild が名前衝突を
-    /// 避けて仮引数を改名する(`appendChunk(text, …)` → `appendChunk(text3, …)`)。
-    /// ブリッジの契約は「関数名と引数の個数」であって、バンドル内部で付け替えられる
-    /// 識別子ではない。名前で照合すると、無関係な依存追加でここが落ちる。
-    private static func definesFunction(
-        _ source: String, _ name: String, parameterCount: Int
-    ) -> Bool {
-        let pattern = #"function\s+"# + NSRegularExpression.escapedPattern(for: name)
-            + #"\s*\(([^)]*)\)"#
-        guard let found = try? matches(of: pattern, in: source) else { return false }
-        return found.contains { match in
-            let params = match[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            let count = params.isEmpty ? 0 : params.split(separator: ",").count
-            return count == parameterCount
-        }
-    }
-
-    /// `var NAME = <数値>;` 形式の宣言から値を数値として取り出す。
-    ///
-    /// リテラルの表記を文字列で突き合わせない理由: esbuild は `2.0` を `2` へ
-    /// 正規化するため、Swift 側の `\(ZoomStore.maxZoom)`("2.0")とは表記が食い違う。
-    /// 表記に合わせて Int() を挟むといった小細工は、閾値の型や桁が変わるたびに
-    /// 壊れる。ここで比較したいのは値なので、値として取り出して比べる。
-    private static func jsNumber(named name: String, in source: String) throws -> Double {
-        let pattern = #"(?:var|let|const)\s+"# + name + #"\s*=\s*(-?\d+(?:\.\d+)?)\s*;"#
-        let found = try matches(of: pattern, in: source)
-        let first = try #require(found.first, "JS 側に \(name) の数値宣言が見つからない")
-        return try #require(Double(first[1]), "\(name) の値を数値として読めない: \(first[1])")
-    }
-
-    /// 検証対象の JS ソース。viewer-src/ のモジュールではなく、実際に .app へ
-    /// 同梱される esbuild 成果物(viewer-bundle.js)を読む。ソースと成果物のズレは
-    /// CI の `npm run check:viewer-bundle` が検出する。
-    ///
-    /// esbuild は文字列リテラルを二重引用符へ正規化し、`href: href` を短縮記法へ
-    /// 畳むため、ここで照合するトークンはその形に合わせてある。
-    static func viewerBundleSource() throws -> String {
-        try String(contentsOf: resourceURL("viewer-bundle.js"), encoding: .utf8)
-    }
-
-    /// BefoldKit のリソースバンドルから、ビルド成果物に実際に含まれるリソース URL を返す。
-    static func resourceURL(_ name: String) throws -> URL {
-        let url = URL(fileURLWithPath: name)
-        guard let resourceURL = Bundle.befoldKitResources.url(
-            forResource: url.deletingPathExtension().lastPathComponent,
-            withExtension: url.pathExtension
-        ) else {
-            throw ContractError.missingResource(name)
-        }
-        return resourceURL
-    }
-
-    /// 外から呼んでよいのは matches / viewerBundleSource / resourceURL / ContractError の
-    /// 4 つだけ（ViewerJumpLevelContractTests が使う）。他は private のまま。
-    enum ContractError: Error {
-        case missingResource(String)
-        case unknownMessageConstant(String)
+        #expect(try ViewerBridgeContractSupport.jsNumber(named: "ZOOM_DEFAULT", in: source) == ZoomStore.defaultZoom)
     }
 }

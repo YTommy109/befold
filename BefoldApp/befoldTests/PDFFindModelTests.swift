@@ -278,7 +278,7 @@ struct PDFFindHighlightTests {
         let matches = document.findString("needle", withOptions: [.caseInsensitive])
         #expect(matches.count == 3)
 
-        pdfView.showFindMatches(matches, current: matches[1], scroll: false)
+        PDFFindHighlighter.show(matches, current: matches[1], in: pdfView, scroll: false)
 
         let highlighted = try #require(pdfView.highlightedSelections)
         #expect(highlighted.count == 3)
@@ -295,9 +295,9 @@ struct PDFFindHighlightTests {
         let document = try #require(pdfView.document)
         let matches = document.findString("needle", withOptions: [.caseInsensitive])
 
-        pdfView.showFindMatches(matches, current: matches[0], scroll: false)
+        PDFFindHighlighter.show(matches, current: matches[0], in: pdfView, scroll: false)
         let firstColor = matches[0].color
-        pdfView.showFindMatches(matches, current: matches[1], scroll: false)
+        PDFFindHighlighter.show(matches, current: matches[1], in: pdfView, scroll: false)
 
         #expect(matches[0].color != firstColor, "前の現在位置が通常の色へ戻っていない")
         #expect(matches[1].color == firstColor, "新しい現在位置が現在の色になっていない")
@@ -308,12 +308,13 @@ struct PDFFindHighlightTests {
     func clearingRemovesHighlights() throws {
         let pdfView = makeView(count: 2)
         let document = try #require(pdfView.document)
-        pdfView.showFindMatches(
-            document.findString("needle", withOptions: [.caseInsensitive]), current: nil, scroll: false
+        PDFFindHighlighter.show(
+            document.findString("needle", withOptions: [.caseInsensitive]), current: nil,
+            in: pdfView, scroll: false
         )
         #expect(pdfView.highlightedSelections != nil)
 
-        pdfView.clearFindMatches()
+        PDFFindHighlighter.clear(in: pdfView)
 
         #expect(pdfView.highlightedSelections == nil)
     }

@@ -52,7 +52,7 @@ final class QuickOpenCoordinator {
             recentDocumentsStore: stores.recentDocumentsStore,
             bookmarkStore: stores.bookmarkStore,
             // 窓があればその窓のライブ値、無ければ次に開く窓の初期値(保存された既定値)。
-            includesHiddenFiles: controller?.fileListModel.showHiddenFiles
+            includesHiddenFiles: controller?.fileListModel.display.showHiddenFiles
                 ?? stores.displayDefaults.settings.showHiddenFiles,
             currentFileURL: currentFileURL
         )

@@ -35,7 +35,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         #expect(!controller.store.showLineNumbers)
         #expect(!controller.isSourceMode)
-        #expect(controller.fileListModel.sortOrder == .foldersFirst)
+        #expect(controller.fileListModel.display.sortOrder == .foldersFirst)
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
 
         fixture.manager.openViewer(for: file, options: allOptions)
@@ -44,7 +44,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 1)
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode)
-        #expect(controller.fileListModel.sortOrder == .alphabetical)
+        #expect(controller.fileListModel.display.sortOrder == .alphabetical)
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
     }
 
@@ -71,14 +71,14 @@ struct ViewerWindowManagerDisplayOverridesTests {
         defer { fixture.closeAll() }
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
-        let originalSortOrder = controller.fileListModel.sortOrder
+        let originalSortOrder = controller.fileListModel.display.sortOrder
         let originalSourceMode = controller.isSourceMode
 
         fixture.manager.openViewer(for: file, options: CLIOpenOptions(showLineNumbers: true))
 
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode == originalSourceMode)
-        #expect(controller.fileListModel.sortOrder == originalSortOrder)
+        #expect(controller.fileListModel.display.sortOrder == originalSortOrder)
     }
 
     /// ADR 0002 の規則「記憶へ書くのは明示的なユーザーのモード選択だけ」。

@@ -45,8 +45,8 @@ struct SidebarListingSeedTests {
         let seed = SidebarListingSeed(
             directory: first.fileListModel.entriesDirectory,
             listing: first.sidebar.lastListing,
-            sortOrder: first.fileListModel.sortOrder,
-            showHiddenFiles: first.fileListModel.showHiddenFiles
+            sortOrder: first.fileListModel.display.sortOrder,
+            showHiddenFiles: first.fileListModel.display.showHiddenFiles
         )
 
         let second = makeController(
@@ -94,8 +94,8 @@ struct SidebarListingSeedTests {
         let seed = SidebarListingSeed(
             directory: base.url,
             listing: DirectoryListing(rootChildren: []),
-            sortOrder: model.sortOrder,
-            showHiddenFiles: !model.showHiddenFiles
+            sortOrder: model.display.sortOrder,
+            showHiddenFiles: !model.display.showHiddenFiles
         )
 
         #expect(!seed.canApply(to: model))
@@ -111,8 +111,8 @@ struct SidebarListingSeedTests {
         let seed = SidebarListingSeed(
             directory: base.url,
             listing: DirectoryListing(rootChildren: [], didFailEnumeration: true),
-            sortOrder: model.sortOrder,
-            showHiddenFiles: model.showHiddenFiles
+            sortOrder: model.display.sortOrder,
+            showHiddenFiles: model.display.showHiddenFiles
         )
 
         #expect(!seed.canApply(to: model))
@@ -127,8 +127,8 @@ struct SidebarListingSeedTests {
         let seed = SidebarListingSeed(
             directory: base.url.appendingPathComponent("elsewhere"),
             listing: DirectoryListing(rootChildren: []),
-            sortOrder: model.sortOrder,
-            showHiddenFiles: model.showHiddenFiles
+            sortOrder: model.display.sortOrder,
+            showHiddenFiles: model.display.showHiddenFiles
         )
 
         #expect(!seed.canApply(to: model))

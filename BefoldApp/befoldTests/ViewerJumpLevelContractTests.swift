@@ -10,7 +10,6 @@ import Testing
 /// `file_length` に届いていたため。ソースを読んで突合するという性質は同じなので、
 /// ファイル探索・正規表現のヘルパーはあちらの static メンバを借りる。
 @Suite
-@MainActor // 借りる ViewerBridgeContractTests の static ヘルパーが @MainActor 隔離のため
 struct ViewerJumpLevelContractTests {
     /// 選べる見出しレベルの集合が Swift と JS で一致することを検証する（TASK-485.11）。
     ///
@@ -21,7 +20,7 @@ struct ViewerJumpLevelContractTests {
     /// 生成するようにして HTML の重複を消し、残る 2 箇所をここで結ぶ。
     @Test("viewer-bundle.js の HEADING_LEVELS が HeadingJumpLevels.selectableLevels と一致する")
     func headingLevelsMatchSelectableLevels() throws {
-        let source = try ViewerBridgeContractTests.viewerBundleSource()
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
 
         #expect(
             try Self.jsIntArray(named: "HEADING_LEVELS", in: source)
@@ -36,7 +35,7 @@ struct ViewerJumpLevelContractTests {
     /// 入れ物（#mmd-jump-levels）だけがあり、中身が空であることを確かめる。
     @Test("viewer.html にレベルのトグルが静的に置かれていない")
     func headingLevelButtonsAreNotHardcodedInHTML() throws {
-        let html = try String(contentsOf: ViewerBridgeContractTests.resourceURL("viewer.html"), encoding: .utf8)
+        let html = try String(contentsOf: ViewerBridgeContractSupport.resourceURL("viewer.html"), encoding: .utf8)
 
         #expect(html.contains("id=\"mmd-jump-levels\""), "レベルトグルの入れ物が viewer.html にない")
         #expect(
@@ -51,7 +50,7 @@ struct ViewerJumpLevelContractTests {
     /// 正規化するため、Swift 側の配列の説明文字列とは一致しない）。
     private static func jsIntArray(named name: String, in source: String) throws -> [Int] {
         let pattern = #"(?:var|let|const)\s+"# + name + #"\s*=\s*\[([^\]]*)\]\s*;"#
-        let found = try ViewerBridgeContractTests.matches(of: pattern, in: source)
+        let found = try ViewerBridgeContractSupport.matches(of: pattern, in: source)
         let first = try #require(found.first, "JS 側に \(name) の配列宣言が見つからない")
         return try first[1].split(separator: ",").map { element in
             let text = element.trimmingCharacters(in: .whitespacesAndNewlines)

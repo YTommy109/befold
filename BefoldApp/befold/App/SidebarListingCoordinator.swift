@@ -82,32 +82,26 @@ final class SidebarListingCoordinator {
     ///   OFF は絞り込みをやめるだけで新しい git 状態を要さず、方向を見ずに取り直すと開いている
     ///   ウィンドウ数だけ git status が同時に走る(TASK-303)。
     func applyDisplayChange(_ change: SidebarDisplayChange) {
+        // 並び順だけは「同じ値なら何もしない」。他の 3 つは反転なので空振りしない。
+        if case let .setSortOrder(order) = change, fileListModel.display.sortOrder == order {
+            return
+        }
+        // ライブ値の書き換えは SidebarDisplayState が持つ(値ごとの分岐はそちらの
+        // exhaustive switch。ここに残すのは値ごとに違う**後処理**だけ)。
+        fileListModel.display.apply(change)
+        recordSettings()
         switch change {
-        case .toggleHiddenFiles:
-            fileListModel.showHiddenFiles.toggle()
-            recordSettings()
+        case .toggleHiddenFiles, .toggleLayoutMode, .setSortOrder:
             refreshFileList()
         case .toggleChangedFilesOnly:
-            fileListModel.showChangedFilesOnly.toggle()
-            recordSettings()
-            guard fileListModel.showChangedFilesOnly else { return }
+            guard fileListModel.display.showChangedFilesOnly else { return }
             gitStatus.refresh(policy: .always)
-        case .toggleLayoutMode:
-            let next: SidebarLayoutMode = fileListModel.layoutMode == .tree ? .drillDown : .tree
-            fileListModel.layoutMode = next
-            recordSettings()
-            refreshFileList()
-        case let .setSortOrder(order):
-            guard fileListModel.sortOrder != order else { return }
-            fileListModel.sortOrder = order
-            recordSettings()
-            refreshFileList()
         }
     }
 
     /// この窓の現在値を、次に開く窓の既定値として書き戻す。後勝ちでよい。
     private func recordSettings() {
-        displayDefaults.record(fileListModel.displaySettings)
+        displayDefaults.record(fileListModel.display.settings)
     }
 
     /// サイドバーのファイル一覧を現在のディレクトリで取り直し、現在ファイルを選択する。
@@ -161,13 +155,13 @@ final class SidebarListingCoordinator {
         onApplied: @escaping @MainActor (SidebarNavigatorHost, URL, DirectoryListing) -> Void
     ) {
         baseDirectory.refresh()
-        let showHiddenFiles = fileListModel.showHiddenFiles
+        let showHiddenFiles = fileListModel.display.showHiddenFiles
         // ルートを取り直す契機(並び順の変更・隠しファイルのトグル・フォーカス復帰・リネーム)は
         // そのまま展開中サブツリーを取り直す契機でもある。ここを通さないと、展開したフォルダの
         // 中だけが古い並び順・古い隠しファイル設定のまま残る。
         tree.reloadExpandedChildren()
-        let couplesGitStatus = fileListModel.showChangedFilesOnly
-        let sortOrder = fileListModel.sortOrder
+        let couplesGitStatus = fileListModel.display.showChangedFilesOnly
+        let sortOrder = fileListModel.display.sortOrder
         generation += 1
         let generation = generation
         // 先に git 側のタスクを起こしてから列挙を待つ。どちらも本体は nonisolated async で

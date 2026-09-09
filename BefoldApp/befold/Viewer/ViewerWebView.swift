@@ -78,20 +78,19 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.diffState = diffState
 
         renderer.headingJumpLevelRecording = headingJump.recording
-        // NSViewRepresentable は具体的な NSView を返す契約なので、ここで一度だけ
-        // 実装型へ降りる。**WebKit を知っているのはアプリ側のこの 1 点**で、
-        // BefoldRenderKit の内側は RenderSurface しか触らない（TASK-595.3）。
-        let surface = renderer.makeSurface(
+        // NSViewRepresentable は具体的な NSView を返す契約なので、**アプリ側が
+        // 実装型を組み立てて renderer へ渡す**（TASK-599）。降格を試みて失敗したら
+        // 落とす形にしていたが、それは compile-time の保証を runtime のクラッシュへ
+        // 変えていた。ここで型が確定していれば降格そのものが要らない。
+        // WebKit を知っているのはアプリ側のこの 1 点で、BefoldRenderKit の内側は
+        // RenderSurface しか触らない。
+        let webView = WebKitRenderSurface.make(
+            for: renderer,
             initialZoom: initialZoom, findOptionsPreference: findOptionsPreference,
             codeFontFamily: codeFontFamily, codeFontSizePoints: codeFontSizePoints,
             csvGrouping: csvGrouping, csvNegativeStyle: csvNegativeStyle,
             headingJumpLevels: headingJump.initialLevels
-        )
-        guard let webView = (surface as? WebKitRenderSurface)?.webView else {
-            // makeSurface は WebKit 実装だけを返す。ここへ来るのは Kit 側の実装差し替えを
-            // 反映し忘れた場合で、空の面を出すより早く気づけるほうがよい。
-            preconditionFailure("makeSurface が WebKit 実装以外を返した")
-        }
+        ).webView
         renderer.webViewProxy = webViewProxy
         webViewProxy.webView = webView
         // AppKit 側(rename の追随など)が描画状態へ届くための逆向きの橋渡し(weak)。
@@ -129,7 +128,7 @@ struct ViewerWebView: NSViewRepresentable {
         ViewerRenderer()
     }
 
-    static func dismantleNSView(_ nsView: WKWebView, coordinator: ViewerRenderer) {
-        coordinator.dismantle(WebKitRenderSurface(nsView))
+    static func dismantleNSView(_: WKWebView, coordinator: ViewerRenderer) {
+        coordinator.dismantle()
     }
 }

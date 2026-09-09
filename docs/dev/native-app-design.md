@@ -182,6 +182,8 @@ BefoldApp/
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
+| `ViewerWindowDependencies` | 窓の生成経路（`ViewerWindowManager` → `ViewerWindowController`）を素通しする共有物（アプリ全体で 1 つの表示設定・ストア）の束。init に既定値を持たないことが「渡し忘れが静かに別インスタンスになる」を塞ぐ担保（TASK-319 / TASK-558） |
+| `ViewerWindowOpenPolicy` | 窓を開くときの純粋な判定（既存ウィンドウの再利用規則・サイドバー初期開閉の解決順）。副作用は持たず、候補も記憶も引数で受ける |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
@@ -240,6 +242,7 @@ BefoldApp/
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |
 | `FileListModel` / `FileListView` | サイドバーのファイル一覧・選択状態を管理する `@Observable` モデルと SwiftUI ビュー |
 | `SidebarTransientState` | サイドバーの**保存値の対を持たない**見せ方（名前フィルター）。窓ごとで永続化せず、再起動すれば必ず初期値へ戻る。保存値を持つ表示 4 値（`SidebarDisplayDefaults`）と分ける境界がこれ |
+| `SidebarDisplayState` | サイドバー表示 4 値の**この窓でのライブ値**（ADR 0002「窓の状態」）。`settings` は `private(set)` で、書き込み口は利用者の操作（`apply`）と CLI のこの起動限りの上書き（`applyCLIOverride`）の 2 メソッドだけ。かつては `FileListModel` の 4 プロパティで、「入口は 1 本」を doc コメントで宣言していたが守られていなかった（`ViewerDisplayOptionsApplier` が直接代入）。区別を型に持たせた |
 | `SidebarDisplayOverrides` | 窓の生成時に既定値へ重ねる「指定のあった値」。ADR 0002 の窓ごと **4 値すべて**（並び順・不可視・変更のみ・レイアウト）を運び、出どころは CLI の `--sort` / `--hidden-files` と、起点の窓からの引き継ぎの 2 つ。混ぜるのは `applied(to:)` の 1 箇所だけ |
 | `HistoryButtonView` | 戻る/進むツールバーボタン（クリックで移動、長押し/右クリックで履歴メニュー） |
 | `MarkdownImageEmbedder` | Markdown 記法 `![]()` と inline HTML の `<img src>` が指すローカル画像を base64 data URI に埋め込む前処理（CSP 対応） |

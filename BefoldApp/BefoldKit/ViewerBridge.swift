@@ -5,18 +5,9 @@ import Foundation
 /// (整合性は ViewerBridgeTests がソースを読んで検証する)。
 ///
 /// 逆方向(JS → Swift の postMessage メッセージ名・ペイロードキー)は
-/// `ViewerBridgeMessage`、git 差分の呼び出しは `ViewerDiffBridge` が持つ。
+/// `ViewerBridgeMessage`、git 差分の呼び出しは `ViewerDiffBridge`、検索バーとジャンプバーの
+/// 契約は `ViewerFindBridge` / `ViewerJumpBridge` が持つ。
 public enum ViewerBridge {
-    /// JS 側で全体ズーム倍率が変わったときに postMessage されるメッセージハンドラ名。
-    public static let zoomChangedMessageName = ViewerBridgeMessage.zoomChanged.rawValue
-
-    /// リンクやパス参照がクリックされたときに postMessage されるメッセージハンドラ名。
-    public static let referenceActivatedMessageName = ViewerBridgeMessage.referenceActivated.rawValue
-
-    /// リンクやパス参照の上で ctrl+クリック(右クリック)されたときに postMessage される
-    /// メッセージハンドラ名。
-    public static let referenceContextMenuMessageName = ViewerBridgeMessage.referenceContextMenu.rawValue
-
     /// Swift から引数なしで呼び出す JS 関数。呼び出しスクリプト文字列と、JS 側の定義
     /// トークン(存在検証に使う)をこの 1 箇所から導出し、生リテラルの二重管理をなくす。
     public enum PlainFunction: String, CaseIterable, Sendable {
@@ -140,7 +131,7 @@ public enum ViewerBridge {
     /// 配列の注入でも空配列ではなくこれを使う。空配列は「ユーザーが全部 OFF にした」
     /// という別の意味を持つため、エンコード失敗をその状態へ縮退させてはならない。
     ///
-    /// `private` にしていないのは、同じ BefoldKit 内の兄弟型(ViewerCsvBridge)からも
+    /// `private` にしていないのは、同じ BefoldKit 内の兄弟型(ViewerCsvBridge / ViewerFindBridge / ViewerJumpBridge)からも
     /// 使うため。Swift の private はファイルスコープなので、別ファイルからは見えない。
     /// **BefoldKit の外からは使わないこと**(公開面は各 *Script 関数)。
     static let defaultingFallback = "null"
@@ -150,8 +141,7 @@ public enum ViewerBridge {
     /// エスケープを必ず経由させる(インジェクション対策の単一経路)。
     /// エンコードに失敗した場合は `fallback`(既定は空オブジェクト `{}`)を入れる。
     ///
-    /// `private` にしていない理由は defaultingFallback と同じ(兄弟型 ViewerCsvBridge
-    /// から使うため)。**BefoldKit の外からは使わないこと**。
+    /// `private` にしていない理由は defaultingFallback と同じ(兄弟型    /// から使うため)。**BefoldKit の外からは使わないこと**。
     static func assignGlobalScript(
         _ global: String, _ value: some Encodable, fallback: String = "{}"
     ) -> String {
@@ -226,12 +216,6 @@ public enum ViewerBridge {
         "_mmdSetTruncated(\(isTruncated), \(lineCount), \(failed))"
     }
 
-    /// JS 側「続きを読み込む」ボタン押下時に postMessage されるメッセージハンドラ名。
-    public static let loadMoreLinesMessageName = ViewerBridgeMessage.loadMoreLines.rawValue
-
-    /// JS 側が検出したパス参照の解決を要求するときに postMessage されるメッセージハンドラ名。
-    public static let resolveReferencesMessageName = ViewerBridgeMessage.resolveReferences.rawValue
-
     /// 解決結果(書かれたパス -> 解決済み絶対パス。未解決は含めない)を JS へ適用する
     /// スクリプトを組み立てる。viewer.html 側は _mmdApplyResolvedReferences() が受け取り、
     /// 収録されたパスだけをリンク化する。
@@ -283,105 +267,5 @@ public enum ViewerBridge {
             "blockedRemote": String(localized: "image.blockedRemote", bundle: bundle),
         ]
         return assignGlobalScript("window._mmdImageStrings", strings)
-    }
-
-    /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
-    public static let openFindScript = PlainFunction.openFind.callScript
-
-    /// 次のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findNextScript = PlainFunction.findNextIfOpen.callScript
-
-    /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findPrevScript = PlainFunction.findPrevIfOpen.callScript
-
-    /// 文書内ジャンプバーを開くスクリプト。目印の種類(kind)を引数に取るため
-    /// `PlainFunction`(引数なしの `name()` 形式)には載せられない。
-    /// JS 側の定義は `ViewerBridgeTests` が存在を検証する。
-    /// kind は JSON エンコードを経由させる(他の注入経路と同じエスケープの単一経路)。
-    public static func openJumpScript(kind: String) -> String {
-        guard let literal = jsonLiteral(kind) else {
-            return "_mmdOpenJump(null)"
-        }
-        return "_mmdOpenJump(\(literal))"
-    }
-
-    /// いま使える目印の種類を JS へ知らせるスクリプト(TASK-485.18)。
-    /// JS 側は開いているジャンプバーの種類がこの一覧から外れていれば閉じる。
-    /// 開くときの guard(`DocumentCommandController.openJump`)と同じ
-    /// `ViewerCapabilities.canJump(to:)` の結果が渡るため、可否の規則は Swift 側の
-    /// 1 箇所だけが持つ(JS 側で判定し直さない)。
-    /// エンコードに失敗したときは空配列を入れる。ここでの空は「どの種類も使えない」で、
-    /// バーを閉じる方向へ倒れる — 使えない種類のバーが残るより安全な縮退。
-    public static func jumpAvailabilityScript(kinds: [String]) -> String {
-        "_mmdApplyJumpAvailability(\(jsonLiteral(kinds) ?? "[]"))"
-    }
-
-    /// JS 側で見出しレベルのトグルが変わったときに postMessage されるメッセージハンドラ名。
-    public static let jumpLevelsChangedMessageName = ViewerBridgeMessage.jumpLevelsChanged.rawValue
-
-    /// ロード時に保存済みの見出しレベルを注入するスクリプト。
-    /// viewer.html 側は _mmdInitHeadingLevels() が window._mmdInitialJumpLevels を読んで適用する。
-    /// **空配列（3 つとも OFF）と非配列は別の意味**で、JS は配列ならそのままユーザー状態として
-    /// 尊重し、非配列（未注入・null）のときだけ既定の 3 レベルへ落ちる。
-    /// このスクリプトは常に注入する。呼び出し側が値を持たない場合（QuickLook など）は
-    /// `HeadingJumpLevels.default` を渡す（JS 側の既定と同じ意味になる）。
-    /// エンコードに失敗したときは `null` を入れて既定へ落とす（`[]` だと
-    /// 「ユーザーが 3 つとも OFF にした」の意味になり、目印が 0 件へ縮退する）。
-    public static func initialJumpLevelsScript(_ levels: HeadingJumpLevels) -> String {
-        assignGlobalScript("window._mmdInitialJumpLevels", levels.storedValue, fallback: defaultingFallback)
-    }
-
-    /// JS 側で検索トグル(大文字小文字区別・単語マッチ・正規表現)が変わったときに
-    /// postMessage されるメッセージハンドラ名。
-    public static let findOptionsChangedMessageName = ViewerBridgeMessage.findOptionsChanged.rawValue
-
-    /// 検索の3トグルの状態。
-    public struct FindOptions: Equatable, Encodable {
-        public var caseSensitive: Bool
-        public var wholeWord: Bool
-        public var useRegex: Bool
-
-        public init(caseSensitive: Bool, wholeWord: Bool, useRegex: Bool) {
-            self.caseSensitive = caseSensitive
-            self.wholeWord = wholeWord
-            self.useRegex = useRegex
-        }
-    }
-
-    /// ロード時に検索トグルの保存済み状態を注入するスクリプト。
-    /// viewer.html 側は _mmdInitFind() が window._mmdInitialFindOptions を読んで適用する。
-    public static func initialFindOptionsScript(_ options: FindOptions) -> String {
-        assignGlobalScript("window._mmdInitialFindOptions", options)
-    }
-
-    /// ロード時に検索バーのローカライズ済み文字列を注入するスクリプト。
-    /// viewer.html 側は _mmdInitFind() が window._mmdFindStrings を読んで各要素に適用する。
-    /// JSONEncoder でエスケープし、ローカライズ済み文字列に引用符等が含まれても
-    /// JS オブジェクトリテラルを壊さないようにする。
-    public static func findStringsScript(bundle: Bundle = .befoldKitResources) -> String {
-        let strings: [String: String] = [
-            "placeholder": String(localized: "viewer.find.placeholder", bundle: bundle),
-            "previous": String(localized: "viewer.find.previous", bundle: bundle),
-            "next": String(localized: "viewer.find.next", bundle: bundle),
-            "matchCase": String(localized: "viewer.find.matchCase", bundle: bundle),
-            "matchWholeWord": String(localized: "viewer.find.matchWholeWord", bundle: bundle),
-            "useRegularExpression": String(localized: "viewer.find.useRegularExpression", bundle: bundle),
-            "close": String(localized: "viewer.find.close", bundle: bundle),
-            "withinDisplayedRange": String(localized: "viewer.find.withinDisplayedRange", bundle: bundle),
-        ]
-        return assignGlobalScript("window._mmdFindStrings", strings)
-    }
-
-    /// ロード時に文書内ジャンプバーのローカライズ済み文字列を注入するスクリプト。
-    /// viewer.html 側は _mmdInitJump() が window._mmdJumpStrings を読んで各要素に適用する。
-    public static func jumpStringsScript(bundle: Bundle = .befoldKitResources) -> String {
-        let strings: [String: String] = [
-            "previous": String(localized: "viewer.jump.previous", bundle: bundle),
-            "next": String(localized: "viewer.jump.next", bundle: bundle),
-            "close": String(localized: "viewer.jump.close", bundle: bundle),
-            "withinDisplayedRange": String(localized: "viewer.jump.withinDisplayedRange", bundle: bundle),
-            "headingLevel": String(localized: "viewer.jump.headingLevel", bundle: bundle),
-        ]
-        return assignGlobalScript("window._mmdJumpStrings", strings)
     }
 }

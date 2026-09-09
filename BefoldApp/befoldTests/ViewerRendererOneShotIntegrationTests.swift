@@ -31,8 +31,8 @@ struct ViewerRendererOneShotIntegrationTests {
         #expect(result.webView === renderer.webView)
         // ブリッジ無効構成では攻撃面となる2種のハンドラを登録しない。
         let names = ViewerWebViewFactory.messageHandlerNames(for: RendererFeatures.quickLookRestricted)
-        #expect(!names.contains(ViewerBridge.loadMoreLinesMessageName))
-        #expect(!names.contains(ViewerBridge.referenceActivatedMessageName))
+        #expect(!names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
     }
 
     /// QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で描くが、

@@ -23,7 +23,7 @@ struct ViewerRendererZoomMessageTests {
     }
 
     private func dispatch(_ renderer: ViewerRenderer, body: Any) {
-        Stubs.dispatch(renderer, name: ViewerBridge.zoomChangedMessageName, body: body)
+        Stubs.dispatch(renderer, name: ViewerBridgeMessage.zoomChanged.rawValue, body: body)
     }
 
     @Test("zoomChanged が onZoomChanged へ倍率と出所文書を渡す")

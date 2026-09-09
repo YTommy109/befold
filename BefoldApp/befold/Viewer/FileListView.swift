@@ -210,7 +210,7 @@ struct FileListView: View {
             // return キーと同じ判断源を通す。別々に分岐を書くと、片方だけツリー対応して
             // 「ダブルクリックでは展開できない」という穴が残る(TASK-320 と同型)。
             let action = SidebarKeyAction.doubleClickAction(
-                target: SidebarKeyAction.Target(entry: entry), mode: model.layoutMode
+                target: SidebarKeyAction.Target(entry: entry), mode: model.display.layoutMode
             )
             // List が 2 クリック目のイベント処理を終える前に entries を
             // 差し替えないよう、次のランループまで遅延する(固定待ちは不要)。

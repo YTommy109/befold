@@ -145,4 +145,26 @@ extension MainMenuBuilder {
             keyEquivalent: "-"
         )
     }
+
+    /// 表示モードの選択項目(⌘1〜⌘3)と差分レイアウトの切替(⌘\\)を View メニューへ足す。
+    ///
+    /// どのモードを選ぶ項目かは NSMenuItem.tag が運ぶため、項目ごとにセレクタを増やさない。
+    /// 並びと個数は `ModeSegments.all` だけが決める(ツールバーのセグメントと同じ源)。
+    static func addDisplayModeItems(to menu: NSMenu) {
+        for mode in ModeSegments.all {
+            let item = menu.addLocalizedItem(
+                mode.menuLabelKey,
+                action: #selector(ViewerWindowController.selectDisplayMode(_:)),
+                keyEquivalent: String(mode.menuItemTag),
+                modifiers: [.command]
+            )
+            item.tag = mode.menuItemTag
+        }
+        menu.addLocalizedItem(
+            "menu.view.diffSideBySide",
+            action: #selector(ViewerWindowController.toggleDiffLayout(_:)),
+            keyEquivalent: "\\",
+            modifiers: [.command]
+        )
+    }
 }

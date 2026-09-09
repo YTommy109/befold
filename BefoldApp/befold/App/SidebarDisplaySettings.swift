@@ -34,6 +34,20 @@ struct SidebarDisplaySettings: Equatable {
     /// 決して付かない」へ静かに倒れるため、網羅をコンパイラに見張らせる。
     /// 表示形式は 2 値なので「ON」はツリー側と決めてある(元の
     /// `SidebarDisplayMenuState.checksTreeLayout` の定義をそのまま引き継ぐ)。
+    /// その切り替えを適用した結果。**`isOn` と対にしてある**——読み(`isOn`)だけを
+    /// 網羅させて書きを switch の外へ散らすと、切り替えを足したときに
+    /// 「チェックは付くが適用されない」形が作れる。どちらも `default` を置かない。
+    func applying(_ change: SidebarDisplayChange) -> SidebarDisplaySettings {
+        var next = self
+        switch change {
+        case .toggleHiddenFiles: next.showHiddenFiles.toggle()
+        case .toggleChangedFilesOnly: next.showChangedFilesOnly.toggle()
+        case .toggleLayoutMode: next.layoutMode = layoutMode == .tree ? .drillDown : .tree
+        case let .setSortOrder(order): next.sortOrder = order
+        }
+        return next
+    }
+
     func isOn(_ change: SidebarDisplayChange) -> Bool {
         switch change {
         case .toggleHiddenFiles: showHiddenFiles
@@ -117,17 +131,6 @@ protocol SidebarDisplayDefaultsRecording {
 protocol SidebarDisplayDefaultsProviding: SidebarDisplayDefaultsRecording {
     /// 新しく開くウィンドウの初期値。
     var settings: SidebarDisplaySettings { get }
-}
-
-extension FileListModel {
-    /// この窓のサイドバー表示 4 値のスナップショット。
-    /// 既定値への書き戻しと、メニュー項目の状態導出が同じ 1 箇所を読むための窓。
-    var displaySettings: SidebarDisplaySettings {
-        SidebarDisplaySettings(
-            showHiddenFiles: showHiddenFiles, showChangedFilesOnly: showChangedFilesOnly,
-            layoutMode: layoutMode, sortOrder: sortOrder
-        )
-    }
 }
 
 /// View メニューのサイドバー表示 3 項目の状態。

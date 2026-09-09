@@ -18,6 +18,7 @@ struct SharedDependencyDefaultsTests {
     private static let sources = [
         "befold/App/ViewerWindowManager.swift",
         "befold/App/ViewerWindowController.swift",
+        "befold/App/ViewerWindowDependencies.swift",
     ]
 
     /// 既定値を残してよい引数と、その理由。**共有インスタンスの受け渡しではないもの**に限る。
@@ -78,5 +79,34 @@ struct SharedDependencyDefaultsTests {
             try found.formUnion(Self.defaultedArguments(in: path))
         }
         #expect(Set(Self.allowed.keys) == found)
+    }
+
+    /// 共有物が `ViewerWindowDependencies` へ移った結果、上の 2 つの検査は
+    /// **対象が 1 件も無くても緑になる**(0 件は成功条件なので、規則が守られているのか
+    /// 検査対象が消えたのか区別できない)。束が実在して中身を持っていることをここで見る。
+    @Test("共有物の束が期待するプロパティを宣言している")
+    func dependenciesBundleDeclaresSharedMembers() throws {
+        let source = try String(
+            contentsOf: Self.sourceURL("befold/App/ViewerWindowDependencies.swift"), encoding: .utf8
+        )
+        let expected = [
+            "displayDefaults: SidebarDisplayDefaults",
+            "diffDisplayPreference: DiffDisplayPreference",
+            "findOptionsPreference: FindOptionsPreference",
+            "headingJumpLevelDefaults: HeadingJumpLevelDefaults",
+            "codeFontPreference: CodeFontPreference",
+            "csvNumberFormatPreference: CsvNumberFormatPreference",
+            "perFileState: PerFileStateStore",
+            "bookmarkStore: BookmarkStore",
+        ]
+        for member in expected {
+            #expect(
+                source.contains("    let \(member)\n"),
+                """
+                ViewerWindowDependencies が '\(member)' を宣言していない。共有物を束から外すなら、\
+                受け渡し経路(ViewerWindowManager / ViewerWindowController)の検査も同時に見直すこと。
+                """
+            )
+        }
     }
 }

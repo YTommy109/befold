@@ -107,7 +107,8 @@ struct SurfaceReadinessGateTests {
     @MainActor
     func readinessOpensWithoutSurface() {
         let renderer = ViewerRenderer()
-        // surface は入れない（makeSurface / adopt の前に didFinish が届いた状況）。
+        // surface は入れない（`WebKitRenderSurface.make(for:…)` の adopt より前に
+        // didFinish が届いた状況）。
         #expect(renderer.surface == nil)
 
         var didRender = false
@@ -117,5 +118,44 @@ struct SurfaceReadinessGateTests {
         renderer.navigationCoordinator.surfaceDidFinishLoad()
 
         #expect(didRender, "surface が nil でも readiness ゲートは開かなければならない")
+    }
+}
+
+/// 面の実装型に依らず遮断ポリシーと後始末が行われることの担保（TASK-599）。
+///
+/// TASK-595 では `as? WebKitRenderSurface` で分岐しており、WebKit 以外の面が入ると
+/// リモート読み込みの遮断も postMessage ハンドラの解除も**黙って飛んだ**。
+/// 操作を `RenderSurface` へ出して呼び出しを無条件にしたので、fake でも
+/// 呼ばれることを観測できる。ここが 0 回になったら、分岐が復活したということ。
+@Suite
+struct SurfacePolicyApplicationTests {
+    @Test("viewer.html のロードは、面の実装型に依らず遮断ポリシーを適用してから行う")
+    @MainActor
+    func viewerHTMLLoadAppliesRemoteLoadPolicy() {
+        let surface = ViewerRendererMessageStubs.Surface()
+        #expect(surface.remoteLoadPolicyApplications == 0)
+
+        ViewerWebViewFactory.loadViewerHTML(into: surface)
+
+        #expect(
+            surface.remoteLoadPolicyApplications == 1,
+            "遮断ポリシーの適用が飛ばされている（実装型で分岐していないか）"
+        )
+        // 適用してから読み込む順序も見る。適用前に読むと、その 1 回が守られない。
+        #expect(surface.loads.count == 1)
+    }
+
+    @Test("後始末は、面の実装型に依らず登録したハンドラ名を外す")
+    @MainActor
+    func dismantleRemovesHandlersRegardlessOfImplementation() {
+        let surface = ViewerRendererMessageStubs.Surface()
+        let renderer = ViewerRenderer()
+        renderer.surface = surface
+
+        renderer.dismantle()
+
+        let expected = ViewerWebViewFactory.messageHandlerNames(for: renderer.rendererFeatures)
+        #expect(!expected.isEmpty, "前提: 登録するハンドラが 1 つ以上ある")
+        #expect(surface.removedMessageHandlerNames == expected)
     }
 }
