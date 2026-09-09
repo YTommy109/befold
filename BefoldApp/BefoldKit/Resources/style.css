@@ -310,14 +310,22 @@ body {
 }
 
 /*
-  法令の本文は各項・各号が一字下げで始まる。折り返した行は下げ幅より内側へ
-  戻す(ぶら下げ)ことで、行頭に残るのが条名・項番号・号番号だけになる。
+  法令の本文は各項・各号が一字下げで始まる。「番号 | 本文」の 2 列にすることで、
+  折り返した行が本文の書き出しに揃う(番号の幅は条名 3 文字・号名 1 文字と
+  まちまちなので、固定のぶら下げ幅では揃わない)。
+  番号が無い項でも列が欠けないよう、XSL は空の .law-label を必ず出す。
 */
 .law-paragraph-body,
 .law-item-body {
+  display: grid;
+  grid-template-columns: max-content 1fr;
   margin: 0.5em 0;
-  padding-left: 2em;
-  text-indent: -1em;
+  padding-left: 1em;
+}
+
+/* 空の番号列に余白を付けない(番号の無い項が 1 字余分に下がる) */
+.law-label:not(:empty) {
+  padding-right: 1em;
 }
 
 /* 番号が本文と一緒に折り返すと行頭の目印にならない */
