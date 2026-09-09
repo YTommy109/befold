@@ -1,9 +1,10 @@
 ---
 id: TASK-605
 title: 型グループの閾値が命名で回避できる（Foo+BarTests.swift が FooTests と合算されない）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:04'
+updated_date: '2026-09-09 04:37'
 labels:
   - refactor
 dependencies: []
@@ -47,7 +48,57 @@ TASK-604 の棚卸しで発見。同タスクは「テストも本番と同じ 4
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 (a) / (b) / (c) のどれを採るかが理由つきで記録されている
-- [ ] #2 (b) を採る場合、再集計した数字が Notes にある
-- [ ] #3 採った方針が実施され、befoldTests に + 形式のファイルが残っているならその理由が書いてある
+- [x] #1 (a) / (b) / (c) のどれを採るかが理由つきで記録されている
+- [x] #2 (b) を採る場合、再集計した数字が Notes にある
+- [x] #3 採った方針が実施され、befoldTests に + 形式のファイルが残っているならその理由が書いてある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 判断: (a) + (b) の限定版。放置(c)は採らない
+
+(b) を「対象型名で束ねる」広い形で入れると `ViewerStore*Tests` 等の合算値が激変するが、
+**穴の実体はもっと狭い**ので、そこだけを塞ぐ限定版にした。
+
+## (b) の再集計（AC #2、実測）
+
+判定を「`*Tests` は `Tests` を残したまま `+` を畳む」に変えた場合の再集計:
+
+| 行数 | グループ | 変化 |
+|---|---|---|
+| 920 | `befold/App/ViewerWindowController` | 変化なし（恒久例外） |
+| **514** | `befoldTests/DocumentCommandControllerTests` | **308 + 206 が合算され閾値超過** |
+| 425 | `befold/App/SidebarNavigator` | 変化なし（恒久例外） |
+| 399 | `befold/App/MainMenuBuilder` | 変化なし |
+| 388 | `befold/Viewer/FileListModel` | 変化なし |
+
+**変わるのは 1 グループだけ**。`befoldTests` に `+` を含むファイルはこの 2 本しか無く
+（実測）、他の分割はすべて別名を採っているため。広い (b) が心配していた
+`ViewerStore*Tests` 等は `+` を使っていないので影響を受けない。
+
+## 実施
+
+1. **返済**: `DocumentCommandController+JumpTests.swift` / `+OpenBarTests.swift` は
+   `extension DocumentCommandControllerTests` で、doc 自身が「file_length 対策の分割」と
+   書いていた。TASK-431 が「extension 方式では合算されるので返済にならない」と
+   決めた形そのもの。別名の独立スイート **`DocumentJumpCommandTests`（125 行）** と
+   **`OpenBarCommandTests`（88 行）** へ分け、境界を冒頭コメントに書いた。
+   共有していたフェイクと組み立ては **`DocumentCommandControllerTestSupport.swift`**
+   （TASK-604.2 の前例と同じ形）へ出した。本体は 308 → 158 行。
+2. **塞ぐ**: `check-type-group-size.sh` の `collect()` を「基底名が `Tests` で終わるなら
+   `Tests` を残したまま `+` を畳む」に変更。`Foo+BarTests.swift` はもう `FooTests` と
+   合算され、命名で閾値を回避できない。
+3. **明文化**: スクリプトのコメントと `docs/dev/rules/product-code.md` に、
+   合算規則とテストを分けるときの作法（extension ではなく別名の独立スイート、
+   共有物は `〜TestSupport.swift`）を書いた。
+
+## 検証
+
+- `--self-test` に新しいケース（`BazTests.swift` + `Baz+MoreTests.swift` が合算されて 3 行）を
+  追加。**規則を元に戻すと落ちる**ことを確認済み（`App/BazTests` 2 行と `App/Baz` 1 行に
+  分かれる形をそのまま再現して失敗する）
+- `--check` 通過。`befoldTests` に `+` 形式のファイルは **0 件**（AC #3）
+- `swift test` 1947 tests / 326 suites 緑。swiftlint はベースライン差分なし、
+  swiftformat 変更なし、markdownlint 指摘なし
+<!-- SECTION:NOTES:END -->

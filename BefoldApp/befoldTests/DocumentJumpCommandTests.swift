@@ -7,14 +7,19 @@ import Testing
 
 /// 文書内ジャンプ(種類別の可否と、使える種類の同期)。
 ///
-/// DocumentCommandControllerTests.swift から分割した(file_length 対策)。
-/// 共通のフェイク(FakeDocumentRenderer)・組み立てヘルパー(makeController)は
-/// 元のファイルにあるものをそのまま使う。
-extension DocumentCommandControllerTests {
+/// 境界は**種類ごとの可否**——`canJump` の粗い判定だけでは通ってしまう
+/// 「差分表示でないのに変更ブロックへ跳ぶ」形をここで止める。倍率・スクロール・印刷など
+/// コマンド層の一般の方針は `DocumentCommandControllerTests`、⌘F の入口の振り分けは
+/// `OpenBarCommandTests` にある。
+///
+/// 共有のフェイクと組み立ては `DocumentCommandControllerTestSupport.swift`。
+@Suite
+@MainActor
+struct DocumentJumpCommandTests {
     @Test("文書内ジャンプは canJump が false のとき JS へ届かない")
     func documentJumpIsBlockedWithoutCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
 
         controller.openJump(kind: .heading)
 
@@ -24,7 +29,7 @@ extension DocumentCommandControllerTests {
     @Test("文書内ジャンプは canJump が true なら種類つきで JS へ届く")
     func documentJumpReachesRendererWithCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.openJump(kind: .heading)
 
@@ -36,7 +41,7 @@ extension DocumentCommandControllerTests {
         let renderer = FakeDocumentRenderer()
         // 粗い canJump は true（allEnabledForTesting は showsDiff 既定 false）。
         // 種類別の検査が無ければ、この呼び出しは素通りして 0/0 のバーが開く。
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.openJump(kind: .changeBlock)
 
@@ -46,7 +51,10 @@ extension DocumentCommandControllerTests {
     @Test("変更ブロックへのジャンプは差分表示中なら JS へ届く")
     func changeBlockJumpReachesRendererWhileShowingDiff() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+        let controller = makeDocumentCommandController(
+            renderer: renderer,
+            capabilities: { .allEnabledShowingDiffForTesting }
+        )
 
         controller.openJump(kind: .changeBlock)
 
@@ -59,7 +67,10 @@ extension DocumentCommandControllerTests {
     @Test("使える種類の同期は差分表示中なら変更ブロックを含む")
     func jumpAvailabilityIncludesChangeBlockWhileShowingDiff() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .allEnabledShowingDiffForTesting })
+        let controller = makeDocumentCommandController(
+            renderer: renderer,
+            capabilities: { .allEnabledShowingDiffForTesting }
+        )
 
         controller.syncJumpAvailability()
 
@@ -71,7 +82,7 @@ extension DocumentCommandControllerTests {
     @Test("使える種類の同期は差分表示でなければ変更ブロックを含まない")
     func jumpAvailabilityExcludesChangeBlockWithoutDiff() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer)
+        let controller = makeDocumentCommandController(renderer: renderer)
 
         controller.syncJumpAvailability()
 
@@ -81,7 +92,7 @@ extension DocumentCommandControllerTests {
     @Test("何もできない状態では使える種類が空になり、開いているバーは閉じる指示になる")
     func jumpAvailabilityIsEmptyWithoutCapability() {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { .none })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
 
         controller.syncJumpAvailability()
 
@@ -108,7 +119,7 @@ extension DocumentCommandControllerTests {
     /// その能力の状態で viewer へ同期される種類の集合。
     private func syncedKinds(for capabilities: ViewerCapabilities) -> Set<DocumentJumpKind> {
         let renderer = FakeDocumentRenderer()
-        let controller = makeController(renderer: renderer, capabilities: { capabilities })
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { capabilities })
 
         controller.syncJumpAvailability()
 
