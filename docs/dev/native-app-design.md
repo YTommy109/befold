@@ -330,8 +330,14 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   判定は `ViewerLoadPipeline.needsWholeDocument` が先頭チャンクを読んだ直後に行い、
   全量読み込み（`.full`）へ切り替える。`FileType.isChunkable` に持たせないのは、
   XSL の有無が拡張子から決まらないため。切り替えるとサイズ上限が 100MB から
-  10MB（QuickLook は 2MB）へ下がるので、それを超えるものは切り替えず従来どおり
-  段階描画する——変換はできないが `fileTooLarge` の空表示よりソースが読めるほうがよい。
+  `ViewerLoadPipeline.fullLoadSizeLimit`（本体 20MB / QuickLook 2MB）へ下がるので、
+  それを超えるものは切り替えず従来どおり段階描画する——変換はできないが
+  `fileTooLarge` の空表示よりソースが読めるほうがよい。
+  **本体の 20MB は XSLT 変換に載る XML 専用の上限**（`ContentLoader.maxXMLTransformSizeBytes`、
+  TASK-609）。mmd / md / svg / html と共有の 10MB を動かさないのは、そちらが
+  mermaid 描画で桁違いに重いため（1MB で WebContent 901MB）。XSLT の出力は素の HTML で、
+  実測は 17.0MB の法令XMLで 1.53 秒 / WebContent 686MB。QuickLook を据え置くのは
+  appex に 20MB 分のメモリを抱えさせないため。
   **法令標準XML（e-Gov 法令検索の法令XML）だけは、スタイルシートを befold が供給する**
   （TASK-597）。e-Gov は表示用 XSLT を配布しておらず、法令XMLには処理命令も同名 `.xsl` も
   付いてこないため、`XSLStylesheetResolver` の最後の候補として

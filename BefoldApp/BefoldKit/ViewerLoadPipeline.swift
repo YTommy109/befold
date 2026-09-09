@@ -239,7 +239,7 @@ public enum ViewerLoadPipeline {
     /// (XSL の有無は拡張子から決まらない。TASK-596 と同じ理由)。
     ///
     /// 全量読み込みに切り替えると上限が `NormalizedTextCache.maxFileSizeBytes`(100MB)から
-    /// `nonChunkableSizeLimit`(本体 10MB / QuickLook 2MB)へ下がるため、超えるものは
+    /// `fullLoadSizeLimit`(本体 20MB / QuickLook 2MB)へ下がるため、超えるものは
     /// 切り替えず従来どおりチャンク読み込みで段階描画する —— 変換はできないが、
     /// `fileTooLarge` の空表示よりソースが読めるほうがよい。
     ///
@@ -248,12 +248,24 @@ public enum ViewerLoadPipeline {
     private static func needsWholeDocument(
         _ inputs: Inputs, prolog: String, byteCount: Int, oneShotLoad: Bool
     ) -> Bool {
-        guard inputs.fileType == .xml, byteCount <= nonChunkableSizeLimit(oneShotLoad: oneShotLoad) else {
+        guard inputs.fileType == .xml,
+              byteCount <= fullLoadSizeLimit(fileType: .xml, oneShotLoad: oneShotLoad)
+        else {
             return false
         }
         return XSLStylesheetResolver.resolve(
             xml: prolog, fileURL: inputs.resolved, fileReader: inputs.fileReader
         ) != nil
+    }
+
+    /// 全量読み込みの上限。XSLT 変換に載る XML だけは別の上限を使う
+    /// (変換後は素の HTML で、非行指向テキストの描画より軽い。実測は
+    /// `ContentLoader.maxXMLTransformSizeBytes` のコメントを参照)。
+    /// QuickLook(oneShotLoad)は形式によらず厳しいほうの上限のままにする ——
+    /// 20MB の XML を appex のメモリで抱えさせないため。
+    public static func fullLoadSizeLimit(fileType: FileType, oneShotLoad: Bool) -> Int {
+        if fileType == .xml, !oneShotLoad { return ContentLoader.maxXMLTransformSizeBytes }
+        return nonChunkableSizeLimit(oneShotLoad: oneShotLoad)
     }
 
     /// チャンク読み込みできない形式(mmd/svg/html)のサイズ上限。
@@ -270,7 +282,7 @@ public enum ViewerLoadPipeline {
     /// 画像埋め込みのウォームアップはチャンク経路(markdown)側で行うため、ここでは不要。
     private static func loadFull(data: Data, fileType: FileType, oneShotLoad: Bool) throws -> Outcome {
         let cache = try NormalizedTextCache(data: data, oneShotLoad: oneShotLoad)
-        if cache.text.utf8.count > nonChunkableSizeLimit(oneShotLoad: oneShotLoad) {
+        if cache.text.utf8.count > fullLoadSizeLimit(fileType: fileType, oneShotLoad: oneShotLoad) {
             return .full(
                 ContentLoader.LoadedContent(rejectReason: .fileTooLarge, content: ""),
                 cache: nil
