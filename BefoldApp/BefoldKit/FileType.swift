@@ -10,6 +10,14 @@ public enum FileType: Sendable, Equatable {
     case image(mimeType: String)
     case pdf
     case code(language: String)
+    /// XML。**レンダリング表示は XSLT 変換**で、同ディレクトリの XSL スタイルシートを
+    /// 解決できたときだけ変換結果を描く(`XSLStylesheetResolver` / `ViewerXSLTBridge`)。
+    ///
+    /// スタイルシートが無い XML でもソース表示との切替は持つ。解決できるかは
+    /// 描画のたびに変わりうる一方、**表示モードの可否は種別だけで決めたい**ため
+    /// (ADR 0002 段 2 の導出)、ここは拡張子で決め切る。解決できなかった場合の
+    /// レンダリング表示は、ソース表示と同じハイライト済みコードになる。
+    case xml
 
     /// mermaid ダイアグラムとして扱う拡張子。
     public static let mermaidExtensions = ["mmd", "mermaid"]
@@ -44,7 +52,7 @@ public enum FileType: Sendable, Equatable {
         "mk": "makefile",
         "json": "json", "jsonc": "json",
         "yaml": "yaml", "yml": "yaml",
-        "xml": "xml", "plist": "xml",
+        "plist": "xml", "xsl": "xml", "xslt": "xml",
         "vb": "vbnet",
     ]
     /// コードとして扱う拡張子。
@@ -57,6 +65,10 @@ public enum FileType: Sendable, Equatable {
     ]
     /// PDF として扱う拡張子。
     public static let pdfExtensions = ["pdf"]
+    /// XSLT 変換表示の対象として扱う拡張子。
+    /// `.plist` を含めないのは、Apple の property list が XSL を伴わないため
+    /// (常にソース表示になる種別へレンダリング切替を生やさない)。
+    public static let xmlExtensions = ["xml"]
     /// 未知の拡張子に対するフォールバック種別。
     public static let plaintextFallback: FileType = .code(language: "plaintext")
     /// 拡張子 → FileType の単一対応表。`init(url:)` と `allExtensions` の唯一の情報源。
@@ -72,6 +84,7 @@ public enum FileType: Sendable, Equatable {
                 + tsvExtensions.map { ($0, .csv(delimiter: "\t")) }
                 + imageExtensionMimeTypes.map { ($0.key, .image(mimeType: $0.value)) }
                 + pdfExtensions.map { ($0, .pdf) }
+                + xmlExtensions.map { ($0, .xml) }
                 + codeExtensionLanguages.map { ($0.key, .code(language: $0.value)) }
         return Dictionary(uniqueKeysWithValues: pairs)
     }()
@@ -108,13 +121,18 @@ public enum FileType: Sendable, Equatable {
         case .csv: "csv"
         case .image: "image"
         case .pdf: "pdf"
-        case .code: "code"
+        // XSLT 変換できたときは `ViewerXSLTBridge.renderType` へ差し替わる
+        // (`RenderableContent.make`)。ここが返すのは差し替えなかったときの形で、
+        // それはソース表示と同じハイライト済みコード。
+        case .code, .xml: "code"
         }
     }
 
     /// .code の highlight.js 言語名。他の種別は nil。
     public var codeLanguage: String? {
         if case let .code(language) = self { return language }
+        // XSLT 変換できなかった XML はコードとして描くため、ハイライト言語を持つ。
+        if case .xml = self { return "xml" }
         return nil
     }
 
@@ -141,7 +159,7 @@ public enum FileType: Sendable, Equatable {
     public var isBinaryContent: Bool {
         switch self {
         case .image, .pdf: true
-        case .mmd, .markdown, .svg, .html, .csv, .code: false
+        case .mmd, .markdown, .svg, .html, .csv, .code, .xml: false
         }
     }
 
@@ -154,7 +172,7 @@ public enum FileType: Sendable, Equatable {
     public var rendersFromData: Bool {
         switch self {
         case .pdf: true
-        case .image, .mmd, .markdown, .svg, .html, .csv, .code: false
+        case .image, .mmd, .markdown, .svg, .html, .csv, .code, .xml: false
         }
     }
 
@@ -172,14 +190,14 @@ public enum FileType: Sendable, Equatable {
     public var supportsFind: Bool {
         switch self {
         case .image: false
-        case .pdf, .mmd, .markdown, .svg, .html, .csv, .code: true
+        case .pdf, .mmd, .markdown, .svg, .html, .csv, .code, .xml: true
         }
     }
 
     /// レンダリング表示が可能な種別かどうか。false ならソース表示のみ。
     public var isRenderable: Bool {
         switch self {
-        case .mmd, .markdown, .svg, .html, .csv, .image, .pdf: true
+        case .mmd, .markdown, .svg, .html, .csv, .image, .pdf, .xml: true
         case .code: false
         }
     }
@@ -198,7 +216,7 @@ public enum FileType: Sendable, Equatable {
     public var supportsDiffDisplay: Bool {
         switch self {
         case .csv, .image, .pdf: false
-        case .mmd, .markdown, .svg, .html, .code: true
+        case .mmd, .markdown, .svg, .html, .code, .xml: true
         }
     }
 
@@ -208,7 +226,7 @@ public enum FileType: Sendable, Equatable {
     /// Mermaid/HTML/SVG は文書全体で 1 つの構造をなし、途中で切ると描画が壊れるため対象外。
     public var isChunkable: Bool {
         switch self {
-        case .csv, .code, .markdown: true
+        case .csv, .code, .markdown, .xml: true
         case .mmd, .svg, .html, .image, .pdf: false
         }
     }

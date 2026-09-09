@@ -124,6 +124,8 @@ BefoldApp/
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
+│   ├── XSLStylesheetResolver.swift # XML に添えられた .xsl の探索と読み出し（XSLT 表示）
+│   ├── ViewerXSLTBridge.swift      # XSLT 表示の Swift → JS 契約（type トークン・payload）
 │   ├── ViewerBridge.swift          # Swift → JS（関数名・注入スクリプトの組み立て）
 │   ├── ViewerBridgeMessage.swift   # JS → Swift（メッセージ名・ペイロードキーの契約）
 │   │                               # （`referenceContextMenu` 等のブリッジメッセージ名はここ）
@@ -295,6 +297,31 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **`.xml` の扱い**: 同ディレクトリに XSL スタイルシートがあるときだけ XSLT 変換して
+  表示する（TASK-596）。スタイルシートの探索は `XSLStylesheetResolver` が担い、
+  `<?xml-stylesheet?>` 処理命令の href（プロローグに限る）→ 同名 `.xsl` の順に見て、
+  どちらも無ければ従来どおりソースコード表示に落ちる。
+  **`.xml` は `FileType.xml`（レンダリング表示を持つ種別）**で、スタイルシートの有無に
+  かかわらずレンダリング／ソースの切替を持つ。表示モードの可否は種別だけで決め切る
+  （ADR 0002 段 2 の導出。`ViewerCapabilities.canSelectPreviewMode` は
+  `isRenderable` しか見ないため、ここを `.code` にするとツールバーがソース表示に
+  固定される）。解決できなかった場合のレンダリング表示は、ソース表示と同じ
+  ハイライト済みコードになる（`FileType.xml.jsValue == "code"`）。
+  `.plist` / `.xsl` / `.xslt` は XSL を伴わないので `.code(language: "xml")` のまま。
+  **一方、変換できたかどうかは拡張子から決まらないので `FileType` には載せない。**
+  描画直前に `RenderableContent.make` が `{"xml":…, "xsl":…}` の JSON を組み、render() の第 2 引数を
+  `ViewerXSLTBridge.renderType` へ差し替える。`RenderableContent.Renderable` が持つのは
+  `FileType` ではなく JS のトークン（`type` / `lang` の文字列）なので、
+  **描画形を `RenderedStateMirror` へ記録する誤りはコンパイルエラーになる**
+  （ミラーは丸ごと比較で再描画要否を決めるため、描画形を記録するとフル再描画が止まらない）。
+  Swift↔JS の契約（type トークンと JSON キー）は `ViewerXSLTBridge` が単一の情報源で、
+  `ViewerXSLTBridgeContractTests` が viewer-bundle.js を読んで照合する。
+  変換そのものは viewer 側の `_renderXslt` が WebKit 同梱の `XSLTProcessor`
+  （XSLT 1.0）で行い、出力は markdown と同じ `sanitizeRenderedHtml`（DOMPurify）を
+  通してから差し込む。xml か xsl が不正なら `#mmd-error` に理由を出し、原文の
+  ソース表示へ落とす。兄弟ファイルを読めないホスト（QuickLook /
+  `RendererFeatures.allowsSiblingFileReads` が false）と、追記チャンク・切り詰められた
+  内容（構文として閉じておらず必ずパースエラーになる）では差し替えない
 - **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
   （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
   `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。

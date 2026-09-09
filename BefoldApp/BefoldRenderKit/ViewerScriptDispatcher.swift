@@ -40,15 +40,22 @@ final class ViewerScriptDispatcher {
 
     /// content の埋め込み加工(markdown ローカル画像の data URI 差し替え)を MainActor 外へ逃がす。
     /// MarkdownImageEmbedder は Sendable かつ内部キャッシュが NSLock 保護のため並行呼び出し可。
+    /// render()/appendChunk() へ渡す内容と種別を、メインアクター外で組み立てる。
+    ///
+    /// 戻り値が持つのは JS 呼び出しの引数(type / lang の文字列)で、`FileType` ではない。
+    /// 描画済みミラーへ記録する種別は常にリクエスト側の `fileType` になる
+    /// (型が別なので取り違えはコンパイルエラーになる。理由は `Renderable`)。
     private func embeddedContent(
-        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool
-    ) async -> String {
-        let embedImages = renderer.rendererFeatures.embedImages
+        _ content: String, fileType: FileType, filePath: URL?, isSourceMode: Bool, allowsXSLT: Bool
+    ) async -> RenderableContent.Renderable {
+        let features = renderer.rendererFeatures
         let embedder = renderer.imageEmbedder
         return await withBlockingWork(qos: .userInitiated) {
             RenderableContent.make(
                 content, fileType: fileType, filePath: filePath,
-                isSourceMode: isSourceMode, embedImages: embedImages, imageEmbedder: embedder
+                isSourceMode: isSourceMode, allowsXSLT: allowsXSLT,
+                embedImages: features.embedImages,
+                allowsSiblingFileReads: features.allowsSiblingFileReads, imageEmbedder: embedder
             )
         }
     }
@@ -63,10 +70,12 @@ final class ViewerScriptDispatcher {
         // 追記チャンクも初回描画と同じ加工を通す。markdown をチャンク読み込みの
         // 対象にしたため(Issue #307)、ここを素通しすると 2 チャンク目以降の
         // ローカル画像だけが data URI に差し替わらず画像割れになる。
+        // 追記チャンクは文書の断片なので、XSLT 変換にはかけられない
+        // (構文として閉じておらず、必ずパースエラーになる)。
         let renderable = await embeddedContent(
             request.chunk, fileType: request.fileType,
-            filePath: request.filePath, isSourceMode: request.isSourceMode
-        )
+            filePath: request.filePath, isSourceMode: request.isSourceMode, allowsXSLT: false
+        ).content
         guard request.generation == renderer.contentUpdateGeneration else { return }
 
         // 送信と recordRendered は同じ同期区間に閉じ込める(applyRender と同じ理由)。
@@ -99,12 +108,13 @@ final class ViewerScriptDispatcher {
         surface: any RenderSurface, request: RenderRequest, restoreFromPersistedPosition: Bool
     ) async {
         let renderable = await embeddedContent(
-            request.content, fileType: request.fileType,
-            filePath: request.filePath, isSourceMode: request.isSourceMode
+            request.content, fileType: request.fileType, filePath: request.filePath,
+            isSourceMode: request.isSourceMode, allowsXSLT: !request.truncation.isTruncated
         )
         guard request.generation == renderer.contentUpdateGeneration else { return }
-        guard let script = ViewerBridge.renderScript(content: renderable, fileType: request.fileType)
-        else { return }
+        guard let script = ViewerBridge.renderScript(
+            content: renderable.content, type: renderable.type, lang: renderable.lang
+        ) else { return }
 
         // 表示オプションの送信・render の評価・ミラーへの確定を、await を挟まずここへ並べる。
         // 「送るのは変わったときだけ」なので、送信とミラー確定の間に suspension point を置くと

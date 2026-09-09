@@ -8,15 +8,21 @@ import type { CsvColumnFormat } from './csv-columns.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
 import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
-import { markdownRenderer } from './markdown.js';
-import { hljs } from './vendor.js';
+import { markdownRenderer, sanitizeRenderedHtml } from './markdown.js';
+import { DOMPurify, hljs } from './vendor.js';
 import { _mmdViewOptions } from './view-options.js';
 import { _mmdApplyDiagramZoom, _mmdBuildDiagramControls, _mmdFitImage } from './zoom.js';
 
 // #diagram-wrap に付く「表示種別」クラスの全集合。表示種別を追加したらここに足す。
 // 付け替えは必ず _mmdSetBodyClasses 経由にする(外す側の一覧が複数箇所に手写しされて
 // いると、追加時の更新漏れで前の型のスタイルが残る)。
-type ViewerBodyClass = 'markdown-body' | 'code-body' | 'html-body' | 'csv-body' | 'image-body';
+type ViewerBodyClass =
+  | 'markdown-body'
+  | 'code-body'
+  | 'html-body'
+  | 'csv-body'
+  | 'image-body'
+  | 'xslt-body';
 
 // render() が選ぶ描画形(表示種別 → 描画関数のディスパッチで使う集合)。
 // render.js の renderShape() が返す値の全体で、'diff' だけは例外的に
@@ -29,7 +35,8 @@ type RenderShape =
   | 'html'
   | 'csv-table'
   | 'image'
-  | 'markdown';
+  | 'markdown'
+  | 'xslt';
 
 // 行番号付きソース表示を通る描画形。
 type SourceShape = 'code' | 'csv-source';
@@ -40,6 +47,7 @@ var BODY_CLASSES: ViewerBodyClass[] = [
   'html-body',
   'csv-body',
   'image-body',
+  'xslt-body',
 ];
 
 // 表示種別クラスを一括で付け替える。keep に挙げたものだけが残る。
@@ -103,6 +111,71 @@ function _renderHtml(diagramWrap: HTMLElement, content: string): void {
   iframe.style.height = '80vh';
   diagramWrap.innerHTML = '';
   diagramWrap.append(iframe);
+}
+
+// XSL スタイルシートを伴う XML を XSLT 変換して描く。content は Swift 側
+// (XSLStylesheetResolver.payload)が組んだ `{"xml":…, "xsl":…}` の JSON。
+//
+// 変換は WebKit 同梱の XSLTProcessor(libxslt 由来の XSLT 1.0)で行い、出力は
+// **必ず** sanitizeRenderedHtml を通してから差し込む(markdown と同じサニタイズ経路。
+// 表示する HTML は外部から受け取った文書に由来するため)。
+//
+// 戻り値は「実際に描いた形」と、失敗したときのメッセージ。xml か xsl が不正なら
+// 変換をあきらめ、原文(xml)をソース表示へ落として理由を返す。
+function _renderXslt(
+  diagramWrap: HTMLElement,
+  content: string,
+): { shape: RenderShape | SourceShape | 'diff'; error: string | null } {
+  var parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    // Swift 側が組んだ JSON なので通常は起きない。起きたら原文が読めないため
+    // content をそのまま出す(空表示にしない)。
+    return { shape: _renderSource(diagramWrap, content, 'code', 'xml', 'code'), error: String(e) };
+  }
+  var xml = '';
+  var xsl = '';
+  if (parsed !== null && typeof parsed === 'object') {
+    if ('xml' in parsed && typeof parsed.xml === 'string') {
+      xml = parsed.xml;
+    }
+    if ('xsl' in parsed && typeof parsed.xsl === 'string') {
+      xsl = parsed.xsl;
+    }
+  }
+  var fallback = function (message: string): { shape: SourceShape | 'diff'; error: string } {
+    return { shape: _renderSource(diagramWrap, xml, 'code', 'xml', 'code'), error: message };
+  };
+  var parser = new DOMParser();
+  var xmlDoc = parser.parseFromString(xml, 'application/xml');
+  var xslDoc = parser.parseFromString(xsl, 'application/xml');
+  // DOMParser は例外を投げず、パースエラーを <parsererror> 要素として文書に埋める。
+  var xmlError = xmlDoc.querySelector('parsererror');
+  if (xmlError) {
+    return fallback(xmlError.textContent || 'XML parse error');
+  }
+  var xslError = xslDoc.querySelector('parsererror');
+  if (xslError) {
+    return fallback(xslError.textContent || 'XSL parse error');
+  }
+  var html: string;
+  try {
+    var processor = new XSLTProcessor();
+    processor.importStylesheet(xslDoc);
+    var fragment = processor.transformToFragment(xmlDoc, document);
+    if (!fragment) {
+      return fallback('XSLT transform produced no output');
+    }
+    var holder = document.createElement('div');
+    holder.append(fragment);
+    html = holder.innerHTML;
+  } catch (e) {
+    return fallback(String(e));
+  }
+  diagramWrap.classList.add('xslt-body');
+  diagramWrap.innerHTML = sanitizeRenderedHtml(DOMPurify, html);
+  return { shape: 'xslt', error: null };
 }
 
 // 列ごとの書式判定を返す。呼び出し元(render())がそれを記録し、チャンク追記が
@@ -214,6 +287,7 @@ export {
   _renderMmd,
   _renderSvg,
   _renderHtml,
+  _renderXslt,
   _renderCsv,
   _renderImage,
   _renderMarkdown,

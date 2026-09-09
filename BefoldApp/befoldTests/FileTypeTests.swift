@@ -68,6 +68,9 @@ struct FileTypeTests {
         ("jsonc", "json"),
         ("yml", "yaml"),
         ("plist", "xml"),
+        // XSL スタイルシート自体はソースとして開く(XSLT 変換表示の対象は .xml の側)。
+        ("xsl", "xml"),
+        ("xslt", "xml"),
         ("PY", "python"),
         ("Swift", "swift"),
     ])
@@ -301,5 +304,32 @@ struct FileTypeSupportsFindTests {
     func pdfIsBinaryYetSearchable() {
         #expect(FileType.pdf.isBinaryContent)
         #expect(FileType.pdf.supportsFind)
+    }
+
+    /// `.xml` はレンダリング表示(XSLT 変換)を持つ種別。ここが false へ戻ると、
+    /// ツールバーがソース表示に固定され、レンダリング表示ボタンが押せなくなる
+    /// (`ViewerCapabilities.canSelectPreviewMode` / `canToggleSourceMode` が
+    /// この 2 つだけを見る)。スタイルシートを解決できるかは描画のたびに変わるため、
+    /// 表示モードの可否は種別だけで決め切る。
+    @Test(".xml はレンダリング表示とソース表示の切替を持つ")
+    func xmlIsRenderableAndSwitchable() {
+        let fileType = FileType(url: URL(fileURLWithPath: "/a/b.xml"))
+        #expect(fileType == .xml)
+        #expect(fileType.isRenderable)
+        #expect(fileType.supportsSourceMode)
+        // 変換できなかったときはソース表示と同じハイライト済みコードを描く。
+        #expect(fileType.jsValue == "code")
+        #expect(fileType.codeLanguage == "xml")
+        // 大きな XML を開けなくしないため、チャンク読み込みは従来どおり効かせる。
+        #expect(fileType.isChunkable)
+        #expect(fileType.supportsDiffDisplay)
+        #expect(fileType.supportsFind)
+        #expect(!fileType.isBinaryContent)
+    }
+
+    /// `.plist` は XSL を伴わないため、レンダリング切替を生やさずコードのままにする。
+    @Test(".plist と .xsl は XML 種別に含めない", arguments: ["plist", "xsl", "xslt"])
+    func xmlLikeExtensionsStayCode(ext: String) {
+        #expect(FileType(url: URL(fileURLWithPath: "/a/b.\(ext)")) == .code(language: "xml"))
     }
 }

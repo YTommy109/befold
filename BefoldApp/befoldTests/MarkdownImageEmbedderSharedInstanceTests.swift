@@ -64,6 +64,6 @@ struct MarkdownImageEmbedderSharedInstanceTests {
         )
 
         let expectedURI = "data:image/png;base64,\(Self.pngData.base64EncodedString())"
-        #expect(rendered == "![alt](\(expectedURI))")
+        #expect(rendered.content == "![alt](\(expectedURI))")
     }
 }

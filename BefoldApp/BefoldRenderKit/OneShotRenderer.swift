@@ -167,13 +167,15 @@ public final class OneShotRenderer {
     /// かつ描画完了を待つには render() の返す Promise を callAsyncJavaScript で
     /// 受け取る必要があるため、専用の一本道にしている。
     private func renderOnce(surface: any RenderSurface, render: OneShotRender) async {
+        let renderable = RenderableContent.make(
+            render.content, fileType: render.fileType,
+            filePath: render.filePath, isSourceMode: false,
+            allowsXSLT: !render.truncation.isTruncated,
+            embedImages: renderer.rendererFeatures.embedImages,
+            allowsSiblingFileReads: renderer.rendererFeatures.allowsSiblingFileReads
+        )
         guard let script = ViewerBridge.awaitRenderScript(
-            content: RenderableContent.make(
-                render.content, fileType: render.fileType,
-                filePath: render.filePath, isSourceMode: false,
-                embedImages: renderer.rendererFeatures.embedImages
-            ),
-            fileType: render.fileType
+            content: renderable.content, type: renderable.type, lang: renderable.lang
         ) else { return }
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in

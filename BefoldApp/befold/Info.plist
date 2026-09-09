@@ -132,6 +132,8 @@
 					<string>yml</string>
 					<string>xml</string>
 					<string>plist</string>
+					<string>xsl</string>
+					<string>xslt</string>
 					<string>svg</string>
 					<string>vb</string>
 				</array>

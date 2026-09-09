@@ -48,6 +48,14 @@ describe('renderShape', () => {
     expect(renderShape('code', 'source')).toBe('code');
   });
 
+  // XSLT 変換表示は content が {xml, xsl} の JSON なので、source モードで
+  // code へ倒すと JSON がそのまま行番号付きで並ぶ。ソース表示への降格は
+  // _renderXslt が xml を取り出して行う。
+  test('xslt はモードによらず xslt のまま', () => {
+    expect(renderShape('xslt', 'rendered')).toBe('xslt');
+    expect(renderShape('xslt', 'source')).toBe('xslt');
+  });
+
   // 未知のモード文字列でレンダリング表示側へ倒れること（setViewMode が
   // 'rendered'/'source' 以外を弾くため、ここへ来るのは実質ありえないが、
   // 判定が真偽の取り違えで source 側へ倒れないことを固定する）。

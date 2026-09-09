@@ -166,8 +166,8 @@ struct ViewerWebViewCoordinatorTests {
             isSourceMode: false, imageEmbedder: makeEmbedder()
         )
 
-        #expect(result.contains("data:image/png;base64,"))
-        #expect(!result.contains("(image.png)"))
+        #expect(result.content.contains("data:image/png;base64,"))
+        #expect(!result.content.contains("(image.png)"))
     }
 
     @Test("ソース表示中はmarkdownのローカル画像参照をbase64に埋め込まない")
@@ -177,7 +177,7 @@ struct ViewerWebViewCoordinatorTests {
             isSourceMode: true, imageEmbedder: makeEmbedder()
         )
 
-        #expect(result == Self.embedMarkdown)
+        #expect(result.content == Self.embedMarkdown)
     }
 
     @Test("embedImages: false のときはレンダリング表示中でもmarkdownのローカル画像参照を埋め込まない")
@@ -187,6 +187,6 @@ struct ViewerWebViewCoordinatorTests {
             isSourceMode: false, embedImages: false, imageEmbedder: makeEmbedder()
         )
 
-        #expect(result == Self.embedMarkdown)
+        #expect(result.content == Self.embedMarkdown)
     }
 }

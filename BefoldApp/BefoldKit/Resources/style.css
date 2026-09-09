@@ -218,6 +218,16 @@ body {
   font-size: var(--mmd-markdown-font-size, 16px);
 }
 
+/*
+  XSLT 変換表示(.xslt-body)。本文の見た目は文書に付く XSL が持つため、
+  ここでは読み幅と本文サイズだけを Markdown 表示に揃える。
+*/
+#diagram-wrap.xslt-body {
+  width: 100%;
+  max-width: 980px;
+  font-size: var(--mmd-markdown-font-size, 16px);
+}
+
 /* ベンダー CSS の固定 12px(基準 16px の 0.75 倍)を em にし、本文サイズに追従させる */
 #diagram-wrap.markdown-body tt,
 #diagram-wrap.markdown-body code,

@@ -14219,6 +14219,7 @@
     _renderMmd: () => _renderMmd,
     _renderSource: () => _renderSource,
     _renderSvg: () => _renderSvg,
+    _renderXslt: () => _renderXslt,
     _sourceLanguage: () => _sourceLanguage,
     _walkTextNodes: () => _walkTextNodes,
     analyzeCsvColumnDecisions: () => analyzeCsvColumnDecisions,
@@ -24276,7 +24277,8 @@
     "code-body",
     "html-body",
     "csv-body",
-    "image-body"
+    "image-body",
+    "xslt-body"
   ];
   function _mmdSetBodyClasses(el, ...keep) {
     BODY_CLASSES.forEach(function(name) {
@@ -24327,6 +24329,55 @@
     iframe.style.height = "80vh";
     diagramWrap.innerHTML = "";
     diagramWrap.append(iframe);
+  }
+  function _renderXslt(diagramWrap, content) {
+    var parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      return { shape: _renderSource(diagramWrap, content, "code", "xml", "code"), error: String(e) };
+    }
+    var xml2 = "";
+    var xsl = "";
+    if (parsed !== null && typeof parsed === "object") {
+      if ("xml" in parsed && typeof parsed.xml === "string") {
+        xml2 = parsed.xml;
+      }
+      if ("xsl" in parsed && typeof parsed.xsl === "string") {
+        xsl = parsed.xsl;
+      }
+    }
+    var fallback = function(message) {
+      return { shape: _renderSource(diagramWrap, xml2, "code", "xml", "code"), error: message };
+    };
+    var parser = new DOMParser();
+    var xmlDoc = parser.parseFromString(xml2, "application/xml");
+    var xslDoc = parser.parseFromString(xsl, "application/xml");
+    var xmlError = xmlDoc.querySelector("parsererror");
+    if (xmlError) {
+      return fallback(xmlError.textContent || "XML parse error");
+    }
+    var xslError = xslDoc.querySelector("parsererror");
+    if (xslError) {
+      return fallback(xslError.textContent || "XSL parse error");
+    }
+    var html2;
+    try {
+      var processor = new XSLTProcessor();
+      processor.importStylesheet(xslDoc);
+      var fragment = processor.transformToFragment(xmlDoc, document);
+      if (!fragment) {
+        return fallback("XSLT transform produced no output");
+      }
+      var holder = document.createElement("div");
+      holder.append(fragment);
+      html2 = holder.innerHTML;
+    } catch (e) {
+      return fallback(String(e));
+    }
+    diagramWrap.classList.add("xslt-body");
+    diagramWrap.innerHTML = sanitizeRenderedHtml(purify, html2);
+    return { shape: "xslt", error: null };
   }
   function _renderCsv(diagramWrap, content, lang) {
     diagramWrap.classList.add("markdown-body", "csv-body");
@@ -24388,6 +24439,9 @@
 
   // viewer-src/render.ts
   function renderShape(type, mode) {
+    if (type === "xslt") {
+      return "xslt";
+    }
     if (mode === "source" && type !== "code" && type !== "image") {
       return type === "csv" ? "csv-source" : "code";
     }
@@ -24435,6 +24489,13 @@
       _renderSvg(diagramWrap, content);
     } else if (shape === "html") {
       _renderHtml(diagramWrap, content);
+    } else if (shape === "xslt") {
+      var xslt = _renderXslt(diagramWrap, content);
+      _mmdDocument.recordShape(xslt.shape);
+      if (xslt.error !== null) {
+        errorPanel.textContent = xslt.error;
+        errorPanel.style.display = "block";
+      }
     } else if (shape === "csv-table") {
       _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
     } else if (shape === "image") {
