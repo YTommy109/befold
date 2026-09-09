@@ -20,6 +20,15 @@ public struct RendererFeatures: Equatable, Sendable {
     /// インタラクティブな機能自体が不要かつ攻撃面になるため無効化を想定する。
     public let allowsInteractiveBridging: Bool
 
+    /// true のとき、開いているファイルの**兄弟ファイル**を読んでよい。
+    /// markdown のローカル画像埋め込みと、XML に添えられた .xsl の解決がこれに当たる。
+    /// QuickLook 拡張は対象ファイル 1 つにしか読み取り権限を持たないため false になる。
+    /// 判定は embedImages と同じ「兄弟ファイルへ手を伸ばしてよいホストか」という区別
+    /// なので、独立したフラグは持たず導出する(allowsSpaceScroll と同じ形)。
+    public var allowsSiblingFileReads: Bool {
+        embedImages
+    }
+
     /// true のとき、viewer.html 側が Space キーを受け取ってページスクロールしてよい。
     /// 1 回描画の静的プレビュー(QuickLook)では Space はホスト側パネルの「閉じる」
     /// ジェスチャであり、ビューアが preventDefault すると標準操作を奪ってしまうため

@@ -124,6 +124,9 @@ BefoldApp/
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み
 │   ├── FileType.swift              # 拡張子→種別マッピングとレンダリング可否判定
+│   ├── XSLStylesheetResolver.swift # XML に添えられた .xsl の探索と読み出し（XSLT 表示）
+│   ├── JapaneseLawStylesheet.swift # 法令標準XML の判定と内蔵 XSL の供給
+│   ├── ViewerXSLTBridge.swift      # XSLT 表示の Swift → JS 契約（type トークン・payload）
 │   ├── ViewerBridge.swift          # Swift → JS（関数名・注入スクリプトの組み立て）
 │   ├── ViewerBridgeMessage.swift   # JS → Swift（メッセージ名・ペイロードキーの契約）
 │   │                               # （`referenceContextMenu` 等のブリッジメッセージ名はここ）
@@ -295,6 +298,50 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **`.xml` の扱い**: 同ディレクトリに XSL スタイルシートがあるときだけ XSLT 変換して
+  表示する（TASK-596）。スタイルシートの探索は `XSLStylesheetResolver` が担い、
+  `<?xml-stylesheet?>` 処理命令の href（プロローグに限る）→ 同名 `.xsl` の順に見て、
+  どちらも無ければ従来どおりソースコード表示に落ちる。
+  **`.xml` は `FileType.xml`（レンダリング表示を持つ種別）**で、スタイルシートの有無に
+  かかわらずレンダリング／ソースの切替を持つ。表示モードの可否は種別だけで決め切る
+  （ADR 0002 段 2 の導出。`ViewerCapabilities.canSelectPreviewMode` は
+  `isRenderable` しか見ないため、ここを `.code` にするとツールバーがソース表示に
+  固定される）。解決できなかった場合のレンダリング表示は、ソース表示と同じ
+  ハイライト済みコードになる（`FileType.xml.jsValue == "code"`）。
+  `.plist` / `.xsl` / `.xslt` は XSL を伴わないので `.code(language: "xml")` のまま。
+  **一方、変換できたかどうかは拡張子から決まらないので `FileType` には載せない。**
+  描画直前に `RenderableContent.make` が `{"xml":…, "xsl":…}` の JSON を組み、render() の第 2 引数を
+  `ViewerXSLTBridge.renderType` へ差し替える。`RenderableContent.Renderable` が持つのは
+  `FileType` ではなく JS のトークン（`type` / `lang` の文字列）なので、
+  **描画形を `RenderedStateMirror` へ記録する誤りはコンパイルエラーになる**
+  （ミラーは丸ごと比較で再描画要否を決めるため、描画形を記録するとフル再描画が止まらない）。
+  Swift↔JS の契約（type トークンと JSON キー）は `ViewerXSLTBridge` が単一の情報源で、
+  `ViewerXSLTBridgeContractTests` が viewer-bundle.js を読んで照合する。
+  変換そのものは viewer 側の `_renderXslt` が WebKit 同梱の `XSLTProcessor`
+  （XSLT 1.0）で行い、出力は markdown と同じ `sanitizeRenderedHtml`（DOMPurify）を
+  通してから差し込む。xml か xsl が不正なら `#mmd-error` に理由を出し、原文の
+  ソース表示へ落とす。兄弟ファイルを読めないホスト（QuickLook /
+  `RendererFeatures.allowsSiblingFileReads` が false）と、追記チャンク・切り詰められた
+  内容（構文として閉じておらず必ずパースエラーになる）では差し替えない。
+  そのため **XSL を解決できる XML はチャンク読み込みしない**（TASK-608）。
+  `.xml` は `FileType.isChunkable` が true で、1000 行（`StringChunkReader.linesPerChunk`）を
+  超えると打ち切られるため、放置すると実在の文書では変換経路を一度も通らない
+  （実測: e-Gov 法令XMLは最小の日本国憲法 1,476 行でも該当する）。
+  判定は `ViewerLoadPipeline.needsWholeDocument` が先頭チャンクを読んだ直後に行い、
+  全量読み込み（`.full`）へ切り替える。`FileType.isChunkable` に持たせないのは、
+  XSL の有無が拡張子から決まらないため。切り替えるとサイズ上限が 100MB から
+  10MB（QuickLook は 2MB）へ下がるので、それを超えるものは切り替えず従来どおり
+  段階描画する——変換はできないが `fileTooLarge` の空表示よりソースが読めるほうがよい。
+  **法令標準XML（e-Gov 法令検索の法令XML）だけは、スタイルシートを befold が供給する**
+  （TASK-597）。e-Gov は表示用 XSLT を配布しておらず、法令XMLには処理命令も同名 `.xsl` も
+  付いてこないため、`XSLStylesheetResolver` の最後の候補として
+  `JapaneseLawStylesheet` が同梱の `Resources/japanese-law.xsl` を返す。
+  文書に添えられた `.xsl` が常に優先される（利用者が置いたものを内蔵版が上書きしない）。
+  判定は **namespace ではできない**——法令標準XMLスキーマ v3 は `targetNamespace` を
+  宣言しておらず、ルート要素 `Law` も無名前空間にある。代わりに「ルート要素が `Law` で
+  必須属性 `Era` と `Num` を持つ」ことで判定し、走査はルート要素の開始タグに限る。
+  XSL は構造とクラス名（`.law-*`）だけを決め、見た目は `style.css` が持つ
+  （XSL に `<style>` を埋めると DOMPurify を通るうえ見た目の定義が二重化する）
 - **PDF の扱い**: viewer.html を通らない。読み込みは `Data` のまま
   （`ViewerLoadPipeline.Outcome` の `.binary`。base64 化しないのは `PDFView` が
   `Data` を直接受けられるため）運び、`PDFPreviewView` が `PDFView` で描く（ADR 0009）。

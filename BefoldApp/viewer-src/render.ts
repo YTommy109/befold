@@ -20,6 +20,7 @@ import {
   _mmdSetBodyClasses,
   _renderCsv,
   _renderHtml,
+  _renderXslt,
   _renderImage,
   _renderMarkdown,
   _renderMmd,
@@ -48,6 +49,12 @@ import { _mmdApplyZoom } from './zoom.js';
 // PDF は viewer.html を通らない(Swift 側が PDFView で描く / ADR 0009)ため、
 // ここに現れる種別ではない。
 function renderShape(type: string, mode: 'rendered' | 'source'): string {
+  // 'xslt' はモードで形が変わらない。content が {xml, xsl} の JSON なので、
+  // ソース表示にしたければ _renderXslt 側が xml を取り出して落とす必要がある
+  // (ここで 'code' へ倒すと JSON がそのまま行番号付きで並ぶ)。
+  if (type === 'xslt') {
+    return 'xslt';
+  }
   if (mode === 'source' && type !== 'code' && type !== 'image') {
     return type === 'csv' ? 'csv-source' : 'code';
   }
@@ -138,6 +145,13 @@ async function render(content: string, type: string, lang: string | undefined): 
     _renderSvg(diagramWrap, content);
   } else if (shape === 'html') {
     _renderHtml(diagramWrap, content);
+  } else if (shape === 'xslt') {
+    var xslt = _renderXslt(diagramWrap, content);
+    _mmdDocument.recordShape(xslt.shape);
+    if (xslt.error !== null) {
+      errorPanel.textContent = xslt.error;
+      errorPanel.style.display = 'block';
+    }
   } else if (shape === 'csv-table') {
     _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
   } else if (shape === 'image') {

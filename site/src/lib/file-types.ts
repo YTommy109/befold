@@ -89,7 +89,8 @@ const CODE_EXTENSIONS = [
   'ts',
   'tsx',
   'vb',
-  'xml',
+  'xsl',
+  'xslt',
   'yaml',
   'yml',
   'zsh',
@@ -171,6 +172,17 @@ export const FILE_TYPE_GROUPS: FileTypeGroup[] = [
     note: {
       ja: 'ページを連続してスクロール表示します。',
       en: 'Pages are shown in a continuous scroll.',
+    },
+  },
+  {
+    label: 'XML',
+    extensions: ['xml'],
+    renderMode: 'both',
+    chunkable: false,
+    maxSizeMB: SIZE_LIMITS_MB.nonChunkableText,
+    note: {
+      ja: 'スタイルシート指定があれば XSLT 変換した結果を表示し、ソース表示に切り替えると XML を読めます。',
+      en: 'If a stylesheet is specified, the XSLT result is shown; switch to source view to read the XML.',
     },
   },
   {

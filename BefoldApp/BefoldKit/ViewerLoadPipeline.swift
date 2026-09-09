@@ -160,27 +160,13 @@ public enum ViewerLoadPipeline {
         do {
             let data = try inputs.fileReader.readData(from: inputs.resolved)
 
-            if inputs.fileType.isChunkable {
-                // 先頭チャンク描画に必要な範囲だけを正規化・行分割する
-                // (ファイル全体を materialize しない。100MB 級ファイルでの
-                // ピークメモリ・CPU 削減のため。詳細は NormalizedTextCache 参照)。
-                let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: oneShotLoad)
-                let reader = try inputs.chunkedReaderFactory(cache, inputs.fileType)
-                let firstChunk = try await reader.readNextChunk()
-                if embedLocalImages, inputs.fileType == .markdown {
-                    // markdown もチャンク読み込みの対象になったため(Issue #307)、
-                    // ウォームアップは先頭チャンクに対して行う。後続チャンクの画像は
-                    // 追記時(applyAppend)に埋め込まれる。
-                    // render 経路と同じキャッシュを温めるため、同一インスタンス(本番は .shared)を経由すること。
-                    _ = imageEmbedder.embedLocalImages(in: firstChunk.text, baseURL: inputs.resolved)
-                }
-                return .chunked(
-                    session: reader, cache: cache,
-                    firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
-                )
-            } else {
+            guard inputs.fileType.isChunkable else {
                 return try loadFull(data: data, fileType: inputs.fileType, oneShotLoad: oneShotLoad)
             }
+            return try await loadChunked(
+                inputs, data: data, oneShotLoad: oneShotLoad,
+                embedLocalImages: embedLocalImages, imageEmbedder: imageEmbedder
+            )
         } catch {
             if !inputs.fileReader.fileExists(at: inputs.resolved) { return .missing }
             // 事前サイズチェックをすり抜けた場合(fileSize が nil を返した、または
@@ -204,6 +190,70 @@ public enum ViewerLoadPipeline {
     ) -> ContentLoader.LoadedData {
         guard let data = loaded.data, !isPDFReadable(data) else { return loaded }
         return ContentLoader.LoadedData(rejectReason: .damagedDocument, data: nil)
+    }
+
+    /// チャンク読み込み経路。先頭チャンクだけを描いて残りは追記で足す。
+    ///
+    /// 先頭チャンクを読んだ時点で「打ち切ったままでは表示できない」と分かったものは、
+    /// ここで全量読み込みへ切り替える(`needsWholeDocument` を参照)。
+    private static func loadChunked(
+        _ inputs: Inputs, data: Data, oneShotLoad: Bool,
+        embedLocalImages: Bool, imageEmbedder: MarkdownImageEmbedder
+    ) async throws -> Outcome {
+        // 先頭チャンク描画に必要な範囲だけを正規化・行分割する
+        // (ファイル全体を materialize しない。100MB 級ファイルでの
+        // ピークメモリ・CPU 削減のため。詳細は NormalizedTextCache 参照)。
+        let cache = try NormalizedTextCache(data: data, normalizeFully: false, oneShotLoad: oneShotLoad)
+        let reader = try inputs.chunkedReaderFactory(cache, inputs.fileType)
+        let firstChunk = try await reader.readNextChunk()
+        let truncatesTransformable = !firstChunk.isAtEnd && needsWholeDocument(
+            inputs, prolog: firstChunk.text, byteCount: data.count, oneShotLoad: oneShotLoad
+        )
+        if truncatesTransformable {
+            return try loadFull(data: data, fileType: inputs.fileType, oneShotLoad: oneShotLoad)
+        }
+        if embedLocalImages, inputs.fileType == .markdown {
+            // markdown もチャンク読み込みの対象になったため(Issue #307)、
+            // ウォームアップは先頭チャンクに対して行う。後続チャンクの画像は
+            // 追記時(applyAppend)に埋め込まれる。
+            // render 経路と同じキャッシュを温めるため、同一インスタンス(本番は .shared)を経由すること。
+            _ = imageEmbedder.embedLocalImages(in: firstChunk.text, baseURL: inputs.resolved)
+        }
+        return .chunked(
+            session: reader, cache: cache,
+            firstChunk: firstChunk.text, isAtEnd: firstChunk.isAtEnd
+        )
+    }
+
+    /// 打ち切ったままでは表示できず、全量読み込みへ切り替えるべきかどうか(TASK-608)。
+    ///
+    /// XSLT 変換表示は文書全体を 1 つの構造として扱うため、先頭チャンクだけでは
+    /// 必ずパースエラーになる。実際 `ViewerScriptDispatcher` / `OneShotRenderer` は
+    /// `allowsXSLT: !truncation.isTruncated` を渡して変換を止めており、
+    /// 1000 行(`StringChunkReader.linesPerChunk`)を超える XML は XSL があっても
+    /// ソース表示に落ちていた(実測: e-Gov 法令XMLは最小の日本国憲法 1,476 行でも
+    /// 該当し、この経路を一度も通らない)。
+    ///
+    /// 直すのは「打ち切った断片を変換する」側ではなく「変換対象を打ち切る」側。
+    /// 判定をここに置くのは、`FileType.isChunkable` がファイルを見られないため
+    /// (XSL の有無は拡張子から決まらない。TASK-596 と同じ理由)。
+    ///
+    /// 全量読み込みに切り替えると上限が `NormalizedTextCache.maxFileSizeBytes`(100MB)から
+    /// `nonChunkableSizeLimit`(本体 10MB / QuickLook 2MB)へ下がるため、超えるものは
+    /// 切り替えず従来どおりチャンク読み込みで段階描画する —— 変換はできないが、
+    /// `fileTooLarge` の空表示よりソースが読めるほうがよい。
+    ///
+    /// - Parameter prolog: 先頭チャンク。`<?xml-stylesheet?>` はプロローグにしか
+    ///   置けないため、全文と同じ答えが出る。
+    private static func needsWholeDocument(
+        _ inputs: Inputs, prolog: String, byteCount: Int, oneShotLoad: Bool
+    ) -> Bool {
+        guard inputs.fileType == .xml, byteCount <= nonChunkableSizeLimit(oneShotLoad: oneShotLoad) else {
+            return false
+        }
+        return XSLStylesheetResolver.resolve(
+            xml: prolog, fileURL: inputs.resolved, fileReader: inputs.fileReader
+        ) != nil
     }
 
     /// チャンク読み込みできない形式(mmd/svg/html)のサイズ上限。

@@ -92,6 +92,17 @@ public enum ViewerBridge {
         contentCallScript(function: "render", content: content, fileType: fileType)
     }
 
+    /// 種別を `FileType` ではなく JS のトークンで指定する render 呼び出し。
+    ///
+    /// 拡張子から決まらない描画形(XSLT 変換表示 = `ViewerXSLTBridge.renderType`)のための口。
+    /// **`FileType` に case を足す形にしないこと** —— そうすると、表示モード・チャンク可否・
+    /// capabilities・QuickLook 対象集合といった「拡張子から決まる問い」に、答えを持たない
+    /// 値が混ざる。描画の引数と描画済みミラーの種別が型として別物である状態を保つことで、
+    /// 描画形をミラーへ記録する誤りがコンパイルエラーになる。
+    public static func renderScript(content: String, type: String, lang: String?) -> String? {
+        callScript(function: "render", content: content, type: type, lang: lang)
+    }
+
     /// render() の完了を待つ `callAsyncJavaScript` 用の関数本体を組み立てる。
     /// render は async 関数で内部の mermaid 描画完了まで await 済みのため、
     /// 返る Promise の解決がそのまま描画完了になる(JS 側に完了通知の仕組みを
@@ -105,17 +116,32 @@ public enum ViewerBridge {
         return "await \(call);"
     }
 
+    /// `awaitRenderScript` の、種別を JS のトークンで指定する版。
+    public static func awaitRenderScript(content: String, type: String, lang: String?) -> String? {
+        guard let call = renderScript(content: content, type: type, lang: lang) else { return nil }
+        return "await \(call);"
+    }
+
     /// fn(content, type[, lang]) 形式の JS 呼び出しを組み立てる共通実装。
     /// renderScript / appendChunkScript が委譲する。
     private static func contentCallScript(
         function: String, content: String, fileType: FileType
     ) -> String? {
+        callScript(
+            function: function, content: content, type: fileType.jsValue,
+            lang: fileType.renderLangArgument
+        )
+    }
+
+    private static func callScript(
+        function: String, content: String, type: String, lang: String?
+    ) -> String? {
         guard let jsonString = jsonLiteral(content) else { return nil }
-        guard let lang = fileType.renderLangArgument else {
-            return "\(function)(\(jsonString), '\(fileType.jsValue)')"
+        guard let lang else {
+            return "\(function)(\(jsonString), '\(type)')"
         }
         let escaped = lang == "\t" ? "\\t" : lang
-        return "\(function)(\(jsonString), '\(fileType.jsValue)', '\(escaped)')"
+        return "\(function)(\(jsonString), '\(type)', '\(escaped)')"
     }
 
     /// Encodable 値を JSON リテラル文字列へ変換する(JS へ埋め込む際の

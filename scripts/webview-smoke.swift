@@ -6,6 +6,7 @@
 //   1. CSP 下でローカルスクリプト（viewer-bundle.js / mermaid / markdown-it）がロードされる
 //   2. .mmd が mermaid で SVG 描画される
 //   3. .md が markdown-it で描画される
+//   3.3. 法令標準XML が内蔵スタイルシート（japanese-law.xsl）で XSLT 変換される
 //   4. 外部画像による情報流出が CSP(img-src) でブロックされる
 //
 // 使い方: swift scripts/webview-smoke.swift [Resources ディレクトリ]
@@ -130,6 +131,46 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
         ) { r in
             print("highlight: \(String(describing: r))")
             if (r as? String) != "hl" { self.fail("highlight.js のハイライトが出なかった") }
+            self.checkJapaneseLawXSLT()
+        }
+    }
+
+    // 3.3. 法令標準XML が内蔵スタイルシートで変換されるか（TASK-597）
+    //
+    // 変換は WebKit 同梱の XSLTProcessor（libxslt 由来の XSLT 1.0）が行う。
+    // jsdom には XSLTProcessor が無く Resources/__tests__ では確認できないため、
+    // 実 WKWebView 上で「条・項・号が要素として出るか」をここで見る。
+    func checkJapaneseLawXSLT() {
+        let lawURL = resourceDir
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("sample/japanese-law.xml")
+        guard let xml = try? String(contentsOf: lawURL, encoding: .utf8),
+              let xsl = try? String(
+                  contentsOf: resourceDir.appendingPathComponent("japanese-law.xsl"), encoding: .utf8
+              )
+        else { fail("sample/japanese-law.xml または japanese-law.xsl を読めない") }
+        let payload = jsString("{\"xml\":" + jsString(xml) + ",\"xsl\":" + jsString(xsl) + "}")
+        asyncJS(
+            "await render(" + payload + ", 'xslt'); "
+                + "var w = document.querySelector('#diagram-wrap'); "
+                + "return [w.classList.contains('xslt-body') ? 1 : 0, "
+                + "w.querySelectorAll('.law-article').length, "
+                + "w.querySelectorAll('.law-paragraph').length, "
+                + "w.querySelectorAll('.law-heading').length, "
+                + "document.querySelector('#mmd-error').textContent].join('/');",
+            "law-xslt"
+        ) { r in
+            print("law xslt: \(String(describing: r))")
+            let parts = (r as? String)?.split(separator: "/", omittingEmptySubsequences: false) ?? []
+            guard parts.count >= 5, parts[0] == "1", let articles = Int(parts[1]),
+                  let paragraphs = Int(parts[2]), let headings = Int(parts[3]),
+                  parts[4].isEmpty
+            else { self.fail("法令XMLの XSLT 変換が失敗した: \(String(describing: r))") }
+            // 日本国憲法は本則 103 条・前文 4 項・章見出し 11 個。
+            // 厳密な数ではなく「構造が出ている」ことを見る（元データは更新されうる）。
+            if articles < 100 || paragraphs < 100 || headings < 10 {
+                self.fail("条・項・見出しの数が足りない: \(articles)/\(paragraphs)/\(headings)")
+            }
             self.checkEmbeddedDataImageRenders()
         }
     }
@@ -298,7 +339,10 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     // 検証項目ごと外してある(守る対象が存在しない検証は、通しても落としても無意味)。
     // PDF 面の回帰は `PDFSurface*Tests` と `PDFDataProbe` 側で見る。
     func finish() {
-        print("PASS: CSP 下で全スクリプト稼働・mmd/md 描画・外部画像/data: iframe ブロックを確認")
+        print(
+            "PASS: CSP 下で全スクリプト稼働・mmd/md/法令XML(XSLT) 描画・"
+                + "外部画像/data: iframe ブロックを確認"
+        )
         exit(0)
     }
 }
