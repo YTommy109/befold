@@ -1,9 +1,10 @@
 ---
 id: TASK-604.8
 title: SidebarExpansionTests と ViewerStoreChunkTests をスイート単位で分割する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-09 00:03'
+updated_date: '2026-09-09 01:25'
 labels:
   - refactor
 dependencies: []
@@ -34,8 +35,45 @@ ordinal: 884000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 両グループが 340 行以下になっている
-- [ ] #2 分割先が Foo+BarTests.swift の形ではなく独立した別名になっている
-- [ ] #3 各スイートの冒頭コメントが、行数ではなく検証対象と境界の引き方を述べている
-- [ ] #4 swift test のテスト件数が分割の前後で変わっていない
+- [x] #1 両グループが 340 行以下になっている
+- [x] #2 分割先が Foo+BarTests.swift の形ではなく独立した別名になっている
+- [x] #3 各スイートの冒頭コメントが、行数ではなく検証対象と境界の引き方を述べている
+- [x] #4 swift test のテスト件数が分割の前後で変わっていない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 分割
+
+TASK-431 の方式（別名の独立 @Suite）に従い、`Foo+BarTests.swift` の形は使っていない。
+
+| 元 | 切り出し先 | 境界 |
+|---|---|---|
+| `SidebarExpansionTests` 399 → **241** | `SidebarExpansionFailureTests` 140 | フォルダの状態が 3 値（`.loaded` / `.loading` / `.failed`）であること（TASK-404）。配列の空さで判定しない規則に属するテストだけ |
+| | `SidebarExpansionSnapshotRootTests` 59 | 展開の世代ガードとデータを共有しない。`snapshotRoot` / `snapshotRootCovers` だけを扱い、券も children も出てこない（TASK-481） |
+| `ViewerStoreChunkTests` 392 → **327** | `ViewerStoreChunkRoutingTests` 77 | `ChunkedTextReading` を一切使わない。チャンク非対応の種別・サイズ上限・一括読み込みへ落ちる経路だけ |
+
+各スイートの冒頭コメントは「何を検証するか / どこで境界を引いたか」と、
+残り 2 つのスイートがどこにあるかを書いてある（行数は書いていない）。
+
+## 共有ヘルパーの扱い
+
+`SidebarExpansionTests` の `key` / `entry` / `url` は `private`（ファイルスコープ）なので、
+`SidebarExpansionFailureTests` へは複製した。internal 化しなかったのは、共有すると
+`root` の一時パス名まで共有することになり、どちらのスイートが作ったパスかが読めなく
+なるため（複製した側の root は `/tmp/SidebarExpansionFailureTests`）。理由はファイル
+冒頭の doc に書いてある。`SidebarExpansionSnapshotRootTests` は `root` しか要らないので
+複製なし。`ViewerStoreChunkRoutingTests` の `makeStore` / `openAndLoad` は元から共有の
+テスト補助なので、そのまま使える。
+
+## 実測
+
+- 型グループ: `check-type-group-size.sh --check` 通過。両グループとも AC #1 の 340 以下
+  （327 / 241）。
+- `swift test`: **1945 tests**（分割前と同数、AC #4）。スイート数は 320 → 323。
+- swiftlint: main とのベースラインより **1 件減った**。
+  `ViewerStoreChunkTests.swift` の `type_body_length`（293 行 > 250）が分割で解消した。
+  新規の指摘はゼロ。
+- swiftformat: 1 ファイルのみ整形（切り出しで生じた空行）。
+<!-- SECTION:NOTES:END -->
