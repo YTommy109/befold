@@ -1,9 +1,10 @@
 ---
 id: TASK-603
 title: product-code.md の恒久例外の記述が実態とずれている（900 → 931）
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-08 15:33'
+updated_date: '2026-09-09 00:12'
 labels:
   - refactor
 dependencies: []
@@ -24,6 +25,16 @@ ordinal: 875000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `docs/dev/rules/product-code.md` の恒久例外の記述が実態と一致している
-- [ ] #2 数値の追随をどう担保するか（機械検査を足す / 数値を文書から外す）を決め、理由を Notes に残してある
+- [x] #1 `docs/dev/rules/product-code.md` の恒久例外の記述が実態と一致している
+- [x] #2 数値の追随をどう担保するか（機械検査を足す / 数値を文書から外す）を決め、理由を Notes に残してある
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+数値の追随は「機械検査を足す」ではなく「数値を文書から外す」を選んだ。
+
+理由: 上限は例外ファイル自身が「常に実測値へ張り付ける」と定めており、TASK-585 / TASK-593 の実測どおり実装のたびに動く。動く値の一致を検査するスクリプトを足すと、文書は依然として写しを持ち続け、ずれるたびに CI が落ちて文書を書き換える運用になる（検査の維持コストに対して、文書側に数値がある価値がない）。写しをやめれば読み手は scripts/type-group-exceptions.txt を直接見るので、ずれ自体が発生しない。
+
+同種のずれ（規約文書に写した数値）は他にもありうるが、機械検査ではなく「動く値は写さない」という同じ方針で個別に潰す。
+<!-- SECTION:NOTES:END -->
