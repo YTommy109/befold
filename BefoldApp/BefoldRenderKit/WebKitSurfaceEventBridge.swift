@@ -26,20 +26,20 @@ final class WebKitSurfaceEventBridge: NSObject, WKNavigationDelegate, WKScriptMe
 
     // MARK: - WKNavigationDelegate
 
-    func webView(_: WKWebView, didFinish _: WKNavigation!) {
-        RenderDiagnostics.log("navigation: didFinish")
+    func webView(_ webView: WKWebView, didFinish _: WKNavigation!) {
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): didFinish")
         navigation?.surfaceDidFinishLoad()
     }
 
     func webView(
-        _: WKWebView, didFailProvisionalNavigation _: WKNavigation!, withError error: Error
+        _ webView: WKWebView, didFailProvisionalNavigation _: WKNavigation!, withError error: Error
     ) {
-        RenderDiagnostics.log("navigation: didFailProvisionalNavigation (\(error))")
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): didFailProvisional (\(error))")
         navigation?.surfaceDidFailLoad()
     }
 
-    func webView(_: WKWebView, didFail _: WKNavigation!, withError error: Error) {
-        RenderDiagnostics.log("navigation: didFail (\(error))")
+    func webView(_ webView: WKWebView, didFail _: WKNavigation!, withError error: Error) {
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): didFail (\(error))")
         navigation?.surfaceDidFailLoad()
     }
 
@@ -47,8 +47,8 @@ final class WebKitSurfaceEventBridge: NSObject, WKNavigationDelegate, WKScriptMe
     /// ——didFinish も didFail も発火しないため、この経路を握っていないと準備完了が
     /// 永久に来ない(TASK-607 の調査で、これが「60 秒待っても ready にならない」を
     /// 作りうる分岐だと分かった)。いまは記録だけで、扱いは切り分けの結果を見て決める。
-    func webViewWebContentProcessDidTerminate(_: WKWebView) {
-        RenderDiagnostics.log("navigation: webContentProcessDidTerminate")
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): webContentProcessDidTerminate")
     }
 
     func webView(
@@ -57,6 +57,7 @@ final class WebKitSurfaceEventBridge: NSObject, WKNavigationDelegate, WKScriptMe
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         guard let navigation else {
+            RenderDiagnostics.log("surface: decidePolicy を cancel (観測者が解放済み)")
             decisionHandler(.cancel)
             return
         }

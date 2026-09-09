@@ -19,4 +19,12 @@ enum RenderDiagnostics {
         guard isEnabled else { return }
         NSLog("[befold-render] %@", message())
     }
+
+    /// 面ごとの短い識別子。**同じ面のロードと着地を突き合わせる**ために要る——
+    /// 1 回の実行で 28 枚が作られ、そのうち半分はテストが終わって着地しないのが正常なので、
+    /// 総数の比較では「止まった 1 枚」を見つけられない(TASK-607 の 1 回目の切り分けで
+    /// 実際に取り違えた)。
+    static func id(_ object: AnyObject) -> String {
+        String(UInt(bitPattern: ObjectIdentifier(object).hashValue) % 100_000)
+    }
 }

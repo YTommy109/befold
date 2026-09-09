@@ -114,6 +114,7 @@ public final class WebKitRenderSurface: RenderSurface {
     }
 
     public func loadLocalFile(_ url: URL, allowingReadAccessTo directory: URL) {
+        RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): loadFileURL \(url.lastPathComponent)")
         webView.loadFileURL(url, allowingReadAccessTo: directory)
     }
 
