@@ -71,12 +71,20 @@ public enum ViewerWebViewFactory {
     public static func loadViewerHTML(
         into surface: any RenderSurface, bundle: Bundle = .befoldKitResources
     ) {
-        guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else { return }
+        guard let htmlURL = bundle.url(forResource: "viewer", withExtension: "html") else {
+            // ここで戻ると読み込みが一度も始まらず、準備完了が永久に来ない(TASK-607)。
+            RenderDiagnostics.log("loadViewerHTML: viewer.html がバンドルに無い (\(bundle.bundlePath))")
+            return
+        }
         let resourceDir = htmlURL.deletingLastPathComponent()
+        RenderDiagnostics.log("loadViewerHTML: 遮断ポリシーの適用を要求")
+        let startedAt = ContinuousClock.now
         // 遮断ポリシーの適用は面の実装に委ねる。**実装型で分岐しない**——
         // 分岐にすると、WebKit 以外の面が入った瞬間に遮断が丸ごと飛ぶ（TASK-599）。
         surface.applyRemoteLoadPolicy {
+            RenderDiagnostics.log("loadViewerHTML: 遮断ポリシー完了 (\(startedAt.duration(to: .now)))")
             surface.loadLocalFile(htmlURL, allowingReadAccessTo: resourceDir)
+            RenderDiagnostics.log("loadViewerHTML: loadLocalFile を発行")
         }
     }
 
