@@ -74,8 +74,7 @@ extension ViewerWindowManager {
         ) {
             controller.showWindow(nil)
         }
-        sessionStore.noteOpened(url)
-        recentDocumentsStore.noteOpened(url, kind: controller.kind)
+        sessionSync.noteOpened(url, in: controller)
         recentRepositories.recordIfNeeded(for: url, controller: controller)
         return controller
     }

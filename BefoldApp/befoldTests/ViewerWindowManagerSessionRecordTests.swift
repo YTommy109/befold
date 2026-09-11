@@ -52,6 +52,50 @@ struct ViewerWindowManagerSessionRecordTests {
         #expect(fixture.sessionStore.savedActivePath() == nil)
     }
 
+    /// スライド窓は復元の対象外なので、開いても切り替えてもキーになってもセッションへ書かない
+    /// (TASK-612)。書いてしまうと `SessionRestorer` が savedURLs 経由で通常窓として復元する。
+    @Test("スライド窓だけで開いても、セッション記録にもアクティブ記録にも入らない")
+    func slideOnlyWindowDoesNotEnterSessionRecord() throws {
+        let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
+
+        let slide = try #require(fixture.manager.openViewer(for: file1, disposition: .slide))
+        fixture.manager.sessionSync.viewerWindowDidBecomeKey(slide)
+        fixture.manager.sessionSync.viewerWindow(slide, didSwitchFileFrom: file1, to: file2)
+
+        #expect(fixture.sessionStore.savedURLs().isEmpty)
+        #expect(fixture.sessionStore.savedActivePath() == nil)
+    }
+
+    /// 通常窓を閉じてスライド窓だけが残った状態は「復元するものが無い」なので閉じたことにする。
+    /// 窓の数(controllers の有無)で判定していると、スライド窓が残る間ずっと記録が残る。
+    @Test("通常窓を閉じてスライド窓だけが残れば、セッション記録から消える")
+    func closingViewerWindowWhileSlideRemainsNotesClosed() throws {
+        let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
+        let viewer = try #require(fixture.manager.openViewer(for: file))
+        fixture.manager.openViewer(for: file, disposition: .slide)
+        #expect(fixture.sessionStore.savedURLs().map(\.normalizedPathKey) == [file.normalizedPathKey])
+
+        viewer.close()
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 1)
+        #expect(fixture.sessionStore.savedURLs().isEmpty)
+    }
+
+    @Test("スライド窓を閉じても、同じファイルの通常窓のセッション記録は消えない")
+    func closingSlideWindowKeepsViewerSessionEntry() throws {
+        let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: file)
+        let slide = try #require(fixture.manager.openViewer(for: file, disposition: .slide))
+
+        slide.close()
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 1)
+        #expect(fixture.sessionStore.savedURLs().map(\.normalizedPathKey) == [file.normalizedPathKey])
+    }
+
     /// remapController も close と同型。窓 B が別ファイルへ切り替わったとき、
     /// 窓 A がまだ表示している旧パスをセッション集合から落としてはいけない。
     @Test("同じファイルの窓が他に残っていれば、片方のファイル切替でも旧パスは消えない")
