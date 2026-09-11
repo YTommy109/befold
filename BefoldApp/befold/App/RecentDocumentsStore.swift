@@ -1,3 +1,4 @@
+import AppKit
 import BefoldKit
 import Foundation
 
@@ -11,8 +12,23 @@ final class RecentDocumentsStore {
 
     private let recentPaths: PathListDefaults
 
-    init(defaults: UserDefaults = .standard, maximumCount: Int = 25) {
+    /// システム管理の履歴(Dock のアプリアイコン → 最近使った項目)への通知。
+    ///
+    /// **自前の履歴と同じ関数の中で呼ぶ。** かつては呼び出し側 2 箇所がそれぞれ
+    /// `NSDocumentController` を直接叩いており、片方だけに除外を足すと 2 つの履歴が
+    /// 食い違う形になっていた(TASK-610)。差し替えられるのはテストが「通知しないこと」を
+    /// 観測するためで、プロダクトコードから既定以外を渡す先は無い。
+    private let noteSystemRecent: @MainActor (URL) -> Void
+
+    init(
+        defaults: UserDefaults = .standard,
+        maximumCount: Int = 25,
+        noteSystemRecent: @escaping @MainActor (URL) -> Void = {
+            NSDocumentController.shared.noteNewRecentDocumentURL($0)
+        }
+    ) {
         recentPaths = PathListDefaults(defaults: defaults, key: Self.defaultsKey, limit: maximumCount)
+        self.noteSystemRecent = noteSystemRecent
     }
 
     /// 履歴の URL を新しい順で返す。
@@ -22,14 +38,28 @@ final class RecentDocumentsStore {
 
     /// ファイルが開かれたことを記録する。既存の同一パスは先頭へ移動し、
     /// 上限を超えた分は古い方から捨てる。
-    func noteOpened(_ url: URL) {
+    ///
+    /// `kind` は**必須**で受ける(TASK-610)。履歴に残さない窓の種別があるため、
+    /// デフォルト引数にすると新しい呼び出し元が黙って「残す」側に倒れる。
+    func noteOpened(_ url: URL, kind: ViewerWindowKind) {
+        guard kind.recordsUsageHistory else { return }
         recentPaths.moveToFront(url)
+        noteSystemRecent(url)
     }
 
     /// rename / move を履歴に反映する。旧パスを取り除き、新パスを先頭に記録する。
-    func noteRenamed(from oldURL: URL, to newURL: URL) {
+    ///
+    /// 履歴に残さない種別では**先頭への昇格もシステムへの通知も行わない**が、
+    /// 既に載っている項目が消えたパスを指したまま残るのは防ぐ。位置を保った
+    /// 置き換えは「積む」ことにはならないため、除外の対象にしない(TASK-610)。
+    func noteRenamed(from oldURL: URL, to newURL: URL, kind: ViewerWindowKind) {
+        guard kind.recordsUsageHistory else {
+            recentPaths.replace(oldURL, with: newURL)
+            return
+        }
         recentPaths.remove(oldURL)
         recentPaths.moveToFront(newURL)
+        noteSystemRecent(newURL)
     }
 
     /// 履歴を全て消す(Clear Menu)。空配列を保存するため、以降の seedIfNeeded は無効になる。

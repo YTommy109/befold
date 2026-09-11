@@ -88,6 +88,35 @@ struct ViewerWindowManagerTests {
         #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [renamed.normalizedPathKey])
     }
 
+    /// スライド窓は発表のあいだだけ開く一時的な窓なので履歴に混ぜない(TASK-610)。
+    /// 通常窓の側も同じテストで見る——除外が効きすぎて何も積まれなくなったら落ちる。
+    @Test("スライドモードで開いても Open Recent 履歴に記録されない")
+    func slideModeDoesNotRecordRecentDocument() {
+        let fixture = MockedViewerWindowManager(files: [file, file1])
+        defer { fixture.closeAll() }
+
+        fixture.manager.openViewer(for: file, disposition: .slide)
+        #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
+
+        fixture.manager.openViewer(for: file1)
+
+        #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [file1.normalizedPathKey])
+    }
+
+    @Test("スライドモード中の rename も Open Recent 履歴へ積まない")
+    func slideModeRenameDoesNotRecordRecentDocument() throws {
+        let old = URL(fileURLWithPath: "/mock/old.mmd")
+        let renamed = URL(fileURLWithPath: "/mock/new.mmd")
+        let fixture = MockedViewerWindowManager(files: [old, renamed])
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: old, disposition: .slide)
+
+        let controller = try #require(fixture.manager.controllers[old.normalizedPathKey]?.first)
+        fixture.manager.sessionSync.viewerWindow(controller, didRenameFrom: old, to: renamed)
+
+        #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
+    }
+
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file])

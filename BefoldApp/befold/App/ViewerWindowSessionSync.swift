@@ -1,5 +1,5 @@
-import AppKit
 import BefoldKit
+import Foundation
 
 /// ウィンドウイベント(クローズ・rename・ファイル切替・キー化)を受けて、
 /// コントローラ辞書のキー付け替えとセッション・履歴・ブックマークを追随させる。
@@ -45,12 +45,13 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
         noteClosedIfNoWindowRemains(for: oldURL)
         manager.sessionStore.noteOpened(newURL)
         if isRename {
-            manager.recentDocumentsStore.noteRenamed(from: oldURL, to: newURL)
+            manager.recentDocumentsStore.noteRenamed(
+                from: oldURL, to: newURL, kind: controller.kind
+            )
             manager.shared.bookmarkStore.noteRenamed(from: oldURL, to: newURL)
         } else {
-            manager.recentDocumentsStore.noteOpened(newURL)
+            manager.recentDocumentsStore.noteOpened(newURL, kind: controller.kind)
         }
-        NSDocumentController.shared.noteNewRecentDocumentURL(newURL)
     }
 
     // MARK: - ViewerWindowControllerDelegate
