@@ -117,6 +117,18 @@ struct ViewerWindowManagerTests {
         #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
     }
 
+    @Test("スライドモード中の switchFile も Open Recent 履歴へ積まない")
+    func slideModeSwitchFileDoesNotRecordRecentDocument() throws {
+        let fixture = MockedViewerWindowManager(files: [file1, file2])
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: file1, disposition: .slide)
+
+        let controller = try #require(fixture.manager.controllers[file1.normalizedPathKey]?.first)
+        fixture.manager.sessionSync.viewerWindow(controller, didSwitchFileFrom: file1, to: file2)
+
+        #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
+    }
+
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file])

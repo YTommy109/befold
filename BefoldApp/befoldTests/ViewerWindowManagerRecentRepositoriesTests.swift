@@ -101,7 +101,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, "graph TD;") })
         )
         let sessionStore = SessionStore(defaults: defaults)
-        let recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
+        let recentDocumentsStore = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in })
         let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
         let gitFileIndex = gitFileIndex ?? FixedRootGitFileIndex(root: root)
         let manager = ViewerWindowManager(

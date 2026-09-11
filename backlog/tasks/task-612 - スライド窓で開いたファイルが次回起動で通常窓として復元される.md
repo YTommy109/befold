@@ -4,6 +4,7 @@ title: スライド窓で開いたファイルが次回起動で通常窓とし�
 status: To Do
 assignee: []
 created_date: '2026-09-11 08:32'
+updated_date: '2026-09-11 08:44'
 labels: []
 dependencies: []
 ordinal: 802000
@@ -33,3 +34,20 @@ ordinal: 802000
 - [ ] #4 スライド窓を閉じても、同じファイルを表示している通常窓のセッション記録が消えない
 - [ ] #5 ユニットテストで担保する（述語だけでなく、SessionRestorer / ViewerWindowManager の実配線で見る）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 起票後の追記（TASK-610 のコードレビューより）
+
+- **入口は `openViewer` だけではない。** `ViewerWindowSessionSync.remapController` も
+  `manager.sessionStore.noteOpened(newURL)` を種別に関係なく呼ぶ。スライド窓が文書内リンクで
+  `.currentTab` 切替（`didSwitchFileFrom`）した場合や、表示中ファイルが rename された場合も
+  同じ経路で savedURLs に入る。`openViewer` 側だけ直すと穴が残る。
+- **3 つ目の同型なので、構造で塞ぐ。** TASK-593.2（復元スナップショット）、TASK-610
+  （Open Recent と最近使ったリポジトリ）に続く 3 件目。現状は履歴ストアごとに判定の置き場が
+  違う（`RecentDocumentsStore` は必須引数、`RecentRepositoryRecorder` は解決前の guard、
+  `SessionStore` は無し）。このタスクで `SessionStore` だけに 4 つ目の個別ガードを足すのではなく、
+  `openViewer` / `remapController` が 3 ストアへ扇状に書いている部分を 1 つの kind 付き
+  入口へ寄せ、4 つ目のストアが判定を忘れられない形にすることを検討する。
+<!-- SECTION:NOTES:END -->

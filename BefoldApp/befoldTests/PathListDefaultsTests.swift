@@ -87,6 +87,16 @@ struct PathListDefaultsTests {
         #expect(list.paths == [url("c").normalizedPathKey, url("b").normalizedPathKey])
     }
 
+    @Test("replace は新パスが別の位置にも載っていれば、置き換えた側だけを残す")
+    func replaceDropsOtherOccurrencesOfNewPath() {
+        let list = makeList()
+        list.appendIfAbsent(url("b"))
+        list.appendIfAbsent(url("c"))
+        list.appendIfAbsent(url("a"))
+        list.replace(url("a"), with: url("b"))
+        #expect(list.paths == [url("c").normalizedPathKey, url("b").normalizedPathKey])
+    }
+
     @Test("replace は未登録なら何もしない")
     func replaceIgnoresUnknown() {
         let list = makeList()

@@ -80,7 +80,7 @@ struct AppQuickOpenEnvironmentTests {
         let defaults = makeIsolatedDefaults(prefix: "AppQuickOpenEnvironmentTests")
         return AppQuickOpenEnvironment(
             gitIndex: gitIndex,
-            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in }),
             bookmarkStore: BookmarkStore(defaults: defaults),
             includesHiddenFiles: false,
             currentFileURL: currentFileURL,

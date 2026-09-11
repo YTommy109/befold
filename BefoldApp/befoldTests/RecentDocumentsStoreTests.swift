@@ -71,8 +71,7 @@ struct RecentDocumentsStoreTests {
     /// 既定の上限はメニューに並ぶ件数そのものなので、変更したらここが落ちる。
     @Test("既定の上限は 25 件")
     func defaultMaximumCountIs25() {
-        let spy = SystemRecentSpy()
-        let store = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { spy.note($0) })
+        let store = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in })
 
         for index in 0 ..< 26 {
             store.noteOpened(url("file\(index).md"), kind: .viewer)
@@ -118,6 +117,19 @@ struct RecentDocumentsStoreTests {
 
         #expect(store.recentURLs().map(\.lastPathComponent) == ["other.md", "new.mmd"])
         #expect(spy.urls.map(\.lastPathComponent) == ["old.mmd", "other.md"])
+    }
+
+    /// 通常窓の rename は `moveToFront` が重複を潰していたが、スライド窓の置き換えは
+    /// `replace` だけを通る。そこで潰さないと同じパスが 2 回並ぶ(レビュー指摘の回帰)。
+    @Test("スライド窓で履歴にあるパスへ rename しても、そのパスが 2 回並ばない")
+    func noteRenamedFromSlideDoesNotDuplicateExistingPath() {
+        let store = makeStore()
+        store.noteOpened(url("a.mmd"), kind: .viewer)
+        store.noteOpened(url("b.md"), kind: .viewer)
+
+        store.noteRenamed(from: url("a.mmd"), to: url("b.md"), kind: .slide)
+
+        #expect(store.recentURLs().map(\.lastPathComponent) == ["b.md"])
     }
 
     @Test("履歴に無いファイルはスライド窓で rename しても増えない")

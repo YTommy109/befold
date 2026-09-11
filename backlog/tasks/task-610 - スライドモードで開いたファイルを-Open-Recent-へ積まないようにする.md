@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@tokutomi'
 created_date: '2026-09-11 07:29'
-updated_date: '2026-09-11 08:30'
+updated_date: '2026-09-11 08:49'
 labels: []
 dependencies: []
 ordinal: 800000
@@ -78,6 +78,25 @@ swiftformat: 変更なし。markdownlint-cli2: 0 issues。
 `/review-design` のチェックリスト項目 3（兄弟判断の全列挙）で「最近使ったリポジトリ」に
 同型の穴を検出し、ユーザー確認のうえ AC #6 として取り込んだ。TASK-593.2 が
 `recordTabGroup` 側だけを直していたため、per-open の入口が合流点を通っていなかった。
+
+## コードレビュー（/code-review high）後の修正
+
+- **回帰を 1 件直した。** スライド窓の rename を `PathListDefaults.replace` だけに通したため、
+  新パスが既に履歴にあると同じパスが 2 回並ぶ形になっていた（従来の `remove + moveToFront` は
+  重複を潰していた）。`replace` 自体が「置き換えた側の位置を残して他の出現を落とす」ように
+  直した。同じ穴は `BookmarkStore.noteRenamed` にもあり、プリミティブ側で直したので両方塞がる。
+- `noteRenamed` を「位置を保って置換 → `noteOpened`」の 1 経路へ畳んだ。種別の判定は
+  `noteOpened` の 1 箇所だけになる。
+- ワイヤードのフィクスチャ 5 箇所（`MockedViewerWindowManager` ほか）に `noteSystemRecent: { _ in }`
+  を渡し、`swift test` が実行環境の「最近使った項目」を書き換えないようにした（差し替え口を
+  作った動機と一致させた）。
+- `didSwitchFileFrom` のスライド版と、`replace` の dedupe のテストを追加。
+- 見送り: Clear Menu の `clearRecentDocuments` をストアへ折り込む指摘は、clear の入口が 1 つしか
+  無いため見送り、コメントにその旨を明記した。
+- 別タスクへ: `remapController` の `sessionStore.noteOpened` が無条件である点と、履歴ストア
+  3 つの判定の置き場を 1 つの入口へ寄せる構造化は TASK-612 の Notes に追記した。
+
+検証: `swift test` 1868 件全通過、swiftlint main 比ゼロ（49 = 49）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
