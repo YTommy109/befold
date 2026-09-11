@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@tokutomi'
 created_date: '2026-09-11 07:45'
-updated_date: '2026-09-11 09:51'
+updated_date: '2026-09-11 11:30'
 labels: []
 dependencies: []
 references:
@@ -37,6 +37,7 @@ ordinal: 801000
 - [x] #4 `addTabbedWindow(_:ordered:)` の `.above` が実際にどの位置へ入るかを実機で実測し、結果を Implementation Notes に記録する
 - [x] #5 セッション復元後のタブの並びが保存時の並びと一致する
 - [x] #6 タブの並び順を固定するユニットテストがある（現状 `ViewerWindowManagerTabTests` / `ViewerTabGroupingTests` に順序を見る assert は 1 件も無い）
+- [x] #7 `.newTab` で開いたタブは背面で開き、表示も焦点も起点の文書に留まる（Safari の cmd+click と同じ。ユーザー追加要望）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -96,10 +97,43 @@ ordinal: 801000
   既存の `SessionRestorerTests` が保存順どおりの復元を固定している（変更後も全通過）
 - swiftlint: main 比で新規ゼロ、`large_tuple` 1 件解消。markdownlint 0 issues。
   `check-befoldkit-platform-free.sh` OK、`check-doc-citations.sh` OK
+
+## コードレビュー（/code-review high）後の修正と追加要望
+
+- **#1 派生タブの並び順（採用: Safari と同じクリック順）。** 常に起点の直後だと A→B と開いたとき
+  [doc, B, A] になり、doc コメントの「Safari と同じ」と食い違っていた。起点の
+  `ViewerWindowController.lastSpawnedTab`（weak 参照 1 つ）に最後の派生タブを覚え、それが起点の
+  グループの並びに実際に残っていればその直後、無ければ起点の直後へ入れる。記録の読み書きは
+  `ViewerTabGrouping.attachAsTab` / `spawnAnchor(of:)` の中に閉じた（`viewerPath(of:)` と同じく
+  窓 1 枚から controller を引く以上の台帳は持たない）。
+  - 実測: 閉じた窓の `tabGroup` は nil に戻らない。`last.tabGroup === base.tabGroup` の判定では
+    閉じた派生タブを anchor にしてしまい、AppKit がそれを末尾扱いにした。判定を
+    `tabWindows(of: base).contains(last)`（並びに実際に居るか）へ変えて解消。
+  - 記録するのは最後の派生タブだけなので、最後でない派生タブを閉じても並びは変わらない
+    （テストの筋書きを最初この点で取り違えた）。
+- **#2 anchor が自分自身になる経路。** 既にグループ末尾に居る窓を `.end` で結合し直すと
+  `window.addTabbedWindow(window)` になる（復元で既存の窓を掴んだとき等）。anchor 計算のあとで
+  `anchor !== window` を弾き、テストで固定。
+- **#3 `NewTabPlacement` の置き場。** 消費側が befold/App だけなので BefoldKit から
+  `ViewerTabGrouping.swift` へ移し、internal にした。
+- **#4 / #5** `.end` のテストに起点が中央のケースを足し、到達不能な `?? baseWindow` を
+  `tabGroup?.windows.last ?? baseWindow` の直接表現に置き換えた。
+
+## 追加要望: 新しいタブは背面で開く（AC #7）
+
+Safari の cmd+クリックはタブを開くだけで移動しない。befold は `.newTab` を常に選択していた。
+`present(select: false)` が表示（`showWindow` = makeKeyAndOrderFront。これがタブを前面にしてしまう）
+のあとで起点タブへ選択を戻す形にし、`openViewer` は `.newTab` のとき `select: false` を渡す。
+セッション復元が最後に選択タブを決め直すのと同じ手順で、同じ runloop 内なので描画前に戻る。
+既存テスト `newTabJoinsSourceTabGroup` の「選択タブになる」は反転させ、`ViewerTabGroupingTests` に
+`present` 単体の担保を足した。
+
+検証: `swift test` 1875 件全通過。swiftlint main 比新規ゼロ（`large_tuple` 1 件解消）。
+型グループ `ViewerWindowController` 922（exit 0）。markdownlint / platform-free / doc-citations OK。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-新規タブの挿入位置を開いた元で分けた。BefoldKit に `NewTabPlacement`（`.end` / `.afterSource`）を置き、`ViewerTabGrouping.attachAsTab` / `present` と `openFileElsewhere` クロージャで必須引数にした。サイドバー由来（行クリック・キー操作・右クリックが合流する `fileListDidRequestOpenElsewhere`）は末尾、文書内リンク由来（`openReference`）は起点タブの直後に入る。`.above` が anchor の直後に入ることは実ウィンドウで実測し、テストとして固定した。検証: swift test 1872 件全通過、swiftlint main 比新規ゼロ。
+新規タブの挿入位置を開いた元で分け、新しいタブは背面で開くようにした。`NewTabPlacement`（`.end` / `.afterSource`）を `ViewerTabGrouping` の隣に置き、`attachAsTab` / `present` と `openFileElsewhere` クロージャで必須引数にした。サイドバー由来は末尾、文書内リンク由来は起点の直後——同じ起点から続けて開くと直前の派生タブの直後に入りクリック順に並ぶ（起点の `lastSpawnedTab` を weak で 1 つ覚える）。`.newTab` は `present(select: false)` で表示後に起点タブへ選択を戻し、Safari の cmd+クリックと同じく移動しない。`.above` が anchor の直後に入ること、閉じた窓の `tabGroup` が nil に戻らないことは実測して設計に反映した。検証: swift test 1875 件全通過、swiftlint main 比新規ゼロ。
 <!-- SECTION:FINAL_SUMMARY:END -->

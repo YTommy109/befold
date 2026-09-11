@@ -67,9 +67,10 @@ extension ViewerWindowManager {
         NSApp.activate()
         // タブ結合と表示の順序は ViewerTabGrouping.present が持つ(先に表示すると
         // タブへ畳まれる中間状態が 1 フレーム見える: TASK-529)。
+        // 新しいタブは背面で開き、表示も焦点も起点に留める(Safari の cmd+クリックと同じ。TASK-611)。
         ViewerTabGrouping.present(
             controller.window, asTabOf: disposition == .newTab ? sourceWindow : nil,
-            placement: tabPlacement, select: true
+            placement: tabPlacement, select: disposition != .newTab
         ) {
             controller.showWindow(nil)
         }
