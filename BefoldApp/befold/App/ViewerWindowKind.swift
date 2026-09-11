@@ -31,7 +31,12 @@ enum ViewerWindowKind: Equatable {
         self == .viewer
     }
 
-    /// 既存の窓のタブグループへ合流してよいか。
+    /// タブグループを他の窓と共有してよいか。**両方向をこの 1 つの述語で決める**——
+    /// 既存の窓のタブグループへ合流する側(`ViewerWindowChrome` の `tabbingMode`)も、
+    /// この窓のグループへ他の窓がタブとして加わる側(`ViewerWindowOpenPolicy.effectiveDisposition`)も同じ。
+    ///
+    /// 器の側の `tabbingMode = .disallowed` だけでは後者を止められない(TASK-615)。止まるのは
+    /// **自動**タブ化だけで、`NSWindow.addTabbedWindow(_:ordered:)` の明示的な結合は通る。
     var joinsTabs: Bool {
         self == .viewer
     }

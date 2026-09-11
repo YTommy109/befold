@@ -35,6 +35,10 @@ extension ViewerWindowManager {
             return nil
         }
 
+        // 起点の窓の種別で disposition を解釈し直す(TASK-615)。**引数を shadow するのが要点**で、
+        // 以降の再利用判定・タブ結合・選択はすべてこの値を見る(元の要求へは触れなくなる)。
+        let disposition = ViewerWindowOpenPolicy.effectiveDisposition(disposition, relativeTo: sourceWindow)
+
         let key = url.normalizedPathKey
         // 既存ウィンドウを再利用できる条件は disposition ごとに reusableController が決める。
         // 再利用時の前面化・タブ選択・表示オプション適用はこの 1 ブロックへ集約する。
