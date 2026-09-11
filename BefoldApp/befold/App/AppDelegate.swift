@@ -147,8 +147,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 参照クリック由来のオープン。
-    func openViewer(for url: URL, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?) {
-        documentOpener.openViewer(for: url, disposition: disposition, relativeTo: sourceWindow)
+    func openViewer(
+        for url: URL, disposition: OpenDisposition, placement: NewTabPlacement, relativeTo sourceWindow: NSWindow?
+    ) {
+        documentOpener.openViewer(
+            for: url, disposition: disposition, placement: placement, relativeTo: sourceWindow
+        )
     }
 
     @objc func showOpenPanel() {

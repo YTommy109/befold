@@ -33,11 +33,13 @@ final class DocumentOpener {
     }
 
     /// 参照クリック由来のオープン。disposition/relativeTo をそのまま ViewerWindowManager へ通す。
-    func openViewer(for url: URL, disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?) {
+    func openViewer(
+        for url: URL, disposition: OpenDisposition, placement: NewTabPlacement, relativeTo sourceWindow: NSWindow?
+    ) {
         Task {
             await openViewer(
                 for: url, options: CLIOpenOptions(),
-                disposition: disposition, relativeTo: sourceWindow
+                disposition: disposition, placement: placement, relativeTo: sourceWindow
             )
         }
     }
@@ -100,8 +102,8 @@ final class DocumentOpener {
     /// ウィンドウ生成は戻ってから行う。
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
-        disposition: OpenDisposition = .currentTab, relativeTo sourceWindow: NSWindow? = nil,
-        focusesContent: Bool = false
+        disposition: OpenDisposition = .currentTab, placement: NewTabPlacement = .end,
+        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false
     ) async {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
@@ -113,7 +115,7 @@ final class DocumentOpener {
         }
         let controller = windowManager.openViewer(
             for: target, options: options, disposition: disposition, relativeTo: sourceWindow,
-            forceSidebarVisible: isDirectory
+            tabPlacement: placement, forceSidebarVisible: isDirectory
         )
         if focusesContent { controller?.focusContentSurface(nil) }
     }

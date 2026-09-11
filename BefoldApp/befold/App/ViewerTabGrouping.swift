@@ -14,10 +14,23 @@ enum ViewerTabGrouping {
     /// セッション復元(SessionRestorer.restoreTabGroup)も新規オープンも同じ経路を通る。
     /// baseWindow が nil のときは何もしない = 独立したウィンドウのままにする
     /// (「開けない」より「タブにならない」へ縮退させる)。
+    ///
+    /// `placement` は**必須**(TASK-611)。`.afterSource` は baseWindow の直後、`.end` は
+    /// baseWindow が属するグループの末尾。どちらも `addTabbedWindow(_:ordered: .above)` で
+    /// anchor の直後へ入れる形に揃え、`.end` は anchor を末尾のタブに取り替えるだけにする
+    /// (`NSWindowTabGroup.addWindow` は base がまだタブ化されていないと `tabGroup` が nil で
+    /// 使えない)。`.above` が「anchor の直後」に入ることは `ViewerTabGroupingTests` が
+    /// 実ウィンドウで測っている。
     /// - Parameter select: 結合したタブを選択状態にするか。復元時は元の選択タブを別途決めるため false。
-    static func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
+    static func attachAsTab(
+        _ window: NSWindow, to baseWindow: NSWindow?, placement: NewTabPlacement, select: Bool
+    ) {
         guard let baseWindow, baseWindow !== window else { return }
-        baseWindow.addTabbedWindow(window, ordered: .above)
+        let anchor: NSWindow = switch placement {
+        case .afterSource: baseWindow
+        case .end: tabWindows(of: baseWindow).last ?? baseWindow
+        }
+        anchor.addTabbedWindow(window, ordered: .above)
         if select {
             selectTab(window)
         }
@@ -30,9 +43,12 @@ enum ViewerTabGrouping {
     /// 順序を守っているかどうかをテストから観測できる。
     /// window が nil のときは結合をあきらめ `show` だけを呼ぶ
     /// (attachAsTab と同じ「開けないよりタブにならない」への縮退)。
-    static func present(_ window: NSWindow?, asTabOf baseWindow: NSWindow?, select: Bool, show: () -> Void) {
+    static func present(
+        _ window: NSWindow?, asTabOf baseWindow: NSWindow?, placement: NewTabPlacement, select: Bool,
+        show: () -> Void
+    ) {
         if let window {
-            attachAsTab(window, to: baseWindow, select: select)
+            attachAsTab(window, to: baseWindow, placement: placement, select: select)
         }
         show()
     }

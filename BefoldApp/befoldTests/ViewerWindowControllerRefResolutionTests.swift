@@ -120,7 +120,7 @@ struct ViewerWindowControllerRefResolutionTests {
         let controller = makeMockedViewerWindowController(
             primary: base, contents: "# doc",
             defaults: makeIsolatedDefaults(prefix: "ResolveAgreement"),
-            openFileElsewhere: { url, _, _ in openedInNewWindow.append(url) }
+            openFileElsewhere: { url, _, _, _ in openedInNewWindow.append(url) }
         )
         defer { controller.close() }
         // 相対解決では見つからず、git 追跡ファイルのサフィックス一致でのみ解決できる状態。

@@ -26,6 +26,35 @@ struct ViewerWindowManagerTabTests {
         #expect(secondWindow?.tabGroup?.selectedWindow === secondWindow)
     }
 
+    /// 置き場所が openViewer から attachAsTab まで届くこと(TASK-611)。並びは実ウィンドウの
+    /// tabGroup.windows で見る。起点を常に 1 枚目にして、`.end` と `.afterSource` で結果が
+    /// 分かれることを 1 つのテストで固定する。
+    @Test("newTab の置き場所: end は末尾、afterSource は起点の直後")
+    func newTabPlacementControlsInsertionPosition() throws {
+        let first = URL(fileURLWithPath: "/mock/first.md")
+        let second = URL(fileURLWithPath: "/mock/second.md")
+        let third = URL(fileURLWithPath: "/mock/third.md")
+        let fixture = MockedViewerWindowManager(
+            files: [first, second, third], prefix: "ViewerWindowManagerTabTests"
+        )
+        defer { fixture.closeAll() }
+        let firstWindow = try #require(fixture.manager.openViewer(for: first)?.window)
+
+        let secondWindow = try #require(
+            fixture.manager.openViewer(
+                for: second, disposition: .newTab, relativeTo: firstWindow, tabPlacement: .end
+            )?.window
+        )
+        let thirdWindow = try #require(
+            fixture.manager.openViewer(
+                for: third, disposition: .newTab, relativeTo: firstWindow, tabPlacement: .afterSource
+            )?.window
+        )
+
+        let order = firstWindow.tabGroup?.windows.map(ObjectIdentifier.init)
+        #expect(order == [firstWindow, thirdWindow, secondWindow].map(ObjectIdentifier.init))
+    }
+
     @Test("起点ウィンドウが無ければ独立したウィンドウとして開く")
     func newTabWithoutSourceFallsBackToWindow() {
         let file = URL(fileURLWithPath: "/mock/only.md")

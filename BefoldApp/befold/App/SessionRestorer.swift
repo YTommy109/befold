@@ -222,7 +222,8 @@ final class SessionRestorer {
             openedPaths.insert(path)
             guard let window = controller?.window else { continue }
             // システムの「書類を開くときはタブで開く」設定に依存しないよう明示的にタブ化する
-            ViewerTabGrouping.attachAsTab(window, to: previousWindow, select: false)
+            // 直前に復元した窓の後ろへ順に積むので、保存順がそのまま末尾追加になる(TASK-611)。
+            ViewerTabGrouping.attachAsTab(window, to: previousWindow, placement: .end, select: false)
             if firstWindow == nil { firstWindow = window }
             previousWindow = window
             if path == group.selectedPath { selectedWindow = window }

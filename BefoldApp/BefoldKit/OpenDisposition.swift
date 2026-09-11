@@ -35,3 +35,16 @@ public enum OpenDisposition: Equatable, Sendable {
         }
     }
 }
+
+/// 新しいタブをタブバーのどこへ入れるか(TASK-611)。
+///
+/// 開いた**元**が決める値で、`OpenDisposition`(修飾キーの解釈)とは直交する——同じ
+/// cmd+クリックでも、サイドバーの一覧から開くのと文書内のリンクから開くのとで置き場所が違う。
+/// `OpenDisposition` の関連値にしないのは、修飾キーの初期化子が置き場所を知りようがないため。
+public enum NewTabPlacement: Equatable, Sendable {
+    /// タブバーの末尾。一覧からの独立したオープン(サイドバー)に使う。
+    case end
+    /// 起点のタブの直後。親子関係のある派生タブ(文書内リンク)に使う。
+    /// Safari がリンク由来のタブを現在のタブの隣に開くのと同じ考え方。
+    case afterSource
+}

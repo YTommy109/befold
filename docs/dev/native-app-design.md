@@ -183,7 +183,7 @@ BefoldApp/
 | `ViewerWindowSessionSync` | close / rename / ファイル切替 / key イベントを受けての辞書のキー付け替えと、セッション・最近使った項目・ブックマークの追随。`ViewerWindowControllerDelegate` 準拠（辞書の書き換えはマネージャの `register` / `detach` を通す。窓を作らない関心なのでマネージャから分離した） |
 | `GlobalDisplayBroadcaster` | アプリ全体で 1 つの表示設定（ブックマーク・コードフォント・CSV の数値表示）を開いている全ウィンドウへ配る。窓ごとのライブ値と窓の状態（ADR 0002）は扱わず、`SidebarDisplayDefaults` も `ZoomStore` も型として持たない |
 | `RecentRepositoryRecorder` | 「最近使ったリポジトリ」への記録。git ルート/ラベルの解決は detached タスクで行い、反映のみ MainActor へ戻す |
-| `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場 |
+| `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場。結合の置き場所は `NewTabPlacement`（BefoldKit）を**必須引数**で受け、`.end` はグループ末尾、`.afterSource` は起点タブの直後。開いた元が決める値で、サイドバー由来（`ViewerWindowController+FileList`）は `.end`、文書内リンク由来（`ViewerWindowController+References`）は `.afterSource` を `openFileElsewhere` クロージャで渡す（TASK-611。Safari がリンク由来のタブを現在のタブの隣に開くのと同じ考え方） |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
 | `ViewerWindowDependencies` | 窓の生成経路（`ViewerWindowManager` → `ViewerWindowController`）を素通しする共有物（アプリ全体で 1 つの表示設定・ストア）の束。init に既定値を持たないことが「渡し忘れが静かに別インスタンスになる」を塞ぐ担保（TASK-319 / TASK-558） |
 | `ViewerWindowOpenPolicy` | 窓を開くときの純粋な判定（既存ウィンドウの再利用規則・サイドバー初期開閉の解決順）。副作用は持たず、候補も記憶も引数で受ける |
