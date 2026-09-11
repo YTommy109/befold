@@ -9,6 +9,9 @@ enum ViewerWindowOpenPolicy {
     /// - `.currentTab`: Finder/CLI/リンクからの再オープン。どのウィンドウで開いていても
     ///   既存を前面化する(ウィンドウ内のサイドバー切替だけは openViewer を通らず
     ///   自ウィンドウを切り替える)。
+    /// - 候補になるのは `acceptsReopen` な種別だけ(TASK-613)。スライド窓でしか開いていない
+    ///   ファイルを Finder / Quick Open から開くと、スライド窓が前面化して通常窓が開かず、
+    ///   利用履歴にも載らなかった。
     /// - `.newTab`: cmd+クリック等。起点ウィンドウと同じタブグループに同じファイルの
     ///   タブが既にあればそれを選択し、重複タブを作らない(TASK-487)。別ウィンドウで
     ///   開いているだけなら素通しし、起点のタブグループへ新しいタブを開く。
@@ -21,6 +24,7 @@ enum ViewerWindowOpenPolicy {
         disposition: OpenDisposition,
         relativeTo sourceWindow: NSWindow?
     ) -> ViewerWindowController? {
+        let candidates = candidates.filter(\.kind.acceptsReopen)
         switch disposition {
         case .currentTab:
             return candidates.first

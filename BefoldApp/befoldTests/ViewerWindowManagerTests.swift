@@ -129,6 +129,22 @@ struct ViewerWindowManagerTests {
         #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
     }
 
+    /// スライド窓でしか開いていないファイルを Finder / Quick Open から開いた形(TASK-613)。
+    /// スライド窓を前面化して終わるのではなく通常窓が開き、そちらは履歴にも載る。
+    @Test("スライド窓だけで開いているファイルを currentTab で開くと通常窓が開き、履歴にも載る")
+    func currentTabOpensViewerWindowWhenOnlySlideWindowShowsFile() throws {
+        let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: file, disposition: .slide)
+        #expect(fixture.recentDocumentsStore.recentURLs().isEmpty)
+
+        let opened = try #require(fixture.manager.openViewer(for: file))
+
+        #expect(opened.kind == .viewer)
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 2)
+        #expect(fixture.recentDocumentsStore.recentURLs().map(\.path) == [file.normalizedPathKey])
+    }
+
     @Test("window(forPath:) が開いたウィンドウを返す")
     func windowForPathReturnsOpenWindow() throws {
         let fixture = MockedViewerWindowManager(files: [file])

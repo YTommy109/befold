@@ -20,6 +20,7 @@ struct ViewerWindowKindTests {
         #expect(kind.joinsTabs)
         #expect(kind.isRestorable)
         #expect(kind.recordsUsageHistory)
+        #expect(kind.acceptsReopen)
     }
 
     /// スライド窓は画面共有・プロジェクターへ映すので 16:9 で始める(TASK-593.5)。
@@ -49,6 +50,7 @@ struct ViewerWindowKindTests {
         #expect(!kind.joinsTabs)
         #expect(!kind.isRestorable)
         #expect(!kind.recordsUsageHistory)
+        #expect(!kind.acceptsReopen)
     }
 }
 

@@ -50,6 +50,13 @@ enum ViewerWindowKind: Equatable {
         self == .viewer
     }
 
+    /// 同じファイルの再オープン(`.currentTab`、同じグループ内の `.newTab`)の受け皿として
+    /// 再利用してよいか(TASK-613)。`false` の種別が開いているだけのファイルは「その窓を
+    /// 前面化して終わり」にせず、通常窓を新しく開く。
+    var acceptsReopen: Bool {
+        self == .viewer
+    }
+
     /// 保存された寸法がまだ無いときの既定サイズ。
     ///
     /// スライド窓だけ **16:9** にする(TASK-593.5)。映す先は画面共有(Zoom / Google Meet)か
