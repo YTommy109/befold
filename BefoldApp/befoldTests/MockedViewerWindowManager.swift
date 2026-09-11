@@ -118,7 +118,7 @@ struct MockedViewerWindowManager {
         self.defaults = defaults
         self.fileReader = fileReader
         sessionStore = SessionStore(defaults: defaults)
-        recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
+        recentDocumentsStore = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in })
         perFileState = PerFileStateStore(defaults: defaults)
         windowFrame = WindowFrameStore(defaults: defaults)
         displayDefaults = SidebarDisplayDefaults(defaults: defaults)

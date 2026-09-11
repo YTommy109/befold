@@ -86,11 +86,17 @@ public struct PathListDefaults {
     }
 
     /// 旧 URL を新 URL へその場で置き換える(位置を保つ)。旧 URL が未登録なら何もしない。
+    /// 新 URL が別の位置にも載っていればそちらを落とし、1 つのパスが 2 回現れないようにする
+    /// (残すのは置き換えた側の位置。Recent では旧 URL の新しさを引き継ぐのが正しい)。
     public func replace(_ oldURL: URL, with newURL: URL) {
         let oldPath = oldURL.normalizedPathKey
+        let newPath = newURL.normalizedPathKey
         var paths = paths
         guard let index = paths.firstIndex(of: oldPath) else { return }
-        paths[index] = newURL.normalizedPathKey
+        paths[index] = newPath
+        paths = paths.enumerated()
+            .filter { $0.offset == index || $0.element != newPath }
+            .map(\.element)
         replaceAll(with: paths)
     }
 }

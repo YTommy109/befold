@@ -17,7 +17,7 @@ struct ViewerWindowManagerIntegrationTests {
     ) -> ViewerWindowManager {
         ViewerWindowManager(
             sessionStore: SessionStore(defaults: defaults),
-            recentDocumentsStore: RecentDocumentsStore(defaults: defaults),
+            recentDocumentsStore: RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in }),
             shared: makeViewerWindowDependencies(defaults: defaults),
             windowFrame: WindowFrameStore(defaults: defaults),
             makeContentView: placeholderViewerContent,

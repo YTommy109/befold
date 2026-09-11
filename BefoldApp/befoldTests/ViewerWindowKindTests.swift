@@ -11,7 +11,7 @@ import Testing
 /// ここで測るのは「種別が述語として何を意味するか」と「述語を読む側が種別どおりに振る舞うか」。
 @MainActor
 struct ViewerWindowKindTests {
-    @Test("通常のビューア窓はサイドバー・ツールバー・タブ・復元のすべてを持つ")
+    @Test("通常のビューア窓はサイドバー・ツールバー・タブ・復元・利用履歴のすべてを持つ")
     func viewerKindAllowsEverything() {
         let kind = ViewerWindowKind.viewer
 
@@ -19,6 +19,7 @@ struct ViewerWindowKindTests {
         #expect(kind.hasToolbar)
         #expect(kind.joinsTabs)
         #expect(kind.isRestorable)
+        #expect(kind.recordsUsageHistory)
     }
 
     /// スライド窓は画面共有・プロジェクターへ映すので 16:9 で始める(TASK-593.5)。
@@ -39,7 +40,7 @@ struct ViewerWindowKindTests {
         #expect(ViewerWindowKind.viewer.defaultContentSize == NSSize(width: 1100, height: 850))
     }
 
-    @Test("スライド窓はサイドバー・ツールバー・タブ・復元のすべてを持たない")
+    @Test("スライド窓はサイドバー・ツールバー・タブ・復元・利用履歴のすべてを持たない")
     func slideKindAllowsNothing() {
         let kind = ViewerWindowKind.slide
 
@@ -47,6 +48,7 @@ struct ViewerWindowKindTests {
         #expect(!kind.hasToolbar)
         #expect(!kind.joinsTabs)
         #expect(!kind.isRestorable)
+        #expect(!kind.recordsUsageHistory)
     }
 }
 

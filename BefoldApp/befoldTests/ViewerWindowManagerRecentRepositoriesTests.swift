@@ -101,7 +101,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             files: Dictionary(uniqueKeysWithValues: files.map { ($0.path, "graph TD;") })
         )
         let sessionStore = SessionStore(defaults: defaults)
-        let recentDocumentsStore = RecentDocumentsStore(defaults: defaults)
+        let recentDocumentsStore = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in })
         let recentRepositoriesStore = RecentRepositoriesStore(defaults: defaults)
         let gitFileIndex = gitFileIndex ?? FixedRootGitFileIndex(root: root)
         let manager = ViewerWindowManager(
@@ -184,6 +184,42 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         await waitForMainActorDelivery { index.rootLookupCount.get() > 0 }
         #expect(fixture.store.entries().isEmpty)
         #expect(fixture.manager.controllers[file.normalizedPathKey]?.first?.repositoryRoot == nil)
+        fixture.manager.allControllers.forEach { $0.close() }
+    }
+
+    /// スライド窓は利用履歴に残さない(TASK-610)。
+    ///
+    /// **root 解決の回数では測れない。** 解決は `TrackedPathResolver` の既定実装からも
+    /// 走るため、窓 1 枚につき複数回呼ばれる(実測: 2 窓で 5 回)。そこで記録の有無そのものを
+    /// 見るために、スライドと通常窓で**別のリポジトリ**を開き、記録されたルートを比べる。
+    ///
+    /// 空を見るだけでは「まだ走っていない」と区別できないので、後から開いた通常窓の記録が
+    /// 着地するまで待つ。ガードを外すと、先に始まったスライド側の記録が先に着地するため
+    /// この比較が落ちる。
+    @Test("スライドモードで開いても最近使ったリポジトリに記録されない")
+    func openingFileInSlideModeDoesNotRecordRepository() async throws {
+        let defaults = makeIsolatedDefaults(prefix: "VWMRecentReposSlide")
+        let slideFile = URL(fileURLWithPath: "/slide-repo/deck.md")
+        let viewerFile = URL(fileURLWithPath: "/repo/a.md")
+        let slideRoot = URL(fileURLWithPath: "/slide-repo")
+        let viewerRoot = URL(fileURLWithPath: "/repo")
+        // gate は使わない(実在しないパスを渡す)。接頭辞 -> ルートの対応だけを借りる。
+        let index = GatedGitFileIndex(
+            roots: [slideRoot.path: slideRoot, viewerRoot.path: viewerRoot],
+            gatedPath: "/never-gated"
+        )
+        let fixture = makeFixture(
+            files: [slideFile, viewerFile], root: nil, defaults: defaults, gitFileIndex: index
+        )
+
+        fixture.manager.openViewer(for: slideFile, disposition: .slide)
+        let slideController = try #require(
+            fixture.manager.controllers[slideFile.normalizedPathKey]?.first
+        )
+        _ = try await openAndAwaitRecording(fixture, file: viewerFile)
+
+        #expect(fixture.store.entries().map(\.rootPath) == [viewerRoot.normalizedPathKey])
+        #expect(slideController.repositoryRoot == nil)
         fixture.manager.allControllers.forEach { $0.close() }
     }
 

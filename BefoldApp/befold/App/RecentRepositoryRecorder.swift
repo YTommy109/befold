@@ -46,7 +46,12 @@ final class RecentRepositoryRecorder {
     /// (履歴が1件増えないだけで、次に開いたときに記録されるため許容する)。
     /// 解決の着地前にウィンドウが別ファイルへ切り替わった場合も同様に何もしない
     /// (切替前のリポジトリを現在のリポジトリとして書き込まないため。TASK-461)。
+    ///
+    /// 履歴に残さない種別の窓では何もしない(TASK-610)。**解決を始める前に弾く**ので、
+    /// スライド窓では git の subprocess も走らない。判定を消費側(`apply`)へ置くと
+    /// 待ってから捨てることになる。
     func recordIfNeeded(for url: URL, controller: ViewerWindowController) {
+        guard controller.kind.recordsUsageHistory else { return }
         let gitFileIndex = gitFileIndex
         let resolveIdentity = resolveIdentity
         Task { [weak self, weak controller] in

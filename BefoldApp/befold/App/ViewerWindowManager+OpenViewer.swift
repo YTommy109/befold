@@ -68,8 +68,7 @@ extension ViewerWindowManager {
             controller.showWindow(nil)
         }
         sessionStore.noteOpened(url)
-        recentDocumentsStore.noteOpened(url)
-        NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        recentDocumentsStore.noteOpened(url, kind: controller.kind)
         recentRepositories.recordIfNeeded(for: url, controller: controller)
         return controller
     }
