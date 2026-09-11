@@ -4,6 +4,7 @@ title: ViewerWindowOpenPolicy の doc コメントが TASK-613 後の再利用�
 status: To Do
 assignee: []
 created_date: '2026-09-11 13:50'
+updated_date: '2026-09-11 13:53'
 labels: []
 dependencies: []
 ordinal: 804000
@@ -29,3 +30,9 @@ TASK-613 のコードレビュー（/code-review high）で確定した指摘。
 - [ ] #2 「スライド窓の再利用規則は `.newWindow` と同じ」という記述が消え、「候補にならない」に置き換わっている
 - [ ] #3 `scripts/check-doc-symbols.sh` と swiftlint がコメント変更後も通る
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+レビューの残りが届き、「関連」に書いた `remapController` の判定の重複は確定した（rename 分岐が `noteOpened(_:in:)` を迂回している）。対応は TASK-616 の AC に移したので、このタスクは doc コメントだけを直す。
+<!-- SECTION:NOTES:END -->
