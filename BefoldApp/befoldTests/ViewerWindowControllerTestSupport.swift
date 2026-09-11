@@ -77,7 +77,7 @@ func makeMockedViewerWindowController(
     contents: String = "graph TD;",
     zoomStore: ZoomStore? = nil,
     defaults: UserDefaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerTests"),
-    openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
+    openFileElsewhere: @escaping (URL, OpenDisposition, NewTabPlacement, NSWindow?) -> Void = { _, _, _, _ in },
     externalOpener: @escaping (URL) -> Void = { _ in }
 ) -> ViewerWindowController {
     ViewerWindowControllerFixture(

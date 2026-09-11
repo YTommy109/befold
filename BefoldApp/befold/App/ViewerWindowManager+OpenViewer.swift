@@ -16,12 +16,17 @@ extension ViewerWindowManager {
     /// 開けなかった場合は nil。`controllers` は 1 パスに複数のコントローラを持ちうる
     /// 多重マップなので、呼び出し直後に `window(forPath:)` で引き直すと**別のウィンドウ**を
     /// 掴む(TASK-415)。開いたウィンドウに続けて触る呼び出し元はこの戻り値を使うこと。
+    ///
+    /// `tabPlacement` は `.newTab` のときだけ意味を持つ(TASK-611)。既定を `.end` にしてあるのは
+    /// `.currentTab` の呼び出し元が多く、置き場所が無意味な呼び出しに値を書かせないため。
+    /// `.newTab` を渡す経路は `openFileElsewhere` クロージャの型で置き場所の指定を強制している。
     @discardableResult
     func openViewer(
         for url: URL,
         options: CLIOpenOptions = CLIOpenOptions(),
         disposition: OpenDisposition = .currentTab,
         relativeTo sourceWindow: NSWindow? = nil,
+        tabPlacement: NewTabPlacement = .end,
         forceSidebarVisible: Bool = false
     ) -> ViewerWindowController? {
         guard fileReader.fileExists(at: url) else {
@@ -62,8 +67,10 @@ extension ViewerWindowManager {
         NSApp.activate()
         // タブ結合と表示の順序は ViewerTabGrouping.present が持つ(先に表示すると
         // タブへ畳まれる中間状態が 1 フレーム見える: TASK-529)。
+        // 新しいタブは背面で開き、表示も焦点も起点に留める(Safari の cmd+クリックと同じ。TASK-611)。
         ViewerTabGrouping.present(
-            controller.window, asTabOf: disposition == .newTab ? sourceWindow : nil, select: true
+            controller.window, asTabOf: disposition == .newTab ? sourceWindow : nil,
+            placement: tabPlacement, select: disposition != .newTab
         ) {
             controller.showWindow(nil)
         }
@@ -125,8 +132,10 @@ extension ViewerWindowManager {
             sourceModeOverride: options.sourceMode,
             store: makeStore?(url),
             makeContentView: makeContentView,
-            openFileElsewhere: { [weak self] fileURL, disposition, sourceWindow in
-                self?.openViewer(for: fileURL, disposition: disposition, relativeTo: sourceWindow)
+            openFileElsewhere: { [weak self] fileURL, disposition, placement, sourceWindow in
+                self?.openViewer(
+                    for: fileURL, disposition: disposition, relativeTo: sourceWindow, tabPlacement: placement
+                )
             }
         )
     }

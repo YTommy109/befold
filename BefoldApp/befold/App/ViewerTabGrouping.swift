@@ -1,6 +1,22 @@
 import AppKit
 import BefoldKit
 
+/// 新しいタブをタブバーのどこへ入れるか(TASK-611)。
+///
+/// 開いた**元**が決める値で、`OpenDisposition`(修飾キーの解釈)とは直交する——同じ
+/// cmd+クリックでも、サイドバーの一覧から開くのと文書内のリンクから開くのとで置き場所が違う。
+/// `OpenDisposition` の関連値にしないのは、修飾キーの初期化子が置き場所を知りようがないため。
+/// 解釈するのは `ViewerTabGrouping.attachAsTab` だけなので、BefoldKit ではなくその隣に置く
+/// (`TabPlacement` と名付けないのは SwiftUI の同名型と衝突するため)。
+enum NewTabPlacement: Equatable, Sendable {
+    /// タブバーの末尾。一覧からの独立したオープン(サイドバー)に使う。
+    case end
+    /// 起点のタブの直後。親子関係のある派生タブ(文書内リンク)に使う。
+    /// 同じ起点から続けて開いたときは直前の派生タブの直後に入り、クリック順に並ぶ
+    /// (Safari / Chrome がリンク由来のタブを現在のタブの隣へ順に開くのと同じ)。
+    case afterSource
+}
+
 /// タブグループの規則。「複数の NSWindow を 1 つのまとまりとして扱う」解釈を
 /// ここ 1 箇所に置き、セッション保存・復元と「最近使ったリポジトリ」が同じ規則を共有する。
 ///
@@ -14,13 +30,45 @@ enum ViewerTabGrouping {
     /// セッション復元(SessionRestorer.restoreTabGroup)も新規オープンも同じ経路を通る。
     /// baseWindow が nil のときは何もしない = 独立したウィンドウのままにする
     /// (「開けない」より「タブにならない」へ縮退させる)。
+    ///
+    /// `placement` は**必須**(TASK-611)。`.afterSource` は baseWindow の直後、`.end` は
+    /// baseWindow が属するグループの末尾。どちらも `addTabbedWindow(_:ordered: .above)` で
+    /// anchor の直後へ入れる形に揃え、`.end` は anchor を末尾のタブに取り替えるだけにする
+    /// (`NSWindowTabGroup.addWindow` は base がまだタブ化されていないと `tabGroup` が nil で
+    /// 使えない)。`.above` が「anchor の直後」に入ることは `ViewerTabGroupingTests` が
+    /// 実ウィンドウで測っている。
     /// - Parameter select: 結合したタブを選択状態にするか。復元時は元の選択タブを別途決めるため false。
-    static func attachAsTab(_ window: NSWindow, to baseWindow: NSWindow?, select: Bool) {
-        guard let baseWindow, baseWindow !== window else { return }
-        baseWindow.addTabbedWindow(window, ordered: .above)
+    static func attachAsTab(
+        _ window: NSWindow, to baseWindow: NSWindow?, placement: NewTabPlacement, select: Bool
+    ) {
+        guard let baseWindow else { return }
+        let anchor: NSWindow = switch placement {
+        case .afterSource: spawnAnchor(of: baseWindow)
+        case .end: baseWindow.tabGroup?.windows.last ?? baseWindow
+        }
+        // window が既にそのグループの末尾に居ると anchor が自分自身になる(復元で既存の窓を
+        // 掴んだとき等)。自分を自分へ結合させない。
+        guard anchor !== window else { return }
+        anchor.addTabbedWindow(window, ordered: .above)
+        if placement == .afterSource {
+            (baseWindow.windowController as? ViewerWindowController)?.lastSpawnedTab = window
+        }
         if select {
             selectTab(window)
         }
+    }
+
+    /// `.afterSource` の anchor。起点の文書から直前に派生したタブがまだ同じグループに居れば
+    /// その直後(クリック順に並ぶ)、閉じられた・別の窓へ引き出された等で居なければ起点の直後。
+    /// 起点がビューア窓でなければ(派生の記録を持たなければ)起点そのもの。
+    /// 記録の読み書きはこの enum の中に閉じる——`viewerPath(of:)` と同じく、窓 1 枚から
+    /// `ViewerWindowController` を引く以上の台帳は持たない。
+    private static func spawnAnchor(of baseWindow: NSWindow) -> NSWindow {
+        let last = (baseWindow.windowController as? ViewerWindowController)?.lastSpawnedTab
+        // `last.tabGroup` は閉じた後も nil に戻らない(実測)ので、グループの並びに実際に
+        // 居るかで判定する。
+        guard let last, tabWindows(of: baseWindow).contains(where: { $0 === last }) else { return baseWindow }
+        return last
     }
 
     /// window を表示する。baseWindow があれば **タブ結合してから** `show` を呼ぶ。
@@ -30,11 +78,23 @@ enum ViewerTabGrouping {
     /// 順序を守っているかどうかをテストから観測できる。
     /// window が nil のときは結合をあきらめ `show` だけを呼ぶ
     /// (attachAsTab と同じ「開けないよりタブにならない」への縮退)。
-    static func present(_ window: NSWindow?, asTabOf baseWindow: NSWindow?, select: Bool, show: () -> Void) {
+    ///
+    /// `select: false` は**背面のタブとして開く**(TASK-611)。Safari の cmd+クリックと同じで、
+    /// タブは増えるが表示も焦点も起点の文書に留まる。`show`(makeKeyAndOrderFront)は
+    /// 新しい窓をタブとして前面にしてしまうので、表示のあとで起点タブへ選択を戻す
+    /// (セッション復元が選択タブを決め直すのと同じ手順)。同じ runloop 内で戻すので
+    /// 新しいタブが描かれる前に選択は起点へ戻っている。
+    static func present(
+        _ window: NSWindow?, asTabOf baseWindow: NSWindow?, placement: NewTabPlacement, select: Bool,
+        show: () -> Void
+    ) {
         if let window {
-            attachAsTab(window, to: baseWindow, select: select)
+            attachAsTab(window, to: baseWindow, placement: placement, select: select)
         }
         show()
+        if !select, let baseWindow, let group = window?.tabGroup, group === baseWindow.tabGroup {
+            selectTab(baseWindow)
+        }
     }
 
     /// window をそのタブグループの選択タブにする。タブ化されていなければ何もしない。

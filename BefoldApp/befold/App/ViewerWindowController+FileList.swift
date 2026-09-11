@@ -18,7 +18,7 @@ extension ViewerWindowController: FileListViewDelegate {
     }
 
     func fileListDidRequestOpenElsewhere(_ url: URL, disposition: OpenDisposition) {
-        openFileElsewhere(url, disposition, window)
+        openFileElsewhere(url, disposition, .end, window) // 一覧からの独立したオープンは末尾へ(TASK-611)
     }
 
     func fileListDidRequestExpand(_ entry: FileListEntry) {

@@ -81,9 +81,11 @@ final class ViewerWindowController: NSWindowController {
     /// この窓の種別(TASK-593.2)。**生成時に決まり、以後変わらない**——`let` にしてあるのが
     /// その担保で、ツールバーの有無・タブ合流・サイドバーの可否をあとから覆せる経路を作らない。
     let kind: ViewerWindowKind
-    /// 別のタブ/ウィンドウでファイルを開く処理。タブ結合の基準にするため自分のウィンドウも渡す。
-    /// 本番では ViewerWindowManager 経由で注入する。
-    let openFileElsewhere: (URL, OpenDisposition, NSWindow?) -> Void
+    /// 別のタブ/ウィンドウでファイルを開く処理。タブ結合の基準にするため自分のウィンドウも渡し、
+    /// タブの置き場所(`NewTabPlacement`)は開いた元が必ず指定する。本番では ViewerWindowManager 経由で注入する。
+    let openFileElsewhere: (URL, OpenDisposition, NewTabPlacement, NSWindow?) -> Void
+    /// この窓の文書から最後に派生したタブ(TASK-611)。次の派生タブをこの直後へ入れてクリック順に並べる。
+    weak var lastSpawnedTab: NSWindow?
     /// 外部 URL(http/https)をブラウザで開く処理。本番では NSWorkspace 経由。
     /// テストが実ブラウザを起動せずに済むよう注入可能にしている。
     /// 渡す先は referenceMenu と referenceActions.openExternal の 2 箇所だけ。
@@ -274,8 +276,8 @@ final class ViewerWindowController: NSWindowController {
         store: ViewerStore? = nil,
         makeContentView: (() -> AnyView)? = nil,
         documentRenderer: (any DocumentRendering)? = nil,
-        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { url, disposition, source in
-            AppDelegate.shared?.openViewer(for: url, disposition: disposition, relativeTo: source)
+        openFileElsewhere: @escaping (URL, OpenDisposition, NewTabPlacement, NSWindow?) -> Void = {
+            AppDelegate.shared?.openViewer(for: $0, disposition: $1, placement: $2, relativeTo: $3)
         },
         externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {

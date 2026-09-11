@@ -44,7 +44,7 @@ extension ViewerWindowController {
         // `.slide` はリンク由来では起こらない(`OpenDisposition` の doc)が、`default` では
         // なく明示して列挙する——case を足したときにここが黙って素通りしないため。
         case .newTab, .newWindow, .slide:
-            openFileElsewhere(url, disposition, window)
+            openFileElsewhere(url, disposition, .afterSource, window) // 文書からの派生タブは親の直後へ(TASK-611)
         }
     }
 

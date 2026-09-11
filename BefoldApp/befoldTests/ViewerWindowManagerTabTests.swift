@@ -9,8 +9,9 @@ import Testing
 @Suite
 @MainActor
 struct ViewerWindowManagerTabTests {
-    @Test("newTab で開くと起点ウィンドウのタブグループに入り選択タブになる")
-    func newTabJoinsSourceTabGroup() {
+    /// 新しいタブは背面で開き、選択は起点に留まる(Safari の cmd+クリックと同じ。TASK-611)。
+    @Test("newTab で開くと起点ウィンドウのタブグループに入るが、選択タブは起点のまま")
+    func newTabJoinsSourceTabGroupInBackground() {
         let first = URL(fileURLWithPath: "/mock/first.md")
         let second = URL(fileURLWithPath: "/mock/second.md")
         let fixture = MockedViewerWindowManager(files: [first, second], prefix: "ViewerWindowManagerTabTests")
@@ -23,7 +24,75 @@ struct ViewerWindowManagerTabTests {
 
         #expect(secondWindow?.tabGroup != nil)
         #expect(secondWindow?.tabGroup === firstWindow?.tabGroup)
-        #expect(secondWindow?.tabGroup?.selectedWindow === secondWindow)
+        #expect(secondWindow?.tabGroup?.selectedWindow === firstWindow)
+    }
+
+    /// 置き場所が openViewer から attachAsTab まで届くこと(TASK-611)。並びは実ウィンドウの
+    /// tabGroup.windows で見る。起点を常に 1 枚目にして、`.end` と `.afterSource` で結果が
+    /// 分かれることを 1 つのテストで固定する。
+    @Test("newTab の置き場所: end は末尾、afterSource は起点の直後")
+    func newTabPlacementControlsInsertionPosition() throws {
+        let first = URL(fileURLWithPath: "/mock/first.md")
+        let second = URL(fileURLWithPath: "/mock/second.md")
+        let third = URL(fileURLWithPath: "/mock/third.md")
+        let fixture = MockedViewerWindowManager(
+            files: [first, second, third], prefix: "ViewerWindowManagerTabTests"
+        )
+        defer { fixture.closeAll() }
+        let firstWindow = try #require(fixture.manager.openViewer(for: first)?.window)
+
+        let secondWindow = try #require(
+            fixture.manager.openViewer(
+                for: second, disposition: .newTab, relativeTo: firstWindow, tabPlacement: .end
+            )?.window
+        )
+        let thirdWindow = try #require(
+            fixture.manager.openViewer(
+                for: third, disposition: .newTab, relativeTo: firstWindow, tabPlacement: .afterSource
+            )?.window
+        )
+
+        let order = firstWindow.tabGroup?.windows.map(ObjectIdentifier.init)
+        #expect(order == [firstWindow, thirdWindow, secondWindow].map(ObjectIdentifier.init))
+    }
+
+    /// 同じ文書から続けて開いた派生タブはクリック順に並ぶ(TASK-611。Safari / Chrome と同じ)。
+    /// 記録するのは**最後の**派生タブだけなので、それが閉じられて居なくなれば次は起点の直後へ戻る
+    /// (最後でない派生タブを閉じても記録は変わらない)。
+    /// 記録は起点の ViewerWindowController が持つので、コントローラ付きの実ウィンドウで測る。
+    @Test("afterSource で続けて開くとクリック順に並び、派生タブが消えれば起点の直後へ戻る")
+    func afterSourceChainsSpawnedTabsInClickOrder() throws {
+        let doc = URL(fileURLWithPath: "/mock/doc.md")
+        let linkA = URL(fileURLWithPath: "/mock/a.md")
+        let linkB = URL(fileURLWithPath: "/mock/b.md")
+        let linkC = URL(fileURLWithPath: "/mock/c.md")
+        let fixture = MockedViewerWindowManager(
+            files: [doc, linkA, linkB, linkC], prefix: "ViewerWindowManagerTabTests"
+        )
+        defer { fixture.closeAll() }
+        let docWindow = try #require(fixture.manager.openViewer(for: doc)?.window)
+        func spawn(_ url: URL) throws -> NSWindow {
+            try #require(
+                fixture.manager.openViewer(
+                    for: url, disposition: .newTab, relativeTo: docWindow, tabPlacement: .afterSource
+                )?.window
+            )
+        }
+
+        let windowA = try spawn(linkA)
+        let windowB = try spawn(linkB)
+        #expect(
+            docWindow.tabGroup?.windows.map(ObjectIdentifier.init)
+                == [docWindow, windowA, windowB].map(ObjectIdentifier.init)
+        )
+
+        try #require(fixture.manager.controllers[linkB.normalizedPathKey]?.first).close()
+        let windowC = try spawn(linkC)
+
+        #expect(
+            docWindow.tabGroup?.windows.map(ObjectIdentifier.init)
+                == [docWindow, windowC, windowA].map(ObjectIdentifier.init)
+        )
     }
 
     @Test("起点ウィンドウが無ければ独立したウィンドウとして開く")

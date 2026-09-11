@@ -43,7 +43,7 @@ struct ViewerWindowControllerFixture {
         gitStatusStore: GitStatusStore = GitStatusStore(),
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         documentRenderer: (any DocumentRendering)? = nil,
-        openFileElsewhere: @escaping (URL, OpenDisposition, NSWindow?) -> Void = { _, _, _ in },
+        openFileElsewhere: @escaping (URL, OpenDisposition, NewTabPlacement, NSWindow?) -> Void = { _, _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
     ) {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: prefix)
