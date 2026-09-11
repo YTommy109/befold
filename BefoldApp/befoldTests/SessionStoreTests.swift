@@ -106,9 +106,24 @@ struct SessionStoreTests {
         let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
 
-        SessionStore(defaults: defaults).noteActivated(url)
+        SessionStore(defaults: defaults).noteActivated(url, kind: .viewer)
 
         #expect(SessionStore(defaults: defaults).savedActivePath() == url.normalizedPathKey)
+    }
+
+    /// 種別のゲートはストア側にある(TASK-616)。書き手が 2 つ(キー化と終了処理)あり、
+    /// 呼び出し側の `if` では片方だけ落とせてしまうため。
+    @Test("復元の対象でない種別の noteActivated は既存のアクティブ記録を上書きしない")
+    func noteActivatedIgnoresNonRestorableKind() {
+        let defaults = makeIsolatedDefaults(prefix: "SessionStoreTests")
+        let viewer = URL(fileURLWithPath: "/tmp/viewer.mmd")
+        let slide = URL(fileURLWithPath: "/tmp/slide.mmd")
+        let store = SessionStore(defaults: defaults)
+        store.noteActivated(viewer, kind: .viewer)
+
+        store.noteActivated(slide, kind: .slide)
+
+        #expect(store.savedActivePath() == viewer.normalizedPathKey)
     }
 
     @Test("アクティブファイルを閉じたら記録もクリアされる")
@@ -117,7 +132,7 @@ struct SessionStoreTests {
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
         let store = SessionStore(defaults: defaults)
         store.noteOpened(url)
-        store.noteActivated(url)
+        store.noteActivated(url, kind: .viewer)
 
         store.noteClosed(url)
 
@@ -132,7 +147,7 @@ struct SessionStoreTests {
         let store = SessionStore(defaults: defaults)
         store.noteOpened(active)
         store.noteOpened(other)
-        store.noteActivated(active)
+        store.noteActivated(active, kind: .viewer)
 
         store.noteClosed(other)
 
@@ -145,7 +160,7 @@ struct SessionStoreTests {
         let url = URL(fileURLWithPath: "/tmp/active.mmd")
         let store = SessionStore(defaults: defaults)
         store.noteOpened(url)
-        store.noteActivated(url)
+        store.noteActivated(url, kind: .viewer)
 
         store.freeze()
         store.noteClosed(url)
@@ -159,10 +174,10 @@ struct SessionStoreTests {
         let active = URL(fileURLWithPath: "/tmp/active.mmd")
         let other = URL(fileURLWithPath: "/tmp/other.md")
         let store = SessionStore(defaults: defaults)
-        store.noteActivated(active)
+        store.noteActivated(active, kind: .viewer)
 
         store.freeze()
-        store.noteActivated(other)
+        store.noteActivated(other, kind: .viewer)
 
         #expect(store.savedActivePath() == active.normalizedPathKey)
     }
@@ -173,7 +188,7 @@ struct SessionStoreTests {
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let store = SessionStore(defaults: defaults)
-        store.noteActivated(old)
+        store.noteActivated(old, kind: .viewer)
 
         store.noteRenamed(from: old, to: new)
 
@@ -187,7 +202,7 @@ struct SessionStoreTests {
         let old = URL(fileURLWithPath: "/tmp/old.mmd")
         let new = URL(fileURLWithPath: "/tmp/new.mmd")
         let store = SessionStore(defaults: defaults)
-        store.noteActivated(active)
+        store.noteActivated(active, kind: .viewer)
 
         store.noteRenamed(from: old, to: new)
 

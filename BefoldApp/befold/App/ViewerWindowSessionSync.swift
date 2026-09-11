@@ -47,6 +47,15 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     }
 
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
+    ///
+    /// rename 固有の付け替え(旧パス → 新パス)を先に済ませ、**「開いた」記録は両分岐とも
+    /// 最後に `noteOpened(_:in:)` で行う**(TASK-616)。rename 分岐だけが
+    /// `sessionStore.noteOpened` を直接呼ぶ形にすると、唯一の入口という宣言が同じ関数の中で
+    /// 破れる。`RecentDocumentsStore.noteRenamed` は内部で `noteOpened` を呼ぶが、
+    /// moveToFront は冪等なので 1 回多く通っても結果は同じ。
+    ///
+    /// 順序の制約: `sessionStore.noteRenamed` はアクティブ記録を旧パスから新パスへ書き換える。
+    /// 旧パスと一致するアクティブ記録を消す `noteClosedIfNoWindowRemains` より**前**に置く。
     private func remapController(
         _ controller: ViewerWindowController,
         from oldURL: URL,
@@ -55,21 +64,17 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     ) {
         manager.detach(controller, fromKey: oldURL.normalizedPathKey)
         manager.register(controller, forKey: newURL.normalizedPathKey)
-        if isRename, controller.kind.isRestorable {
-            manager.sessionStore.noteRenamed(from: oldURL, to: newURL)
-        }
-        noteClosedIfNoWindowRemains(for: oldURL)
         if isRename {
             if controller.kind.isRestorable {
-                manager.sessionStore.noteOpened(newURL)
+                manager.sessionStore.noteRenamed(from: oldURL, to: newURL)
             }
             manager.recentDocumentsStore.noteRenamed(
                 from: oldURL, to: newURL, kind: controller.kind
             )
             manager.shared.bookmarkStore.noteRenamed(from: oldURL, to: newURL)
-        } else {
-            noteOpened(newURL, in: controller)
         }
+        noteClosedIfNoWindowRemains(for: oldURL)
+        noteOpened(newURL, in: controller)
     }
 
     // MARK: - ViewerWindowControllerDelegate
@@ -85,10 +90,9 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     }
 
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
-        // スライド窓をアクティブ記録にすると、復元時にキーにする窓の指定が存在しないパスを指す。
-        if controller.kind.isRestorable {
-            manager.sessionStore.noteActivated(controller.fileURL)
-        }
+        // 種別のゲートは SessionStore が持つ(TASK-616)。ここで `if` を書くと、同じストアを
+        // 外から触る AppDelegate 側だけゲートを落とせてしまう。
+        manager.sessionStore.noteActivated(controller.fileURL, kind: controller.kind)
         // タブグループが壊れていない状態を観測できる唯一の契機。ここで記録しておかないと、
         // タブを複数開いたウィンドウの構成は close 時には既に失われている。
         manager.recentRepositories.recordTabGroup(of: controller)

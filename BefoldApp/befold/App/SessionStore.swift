@@ -101,7 +101,16 @@ final class SessionStore {
 
     /// アクティブ(キーウィンドウ)になったファイルを記録する。freeze 後は無視する
     /// (終了処理中のウィンドウクローズでキーが移っても確定値を上書きしない)。
-    func noteActivated(_ url: URL) {
+    ///
+    /// `kind` は**必須**で受ける(TASK-616)。復元の対象でない種別のパスを書くと、
+    /// savedURLs / レイアウトにそのパスが無いため復元時のキー窓指定が存在しない窓を指し、
+    /// 本来キーになるべき通常窓がキーにならない。書き手は
+    /// `ViewerWindowSessionSync.viewerWindowDidBecomeKey` と
+    /// `AppDelegate.applicationShouldTerminate` の 2 つあり、後者が種別を見ずに書いていた。
+    /// デフォルト引数にすると新しい呼び出し元が黙って「書く」側に倒れるので持たせない
+    /// (`RecentDocumentsStore.noteOpened(_:kind:)` と同じ形)。
+    func noteActivated(_ url: URL, kind: ViewerWindowKind) {
+        guard kind.isRestorable else { return }
         guard !isFrozen else { return }
         defaults.set(url.normalizedPathKey, forKey: Self.activeKey)
     }

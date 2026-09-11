@@ -262,7 +262,7 @@ struct ViewerWindowManagerTests {
         let fixture = MockedViewerWindowManager(files: [activeFile, newFile])
         defer { fixture.closeAll() }
         fixture.perFileState.sidebar.setCollapsed(false, for: activeFile)
-        fixture.sessionStore.noteActivated(activeFile)
+        fixture.sessionStore.noteActivated(activeFile, kind: .viewer)
 
         fixture.manager.openViewer(for: newFile)
 
