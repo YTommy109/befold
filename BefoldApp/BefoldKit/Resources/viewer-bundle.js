@@ -16814,7 +16814,7 @@
     }
     return true;
   }
-  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w./-]+|[\w.-]+\/[\w./-]+)|(?:^|(?<=\s))\/[\w./-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w.\p{L}\p{N}/-]+|[\w.-][\w.\p{L}\p{N}-]*\/[\w.\p{L}\p{N}/-]+)|(?:^|(?<=\s))\/[\w.\p{L}\p{N}/-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
   var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
   function _annotatePathRefs() {
     var wrap = document.getElementById("diagram-wrap");
