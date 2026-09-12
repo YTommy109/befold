@@ -4,9 +4,11 @@ title: Bookmark を管理 UI から削除できるようにする
 status: To Do
 assignee: []
 created_date: '2026-08-21 07:27'
+updated_date: '2026-09-12 13:19'
 labels: []
 milestone: m-9
-dependencies: []
+dependencies:
+  - TASK-536.1
 parent_task_id: TASK-536
 priority: medium
 type: feature

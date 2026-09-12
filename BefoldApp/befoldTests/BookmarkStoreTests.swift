@@ -125,22 +125,49 @@ struct BookmarkStoreTests {
         #expect(relaunched.isBookmarked(url("a.mmd")))
     }
 
+    /// 別名はパスに紐づく(536.1 AC #4)。rename でパスが変わっても付けた名前は残る。
+    @Test("rename しても設定済みの別名は保持される")
+    func noteRenamedKeepsAlias() {
+        let store = makeStore()
+        store.add(url("old.mmd"))
+        store.setAlias("Kept name", for: url("old.mmd"))
+
+        store.noteRenamed(from: url("old.mmd"), to: url("new.mmd"))
+
+        #expect(store.library().entry(for: url("new.mmd"))?.alias == "Kept name")
+        #expect(store.library().entry(for: url("old.mmd")) == nil)
+    }
+
+    @Test("別名は別インスタンス(再起動相当)でも読める")
+    func aliasPersistsAcrossStoreInstances() {
+        let store = makeStore()
+        store.add(url("a.mmd"))
+        store.setAlias("Alpha", for: url("a.mmd"))
+
+        let relaunched = makeStore()
+
+        #expect(relaunched.library().entry(for: url("a.mmd"))?.alias == "Alpha")
+        #expect(relaunched.library().entry(for: url("a.mmd"))?.displayName == "Alpha")
+    }
+
     /// 汚染回帰ガード(TASK-175): 隔離 defaults 上のブックマーク操作一式が、本番アプリの
-    /// UserDefaults.standard("BookmarkedPaths")を一切書き換えないことを保証する。
+    /// UserDefaults.standard("Bookmarks" と旧キー "BookmarkedPaths")を一切書き換えないことを保証する。
     /// BookmarkStore.init(defaults:) の既定 .standard を復活させたり、注入を書き忘れて
     /// .standard へフォールバックする経路が再発した場合にここで検知する。
-    @Test("隔離 defaults 上のブックマーク操作は本番 standard の BookmarkedPaths を汚染しない")
+    @Test("隔離 defaults 上のブックマーク操作は本番 standard の Bookmarks を汚染しない")
     func isolatedBookmarkOperationsDoNotTouchProductionStandard() {
-        let productionKey = "BookmarkedPaths"
-        let before = UserDefaults.standard.stringArray(forKey: productionKey)
+        let productionKey = "Bookmarks"
+        let legacyKey = "BookmarkedPaths"
+        let before = UserDefaults.standard.data(forKey: productionKey)
+        let legacyBefore = UserDefaults.standard.stringArray(forKey: legacyKey)
 
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "ContaminationGuard"))
         store.add(url("guard-a.mmd"))
         store.toggle(url("guard-b.md"))
+        store.setAlias("Guard", for: url("guard-a.mmd"))
         store.noteRenamed(from: url("guard-a.mmd"), to: url("guard-a2.mmd"))
 
-        let after = UserDefaults.standard.stringArray(forKey: productionKey)
-        #expect(before == after)
-        #expect(after?.contains(url("guard-a2.mmd").normalizedPathKey) != true)
+        #expect(UserDefaults.standard.data(forKey: productionKey) == before)
+        #expect(UserDefaults.standard.stringArray(forKey: legacyKey) == legacyBefore)
     }
 }

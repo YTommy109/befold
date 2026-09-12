@@ -26,7 +26,7 @@ final class MainMenuCoordinator {
         bookmarkStore: stores.bookmarkStore
     )
     private lazy var bookmarksMenuController = BookmarksMenuController(
-        bookmarkedURLs: { [store = stores.bookmarkStore] in store.bookmarkedURLs() },
+        library: { [store = stores.bookmarkStore] in store.library() },
         openHandler: { [openHandler] url in openHandler(url) },
         removeMissingHandler: { [missingBookmarksPruner] in
             Task { await missingBookmarksPruner.pruneMissingBookmarks() }
