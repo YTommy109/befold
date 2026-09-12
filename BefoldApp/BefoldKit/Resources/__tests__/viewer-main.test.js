@@ -503,6 +503,37 @@ describe('検索ナビゲーション', () => {
     expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[0]);
   });
 
+  test('CSV の複数セルを再検索しても Range は検索ごとに1つだけ生成する', async () => {
+    const { document, window, main } = loadViewerMain({});
+    await main.render('first,second\nalpha alpha,alpine\nbeta,gamma', 'csv', ',');
+    const wrap = document.getElementById('diagram-wrap');
+    const originalHtml = wrap.innerHTML;
+    main._mmdOpenFind();
+    const input = document.getElementById('mmd-find-input');
+    // jsdom の時間計測では WebKit の live Range 更新コストを検出できないため、
+    // ヒット数・セル数に比例して Range を生成しないことを直接検証する。
+    const createRange = jest.spyOn(document, 'createRange');
+
+    for (const [query, expected] of [
+      ['a', 8],
+      ['al', 3],
+    ]) {
+      createRange.mockClear();
+      input.value = query;
+      input.dispatchEvent(new window.Event('input'));
+
+      expect(createRange).toHaveBeenCalledTimes(1);
+      expect(count(document)).toBe('1/' + expected);
+      expect(Array.from(wrap.querySelectorAll('mark'), (mark) => mark.textContent)).toEqual(
+        Array.from({ length: expected }, () => query),
+      );
+    }
+
+    main._mmdCloseFind();
+    expect(wrap.innerHTML).toBe(originalHtml);
+    createRange.mockRestore();
+  });
+
   // TASK-485.19 で jump.ts 側に見つかった回帰（外枠リネームへの追随漏れで
   // ボタンの click() が一度も配線されなくなっていた）と同型の穴を、
   // find.ts 側でも塞いでおく。next()/prev() の直接呼び出しではなく
