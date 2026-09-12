@@ -53,9 +53,14 @@ final class HostedPanelPresenter {
     }
 
     /// ブックマーク管理パネル。ストアはアプリ全体で 1 個の `stores.bookmarkStore` を渡し、
-    /// 開く経路は `openHandler`(`DocumentOpener`)へつなぐ。
+    /// 開く経路は `openHandler`(`DocumentOpener`)へつなぐ。削除は窓のブックマークボタンにも
+    /// 効くので、設定パネルと同じく全ウィンドウへの再同期を配線する。
     private func makeBookmarksController() -> HostedPanelWindowController {
-        let model = BookmarkManagerModel(store: stores.bookmarkStore, open: openHandler)
+        let model = BookmarkManagerModel(
+            store: stores.bookmarkStore,
+            open: openHandler,
+            onChange: { [weak windowManager] in windowManager?.display.refreshAllToolbars() }
+        )
         return HostedPanelWindowController(
             rootView: BookmarkManagerView(model: model),
             title: String(localized: "bookmarks.manager.windowTitle", bundle: .l10n),

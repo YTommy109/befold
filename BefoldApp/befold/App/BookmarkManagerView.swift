@@ -2,7 +2,7 @@ import AppKit
 import BefoldKit
 import SwiftUI
 
-/// ブックマーク管理パネルの中身。一覧(表示名 + 親ディレクトリ)と、行の右クリックからの別名変更。
+/// ブックマーク管理パネルの中身。一覧(表示名 + 親ディレクトリ)と、行の右クリックからの別名変更・削除。
 ///
 /// 一覧は `BookmarkManagerModel` のスナップショットだけを描く。**存在確認(stat)はしない**
 /// (`BookmarksMenuController` と同じ約束。応答しないマウントで待たされるため)。
@@ -14,6 +14,8 @@ import SwiftUI
 struct BookmarkManagerView: View {
     let model: BookmarkManagerModel
 
+    /// 選択中の行(`BookmarkEntry.path`)。Delete キーの対象になる。
+    @State private var selection: String?
     /// 別名を編集中のエントリ。nil なら alert は出ていない。
     @State private var renaming: BookmarkEntry?
     @State private var aliasDraft = ""
@@ -25,9 +27,10 @@ struct BookmarkManagerView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(model.entries, id: \.path) { entry in
+                List(model.entries, id: \.path, selection: $selection) { entry in
                     row(for: entry)
                 }
+                .onDeleteCommand { removeSelected() }
             }
         }
         .frame(minWidth: 400, minHeight: 300)
@@ -74,7 +77,21 @@ struct BookmarkManagerView: View {
                 aliasDraft = entry.alias ?? ""
                 renaming = entry
             }
+            // 文言は Bookmarks メニューのトグル(解除側)と揃える。
+            Button(String(localized: "menu.bookmarks.remove", bundle: .l10n)) {
+                remove(entry)
+            }
         }
+    }
+
+    private func removeSelected() {
+        guard let entry = model.entries.first(where: { $0.path == selection }) else { return }
+        remove(entry)
+    }
+
+    private func remove(_ entry: BookmarkEntry) {
+        model.remove(entry.url)
+        if selection == entry.path { selection = nil }
     }
 
     private var isRenaming: Binding<Bool> {

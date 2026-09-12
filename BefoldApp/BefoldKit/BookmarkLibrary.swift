@@ -68,8 +68,10 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
     }
 
     /// 一覧に出す順(表示名順)。メニューとパネルが同じ順で並ぶよう、順序の規則はここ 1 箇所に置く。
+    /// 比較は Finder と同じ `localizedStandardCompare`(大文字小文字を区別せず、数字は数値順)。
+    /// 素の `<` だと別名の "Zulu" がファイル名の "apple.md" より前に来る(大文字が先に並ぶ)。
     public var entriesSortedByDisplayName: [BookmarkEntry] {
-        entries.sorted { $0.displayName < $1.displayName }
+        entries.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
     }
 
     public func contains(_ url: URL) -> Bool {
