@@ -142,7 +142,7 @@ it after `--` (e.g. `befold -- -notes.md`).
 - **Quick Open**: `⌘P` fuzzy-searches paths and opens files from the keyboard
 - **Follow file references**: `⌘+click` opens a link or referenced file. `⌘[` / `⌘]`
   (or a two-finger swipe) goes back and forward
-- **Bookmarks**: `⌘B` marks files you open often; reopen them from the File menu
+- **Bookmarks**: `⌘D` marks files you open often; reopen them from the Bookmarks menu
 - **Recent items / repositories**: recent files, plus repositories that reopen with their
   previous tab layout
 

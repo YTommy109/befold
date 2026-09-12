@@ -1,7 +1,10 @@
 import AppKit
 
-/// "Bookmarks" サブメニューを BookmarkStore の一覧から自前で構築する。
+/// トップレベルの "Bookmarks" メニューの中身を BookmarkStore の一覧から自前で構築する。
 /// RecentDocumentsMenuController と同じく NSMenuDelegate で表示直前に毎回再生成する。
+///
+/// 固定部(追加/削除のトグル)も毎回置き直す。`removeAllItems()` で一緒に消えるためで、
+/// 定義そのものは `MainMenuBuilder.addBookmarkToggleItem(to:)` 側にある(理由はそちらの doc)。
 ///
 /// 個別のブックマーク解除は該当ファイルを開いてトグルオフする運用だが、開けなくなった
 /// ファイル(削除・worktree ごと消滅)はその経路を取れないため、末尾に一括除去の項目を置く。
@@ -26,12 +29,14 @@ final class BookmarksMenuController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        MainMenuBuilder.addBookmarkToggleItem(to: menu)
         let urls = bookmarkedURLs().sorted { $0.lastPathComponent < $1.lastPathComponent }
-        menu.addFileItems(urls: urls, action: #selector(openBookmark(_:)), target: self)
         guard !urls.isEmpty else { return }
         menu.addItem(.separator())
+        menu.addFileItems(urls: urls, action: #selector(openBookmark(_:)), target: self)
+        menu.addItem(.separator())
         menu.addActionItem(
-            title: String(localized: "menu.file.removeMissingBookmarks", bundle: .l10n),
+            title: String(localized: "menu.bookmarks.removeMissing", bundle: .l10n),
             action: #selector(removeMissingBookmarks(_:)), target: self
         )
     }

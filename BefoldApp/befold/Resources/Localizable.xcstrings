@@ -783,6 +783,74 @@
         }
       }
     },
+    "menu.bookmarks.add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマークする"
+          }
+        }
+      }
+    },
+    "menu.bookmarks.remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Bookmark"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク解除"
+          }
+        }
+      }
+    },
+    "menu.bookmarks.removeMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Missing Bookmarks…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開けないブックマークを削除…"
+          }
+        }
+      }
+    },
+    "menu.bookmarks.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマーク"
+          }
+        }
+      }
+    },
     "menu.edit.copy": {
       "extractionState": "manual",
       "localizations": {
@@ -1024,23 +1092,6 @@
         }
       }
     },
-    "menu.file.bookmarks": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bookmarks"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブックマーク"
-          }
-        }
-      }
-    },
     "menu.file.clearMenu": {
       "extractionState": "manual",
       "localizations": {
@@ -1156,23 +1207,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近使ったリポジトリ"
-          }
-        }
-      }
-    },
-    "menu.file.removeMissingBookmarks": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Missing Bookmarks…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開けないブックマークを削除…"
           }
         }
       }
@@ -1331,23 +1365,6 @@
         }
       }
     },
-    "menu.view.addBookmark": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bookmark"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブックマークする"
-          }
-        }
-      }
-    },
     "menu.view.enterFullScreen": {
       "extractionState": "manual",
       "localizations": {
@@ -1463,23 +1480,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "行番号を隠す"
-          }
-        }
-      }
-    },
-    "menu.view.removeBookmark": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Bookmark"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブックマーク解除"
           }
         }
       }

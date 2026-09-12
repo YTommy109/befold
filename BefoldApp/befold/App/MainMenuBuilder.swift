@@ -36,11 +36,14 @@ enum MainMenuBuilder {
         mainMenu.addItem(makeFileMenuItem(
             openAction: openAction,
             recentMenuDelegate: dynamicMenuDelegates.recent,
-            bookmarksMenuDelegate: dynamicMenuDelegates.bookmarks,
             recentRepositoriesMenuDelegate: dynamicMenuDelegates.recentRepositories
         ))
         mainMenu.addItem(makeEditMenuItem(isDocumentJumpEnabled: isDocumentJumpEnabled))
         mainMenu.addItem(makeViewMenuItem())
+        // ブックマークは View と Window のあいだ(Safari と同じ位置)。File の
+        // Open Recent / Recent Repositories は「履歴」で、手で登録するブックマークとは
+        // 性質が違うため独立させた(TASK-535)。
+        mainMenu.addItem(makeBookmarksMenuItem(delegate: dynamicMenuDelegates.bookmarks))
         mainMenu.addItem(makeWindowMenuItem())
         mainMenu.addItem(makeHelpMenuItem(helpActions))
         return mainMenu
@@ -83,7 +86,7 @@ enum MainMenuBuilder {
     }
 
     private static func makeFileMenuItem(
-        openAction: Selector, recentMenuDelegate: NSMenuDelegate, bookmarksMenuDelegate: NSMenuDelegate,
+        openAction: Selector, recentMenuDelegate: NSMenuDelegate,
         recentRepositoriesMenuDelegate: NSMenuDelegate
     ) -> NSMenuItem {
         let item = NSMenuItem()
@@ -97,12 +100,12 @@ enum MainMenuBuilder {
         )
 
         // 「開くコマンド」と「記憶済みリストから選ぶ」を区切る。
-        // リストは履歴(Open Recent / Recent Repositories)を隣接させ、手動登録の Bookmarks を末尾に置く。
+        // ここに残るのは履歴だけ。手で登録するブックマークは性質が違うため、
+        // トップレベルの Bookmarks メニューへ出してある(TASK-535)。
         menu.addItem(.separator())
 
         menu.addLocalizedSubmenu("menu.file.openRecent", delegate: recentMenuDelegate)
         menu.addLocalizedSubmenu("menu.file.recentRepositories", delegate: recentRepositoriesMenuDelegate)
-        menu.addLocalizedSubmenu("menu.file.bookmarks", delegate: bookmarksMenuDelegate)
 
         menu.addItem(.separator())
         menu.addLocalizedItem("menu.file.close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

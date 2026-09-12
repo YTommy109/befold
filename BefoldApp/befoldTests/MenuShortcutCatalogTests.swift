@@ -27,6 +27,7 @@ struct MenuShortcutCatalogTests {
             fixture.localizedTitle("menu.file.title"),
             fixture.localizedTitle("menu.edit.title"),
             fixture.localizedTitle("menu.view.title"),
+            fixture.localizedTitle("menu.bookmarks.title"),
             fixture.localizedTitle("menu.window.title"),
             fixture.localizedTitle("menu.help.title"),
         ])
@@ -49,7 +50,7 @@ struct MenuShortcutCatalogTests {
 
         #expect(!fileEntries.contains { $0.title.isEmpty })
         #expect(!fileEntries.contains { $0.title == fixture.localizedTitle("menu.file.openRecent") })
-        #expect(!fileEntries.contains { $0.title == fixture.localizedTitle("menu.file.bookmarks") })
+        #expect(!fileEntries.contains { $0.title == fixture.localizedTitle("menu.file.recentRepositories") })
     }
 
     /// 修飾キーは macOS 標準の ⌃⌥⇧⌘ 順で表記し、英字は大文字にする。
@@ -61,6 +62,9 @@ struct MenuShortcutCatalogTests {
         (groupKey: "menu.view.title", titleKey: "menu.view.showHiddenFiles", key: "⌃⌘H"),
         (groupKey: "menu.view.title", titleKey: "menu.view.goBack", key: "⌘["),
         (groupKey: "menu.file.title", titleKey: "menu.file.print", key: "⇧⌘P"),
+        // 一覧は mainMenu へ設定する前の木から取るため、delegate が表示直前に作る項目は
+        // 載らない。ここが落ちたら Bookmarks の固定部が delegate 任せになっている。
+        (groupKey: "menu.bookmarks.title", titleKey: "menu.bookmarks.add", key: "⌘D"),
         // 旧一覧は存在しないキー menu.help.appHelp を ⌘? として載せていた(TASK-240 で判明)。
         (groupKey: "menu.help.title", titleKey: "menu.help.visitWebsite", key: "⌘?"),
     ])

@@ -7,21 +7,28 @@ import Testing
 struct MainMenuBuilderTests {
     private let fixture = MainMenuFixture()
 
-    @Test("トップレベルは App/File/Edit/View/Window/Help の 6 メニュー")
+    /// 並び順そのものを固定する。ブックマークは View と Window のあいだ(TASK-535)。
+    @Test("トップレベルは App/File/Edit/View/Bookmarks/Window/Help の 7 メニュー")
     func topLevelMenusArePresent() {
         let mainMenu = fixture.menu()
 
-        #expect(mainMenu.items.count == 6)
+        // 先頭のアプリメニューだけ NSMenu のタイトルが空。
         let titles = mainMenu.items.compactMap(\.submenu?.title)
-        #expect(titles.contains(fixture.localizedTitle("menu.file.title")))
-        #expect(titles.contains(fixture.localizedTitle("menu.edit.title")))
-        #expect(titles.contains(fixture.localizedTitle("menu.view.title")))
-        #expect(titles.contains(fixture.localizedTitle("menu.window.title")))
-        #expect(titles.contains(fixture.localizedTitle("menu.help.title")))
+        #expect(titles == [
+            "",
+            fixture.localizedTitle("menu.file.title"),
+            fixture.localizedTitle("menu.edit.title"),
+            fixture.localizedTitle("menu.view.title"),
+            fixture.localizedTitle("menu.bookmarks.title"),
+            fixture.localizedTitle("menu.window.title"),
+            fixture.localizedTitle("menu.help.title"),
+        ])
     }
 
-    @Test("File メニューの記憶済みリストは 履歴2つ → Bookmarks の順で並ぶ")
-    func fileMenuListsHistoriesBeforeBookmarks() throws {
+    /// ブックマークをトップレベルへ出したので、File に残る記憶済みリストは履歴 2 つだけ
+    /// (手で登録するブックマークと、勝手に溜まる履歴を同じ場所に置かない。TASK-535)。
+    @Test("File メニューの記憶済みリストは履歴 2 つで、Bookmarks を含まない")
+    func fileMenuListsHistoriesOnly() throws {
         let file = try #require(fixture.submenu(titledKey: "menu.file.title"))
 
         let recentIndex = try #require(file.items.firstIndex {
@@ -30,14 +37,23 @@ struct MainMenuBuilderTests {
         let recentRepositoriesIndex = try #require(file.items.firstIndex {
             $0.submenu?.title == fixture.localizedTitle("menu.file.recentRepositories")
         })
-        let bookmarksIndex = try #require(file.items.firstIndex {
-            $0.submenu?.title == fixture.localizedTitle("menu.file.bookmarks")
-        })
         #expect(recentRepositoriesIndex == recentIndex + 1)
-        #expect(bookmarksIndex == recentRepositoriesIndex + 1)
         // 「開くコマンド」群とは区切り線で分かれ、リスト群の直後も区切り線で閉じる。
         #expect(file.items[recentIndex - 1].isSeparatorItem)
-        #expect(file.items[bookmarksIndex + 1].isSeparatorItem)
+        #expect(file.items[recentRepositoriesIndex + 1].isSeparatorItem)
+        #expect(!file.items.contains {
+            $0.submenu?.title == fixture.localizedTitle("menu.bookmarks.title")
+        })
+    }
+
+    @Test("Bookmarks メニューに一覧の delegate が設定される")
+    func bookmarksMenuHasDelegate() throws {
+        // NSMenu.delegate は weak のため、フィクスチャに強参照を持たせて識別する。
+        let delegate = MainMenuFixture.StubMenuDelegate()
+        let injectedFixture = MainMenuFixture(bookmarksMenuDelegate: delegate)
+
+        let bookmarks = try #require(injectedFixture.submenu(titledKey: "menu.bookmarks.title"))
+        #expect(bookmarks.delegate === delegate)
     }
 
     @Test("File メニューに Recent Repositories サブメニューがある")
@@ -190,18 +206,20 @@ struct MainMenuBuilderTests {
 
     /// 差分が ⌘3 へ移ったので ⌘D は空き、ブックマークはビルド種別によらず ⌘D に固定される。
     /// 以前は差分ゲートに応じて ⌘B / ⌘D を切り替えていたが、その分岐は撤去した(TASK-356)。
-    @Test("ブックマークのキーはビルド種別によらず ⌘D")
-    func viewMenuBookmarkAlwaysUsesCommandD() throws {
-        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+    /// 置き場は View からトップレベルの Bookmarks へ移した(TASK-535)。
+    @Test("ブックマークのキーはビルド種別によらず ⌘D で、View には残らない")
+    func bookmarksMenuAlwaysUsesCommandD() throws {
+        let bookmarks = try #require(fixture.submenu(titledKey: "menu.bookmarks.title"))
+        let toggle = #selector(ViewerWindowController.toggleBookmark(_:))
 
-        let item = try #require(view.items.first { $0.action == #selector(ViewerWindowController.toggleBookmark(_:)) })
+        let item = try #require(bookmarks.items.first { $0.action == toggle })
         #expect(item.keyEquivalent == "d")
         #expect(item.keyEquivalentModifierMask == .command)
         #expect(BookmarkShortcut.keyEquivalent == "d")
         #expect(BookmarkShortcut.displayName == "⌘D")
-        // ⌘D を持つ項目はちょうど 1 つ（ブックマークだけ）。
-        let commandD = view.items.filter { $0.keyEquivalent == "d" && $0.keyEquivalentModifierMask == .command }
-        #expect(commandD.count == 1)
+
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+        #expect(!view.items.contains { $0.action == toggle })
     }
 
     @Test("Window メニューにタブ操作項目がある")

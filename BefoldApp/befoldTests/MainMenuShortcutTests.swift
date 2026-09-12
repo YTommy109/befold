@@ -99,4 +99,27 @@ struct ViewMenuValidationTests {
             #expect(ViewerMenuValidator.validate(item, source: source(binary: false)))
         }
     }
+
+    /// Bookmarks のトグルは一覧の再生成のたびに作り直される（TASK-535）。View メニューに
+    /// 固定で 1 つあった頃と違い、**作り直された項目に状態が乗るか**が新しく壊れうる。
+    /// AppKit は `menuNeedsUpdate:` の直後に項目を検証するので、この経路が切れると
+    /// 文言が「ブックマークする」のまま固まり、解除できるのかが読めなくなる。
+    @Test("作り直された Bookmarks のトグルも文言がブックマーク状態で入れ替わる")
+    func rebuiltBookmarkToggleReflectsState() throws {
+        let controller = BookmarksMenuController(
+            bookmarkedURLs: { [] }, openHandler: { _ in }, removeMissingHandler: {}
+        )
+        let item = MainMenuBuilder.makeBookmarksMenuItem(delegate: controller)
+        let menu = try #require(item.submenu)
+        controller.menuNeedsUpdate(menu)
+        let toggle = try #require(menu.items.first)
+        let stub = source(binary: false)
+
+        #expect(ViewerMenuValidator.validate(toggle, source: stub))
+        #expect(toggle.title == ViewerCommandTitles.bookmark(isBookmarked: false))
+
+        stub.isBookmarked = true
+        #expect(ViewerMenuValidator.validate(toggle, source: stub))
+        #expect(toggle.title == ViewerCommandTitles.bookmark(isBookmarked: true))
+    }
 }

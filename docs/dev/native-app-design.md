@@ -190,7 +190,7 @@ BefoldApp/
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
-| `MainMenuBuilder` | メインメニューをコードで構築 |
+| `MainMenuBuilder` | メインメニューをコードで構築。トップレベルは App / File / Edit / View / Bookmarks / Window / Help の 7 つで、ブックマークは追加・削除のトグルと一覧を 1 つのメニューに集約する（TASK-535）。一覧は `BookmarksMenuController` が表示直前に作り直すが、**固定部のトグルは組み立て時にも `addBookmarkToggleItem(to:)` で置く**——`MenuShortcutCatalog.snapshot` は `NSApp.mainMenu` へ設定する前のメニュー木から取るため、delegate が作る項目は Help のショートカット一覧に載らない |
 | `MenuShortcutCatalog` / `HelpShortcutSections` | Help > キーボードショートカット に並べる一覧の組み立て。メニュー由来は `NSMenu` から抽出し、メニューを経由しない操作は `ViewerShortcutCatalog` / `SidebarShortcutCatalog` / `QuickOpenShortcutCatalog` から引く。キー表記の組み立ては `ShortcutKey` に集約し、一覧と実装のずれは各カタログの突合テストで落とす。ビューア内の一覧は文書内ジャンプのゲート（`FeatureGate.isDocumentJumpEnabled`）を必須引数で受け取り、ゲート開でのみ Enter / ⇧Return のジャンプ移動を載せ、Esc の説明を「検索バーを閉じる」から「検索バー・ジャンプバーを閉じる」へ入れ替える |
 | `RecentDocumentsStore` / `RecentDocumentsMenuController` | 最近使ったファイルを UserDefaults に自前で永続化しメニュー描画（ad-hoc 署名では OS 標準の Recent Documents が更新のたびにリセットされるため） |
 | `SessionStore` | 終了時のウィンドウ/タブグループ構成（`SessionLayout`）の型。各グループ（＝窓 1 枚）は寸法（`frame`）も持ち、再起動時に窓ごとの大きさを戻す（ADR 0010「窓の状態」）。アクティブ記録の `noteActivated(_:kind:)` は**種別を必須引数で受け、ゲートをストア側に置く**——書き手が `ViewerWindowSessionSync.viewerWindowDidBecomeKey` と `AppDelegate.applicationShouldTerminate` の 2 つあり、呼び出し側の `if` では片方だけ落とせるため（TASK-616。`RecentDocumentsStore.noteOpened(_:kind:)` と同じ形）。復元時にキーにする窓を引く `ViewerWindowManager.window(forPath:)` も `isRestorable` な窓だけを見る |
