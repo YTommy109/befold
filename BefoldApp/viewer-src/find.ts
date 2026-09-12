@@ -247,7 +247,13 @@ function _createFindController(): FindController {
   // 1スコープ(bridgeTags でつながった範囲)のテキストを連結してマッチさせ、マッチ
   // 位置を (textNode, localOffset) に逆引きして Range を組み、<mark> で置き換える。
   // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
-  function matchScope(root: Node, textNodeList: Text[], regex: RegExp, found: HTMLElement[]): void {
+  function matchScope(
+    root: Node,
+    textNodeList: Text[],
+    regex: RegExp,
+    found: HTMLElement[],
+    domRange: Range,
+  ): void {
     var starts: number[] = [];
     var text = '';
     textNodeList.forEach(function (node) {
@@ -282,7 +288,6 @@ function _createFindController(): FindController {
       // 増殖し、シンタックスハイライトの構造が壊れていく)。
       var startAncestor: Node | null = start.node.parentNode;
       var endAncestor: Node | null = end.node.parentNode;
-      var domRange = document.createRange();
       domRange.setStart(start.node, start.localOffset);
       domRange.setEnd(end.node, end.localOffset);
 
@@ -301,8 +306,11 @@ function _createFindController(): FindController {
   // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
   // ごとにマッチさせる。document 順のまま found に積む。
   function walk(root: Node, regex: RegExp, found: HTMLElement[]): void {
+    // ヒットごとに生成すると、GC まで残る live Range の境界更新が DOM 操作のたびに走る。
+    // WebKit で大量ヒット時に入力が固まるため、検索全体で1つを使い回す。
+    var domRange = document.createRange();
     collectScopes(root).forEach(function (textNodeList) {
-      matchScope(root, textNodeList, regex, found);
+      matchScope(root, textNodeList, regex, found, domRange);
     });
   }
 
