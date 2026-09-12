@@ -31,7 +31,12 @@ enum ViewerWindowKind: Equatable {
         self == .viewer
     }
 
-    /// 既存の窓のタブグループへ合流してよいか。
+    /// タブグループを他の窓と共有してよいか。**両方向をこの 1 つの述語で決める**——
+    /// 既存の窓のタブグループへ合流する側(`ViewerWindowChrome` の `tabbingMode`)も、
+    /// この窓のグループへ他の窓がタブとして加わる側(`ViewerWindowOpenPolicy.effectiveDisposition`)も同じ。
+    ///
+    /// 器の側の `tabbingMode = .disallowed` だけでは後者を止められない(TASK-615)。止まるのは
+    /// **自動**タブ化だけで、`NSWindow.addTabbedWindow(_:ordered:)` の明示的な結合は通る。
     var joinsTabs: Bool {
         self == .viewer
     }
@@ -47,6 +52,13 @@ enum ViewerWindowKind: Equatable {
     /// 「最近使ったもの」が押し出される。判定はこの 1 つの述語にまとめ、
     /// 履歴ごとに別の条件を持たせない。
     var recordsUsageHistory: Bool {
+        self == .viewer
+    }
+
+    /// 同じファイルの再オープン(`.currentTab`、同じグループ内の `.newTab`)の受け皿として
+    /// 再利用してよいか(TASK-613)。`false` の種別が開いているだけのファイルは「その窓を
+    /// 前面化して終わり」にせず、通常窓を新しく開く。
+    var acceptsReopen: Bool {
         self == .viewer
     }
 

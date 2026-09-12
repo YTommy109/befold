@@ -1,9 +1,11 @@
 ---
 id: TASK-613
 title: スライド窓だけで開いているファイルを外から開くと、通常窓が開かず Open Recent にも載らない
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@tokutomi'
 created_date: '2026-09-11 08:58'
+updated_date: '2026-09-11 12:52'
 labels: []
 dependencies: []
 ordinal: 803000
@@ -21,9 +23,31 @@ TASK-593.2 で「スライド窓は復元対象外・タブ合流なし」と決
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ファイルがスライド窓だけで開いている状態で同じファイルを `.currentTab` で開くと、新しい通常のビューア窓が開く
-- [ ] #2 その通常窓が開いたとき Open Recent に記録される
-- [ ] #3 同じファイルが通常窓でも開いている場合は従来どおりその通常窓を前面化する（新しい窓を増やさない）
-- [ ] #4 `.newTab` の再利用判定（同じタブグループ内）でもスライド窓は候補にならない
-- [ ] #5 `ViewerWindowOpenPolicyTests` に kind で絞る判定のテストがある
+- [x] #1 ファイルがスライド窓だけで開いている状態で同じファイルを `.currentTab` で開くと、新しい通常のビューア窓が開く
+- [x] #2 その通常窓が開いたとき Open Recent に記録される
+- [x] #3 同じファイルが通常窓でも開いている場合は従来どおりその通常窓を前面化する（新しい窓を増やさない）
+- [x] #4 `.newTab` の再利用判定（同じタブグループ内）でもスライド窓は候補にならない
+- [x] #5 `ViewerWindowOpenPolicyTests` に kind で絞る判定のテストがある
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. `ViewerWindowKind` に述語 `acceptsReopen`（`self == .viewer`）を足す（呼び出し側で `kind == .slide` と書かない規約）。
+2. `ViewerWindowOpenPolicy.reusableController` の先頭で候補を `acceptsReopen` で絞る。`.currentTab` と `.newTab` の両分岐が同じ絞り込みを通る。
+3. テスト: `ViewerWindowOpenPolicyTests`（新規）で純粋な判定を 3 ケース、`ViewerWindowManagerTests` で実配線（スライド窓だけで開いているファイルを currentTab で開くと通常窓が開き履歴にも載る）。新規ファイルなので `xcodegen generate`。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+検証: `swift test --skip Integration --skip FileWatcherTests` 1879 tests / 308 suites 全通過。
+新規テスト 4 件（`ViewerWindowOpenPolicyTests` 3 件、`ViewerWindowManagerTests` 1 件）。`xcodegen generate` 実施済み。
+AC #4 について: スライド窓は `joinsTabs == false` で起点のタブグループに入らないため実際には起こらないが、絞り込みを分岐の手前 1 箇所に置いたので `.newTab` 側も同じ判定を通る（テストで固定）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+`.currentTab` / `.newTab` の再利用候補を `ViewerWindowKind.acceptsReopen` で絞り、スライド窓だけで開いているファイルを Finder / Quick Open から開くと通常窓が開き、利用履歴にも載るようにした。検証: swift test 1879 件全通過、純粋判定 3 件＋実配線 1 件のテストを追加。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -10,15 +10,19 @@ SCRATCH=<このセッションのスクラッチパッドディレクトリ>
 ROOT=$(git rev-parse --show-toplevel)
 LINT="$ROOT/BefoldApp/.build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint"
 
+# 0. 行番号とディレクトリ接頭辞を落として `BefoldApp/...` からの相対パスに揃える。
+#    接頭辞を $SCRATCH / $ROOT の文字列で剥がしてはいけない——スクラッチパッドが /tmp 配下だと
+#    swiftlint は /private/tmp/... と報告するため一致せず、両側が別のパス形になって
+#    「48 件すべてが新規」という偽の結果になる（実測）。
+strip() { sed -E 's/:[0-9]+:[0-9]+:/:/' | sed -E 's|^.*/(BefoldApp/)|\1|' | sort; }
+
 # 1. main 側のベースラインを別ディレクトリへ展開して測る
 rm -rf "$SCRATCH/main-baseline"; mkdir -p "$SCRATCH/main-baseline"
 git -C "$ROOT" archive origin/main | tar -x -C "$SCRATCH/main-baseline"
-(cd "$SCRATCH/main-baseline/BefoldApp" && "$LINT" lint --quiet 2>/dev/null \
-  | sed -E 's/:[0-9]+:[0-9]+:/:/' | sed "s|$SCRATCH/main-baseline/||" | sort > "$SCRATCH/lint-main.txt")
+(cd "$SCRATCH/main-baseline/BefoldApp" && "$LINT" lint --quiet 2>/dev/null | strip > "$SCRATCH/lint-main.txt")
 
 # 2. 作業ツリー側を測る
-(cd "$ROOT/BefoldApp" && "$LINT" lint --quiet 2>/dev/null \
-  | sed -E 's/:[0-9]+:[0-9]+:/:/' | sed "s|$ROOT/||" | sort > "$SCRATCH/lint-head.txt")
+(cd "$ROOT/BefoldApp" && "$LINT" lint --quiet 2>/dev/null | strip > "$SCRATCH/lint-head.txt")
 
 # 3. 比較
 diff "$SCRATCH/lint-main.txt" "$SCRATCH/lint-head.txt"

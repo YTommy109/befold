@@ -25,12 +25,37 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     /// セッション集合とアクティブ記録から消える(TASK-412)。参照が残っているかの判定は
     /// controllers の有無そのもので足りるので、SessionStore 側に参照カウントは持たせない。
     /// close 経路と remap 経路が別々の判定を持たないよう、必ずここを通す。
+    ///
+    /// **スライド窓は数に入れない**(TASK-612)。復元の対象外(`isRestorable == false`)なので、
+    /// 通常窓を閉じてスライド窓だけが残った状態は「復元するものが無い」= 閉じたことにする。
+    /// 逆にスライド窓を閉じても、通常窓が残っていれば記録は消さない。
     private func noteClosedIfNoWindowRemains(for url: URL) {
-        guard manager.controllers[url.normalizedPathKey] == nil else { return }
+        let remaining = manager.controllers[url.normalizedPathKey] ?? []
+        guard !remaining.contains(where: \.kind.isRestorable) else { return }
         manager.sessionStore.noteClosed(url)
     }
 
+    /// 「開いた」記録の唯一の入口(TASK-612)。セッション(`isRestorable`)と利用履歴
+    /// (`recordsUsageHistory`。判定は `RecentDocumentsStore` が持つ)は別の述語で決まるが、
+    /// どちらも窓の種別から決まるので、呼び出し側が片方だけ書けない形にする。
+    /// 新規オープン(`openViewer`)とファイル切替(`remapController`)がここを通る。
+    func noteOpened(_ url: URL, in controller: ViewerWindowController) {
+        if controller.kind.isRestorable {
+            manager.sessionStore.noteOpened(url)
+        }
+        manager.recentDocumentsStore.noteOpened(url, kind: controller.kind)
+    }
+
     /// rename / switch に伴うウィンドウ管理辞書のキー付け替えとセッション・履歴の更新。
+    ///
+    /// rename 固有の付け替え(旧パス → 新パス)を先に済ませ、**「開いた」記録は両分岐とも
+    /// 最後に `noteOpened(_:in:)` で行う**(TASK-616)。rename 分岐だけが
+    /// `sessionStore.noteOpened` を直接呼ぶ形にすると、唯一の入口という宣言が同じ関数の中で
+    /// 破れる。`RecentDocumentsStore.noteRenamed` は内部で `noteOpened` を呼ぶが、
+    /// moveToFront は冪等なので 1 回多く通っても結果は同じ。
+    ///
+    /// 順序の制約: `sessionStore.noteRenamed` はアクティブ記録を旧パスから新パスへ書き換える。
+    /// 旧パスと一致するアクティブ記録を消す `noteClosedIfNoWindowRemains` より**前**に置く。
     private func remapController(
         _ controller: ViewerWindowController,
         from oldURL: URL,
@@ -40,18 +65,16 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
         manager.detach(controller, fromKey: oldURL.normalizedPathKey)
         manager.register(controller, forKey: newURL.normalizedPathKey)
         if isRename {
-            manager.sessionStore.noteRenamed(from: oldURL, to: newURL)
-        }
-        noteClosedIfNoWindowRemains(for: oldURL)
-        manager.sessionStore.noteOpened(newURL)
-        if isRename {
+            if controller.kind.isRestorable {
+                manager.sessionStore.noteRenamed(from: oldURL, to: newURL)
+            }
             manager.recentDocumentsStore.noteRenamed(
                 from: oldURL, to: newURL, kind: controller.kind
             )
             manager.shared.bookmarkStore.noteRenamed(from: oldURL, to: newURL)
-        } else {
-            manager.recentDocumentsStore.noteOpened(newURL, kind: controller.kind)
         }
+        noteClosedIfNoWindowRemains(for: oldURL)
+        noteOpened(newURL, in: controller)
     }
 
     // MARK: - ViewerWindowControllerDelegate
@@ -67,7 +90,9 @@ final class ViewerWindowSessionSync: ViewerWindowControllerDelegate {
     }
 
     func viewerWindowDidBecomeKey(_ controller: ViewerWindowController) {
-        manager.sessionStore.noteActivated(controller.fileURL)
+        // 種別のゲートは SessionStore が持つ(TASK-616)。ここで `if` を書くと、同じストアを
+        // 外から触る AppDelegate 側だけゲートを落とせてしまう。
+        manager.sessionStore.noteActivated(controller.fileURL, kind: controller.kind)
         // タブグループが壊れていない状態を観測できる唯一の契機。ここで記録しておかないと、
         // タブを複数開いたウィンドウの構成は close 時には既に失われている。
         manager.recentRepositories.recordTabGroup(of: controller)

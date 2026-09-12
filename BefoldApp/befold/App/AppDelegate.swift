@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if let controller = ActiveViewerProvider.fromMainWindow() {
-            stores.sessionStore.noteActivated(controller.fileURL)
+            stores.sessionStore.noteActivated(controller.fileURL, kind: controller.kind)
         }
         // 終了時は windowWillClose が発火しないことがあるため、リポジトリ単位のタブ構成も
         // セッション全体のレイアウトと同じタイミングでスナップショットしておく。

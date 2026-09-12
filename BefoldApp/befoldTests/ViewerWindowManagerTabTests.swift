@@ -170,6 +170,46 @@ struct ViewerWindowManagerTabTests {
         #expect(opened.last?.window?.tabGroup === otherWindow?.tabGroup)
     }
 
+    /// スライド窓を起点にした cmd+クリック(TASK-615)。器の `tabbingMode = .disallowed` は
+    /// **自動**タブ化しか止めないので、`addTabbedWindow` を通す `.newTab` の経路は開く側で倒す。
+    /// 倒し損ねると、発表中のスライド窓に通常窓がタブとして吸い込まれる。
+    @Test("スライド窓を起点にした newTab は独立した通常窓を開き、スライド窓のタブにならない")
+    func newTabFromSlideWindowOpensIndependentWindow() throws {
+        let first = URL(fileURLWithPath: "/mock/first.md")
+        let second = URL(fileURLWithPath: "/mock/second.md")
+        let fixture = MockedViewerWindowManager(files: [first, second], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
+        let slideWindow = try #require(
+            fixture.manager.openViewer(for: first, disposition: .slide)?.window
+        )
+
+        let opened = try #require(
+            fixture.manager.openViewer(for: second, disposition: .newTab, relativeTo: slideWindow)
+        )
+
+        #expect(opened.kind == .viewer)
+        #expect(opened.window?.tabGroup?.windows.contains { $0 === slideWindow } != true)
+    }
+
+    /// 同じファイルでも同じこと(TASK-615)。TASK-613 でスライド窓が再利用候補から外れたため、
+    /// ここは「スライド窓が前面化する」ではなく「通常窓が新しく開く」経路を通る。
+    @Test("スライド窓を起点に同じファイルを newTab で開いても独立した通常窓になる")
+    func newTabForSameFileFromSlideWindowOpensIndependentWindow() throws {
+        let file = URL(fileURLWithPath: "/mock/only.md")
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowManagerTabTests")
+        defer { fixture.closeAll() }
+        let slide = try #require(fixture.manager.openViewer(for: file, disposition: .slide))
+        let slideWindow = try #require(slide.window)
+
+        let opened = try #require(
+            fixture.manager.openViewer(for: file, disposition: .newTab, relativeTo: slideWindow)
+        )
+
+        #expect(opened !== slide)
+        #expect(opened.kind == .viewer)
+        #expect(opened.window?.tabGroup?.windows.contains { $0 === slideWindow } != true)
+    }
+
     @Test("Finder/CLI 由来の再オープン(currentTab)は重複ウィンドウを作らない")
     func currentTabReopenReusesExistingWindow() {
         let file = URL(fileURLWithPath: "/mock/only.md")
