@@ -4,7 +4,7 @@ title: Bookmark メニューをトップレベルメニューへ独立させる
 status: Done
 assignee: []
 created_date: '2026-08-21 07:25'
-updated_date: '2026-09-12 11:54'
+updated_date: '2026-09-12 11:56'
 labels: []
 milestone: m-9
 dependencies: []
@@ -156,6 +156,11 @@ GitHub Issue #653（`viewer-src/path-refs.ts` の裸パス自動リンク化）�
 (2) ⌘D で項目名が「ブックマークする」↔「ブックマーク解除」に変わるか、
 (3) Bookmarks メニューにブックマーク済みファイルの一覧と「開けないブックマークを削除…」が
 出るか、を目視で確認すること。
+
+**手動確認、完了（2026-09-12、ユーザーによる目視）。** Notes に残していた 3 点
+（メニューバーで Bookmarks が View と Window のあいだに出る / ⌘D で項目名が
+「ブックマークする」↔「ブックマーク解除」に切り替わる / Bookmarks メニューに
+一覧と「開けないブックマークを削除…」が出る）をいずれも確認し、問題なし。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
