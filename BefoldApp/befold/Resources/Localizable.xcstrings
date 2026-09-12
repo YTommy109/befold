@@ -783,6 +783,57 @@
         }
       }
     },
+    "bookmarks.manager.create": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作成"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.deleteFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Folder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーを削除"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.duplicateFolder.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A folder with that name already exists there."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ場所に同じ名前のフォルダーがあります。"
+          }
+        }
+      }
+    },
     "bookmarks.manager.empty": {
       "extractionState": "manual",
       "localizations": {
@@ -796,6 +847,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "ブックマークはありません"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.folderName.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder name"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダー名"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.moveToFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Folder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーへ移動"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.newFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規フォルダー…"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.newFolder.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規フォルダー"
           }
         }
       }
@@ -864,6 +983,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "ブックマークの名前"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.renameFolder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Folder…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダー名を変更…"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.renameFolder.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Name"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダー名"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.topLevel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top Level"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トップレベル"
           }
         }
       }

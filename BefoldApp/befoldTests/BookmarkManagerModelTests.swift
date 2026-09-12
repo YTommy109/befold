@@ -69,4 +69,25 @@ struct BookmarkManagerModelTests {
 
         #expect(model.entries.map(\.url) == [note])
     }
+
+    /// フォルダーの操作は集合を変えないので窓側に伝えない。スナップショットだけが追随する。
+    @Test("フォルダーの作成・移動・改名・削除は onChange を呼ばず、一覧に反映される")
+    func folderOperationsRefreshWithoutNotifying() {
+        let store = makeStore()
+        var changes = 0
+        let model = BookmarkManagerModel(store: store, open: { _ in }, onChange: { changes += 1 })
+
+        #expect(model.createFolder(named: "Work", in: []))
+        #expect(!model.createFolder(named: "Work", in: []))
+        #expect(model.move(note, to: ["Work"]))
+        #expect(model.renameFolder(at: ["Work"], to: "Office"))
+        #expect(model.children(of: ["Office"]).entries.map(\.url) == [note])
+        model.setExpanded(false, for: ["Office"])
+        #expect(model.library.folders == [BookmarkFolder(path: ["Office"], isExpanded: false)])
+        #expect(model.deleteFolder(at: ["Office"]))
+
+        #expect(model.children(of: []).entries.map(\.url) == [diagram, note])
+        #expect(store.library().folders.isEmpty)
+        #expect(changes == 0)
+    }
 }
