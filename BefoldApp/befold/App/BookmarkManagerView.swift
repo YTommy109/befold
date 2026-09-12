@@ -23,6 +23,8 @@ struct BookmarkManagerView: View {
     @State private var draft = ""
     /// フォルダー名が同じ親の下で重複したとき(作成・改名・削除の繰り上げ)に出す。
     @State private var showsDuplicateFolderName = false
+    /// Finder からのドラッグが一覧の上にあるあいだ true(落とし先の強調に使う)。
+    @State private var isDropTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,11 +34,31 @@ struct BookmarkManagerView: View {
                 Button(String(localized: "bookmarks.manager.newFolder", bundle: .l10n)) {
                     start(.newFolder(parent: selectedFolderPath))
                 }
+                if let feedback = model.lastDrop?.feedback {
+                    Text(feedback)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(feedback)
+                }
                 Spacer()
             }
             .padding(8)
         }
         .frame(minWidth: 400, minHeight: 300)
+        // 一覧の空き領域(と空状態)へのドロップはトップレベルへ。フォルダー行は自分で受ける。
+        .onDrop(of: Self.droppableTypes, isTargeted: $isDropTargeted) { providers in
+            handleDrop(providers, into: [])
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .padding(2)
+                    .allowsHitTesting(false)
+            }
+        }
         // 窓側の ⌘D や CLI で変わった分を、パネルが前面に来たときに拾う。
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refresh()
@@ -92,6 +114,10 @@ struct BookmarkManagerView: View {
     private func folderRow(_ folder: BookmarkFolder) -> some View {
         Label(folder.name, systemImage: "folder")
             .contentShape(.rect)
+            // フォルダー行へ落とすとそのフォルダーの直下へ(一覧全体の受け口より内側なので優先される)。
+            .onDrop(of: Self.droppableTypes, isTargeted: nil) { providers in
+                handleDrop(providers, into: folder.path)
+            }
             .contextMenu {
                 Button(String(localized: "bookmarks.manager.renameFolder", bundle: .l10n)) {
                     start(.renameFolder(folder.path))

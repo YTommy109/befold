@@ -817,6 +817,57 @@
         }
       }
     },
+    "bookmarks.manager.drop.missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "見つかりません"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.drop.rejected %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld item(s) could not be added"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件を追加できませんでした"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.drop.unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "unsupported file type"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対応していない形式"
+          }
+        }
+      }
+    },
     "bookmarks.manager.duplicateFolder.message": {
       "extractionState": "manual",
       "localizations": {

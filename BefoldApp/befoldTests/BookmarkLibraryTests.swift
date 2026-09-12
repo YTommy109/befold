@@ -253,4 +253,18 @@ struct BookmarkLibraryTests {
         let decoded = try JSONDecoder().decode(BookmarkLibrary.self, from: JSONEncoder().encode(library))
         #expect(decoded.folders.map(\.isExpanded) == [false, true])
     }
+
+    /// ドロップ中にフォルダーが消えても取りこぼさない(ルートへ入れる)。
+    @Test("add(_:to:) は存在するフォルダーへ入れ、無ければルートへ入れる。登録済みは所属を変えない")
+    func addToFolderFallsBackToRoot() {
+        var library = BookmarkLibrary(folders: [BookmarkFolder(path: ["Work"])])
+
+        library.add(note, to: ["Work"])
+        library.add(diagram, to: ["Missing"])
+        library.add(note, to: [])
+
+        #expect(library.entry(for: note)?.folder == ["Work"])
+        #expect(library.entry(for: diagram)?.folder == [])
+        #expect(library.entries.count == 2)
+    }
 }
