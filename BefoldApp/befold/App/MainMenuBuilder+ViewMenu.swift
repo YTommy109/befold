@@ -24,11 +24,6 @@ extension MainMenuBuilder {
             action: #selector(ViewerWindowController.toggleLineNumbers(_:)),
             keyEquivalent: "l"
         )
-        menu.addLocalizedItem(
-            "menu.view.addBookmark",
-            action: #selector(ViewerWindowController.toggleBookmark(_:)),
-            keyEquivalent: BookmarkShortcut.keyEquivalent
-        )
         menu.addItem(.separator())
         // キー等価を与えたときの既定修飾キーは [.command] だが、意図を明示するため
         // 明示的に指定している(挙動は変わらない)。

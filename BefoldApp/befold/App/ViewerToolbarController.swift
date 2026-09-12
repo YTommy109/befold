@@ -57,7 +57,7 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         )),
         .item(ToolbarItemSpec(
             identifier: bookmarkItemIdentifier,
-            labelKey: "menu.view.addBookmark",
+            labelKey: "menu.bookmarks.add",
             view: .button(symbol: "bookmark", action: #selector(bookmarkItemClicked(_:))),
             menuAction: #selector(bookmarkItemClicked(_:)),
             applyState: { $0.applyBookmarkState(to: $1) }

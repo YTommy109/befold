@@ -13,11 +13,11 @@ enum ViewerCommandTitles {
             : String(localized: "menu.view.showLineNumbers", bundle: .l10n)
     }
 
-    /// View > ブックマーク。登録済みなら「解除」、未登録なら「追加」。
+    /// Bookmarks メニューのトグル。登録済みなら「解除」、未登録なら「追加」。
     static func bookmark(isBookmarked: Bool) -> String {
         isBookmarked
-            ? String(localized: "menu.view.removeBookmark", bundle: .l10n)
-            : String(localized: "menu.view.addBookmark", bundle: .l10n)
+            ? String(localized: "menu.bookmarks.remove", bundle: .l10n)
+            : String(localized: "menu.bookmarks.add", bundle: .l10n)
     }
 
     /// モード切替セグメントの差分。現在のレイアウト（インライン / 左右分割）まで伝える。

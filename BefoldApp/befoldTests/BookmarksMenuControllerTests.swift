@@ -17,9 +17,10 @@ struct BookmarksMenuControllerTests {
         )
     }
 
-    /// 一括除去の項目(セパレータの次)。
+    /// 一括除去の項目(末尾)。固定部のトグルは responder chain へ流すため target を持たず、
+    /// ブックマークが 0 件のときはそれが末尾に来るので除く。
     private func removeMissingItem(in menu: NSMenu) -> NSMenuItem? {
-        menu.items.last.flatMap { $0.isSeparatorItem ? nil : $0 }
+        menu.items.last.flatMap { $0.isSeparatorItem || $0.target == nil ? nil : $0 }
     }
 
     @Test("ブックマーク済み URL からファイル名アルファベット順でメニュー項目を構築する")
@@ -33,23 +34,25 @@ struct BookmarksMenuControllerTests {
 
         controller.menuNeedsUpdate(menu)
 
-        // 末尾はセパレータ + 一括除去の 2 項目。
-        #expect(menu.items.count == 4)
-        #expect(menu.items[0].title == "apple.md\t/tmp")
-        #expect(menu.items[1].title == "zebra.mmd\t/tmp")
-        #expect(menu.items[0].attributedTitle?.string == "apple.md\t/tmp")
-        #expect(menu.items[0].representedObject as? URL == urls[1])
-        #expect(menu.items[0].image != nil)
+        // 先頭はトグル + セパレータ、末尾はセパレータ + 一括除去。
+        #expect(menu.items.count == 6)
+        #expect(menu.items[2].title == "apple.md\t/tmp")
+        #expect(menu.items[3].title == "zebra.mmd\t/tmp")
+        #expect(menu.items[2].attributedTitle?.string == "apple.md\t/tmp")
+        #expect(menu.items[2].representedObject as? URL == urls[1])
+        #expect(menu.items[2].image != nil)
     }
 
-    @Test("ブックマークが無い場合はメニュー項目が空")
-    func showsNoItemsWhenBookmarksIsEmpty() {
+    @Test("ブックマークが無い場合は固定部のトグルだけが残る")
+    func showsOnlyToggleWhenBookmarksIsEmpty() throws {
         let controller = makeController(urls: [])
         let menu = NSMenu(title: "Bookmarks")
 
         controller.menuNeedsUpdate(menu)
 
-        #expect(menu.items.isEmpty)
+        #expect(menu.items.count == 1)
+        let toggle = try #require(menu.items.first)
+        #expect(toggle.action == #selector(ViewerWindowController.toggleBookmark(_:)))
     }
 
     @Test("繰り返し更新しても項目が重複しない")
@@ -61,8 +64,25 @@ struct BookmarksMenuControllerTests {
         controller.menuNeedsUpdate(menu)
         controller.menuNeedsUpdate(menu)
 
-        #expect(menu.items.count == 3)
-        #expect(menu.items[0].title == "diagram.mmd\t/tmp")
+        #expect(menu.items.count == 5)
+        #expect(menu.items[2].title == "diagram.mmd\t/tmp")
+    }
+
+    /// 固定部のトグルは `removeAllItems()` で一緒に消えるため、再生成のたびに置き直す。
+    /// ここが落ちると Help > キーボードショートカット から ⌘D が消える——一覧の
+    /// スナップショットは `NSApp.mainMenu` へ設定する**前の**メニュー木から取るので、
+    /// delegate が表示直前に作る項目は最初から載らない。
+    @Test("再生成しても先頭にブックマークのトグルが残る")
+    func keepsBookmarkToggleAfterRebuild() throws {
+        let controller = makeController(urls: [URL(fileURLWithPath: "/tmp/diagram.mmd")])
+        let menu = NSMenu(title: "Bookmarks")
+
+        controller.menuNeedsUpdate(menu)
+        controller.menuNeedsUpdate(menu)
+
+        let toggle = try #require(menu.items.first)
+        #expect(toggle.action == #selector(ViewerWindowController.toggleBookmark(_:)))
+        #expect(toggle.keyEquivalent == BookmarkShortcut.keyEquivalent)
     }
 
     @Test("ブックマークが 1 件でもあれば末尾に一括除去の項目が出る")
@@ -73,6 +93,7 @@ struct BookmarksMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         #expect(menu.items[1].isSeparatorItem)
+        #expect(menu.items[3].isSeparatorItem)
         let item = try #require(removeMissingItem(in: menu))
         #expect(!item.title.isEmpty)
     }
@@ -84,7 +105,7 @@ struct BookmarksMenuControllerTests {
 
         controller.menuNeedsUpdate(menu)
 
-        #expect(menu.items.isEmpty)
+        #expect(removeMissingItem(in: menu) == nil)
     }
 
     @Test("一括除去の項目を選ぶと removeMissingHandler が呼ばれる")
@@ -129,7 +150,7 @@ struct BookmarksMenuControllerTests {
         let menu = NSMenu(title: "Bookmarks")
 
         controller.menuNeedsUpdate(menu)
-        let item = menu.items[0]
+        let item = menu.items[2]
         _ = item.target?.perform(item.action, with: item)
 
         #expect(opened == [url])

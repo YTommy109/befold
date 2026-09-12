@@ -65,10 +65,10 @@ struct ViewerWindowControllerTests {
             title: "", action: #selector(ViewerWindowController.toggleBookmark(_:)), keyEquivalent: ""
         )
         #expect(controller.validateMenuItem(bookmarkItem) == true)
-        #expect(bookmarkItem.title == String(localized: "menu.view.addBookmark", bundle: .l10n))
+        #expect(bookmarkItem.title == String(localized: "menu.bookmarks.add", bundle: .l10n))
         controller.toggleBookmark(nil)
         #expect(controller.validateMenuItem(bookmarkItem) == true)
-        #expect(bookmarkItem.title == String(localized: "menu.view.removeBookmark", bundle: .l10n))
+        #expect(bookmarkItem.title == String(localized: "menu.bookmarks.remove", bundle: .l10n))
     }
 
     // フレームの「次のウィンドウへの引き継ぎ」自体は ViewerWindowManager.openViewer が

@@ -86,7 +86,7 @@ const EXPECTED_MENU_ITEMS: {
   { localizationKey: 'menu.view.toggleSource', keyEquivalent: '"u"', modifiers: null },
   { localizationKey: 'menu.view.showLineNumbers', keyEquivalent: '"l"', modifiers: null },
   {
-    localizationKey: 'menu.view.addBookmark',
+    localizationKey: 'menu.bookmarks.add',
     keyEquivalent: 'BookmarkShortcut.keyEquivalent',
     modifiers: null,
   },
