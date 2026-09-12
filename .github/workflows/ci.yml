@@ -72,11 +72,30 @@ jobs:
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if ! files=$(gh api "repos/${{ github.repository }}/compare/${BEFORE}...${AFTER}" --jq '.files[].filename'); then
-            echo '差分を取得できなかったため(force-push 等)、すべてのジョブを走らせる'
+          if ! compare=$(gh api "repos/${{ github.repository }}/compare/${BEFORE}...${AFTER}"); then
+            echo '差分を取得できなかったため、すべてのジョブを走らせる'
             echo 'app=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # compare は 3 点比較なので、force-push だと before と after のマージベース
+          # からの差分になり「PR が触っているファイル」ではなくなる。実測(PR #654,
+          # 2b20b5f1...1d813060): 別コミットを rebase --onto で落とした force-push で
+          # マージベースが自分の直前のコミットになり、Swift 12 ファイルを変更している
+          # PR なのに files が backlog の 1 件だけ → app=false で build-and-test /
+          # js-test / type-group-size が揃ってスキップされた。compare API は成功する
+          # ため、上の失敗フォールバックには入らない。
+          # そこで status を見て、before が after の祖先である fast-forward('ahead')の
+          # ときだけ差分ベースのスキップを信用する。force-push は 'diverged' / 'behind'
+          # になるので走らせる側へ倒す。
+          # (push イベントの github.event.forced は pull_request のペイロードには無い
+          #  ため使えない)
+          status=$(printf '%s' "$compare" | jq -r '.status')
+          if [ "$status" != "ahead" ]; then
+            echo "before が after の祖先ではない(status=${status}, force-push 等)ため、すべてのジョブを走らせる"
+            echo 'app=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(printf '%s' "$compare" | jq -r '.files[]?.filename')
           if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-befoldkit-platform-free\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
