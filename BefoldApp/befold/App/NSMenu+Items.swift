@@ -87,10 +87,16 @@ extension NSMenu {
         _ key: String.LocalizationValue,
         delegate: NSMenuDelegate? = nil
     ) -> NSMenu {
-        let title = String(localized: key, bundle: .l10n)
+        let submenu = addSubmenu(title: String(localized: key, bundle: .l10n))
+        submenu.delegate = delegate
+        return submenu
+    }
+
+    /// 動的なタイトル(ブックマークのフォルダー名など)のサブメニュー項目を末尾へ追加し、その NSMenu を返す。
+    @discardableResult
+    func addSubmenu(title: String) -> NSMenu {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: title)
-        submenu.delegate = delegate
         item.submenu = submenu
         addItem(item)
         return submenu
