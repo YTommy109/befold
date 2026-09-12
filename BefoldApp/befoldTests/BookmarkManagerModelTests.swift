@@ -90,4 +90,66 @@ struct BookmarkManagerModelTests {
         #expect(store.library().folders.isEmpty)
         #expect(changes == 0)
     }
+
+    // MARK: - ドロップ(536.3)
+
+    private static func url(_ path: String) -> URL {
+        URL(fileURLWithPath: path)
+    }
+
+    /// 受け入れ規則を 1 回のドロップで全部通す: 対応ファイルとフォルダーは追加、存在しない・
+    /// 非対応は理由付きで弾く、登録済みは追加も弾きもしない。追加があるので onChange は 1 回。
+    @Test("ドロップ: 存在する対応ファイルとフォルダーを追加し、存在しない・非対応は理由付きで弾く")
+    func addDroppedAppliesAcceptanceRules() async {
+        let reader = InMemoryFileReader(
+            files: ["/mock/new.md": "# new", "/mock/tool.exe": "x"], directories: ["/mock/dir"]
+        )
+        let store = makeStore()
+        var changes = 0
+        let model = BookmarkManagerModel(
+            store: store, open: { _ in }, onChange: { changes += 1 }, fileReader: reader
+        )
+
+        await model.addDropped(
+            [
+                Self.url("/mock/new.md"),
+                Self.url("/mock/dir"),
+                Self.url("/mock/tool.exe"),
+                Self.url("/mock/missing.md"),
+                note,
+                Self.url("/mock/new.md"),
+            ],
+            into: []
+        )
+
+        #expect(store.isBookmarked(Self.url("/mock/new.md")))
+        #expect(store.isBookmarked(Self.url("/mock/dir")))
+        #expect(!store.isBookmarked(Self.url("/mock/tool.exe")))
+        #expect(model.lastDrop?.added == [Self.url("/mock/new.md"), Self.url("/mock/dir")])
+        #expect(model.lastDrop?.rejected == [
+            .init(url: Self.url("/mock/tool.exe"), reason: .unsupported),
+            .init(url: Self.url("/mock/missing.md"), reason: .missing),
+        ])
+        #expect(changes == 1)
+    }
+
+    @Test("フォルダー行へ落とすとそのフォルダーの直下に入り、追加ゼロのドロップは onChange を呼ばない")
+    func addDroppedIntoFolderAndNoChangeWhenNothingAdded() async {
+        let reader = InMemoryFileReader(files: ["/mock/new.md": "# new"])
+        let store = makeStore()
+        store.createFolder(named: "Work", in: [])
+        var changes = 0
+        let model = BookmarkManagerModel(
+            store: store, open: { _ in }, onChange: { changes += 1 }, fileReader: reader
+        )
+
+        await model.addDropped([Self.url("/mock/new.md")], into: ["Work"])
+        #expect(store.library().entry(for: Self.url("/mock/new.md"))?.folder == ["Work"])
+        #expect(changes == 1)
+
+        await model.addDropped([note, Self.url("/mock/missing.md")], into: ["Work"])
+        #expect(model.lastDrop?.added.isEmpty == true)
+        #expect(model.lastDrop?.rejected.map(\.reason) == [.missing])
+        #expect(changes == 1)
+    }
 }
