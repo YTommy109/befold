@@ -12,12 +12,13 @@ final class BookmarkManagerModel {
     private let store: BookmarkStore
     /// 行のダブルクリックで開く。`DocumentOpener.openViewer`(開く唯一の入口)へつなぐ。
     let open: @MainActor (URL) -> Void
-    /// ブックマークの集合が変わったあとに呼ぶ。開いている全ウィンドウのツールバー
+    /// ブックマークの**集合**が変わったあとに呼ぶ。開いている全ウィンドウのツールバー
     /// (ブックマークボタン)を追随させる(`GlobalDisplayBroadcaster.refreshAllToolbars`)。
+    /// 別名・フォルダーの変更は集合を変えないので呼ばない。
     /// 既定値は置かない——渡し忘れると、パネルで消したのに窓のボタンが点いたままになる。
     private let onChange: @MainActor () -> Void
-    /// 表示名順の一覧。`refresh()` と各操作のあとに取り直す。
-    private(set) var entries: [BookmarkEntry] = []
+    /// ストアのスナップショット。`refresh()` と各操作のあとに取り直す。
+    private(set) var library = BookmarkLibrary()
 
     init(
         store: BookmarkStore,
@@ -30,13 +31,23 @@ final class BookmarkManagerModel {
         refresh()
     }
 
+    /// 全エントリを表示名順で(フォルダーを問わない)。Delete キーの対象探しに使う。
+    var entries: [BookmarkEntry] {
+        library.entriesSortedByDisplayName
+    }
+
+    /// `parent` 直下の中身(フォルダーが先、エントリが後)。ツリーの各段はこれで描く。
+    func children(of parent: [String]) -> BookmarkChildren {
+        library.children(of: parent)
+    }
+
     /// ストアの現在値を取り直す。パネルの外(窓の ⌘D・CLI・欠落の一括削除)で変わった分を拾うため、
     /// パネルが key になったときにも呼ぶ。
     func refresh() {
-        entries = store.library().entriesSortedByDisplayName
+        library = store.library()
     }
 
-    /// 別名を設定する。空なら別名なし(ファイル名表示)に戻す。集合は変わらないので `onChange` は呼ばない。
+    /// 別名を設定する。空なら別名なし(ファイル名表示)に戻す。
     func setAlias(_ alias: String, for url: URL) {
         store.setAlias(alias, for: url)
         refresh()
@@ -49,5 +60,37 @@ final class BookmarkManagerModel {
         store.remove(url)
         refresh()
         onChange()
+    }
+
+    // MARK: - フォルダー(成否の規則は BookmarkLibrary を参照)
+
+    @discardableResult
+    func createFolder(named name: String, in parent: [String]) -> Bool {
+        defer { refresh() }
+        return store.createFolder(named: name, in: parent)
+    }
+
+    @discardableResult
+    func renameFolder(at path: [String], to name: String) -> Bool {
+        defer { refresh() }
+        return store.renameFolder(at: path, to: name)
+    }
+
+    /// 配下は親へ繰り上がるので確認は挟まない(失われるものが無い)。
+    @discardableResult
+    func deleteFolder(at path: [String]) -> Bool {
+        defer { refresh() }
+        return store.deleteFolder(at: path)
+    }
+
+    @discardableResult
+    func move(_ url: URL, to folder: [String]) -> Bool {
+        defer { refresh() }
+        return store.move(url, toFolder: folder)
+    }
+
+    func setExpanded(_ isExpanded: Bool, for path: [String]) {
+        store.setFolderExpanded(isExpanded, at: path)
+        refresh()
     }
 }

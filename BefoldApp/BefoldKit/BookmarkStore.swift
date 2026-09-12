@@ -81,14 +81,44 @@ public final class BookmarkStore {
         mutate { $0.replace(oldURL, with: newURL) }
     }
 
-    /// 1 操作を適用し、値が変わったときだけ書く。
-    private func mutate(_ body: (inout BookmarkLibrary) -> Void) {
+    // MARK: - フォルダー(規則は BookmarkLibrary の同名メソッドを参照)
+
+    @discardableResult
+    public func createFolder(named name: String, in parent: [String]) -> Bool {
+        mutate { $0.createFolder(named: name, in: parent) }
+    }
+
+    @discardableResult
+    public func renameFolder(at path: [String], to name: String) -> Bool {
+        mutate { $0.renameFolder(at: path, to: name) }
+    }
+
+    @discardableResult
+    public func deleteFolder(at path: [String]) -> Bool {
+        mutate { $0.deleteFolder(at: path) }
+    }
+
+    @discardableResult
+    public func move(_ url: URL, toFolder folder: [String]) -> Bool {
+        mutate { $0.move(url, to: folder) }
+    }
+
+    public func setFolderExpanded(_ isExpanded: Bool, at path: [String]) {
+        mutate { $0.setExpanded(isExpanded, for: path) }
+    }
+
+    // MARK: - Private
+
+    /// 1 操作を適用し、値が変わったときだけ書く。操作の戻り値(成否など)はそのまま返す。
+    private func mutate<T>(_ body: (inout BookmarkLibrary) -> T) -> T {
         let before = library()
         var after = before
-        body(&after)
-        guard after != before else { return }
-        Self.save(after, to: defaults)
-        cached = after
+        let result = body(&after)
+        if after != before {
+            Self.save(after, to: defaults)
+            cached = after
+        }
+        return result
     }
 
     /// 未保存とデコード不能はどちらも空として読む。フィールドは optional でしか足さない方針
