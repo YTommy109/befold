@@ -138,8 +138,14 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
 
     /// 未登録ならルート直下へ追加する。登録済みなら何もしない(冪等)。
     public mutating func add(_ url: URL) {
+        add(url, to: [])
+    }
+
+    /// 未登録なら `folder` の直下へ追加する。登録済みなら何もしない(所属も変えない)。
+    /// フォルダーが無ければルートへ入れる(ドロップ中にフォルダーが消えても取りこぼさない)。
+    public mutating func add(_ url: URL, to folder: [String]) {
         guard !contains(url) else { return }
-        entries.append(BookmarkEntry(path: url.normalizedPathKey))
+        entries.append(BookmarkEntry(path: url.normalizedPathKey, folder: folderExists(folder) ? folder : []))
     }
 
     public mutating func remove(_ url: URL) {
