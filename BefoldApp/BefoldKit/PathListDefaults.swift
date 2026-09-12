@@ -2,10 +2,12 @@ import Foundation
 
 /// UserDefaults に「正規化パスの配列」を永続化するための共通プリミティブ。
 ///
-/// SessionStore / BookmarkStore / RecentDocumentsStore などのストアは
+/// SessionStore / RecentDocumentsStore などのストアは
 /// 「`stringArray(forKey:) ?? []` を読み、`normalizedPathKey` で操作し、`set(_:forKey:)` で書く」
 /// という同じ骨組みを持つ。その骨組みだけをここに集約し、各ストアはドメイン API
 /// (freeze / seedIfNeeded など)をこのプリミティブの合成として書く。
+/// (`BookmarkStore` はかつてここを使っていたが、別名・フォルダーを持つ `BookmarkLibrary` へ
+/// 移ったため使わない。TASK-536.1)
 ///
 /// `limit` を指定すると、書き込みのたびに先頭から `limit` 件へ切り詰める(Recent の上限用)。
 public struct PathListDefaults {
