@@ -1,9 +1,10 @@
 ---
 id: TASK-535
-title: Bookmark 機能をメニューバーへ移動する
+title: Bookmark メニューをトップレベルメニューへ独立させる
 status: To Do
 assignee: []
 created_date: '2026-08-21 07:25'
+updated_date: '2026-09-12 11:21'
 labels: []
 milestone: m-9
 dependencies: []
@@ -15,21 +16,28 @@ ordinal: 775000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-現状 Bookmark のトグル操作はツールバーボタン（`BefoldApp/befold/App/ViewerToolbarController.swift:59-63`、SF Symbol `bookmark`/`bookmark.fill`、アクション `bookmarkItemClicked(_:)`。選択状態の見た目は `ViewerToolbarController+State.swift:89-99`）から行える。
+ブックマークの導線がメインメニューの 2 箇所に分かれている。一覧は File > Bookmarks サブメニュー（`MainMenuBuilder.makeFileMenuItem` の `menu.file.bookmarks`、delegate は `BookmarksMenuController`）、追加/削除トグルは View メニュー（`MainMenuBuilder+ViewMenu.swift` の `menu.view.addBookmark` → `ViewerWindowController.toggleBookmark(_:)`、キー等価は `BookmarkShortcut.keyEquivalent`）にある。
 
-一方でメニューバー側には既に以下が存在する:
-- View メニューの「ブックマークを追加/削除」トグル（`MainMenuBuilder+ViewMenu.swift:28-30` → `ViewerWindowController.toggleBookmark(_:)`、`ViewerWindowController+MenuActions.swift:96-104`）。キーボードショートカットは `BookmarkShortcut.swift` で一元定義。
-- File > Bookmarks サブメニュー（`MainMenuBuilder.swift:103` → `BookmarksMenuController.swift`、`NSMenuDelegate` としてブックマーク済みファイルを `lastPathComponent` でソートして一覧表示し、「Remove Missing Bookmarks」も持つ）。
+File メニューは Open Recent / Recent Repositories と並ぶ「開く操作と履歴」の場所で、手動で登録するブックマークは性質が違う。ブックマークをトップレベルメニューへ独立させ、追加/削除・一覧・Remove Missing Bookmarks を 1 箇所に集める。
 
-つまり現時点でも Bookmark 操作の大半はメニューバーから可能だが、ツールバーボタンが並行して残っており、ツールバーとメニューバーの2箇所に同じ機能の導線がある。本タスクでは、ツールバーの Bookmark ボタンを廃止し、Bookmark 操作をメニューバー側（View メニュー + File > Bookmarks サブメニュー）に一本化する。
+並び位置は View と Window のあいだを想定する（Safari の Bookmarks と同じ位置）。着手時に妥当なら変えてよいが、変えたなら理由を Notes に残すこと。
 
-未確認の前提: ツールバーボタン廃止後、現在のファイルがブックマーク済みかどうかを一目で判別する手段（ツールバーボタンの `.fill` 状態が担っていた役割）をメニューバー側でどう代替するかは未検討。着手時に View メニュー項目のチェックマーク表示可否を確認すること。
+ツールバーの Bookmark ボタン（`ViewerToolbarController`、SF Symbol `bookmark`/`bookmark.fill`）は本タスクでは廃止しない。ブックマーク済みかどうかを一目で判別する役割は引き続きツールバーが担う。
+
+着手前に知っておくべき波及:
+- 新しいメニュー構築を別ファイルへ切り出す場合、ファイル名は `MainMenuBuilder*.swift` を保つこと。`site/vitest.config.ts` の `readMainMenuBuilderSwift` と `.github/workflows/site.yml` の paths が、この glob でメニュー定義を全件拾っている。外れると紹介サイトのショートカット検証が黙って通らなくなる。
+- `menu.view.addBookmark` は View メニューだけのキーではない。`ViewerCommandTitles.bookmark(isBookmarked:)`（状態に応じた項目名の切り替え）と `ViewerToolbarController`（ツールバーボタンの labelKey）も同じキーを参照する。キーを改名するならこの 2 箇所も併せて動かす。
+- `site/test/shortcuts.test.ts` はキー等価を持つ項目をローカライズキーとソース順で全件突き合わせている。`site/src/views/features.tsx` の ⌘D 行は文言のみ。
+- `MenuShortcutCatalogTests` は File グループに Bookmarks サブメニューが現れないことを見ている。
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ツールバーの Bookmark ボタンが削除されている
-- [ ] #2 Bookmark のトグル操作が View メニューから行え、既存のキーボードショートカットが維持されている
-- [ ] #3 File > Bookmarks サブメニューから既存のブックマーク一覧表示・Remove Missing Bookmarks 操作が引き続き行える
-- [ ] #4 現在開いているファイルがブックマーク済みかどうかをメニューバー側から視覚的に判別できる
+- [ ] #1 メニューバーに独立した Bookmarks メニューがあり、View と Window のあいだに並ぶ
+- [ ] #2 File メニューから Bookmarks サブメニューが無くなっている（Open Recent / Recent Repositories は残る）
+- [ ] #3 ブックマークの追加/削除トグルが Bookmarks メニューから行え、既存のキーボードショートカット（⌘D）と、ブックマーク済みかどうかに応じた項目名の切り替えが維持されている
+- [ ] #4 ブックマーク済みファイルの一覧表示と Remove Missing Bookmarks が Bookmarks メニューから行える
+- [ ] #5 メニュータイトルと項目名が日本語・英語の両方でローカライズされている
+- [ ] #6 アプリ内ショートカット一覧（MenuShortcutCatalog）と紹介サイトのショートカット検証（site/test/shortcuts.test.ts）が新しいメニュー構成に追随している
+- [ ] #7 ツールバーの Bookmark ボタンは従来どおり動作する（本タスクでは廃止しない）
 <!-- AC:END -->
