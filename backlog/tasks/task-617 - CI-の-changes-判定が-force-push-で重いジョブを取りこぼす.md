@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-12 12:23'
-updated_date: '2026-09-12 12:41'
+updated_date: '2026-09-12 12:42'
 labels: []
 dependencies: []
 priority: medium
@@ -45,3 +45,14 @@ ordinal: 807000
 4. github.event.forced は push イベント専用で pull_request(synchronize) には無いことを確認済み。採らない理由もコメントに残す
 5. 本ブランチで実際に force-push し、CI の changes ジョブが app=true になることを確認する
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+compare API の実測（2026-09-12）:
+- force-push の実例 2b20b5f1...1d813060 は status=diverged / files=backlog 1 件（＝ 3 点比較が PR の変更を見落とす形）
+- 通常 push aa50ba34...c9388d95 は status=ahead
+- backlog のみの通常 push 03b19edb...c9388d95 は status=ahead / app=false（既存のスキップは維持）
+
+github.event.forced は push イベントのペイロード専用で pull_request(synchronize) には無いため採らなかった（GitHub の webhook payload ドキュメントで確認）。2 点比較も force-push 後は「落としたコミットの差分」しか見えないため解決しない。
+<!-- SECTION:NOTES:END -->
