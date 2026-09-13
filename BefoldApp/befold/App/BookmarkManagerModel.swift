@@ -1,11 +1,11 @@
 import BefoldKit
 import Foundation
 
-/// ブックマーク管理パネル(`BookmarkManagerView`)の状態。`BookmarkStore` のスナップショットを持ち、
+/// Bookmark Editor(`BookmarkManagerView`)の状態。`BookmarkStore` のスナップショットを持ち、
 /// 各操作はストアへ書いてから取り直す(ビューはこの値だけを描く)。
 ///
 /// ストアは既定値なしで受ける。アプリ全体で 1 個の `AppStores.bookmarkStore` 以外を渡すと、
-/// パネルの変更が窓側(⌘D・ツールバー)と食い違う(TASK-319 と同型)。
+/// Bookmark Editor の変更が窓側(⌘D・ツールバー)と食い違う(TASK-319 と同型)。
 @MainActor
 @Observable
 final class BookmarkManagerModel {
@@ -15,7 +15,7 @@ final class BookmarkManagerModel {
     /// ブックマークの**集合**が変わったあとに呼ぶ。開いている全ウィンドウのツールバー
     /// (ブックマークボタン)を追随させる(`GlobalDisplayBroadcaster.refreshAllToolbars`)。
     /// 別名・フォルダーの変更は集合を変えないので呼ばない。
-    /// 既定値は置かない——渡し忘れると、パネルで消したのに窓のボタンが点いたままになる。
+    /// 既定値は置かない——渡し忘れると、Bookmark Editor で消したのに窓のボタンが点いたままになる。
     private let onChange: @MainActor () -> Void
     /// ドロップされたパスの存在確認に使う。表示では stat しない約束(`BookmarksMenuController`)は
     /// 保ったまま、ユーザーが落とした瞬間だけ調べる。共有物ではないので既定値を持つ
@@ -39,18 +39,13 @@ final class BookmarkManagerModel {
         refresh()
     }
 
-    /// 全エントリを表示名順で(フォルダーを問わない)。
-    var entries: [BookmarkEntry] {
-        library.entriesSortedByDisplayName
-    }
-
     /// `parent` 直下の中身(フォルダーが先、エントリが後)。ツリーの各段はこれで描く。
     func children(of parent: [String]) -> BookmarkChildren {
         library.children(of: parent)
     }
 
-    /// ストアの現在値を取り直す。パネルの外(窓の ⌘D・CLI・欠落の一括削除)で変わった分を拾うため、
-    /// パネルが key になったときにも呼ぶ。
+    /// ストアの現在値を取り直す。Bookmark Editor の外(窓の ⌘D・CLI・欠落の一括削除)で変わった分を拾うため、
+    /// Bookmark Editor が key になったときにも呼ぶ。
     func refresh() {
         library = store.library()
     }
@@ -81,8 +76,8 @@ final class BookmarkManagerModel {
         let outcome = await withBlockingWork {
             Self.dropDecision(urls, library: library, fileReader: fileReader)
         }
-        for added in outcome.added {
-            store.add(added.url, toFolder: folder, isDirectory: added.isDirectory)
+        for url in outcome.added {
+            store.add(url, toFolder: folder)
         }
         refresh()
         lastDrop = outcome
@@ -92,8 +87,9 @@ final class BookmarkManagerModel {
     /// 受け入れ規則(純粋関数)。
     /// - 登録済み(同じドロップ内の重複も)は追加も弾きもしない
     /// - 存在しなければ弾く(`missing`)
-    /// - 通常ファイルで対応形式でなければ弾く(`unsupported`)。ディレクトリは受け入れる
-    ///   (`DocumentOpener` がフォルダーを開ける)
+    /// - フォルダーは弾く(`folder`。規則は `BookmarkStore.canBookmark`。TASK-536.3 では受け入れていたが
+    ///   仕様と逆だった。TASK-621)
+    /// - 通常ファイルで対応形式でなければ弾く(`unsupported`)
     nonisolated static func dropDecision(
         _ urls: [URL], library: BookmarkLibrary, fileReader: any FileReading
     ) -> BookmarkDropOutcome {
@@ -105,12 +101,15 @@ final class BookmarkManagerModel {
                 outcome.rejected.append(.init(url: url, reason: .missing))
                 continue
             }
-            let isDirectory = fileReader.isDirectory(at: url)
-            guard isDirectory || FileType.isSupported(url) else {
+            guard BookmarkStore.canBookmark(url, fileReader: fileReader) else {
+                outcome.rejected.append(.init(url: url, reason: .folder))
+                continue
+            }
+            guard FileType.isSupported(url) else {
                 outcome.rejected.append(.init(url: url, reason: .unsupported))
                 continue
             }
-            outcome.added.append(.init(url: url, isDirectory: isDirectory))
+            outcome.added.append(url)
         }
         return outcome
     }
@@ -136,10 +135,11 @@ final class BookmarkManagerModel {
         return store.deleteFolder(at: path)
     }
 
+    /// 規則は `BookmarkLibrary.move(_:to:before:)`(`sibling` の直前へ、nil なら行き先の末尾へ)。
     @discardableResult
-    func move(_ url: URL, to folder: [String]) -> Bool {
+    func move(_ url: URL, to folder: [String], before sibling: URL? = nil) -> Bool {
         defer { refresh() }
-        return store.move(url, toFolder: folder)
+        return store.move(url, toFolder: folder, before: sibling)
     }
 
     func setExpanded(_ isExpanded: Bool, for path: [String]) {

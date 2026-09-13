@@ -12,21 +12,18 @@ public struct BookmarkEntry: Codable, Equatable, Sendable {
     public var alias: String?
     /// 所属フォルダーの名前列(ルートからの経路)。`[]` はルート直下。
     public var folder: [String]
-    /// ディレクトリか。追加の瞬間に `BookmarkStore` がディスクへ問い合わせて記録する(TASK-620.1)。
-    /// nil はこのフィールドを持つ前に保存された既存データ(表示では推定する。`iconType`)。
-    public var isDirectory: Bool?
 
-    public init(path: String, alias: String? = nil, folder: [String] = [], isDirectory: Bool? = nil) {
+    public init(path: String, alias: String? = nil, folder: [String] = []) {
         self.path = path
         self.alias = alias
         self.folder = folder
-        self.isDirectory = isDirectory
     }
 
     /// **ファイルシステムを見ない。** `URL(fileURLWithPath:)` はディレクトリかどうかを stat して
     /// 決めるため、表示(ソートの比較ごと・メニューを開くたび)で使うと応答しないマウントで待たされる。
+    /// ブックマークはファイルだけ(`BookmarkStore.canBookmark`)なので、ファイルとして作る。
     public var url: URL {
-        URL(filePath: path, directoryHint: isDirectory == true ? .isDirectory : .notDirectory)
+        URL(filePath: path, directoryHint: .notDirectory)
     }
 
     /// 一覧に出す名前。別名があればそれ、無ければファイル名。
@@ -59,7 +56,7 @@ public struct BookmarkFolder: Codable, Equatable, Sendable {
     }
 }
 
-/// あるフォルダー直下の中身。フォルダーが先(名前順)、エントリが後(表示名順)。
+/// あるフォルダー直下の中身。フォルダーが先(名前順)、エントリが後(保存順 = 手動の並び)。
 public struct BookmarkChildren: Equatable, Sendable {
     public var folders: [BookmarkFolder]
     public var entries: [BookmarkEntry]
@@ -76,9 +73,18 @@ public struct BookmarkChildren: Equatable, Sendable {
 /// 不変条件: 1 つのパスは 1 件 / 同じ親の下でフォルダー名は一意 / エントリの所属は存在する
 /// フォルダーかルート。操作側で守り、読み出し(`children(of:)`)は記録の無い所属を持つ
 /// エントリ(手編集・旧版)をルート扱いにして見えなくならないようにする。
+///
+/// **`entries` の配列順が、各フォルダーの中でのエントリの並び(手動の並び)。** 追加は末尾、
+/// 並び替えは `move(_:to:before:)`、別名や rename 追随では位置を変えない(TASK-620.3)。
 public struct BookmarkLibrary: Codable, Equatable, Sendable {
     public var folders: [BookmarkFolder]
     public var entries: [BookmarkEntry]
+    /// `entries` の配列順を手動の並びとして扱ってよいか。nil は手動の並びを知らない版(TASK-536)が
+    /// 書いた値で、その版は表示名順で見せていた。`BookmarkStore` の初回読み込みで
+    /// `orderedManually()` へ移す。この型を新しく作った値は最初から手動の並び(true)。
+    /// 旧版は知らないキーなので、旧版が保存し直すと落ちて、次の起動で表示名順へ並べ直される。
+    /// 書き換えるのはこの型の中(`migrated(fromPaths:)` / `orderedManually()`)とデコードだけ。
+    public private(set) var hasManualOrder: Bool? = true
 
     public init(folders: [BookmarkFolder] = [], entries: [BookmarkEntry] = []) {
         self.folders = folders
@@ -86,11 +92,28 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
     }
 
     /// 旧形式(正規化パスの配列)からの変換。全件をルート直下・別名なしのエントリにする。
+    /// 旧形式の並びに意味は無い(表示名順で見せていた)ので、手動の並びへの移行前として返す。
     public static func migrated(fromPaths paths: [String]) -> BookmarkLibrary {
         var library = BookmarkLibrary()
+        library.hasManualOrder = nil
         for path in paths where !library.entries.contains(where: { $0.path == path }) {
             library.entries.append(BookmarkEntry(path: path))
         }
+        return library
+    }
+
+    /// 手動の並びへ移した値。エントリを表示名順(移行前に見えていた順)へ並べ、印を付ける。
+    /// 同じ表示名どうしは保存順を保つ(並べ替えの結果を実行ごとに揺らさない)。
+    public func orderedManually() -> BookmarkLibrary {
+        var library = self
+        library.entries = entries.enumerated()
+            .sorted { lhs, rhs in
+                if Self.displayOrder(lhs.element, rhs.element) { return true }
+                if Self.displayOrder(rhs.element, lhs.element) { return false }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+        library.hasManualOrder = true
         return library
     }
 
@@ -99,13 +122,6 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
     /// 全フォルダーを平坦化した URL の一覧(保存順)。
     public var urls: [URL] {
         entries.map(\.url)
-    }
-
-    /// 一覧に出す順(表示名順)。メニューとパネルが同じ順で並ぶよう、順序の規則はここ 1 箇所に置く。
-    /// 比較は Finder と同じ `localizedStandardCompare`(大文字小文字を区別せず、数字は数値順)。
-    /// 素の `<` だと別名の "Zulu" がファイル名の "apple.md" より前に来る(大文字が先に並ぶ)。
-    public var entriesSortedByDisplayName: [BookmarkEntry] {
-        entries.sorted(by: Self.displayOrder)
     }
 
     /// 全フォルダーを経路順(親 → 子、同じ親では名前順)で。「フォルダーへ移動」の候補に使う。
@@ -136,28 +152,25 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
         folderExists(entry.folder) ? entry.folder : []
     }
 
-    /// `parent` 直下の中身。フォルダーが先(名前順)、エントリが後(表示名順)。
+    /// `parent` 直下の中身。フォルダーが先(名前順)、エントリが後(保存順)。メニューと Bookmark Editor が
+    /// 同じ順で並ぶよう、順序の規則はここ 1 箇所に置く。
     public func children(of parent: [String]) -> BookmarkChildren {
         let subfolders = folders
             .filter { $0.path.count == parent.count + 1 && $0.path.starts(with: parent) }
             .sorted { Self.ascending($0.name, $1.name) }
         let members = entries
             .filter { resolvedFolder(of: $0) == parent }
-            .sorted(by: Self.displayOrder)
         return BookmarkChildren(folders: subfolders, entries: members)
     }
 
     // MARK: - エントリの操作
 
-    /// 未登録なら `folder` の直下へ追加する。登録済みなら何もしない(所属も種別も変えない)。
+    /// 未登録なら `folder` の直下へ追加する。登録済みなら何もしない(所属も変えない)。
     /// フォルダーが無ければルートへ入れる(ドロップ中にフォルダーが消えても取りこぼさない)。
-    /// `isDirectory` に既定値を置かないのは、渡し忘れを種別の記録漏れとして黙って通さないため
-    /// (値型は種別を調べる手段を持たない。調べるのは `BookmarkStore`)。
-    public mutating func add(_ url: URL, to folder: [String] = [], isDirectory: Bool) {
+    /// フォルダー(ディレクトリ)を弾くのは値型ではなく入口の役目(`BookmarkStore.canBookmark`)。
+    public mutating func add(_ url: URL, to folder: [String] = []) {
         guard !contains(url) else { return }
-        entries.append(BookmarkEntry(
-            path: url.normalizedPathKey, folder: folderExists(folder) ? folder : [], isDirectory: isDirectory
-        ))
+        entries.append(BookmarkEntry(path: url.normalizedPathKey, folder: folderExists(folder) ? folder : []))
     }
 
     public mutating func remove(_ url: URL) {
@@ -176,11 +189,19 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
         entries[index].alias = trimmed.isEmpty ? nil : trimmed
     }
 
-    /// エントリを別のフォルダー(ルートは `[]`)へ移す。フォルダーが無い・未登録なら false。
+    /// エントリを `folder`(ルートは `[]`)の中の `sibling` の直前へ移す。`sibling` が nil か、
+    /// `folder` の中に居なければ `folder` の末尾へ。自分自身の直前なら位置を変えない。
+    /// フォルダーが無い・未登録なら false。
     @discardableResult
-    public mutating func move(_ url: URL, to folder: [String]) -> Bool {
+    public mutating func move(_ url: URL, to folder: [String], before sibling: URL? = nil) -> Bool {
         guard folderExists(folder), let index = index(of: url) else { return false }
-        entries[index].folder = folder
+        var entry = entries.remove(at: index)
+        entry.folder = folder
+        let siblingPath = sibling?.normalizedPathKey
+        let destination = siblingPath == entry.path
+            ? index
+            : entries.firstIndex { $0.path == siblingPath && resolvedFolder(of: $0) == folder }
+        entries.insert(entry, at: destination ?? entries.endIndex)
         return true
     }
 
@@ -271,6 +292,8 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
         lhs.localizedStandardCompare(rhs) == .orderedAscending
     }
 
+    /// 表示名順。比較は Finder と同じ `localizedStandardCompare`(大文字小文字を区別せず、数字は数値順)。
+    /// 素の `<` だと別名の "Zulu" がファイル名の "apple.md" より前に来る(大文字が先に並ぶ)。
     private static func displayOrder(_ lhs: BookmarkEntry, _ rhs: BookmarkEntry) -> Bool {
         ascending(lhs.displayName, rhs.displayName)
     }

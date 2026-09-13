@@ -105,7 +105,7 @@ struct BefoldCLICommandTests {
         #expect(messages[1].contains("No such path: \(missing.path)"))
         #expect(messages[2].contains("Bookmarked: \(existing.path)"))
         #expect(messages[3].contains("No such path: \(missing.path)"))
-        // 存在しないパスは fileExists ガードで弾かれ、実在する側だけが登録される。
+        // 存在しないパスは存在確認で弾かれ、実在する側だけが登録される。
         #expect(bookmarked.map(\.path) == [existing.path])
     }
 

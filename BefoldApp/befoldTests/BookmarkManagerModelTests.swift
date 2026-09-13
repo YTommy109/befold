@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 管理パネルのモデル。ストアへの書き込みと、集合が変わったときだけ `onChange` が呼ばれることを固定する。
+/// Bookmark Editor のモデル。ストアへの書き込みと、集合が変わったときだけ `onChange` が呼ばれることを固定する。
 @Suite
 @MainActor
 struct BookmarkManagerModelTests {
@@ -28,7 +28,7 @@ struct BookmarkManagerModelTests {
 
         #expect(!store.isBookmarked(note))
         #expect(store.isBookmarked(diagram))
-        #expect(model.entries.map(\.url) == [diagram])
+        #expect(model.library.entries.map(\.url) == [diagram])
         #expect(changes == 1)
     }
 
@@ -45,8 +45,8 @@ struct BookmarkManagerModelTests {
         #expect(changes == 0)
     }
 
-    /// 別名は集合を変えないので窓側に伝える必要が無い。
-    @Test("setAlias は一覧に反映されるが onChange は呼ばない")
+    /// 別名は集合を変えないので窓側に伝える必要が無い。並びは手動なので、別名で位置は動かない。
+    @Test("setAlias は一覧に反映されるが位置は変えず、onChange は呼ばない")
     func setAliasRefreshesWithoutNotifying() {
         let store = makeStore()
         var changes = 0
@@ -54,11 +54,11 @@ struct BookmarkManagerModelTests {
 
         model.setAlias("Zulu", for: note)
 
-        #expect(model.entries.map(\.displayName) == ["diagram.mmd", "Zulu"])
+        #expect(model.children(of: []).entries.map(\.displayName) == ["Zulu", "diagram.mmd"])
         #expect(changes == 0)
     }
 
-    /// パネルの外(窓の ⌘D・欠落の一括削除)で変わった分は refresh で拾う。
+    /// Bookmark Editor の外(窓の ⌘D・欠落の一括削除)で変わった分は refresh で拾う。
     @Test("refresh はストアの現在値を取り直す")
     func refreshPicksUpExternalChanges() {
         let store = makeStore()
@@ -67,7 +67,7 @@ struct BookmarkManagerModelTests {
 
         model.refresh()
 
-        #expect(model.entries.map(\.url) == [note])
+        #expect(model.library.entries.map(\.url) == [note])
     }
 
     /// フォルダーの操作は集合を変えないので窓側に伝えない。スナップショットだけが追随する。
@@ -97,9 +97,10 @@ struct BookmarkManagerModelTests {
         URL(fileURLWithPath: path)
     }
 
-    /// 受け入れ規則を 1 回のドロップで全部通す: 対応ファイルとフォルダーは追加、存在しない・
+    /// 受け入れ規則を 1 回のドロップで全部通す: 対応ファイルは追加、フォルダー・存在しない・
     /// 非対応は理由付きで弾く、登録済みは追加も弾きもしない。追加があるので onChange は 1 回。
-    @Test("ドロップ: 存在する対応ファイルとフォルダーを追加し、存在しない・非対応は理由付きで弾く")
+    /// フォルダーは TASK-536.3 では受け入れていたが、ブックマークできない仕様と逆だった(TASK-621)。
+    @Test("ドロップ: 存在する対応ファイルを追加し、フォルダー・存在しない・非対応は理由付きで弾く")
     func addDroppedAppliesAcceptanceRules() async {
         let reader = InMemoryFileReader(
             files: ["/mock/new.md": "# new", "/mock/tool.exe": "x"], directories: ["/mock/dir"]
@@ -123,15 +124,11 @@ struct BookmarkManagerModelTests {
         )
 
         #expect(store.isBookmarked(Self.url("/mock/new.md")))
-        #expect(store.isBookmarked(Self.url("/mock/dir")))
+        #expect(!store.isBookmarked(Self.url("/mock/dir")))
         #expect(!store.isBookmarked(Self.url("/mock/tool.exe")))
-        #expect(model.lastDrop?.added == [
-            .init(url: Self.url("/mock/new.md"), isDirectory: false),
-            .init(url: Self.url("/mock/dir"), isDirectory: true),
-        ])
-        // 種別は受け入れ判定の結果がそのまま記録される(ストアの既定の読み手は /mock/dir を知らない)。
-        #expect(store.library().entry(for: Self.url("/mock/dir"))?.isDirectory == true)
+        #expect(model.lastDrop?.added == [Self.url("/mock/new.md")])
         #expect(model.lastDrop?.rejected == [
+            .init(url: Self.url("/mock/dir"), reason: .folder),
             .init(url: Self.url("/mock/tool.exe"), reason: .unsupported),
             .init(url: Self.url("/mock/missing.md"), reason: .missing),
         ])

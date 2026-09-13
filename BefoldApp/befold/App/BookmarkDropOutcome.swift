@@ -1,11 +1,13 @@
 import Foundation
 
-/// 管理パネルへのドロップ 1 回分の結果。追加した分と、弾いた分(理由付き)。
+/// Bookmark Editor へのドロップ 1 回分の結果。追加した分と、弾いた分(理由付き)。
 /// ビューはこれを 1 行の文言にまとめる(モーダルは出さない。ドロップは連続で起きる)。
 struct BookmarkDropOutcome: Equatable, Sendable {
     enum Rejection: Equatable, Sendable {
         /// 存在しない(ドロップ時点の stat で見えない)。
         case missing
+        /// フォルダー(ブックマークできない。`BookmarkStore.canBookmark`)。
+        case folder
         /// 通常ファイルで、対応形式の拡張子でない。
         case unsupported
     }
@@ -15,14 +17,7 @@ struct BookmarkDropOutcome: Equatable, Sendable {
         let reason: Rejection
     }
 
-    /// 追加した分。種別は受け入れ判定の stat で分かっているので、ストアへそのまま渡す
-    /// (MainActor 上で調べ直さない)。
-    struct Added: Equatable, Sendable {
-        let url: URL
-        let isDirectory: Bool
-    }
-
-    var added: [Added] = []
+    var added: [URL] = []
     var rejected: [Rejected] = []
 
     /// 弾いた分があるときだけの 1 行。「n 件を追加できませんでした: 名前 (理由), …」。
@@ -39,6 +34,7 @@ extension BookmarkDropOutcome.Rejection {
     var localizedReason: String {
         switch self {
         case .missing: String(localized: "bookmarks.manager.drop.missing", bundle: .l10n)
+        case .folder: String(localized: "bookmarks.manager.drop.folder", bundle: .l10n)
         case .unsupported: String(localized: "bookmarks.manager.drop.unsupported", bundle: .l10n)
         }
     }

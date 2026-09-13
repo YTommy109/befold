@@ -1,7 +1,7 @@
 import BefoldKit
 import Foundation
 
-/// ブックマーク管理パネルの文字入力(`.alert` + `TextField`)が扱う用件。
+/// Bookmark Editor の文字入力(`.alert` + `TextField`)が扱う用件。
 /// 1 つの alert を使い回すための値で、初期値と文言のキーだけを持つ(適用はビューが行う)。
 /// `.alert(_:isPresented:presenting:)` の `presenting` は識別子を要求しないので `Identifiable` にはしない。
 enum BookmarkManagerPrompt: Equatable {
