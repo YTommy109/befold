@@ -1,10 +1,11 @@
 ---
 id: TASK-620
 title: Bookmark Editor の使い勝手を改善する
-status: To Do
+status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:41'
+updated_date: '2026-09-13 11:53'
 labels: []
 milestone: m-9
 dependencies: []

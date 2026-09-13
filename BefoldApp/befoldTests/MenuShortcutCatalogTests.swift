@@ -65,6 +65,7 @@ struct MenuShortcutCatalogTests {
         // 一覧は mainMenu へ設定する前の木から取るため、delegate が表示直前に作る項目は
         // 載らない。ここが落ちたら Bookmarks の固定部が delegate 任せになっている。
         (groupKey: "menu.bookmarks.title", titleKey: "menu.bookmarks.add", key: "⌘D"),
+        (groupKey: "menu.bookmarks.title", titleKey: "menu.bookmarks.edit", key: "⇧⌘D"),
         // 旧一覧は存在しないキー menu.help.appHelp を ⌘? として載せていた(TASK-240 で判明)。
         (groupKey: "menu.help.title", titleKey: "menu.help.visitWebsite", key: "⌘?"),
     ])

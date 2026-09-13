@@ -58,6 +58,7 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   },
   { keys: '⌘L', ja: 'ソース表示の行番号', en: 'Toggle line numbers in source view' },
   { keys: '⌘D', ja: 'ブックマークの追加 / 解除', en: 'Add or remove a bookmark' },
+  { keys: '⇧⌘D', ja: 'ブックマークの編集', en: 'Edit bookmarks' },
   { keys: '⌘F / ⌘G', ja: 'ページ内検索 / 次を検索', en: 'Find in page / find next' },
   { keys: '⌘0 / ⌘+ / ⌘-', ja: '実寸 / 拡大 / 縮小', en: 'Actual size / zoom in / zoom out' },
   { keys: '⌃⌘H', ja: '隠しファイルの表示', en: 'Show hidden files' },
