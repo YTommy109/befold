@@ -28,7 +28,7 @@ struct BookmarkManagerModelTests {
 
         #expect(!store.isBookmarked(note))
         #expect(store.isBookmarked(diagram))
-        #expect(model.entries.map(\.url) == [diagram])
+        #expect(model.library.entries.map(\.url) == [diagram])
         #expect(changes == 1)
     }
 
@@ -45,8 +45,8 @@ struct BookmarkManagerModelTests {
         #expect(changes == 0)
     }
 
-    /// 別名は集合を変えないので窓側に伝える必要が無い。
-    @Test("setAlias は一覧に反映されるが onChange は呼ばない")
+    /// 別名は集合を変えないので窓側に伝える必要が無い。並びは手動なので、別名で位置は動かない。
+    @Test("setAlias は一覧に反映されるが位置は変えず、onChange は呼ばない")
     func setAliasRefreshesWithoutNotifying() {
         let store = makeStore()
         var changes = 0
@@ -54,7 +54,7 @@ struct BookmarkManagerModelTests {
 
         model.setAlias("Zulu", for: note)
 
-        #expect(model.entries.map(\.displayName) == ["diagram.mmd", "Zulu"])
+        #expect(model.children(of: []).entries.map(\.displayName) == ["Zulu", "diagram.mmd"])
         #expect(changes == 0)
     }
 
@@ -67,7 +67,7 @@ struct BookmarkManagerModelTests {
 
         model.refresh()
 
-        #expect(model.entries.map(\.url) == [note])
+        #expect(model.library.entries.map(\.url) == [note])
     }
 
     /// フォルダーの操作は集合を変えないので窓側に伝えない。スナップショットだけが追随する。
