@@ -46,7 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.windowManager = windowManager
         self.documentOpener = documentOpener
         self.sessionRestorer = sessionRestorer
-        panels = HostedPanelPresenter(stores: stores, windowManager: windowManager)
+        panels = HostedPanelPresenter(
+            stores: stores, windowManager: windowManager,
+            openHandler: { documentOpener.openViewer(for: $0) }
+        )
         quickOpen = QuickOpenCoordinator(
             stores: stores,
             gitIndex: windowManager.gitFileIndex,
@@ -239,6 +242,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 最前面なら閉じ、そうでなければ開く/前面化するトグル動作にする。
     @objc func showSettings(_ sender: Any?) {
         panels.toggle(.settings)
+    }
+
+    /// Bookmarks > ブックマークを編集…。設定と同じ単一インスタンスのトグル動作。
+    @objc func showBookmarkManager(_ sender: Any?) {
+        panels.toggle(.bookmarks)
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開く。

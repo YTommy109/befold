@@ -113,23 +113,28 @@ extension NSMenu {
         )
     }
 
-    /// ファイル URL の一覧を「ファイル名(左)＋親ディレクトリのパス(右)」の 2 列表示で追加する。
+    /// ファイル URL の一覧を「表示名(左)＋親ディレクトリのパス(右)」の 2 列表示で追加する。
     /// 同名ファイルが別フォルダーにあるとき、メニュー上で区別できるようにするためのもの。
     /// 列の位置は与えられた URL 群の実測幅から決まるので、1 メニュー分をまとめて渡すこと。
+    /// - Parameter titles: 左列の表示名。省略時はファイル名。ブックマークの別名のように
+    ///   ファイル名と違う名前を出す呼び出し元が渡す(件数は `urls` と揃えること)。
     @MainActor
     @discardableResult
     func addFileItems(
         urls: [URL],
+        titles: [String]? = nil,
         action: Selector,
         target: AnyObject
     ) -> [NSMenuItem] {
-        let titles = FileMenuTitleLayout(urls: urls)
+        let names = titles ?? urls.map(\.lastPathComponent)
+        precondition(names.count == urls.count, "titles と urls の件数が揃っていない")
+        let layout = FileMenuTitleLayout(names: names, urls: urls)
         return urls.enumerated().map { index, url in
             let item = addFileItem(
-                title: url.lastPathComponent, filePath: url.path,
+                title: names[index], filePath: url.path,
                 action: action, target: target, representedObject: url
             )
-            item.attributedTitle = titles.attributedTitle(at: index)
+            item.attributedTitle = layout.attributedTitle(at: index)
             return item
         }
     }
@@ -150,10 +155,16 @@ struct FileMenuTitleLayout {
     private let paths: [String]
     private let tabLocation: CGFloat
 
+    /// ファイル名を表示名にする(Recent など別名を持たない一覧用)。
     init(urls: [URL]) {
+        self.init(names: urls.map(\.lastPathComponent), urls: urls)
+    }
+
+    /// - Parameter names: 左列の表示名(`urls` と同じ件数・同じ順)。
+    init(names: [String], urls: [URL]) {
         let nameFont = NSFont.menuFont(ofSize: 0)
         let pathFont = NSFont.menuFont(ofSize: NSFont.smallSystemFontSize)
-        names = urls.map(\.lastPathComponent)
+        self.names = names
         paths = urls.map { Self.displayPath(for: $0, font: pathFont) }
         let widest = zip(names, paths).map { name, path in
             Self.width(of: name, font: nameFont) + Self.width(of: path, font: pathFont)

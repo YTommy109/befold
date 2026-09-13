@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldKit
 import Testing
 
 /// メニューのキー等価(ショートカット)に関する検証。
@@ -107,7 +108,7 @@ struct ViewMenuValidationTests {
     @Test("作り直された Bookmarks のトグルも文言がブックマーク状態で入れ替わる")
     func rebuiltBookmarkToggleReflectsState() throws {
         let controller = BookmarksMenuController(
-            bookmarkedURLs: { [] }, openHandler: { _ in }, removeMissingHandler: {}
+            library: { BookmarkLibrary() }, openHandler: { _ in }, removeMissingHandler: {}
         )
         let item = MainMenuBuilder.makeBookmarksMenuItem(delegate: controller)
         let menu = try #require(item.submenu)

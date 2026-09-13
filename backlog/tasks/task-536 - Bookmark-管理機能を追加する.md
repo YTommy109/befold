@@ -1,9 +1,11 @@
 ---
 id: TASK-536
 title: Bookmark 管理機能を追加する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-08-21 07:26'
+updated_date: '2026-09-12 13:20'
 labels: []
 milestone: m-9
 dependencies: []
@@ -29,3 +31,9 @@ ordinal: 776000
 - [ ] #3 ドラッグ&ドロップでブックマークを追加できる
 - [ ] #4 ブックマークをフォルダー風の階層で整理できる
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+設計は docs/superpowers/specs/2026-09-12-bookmark-management-design.md（4 サブタスク共通）。順序は 536.1（スキーマ・移行・パネル新設・別名）→ 536.2（削除）→ 536.4（フォルダー）→ 536.3（Finder からの D&D）。依存は --dep で構造化済み。
+<!-- SECTION:PLAN:END -->

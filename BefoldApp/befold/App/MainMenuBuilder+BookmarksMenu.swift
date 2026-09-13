@@ -9,14 +9,27 @@ import AppKit
 /// 実装とページの突き合わせが片側だけ欠ける。
 extension MainMenuBuilder {
     /// 一覧の中身は `delegate`(`BookmarksMenuController`)が表示直前に組み立てる。
-    /// 固定部のトグルだけはここでも置く——理由は `addBookmarkToggleItem(to:)` を参照。
+    /// 固定部だけはここでも置く——理由は `addBookmarkToggleItem(to:)` を参照。
     static func makeBookmarksMenuItem(delegate: NSMenuDelegate) -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.bookmarks.title", bundle: .l10n))
         menu.delegate = delegate
         item.submenu = menu
-        addBookmarkToggleItem(to: menu)
+        addBookmarksFixedItems(to: menu)
         return item
+    }
+
+    /// 一覧の前に置く固定部(トグルと「ブックマークを編集…」)。組み立て時と一覧の
+    /// 再生成時の両方から呼ぶ(`addBookmarkToggleItem(to:)` の doc)。
+    static func addBookmarksFixedItems(to menu: NSMenu) {
+        addBookmarkToggleItem(to: menu)
+        addEditBookmarksItem(to: menu)
+    }
+
+    /// 管理パネル(`HostedPanel.bookmarks`)を開く。キー等価は付けない——付けると紹介サイトの
+    /// ショートカット検証(`site/test/shortcuts.test.ts`)と Help の一覧に載る項目が増える。
+    static func addEditBookmarksItem(to menu: NSMenu) {
+        menu.addLocalizedItem("menu.bookmarks.edit", action: #selector(AppDelegate.showBookmarkManager(_:)))
     }
 
     /// ブックマークの追加/削除トグル。表示名は `ViewerMenuValidator` が

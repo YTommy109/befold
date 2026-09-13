@@ -55,6 +55,8 @@ final class HostedPanelWindowController: NSWindowController {
 enum HostedPanel: Hashable {
     case about
     case settings
+    /// ブックマークの管理(別名・削除・フォルダー)。文書の窓ではないので `ViewerWindowKind` には乗せない。
+    case bookmarks
     case featureOverview
     case keyboardShortcuts
     case aiIntegration
