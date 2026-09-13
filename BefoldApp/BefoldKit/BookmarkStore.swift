@@ -45,6 +45,11 @@ public final class BookmarkStore {
         mutate { $0.add(url) }
     }
 
+    /// 指定フォルダーの直下へ追加する(管理パネルへのドロップ用)。規則は `BookmarkLibrary.add(_:to:)`。
+    public func add(_ url: URL, toFolder folder: [String]) {
+        mutate { $0.add(url, to: folder) }
+    }
+
     /// ブックマークの有無を反転させる。
     public func toggle(_ url: URL) {
         if isBookmarked(url) {

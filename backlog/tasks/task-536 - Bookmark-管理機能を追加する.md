@@ -1,11 +1,11 @@
 ---
 id: TASK-536
 title: Bookmark 管理機能を追加する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-21 07:26'
-updated_date: '2026-09-12 13:20'
+updated_date: '2026-09-12 14:38'
 labels: []
 milestone: m-9
 dependencies: []
@@ -26,10 +26,10 @@ ordinal: 776000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ブックマークに別名を付けられる
-- [ ] #2 ブックマークを個別に削除できる
-- [ ] #3 ドラッグ&ドロップでブックマークを追加できる
-- [ ] #4 ブックマークをフォルダー風の階層で整理できる
+- [x] #1 ブックマークに別名を付けられる
+- [x] #2 ブックマークを個別に削除できる
+- [x] #3 ドラッグ&ドロップでブックマークを追加できる
+- [x] #4 ブックマークをフォルダー風の階層で整理できる
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -37,3 +37,15 @@ ordinal: 776000
 <!-- SECTION:PLAN:BEGIN -->
 設計は docs/superpowers/specs/2026-09-12-bookmark-management-design.md（4 サブタスク共通）。順序は 536.1（スキーマ・移行・パネル新設・別名）→ 536.2（削除）→ 536.4（フォルダー）→ 536.3（Finder からの D&D）。依存は --dep で構造化済み。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+4 サブタスクすべて Done（536.1 → 536.2 → 536.4 → 536.3 の順で実装。PR #658 → #659 → #660 → 536.3 の PR を積んだ形）。共通設計は docs/superpowers/specs/2026-09-12-bookmark-management-design.md、現在仕様は docs/dev/native-app-design.md に反映済み。スキーマの移行は 536.1 で 1 回だけ行い、旧キー BookmarkedPaths は削除した。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ブックマーク管理を 4 つの機能で刷新した: 別名（536.1）、管理パネルからの削除（536.2）、Finder からの D&D 追加（536.3）、フォルダー階層（536.4）。永続化は値型 BookmarkLibrary（JSON、キー Bookmarks）へ一度だけ移行し、Bookmarks メニューと管理パネル（HostedPanel.bookmarks）が同じ値を読む。各サブタスクの検証は Implementation Notes を参照。
+<!-- SECTION:FINAL_SUMMARY:END -->
