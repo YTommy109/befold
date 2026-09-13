@@ -207,4 +207,42 @@ struct BookmarksMenuControllerTests {
 
         #expect(opened == [url])
     }
+
+    /// 536.4 AC #6: フォルダーはサブメニュー。各階層でフォルダーが先、エントリが後。
+    @Test("フォルダーはサブメニューとして出て、中のブックマークはその下に並ぶ")
+    func rendersFoldersAsSubmenus() throws {
+        let inside = URL(fileURLWithPath: "/tmp/inside.md")
+        let top = URL(fileURLWithPath: "/tmp/top.md")
+        let library = BookmarkLibrary(
+            folders: [BookmarkFolder(path: ["Work"]), BookmarkFolder(path: ["Work", "Specs"])],
+            entries: [
+                BookmarkEntry(path: inside.path, folder: ["Work"]),
+                BookmarkEntry(path: top.path),
+            ]
+        )
+        let controller = makeController(library: library)
+        let menu = NSMenu(title: "Bookmarks")
+
+        controller.menuNeedsUpdate(menu)
+
+        let first = Self.firstListIndex
+        let work = try #require(menu.items[first].submenu)
+        #expect(menu.items[first].title == "Work")
+        #expect(work.items.map(\.title) == ["Specs", "inside.md\t/tmp"])
+        #expect(work.items[0].submenu?.items.isEmpty == true)
+        #expect(menu.items[first + 1].title == "top.md\t/tmp")
+        #expect(menu.items[first + 1].representedObject as? URL == top)
+    }
+
+    @Test("空のフォルダーだけでも一覧の区切りと一括除去の項目が出る")
+    func showsListSectionForEmptyFolder() {
+        let controller = makeController(library: BookmarkLibrary(folders: [BookmarkFolder(path: ["Work"])]))
+        let menu = NSMenu(title: "Bookmarks")
+
+        controller.menuNeedsUpdate(menu)
+
+        #expect(menu.items.count == Self.fixedItemCount + 4)
+        #expect(menu.items[Self.firstListIndex].submenu != nil)
+        #expect(removeMissingItem(in: menu) != nil)
+    }
 }
