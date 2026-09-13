@@ -16,6 +16,8 @@ import BefoldKit
 /// **この型は `FileReading` を持たない。** 存在確認(stat)はアンマウント済み/応答しない
 /// ネットワークマウントで待たされるため、メニュー表示のたびに走らせてはならず、
 /// 判定は `MissingBookmarksPruner`(ユーザーが項目を選んだときだけ走る)に閉じている。
+/// 項目のアイコンも同じ理由でパスからは引かず、`BookmarkEntry.iconType` の型アイコンを使う
+/// (`addFileItems` の既定はパスからアイコンを引くため、明示的に渡す。TASK-620.1)。
 @MainActor
 final class BookmarksMenuController: NSObject, NSMenuDelegate {
     private let library: () -> BookmarkLibrary
@@ -56,6 +58,7 @@ final class BookmarksMenuController: NSObject, NSMenuDelegate {
         guard !children.entries.isEmpty else { return }
         menu.addFileItems(
             urls: children.entries.map(\.url), titles: children.entries.map(\.displayName),
+            icons: children.entries.map { NSWorkspace.shared.icon(for: $0.iconType).sizedForMenuItem() },
             action: #selector(openBookmark(_:)), target: self
         )
     }

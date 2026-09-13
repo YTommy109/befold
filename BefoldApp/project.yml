@@ -66,7 +66,8 @@ targets:
       PRODUCT_NAME: BefoldKit
       GENERATE_INFOPLIST_FILE: true
   # PDF の解釈(PDFDocument の生成)だけを持つ最小のフレームワーク。
-  # BefoldKit を Foundation だけで成立する層に保つため、PDFKit を要する判定を
+  # BefoldKit を Foundation だけで成立する層に保つため(UI を持たない UniformTypeIdentifiers は
+  # 許容する。ブックマークのアイコン型 BookmarkEntry.iconType / TASK-620.1)、PDFKit を要する判定を
   # ここへ隔離する(TASK-598)。befold / BefoldCLI / BefoldRenderKit の 3 つが
   # ViewerLoadPipeline.load へ probe を渡す必要があり、その 3 つ全部から見える
   # 層は BefoldKit の隣にしか作れない(BefoldRenderKit へ置くと WebKit が CLI に

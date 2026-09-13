@@ -31,6 +31,28 @@ struct BookmarkStoreTests {
         #expect(store.isBookmarked(url("a.mmd")))
     }
 
+    /// 種別は追加の瞬間にディスクへ問い合わせて記録し、以後の `url` はディスクを見ない。
+    /// `URL(fileURLWithPath:)` で作っていた頃は、記録が無くても実在するディレクトリを
+    /// 見に行って `hasDirectoryPath` が true になっていた(= 表示のたびに stat していた)。
+    @Test("add は実在のディレクトリとファイルの種別を記録し、記録の無い url はディスクを見ない")
+    func addRecordsKindAndURLDoesNotTouchDisk() throws {
+        let temp = try TempDir()
+        let folder = temp.url.appendingPathComponent("docs.v1")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = try temp.file(named: "note.md", contents: "")
+        let store = makeStore()
+
+        // 末尾スラッシュの無い形で渡しても、URL の形ではなくディスクで判定する。
+        store.add(URL(filePath: folder.path, directoryHint: .notDirectory))
+        store.add(file)
+
+        let library = store.library()
+        #expect(library.entry(for: folder)?.isDirectory == true)
+        #expect(library.entry(for: file)?.isDirectory == false)
+        let unrecorded = BookmarkEntry(path: folder.normalizedPathKey)
+        #expect(!unrecorded.url.hasDirectoryPath)
+    }
+
     @Test("remove で取り除かれる。未登録のパスを渡しても他の登録は壊れない")
     func removeDropsOnlyTheGivenBookmark() {
         let store = makeStore()

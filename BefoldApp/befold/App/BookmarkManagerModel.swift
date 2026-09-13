@@ -81,8 +81,8 @@ final class BookmarkManagerModel {
         let outcome = await withBlockingWork {
             Self.dropDecision(urls, library: library, fileReader: fileReader)
         }
-        for url in outcome.added {
-            store.add(url, toFolder: folder)
+        for added in outcome.added {
+            store.add(added.url, toFolder: folder, isDirectory: added.isDirectory)
         }
         refresh()
         lastDrop = outcome
@@ -105,11 +105,12 @@ final class BookmarkManagerModel {
                 outcome.rejected.append(.init(url: url, reason: .missing))
                 continue
             }
-            guard fileReader.isDirectory(at: url) || FileType.isSupported(url) else {
+            let isDirectory = fileReader.isDirectory(at: url)
+            guard isDirectory || FileType.isSupported(url) else {
                 outcome.rejected.append(.init(url: url, reason: .unsupported))
                 continue
             }
-            outcome.added.append(url)
+            outcome.added.append(.init(url: url, isDirectory: isDirectory))
         }
         return outcome
     }
