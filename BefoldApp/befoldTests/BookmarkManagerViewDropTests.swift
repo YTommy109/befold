@@ -53,7 +53,7 @@ struct BookmarkManagerViewDropTests {
 
     @Test("弾いた分があるときだけ 1 行の文言になり、件数と理由を含む")
     func feedbackMentionsCountAndReasons() {
-        #expect(BookmarkDropOutcome(added: [note]).feedback == nil)
+        #expect(BookmarkDropOutcome(added: [.init(url: note, isDirectory: false)]).feedback == nil)
 
         let outcome = BookmarkDropOutcome(
             added: [],
