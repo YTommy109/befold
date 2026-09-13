@@ -87,7 +87,7 @@ struct BookmarkManagerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(selection: $selection) {
-                childrenView(root)
+                childrenView(root, in: [])
             }
             .onDeleteCommand { deleteSelected() }
         }
@@ -95,11 +95,12 @@ struct BookmarkManagerView: View {
 
     /// 1 段ぶんの行。フォルダーは `DisclosureGroup` で、中身はこの関数を再帰で呼んで作る。
     /// 再帰は `AnyView` で切る(opaque な戻り値型が自分自身を含めない)。
+    /// ブックマーク行の間へのドロップはその段(`parent`)の中での並び替え(TASK-620.3)。
     @ViewBuilder
-    private func childrenView(_ children: BookmarkChildren) -> some View {
+    private func childrenView(_ children: BookmarkChildren, in parent: [String]) -> some View {
         ForEach(children.folders, id: \.path) { folder in
             DisclosureGroup(isExpanded: expansion(of: folder)) {
-                AnyView(childrenView(model.children(of: folder.path)))
+                AnyView(childrenView(model.children(of: folder.path), in: folder.path))
             } label: {
                 folderRow(folder)
             }
@@ -108,6 +109,9 @@ struct BookmarkManagerView: View {
         ForEach(children.entries, id: \.path) { entry in
             bookmarkRow(entry)
                 .tag(BookmarkRow.bookmark(entry.path))
+        }
+        .onInsert(of: [.bookmarkEntry]) { index, providers in
+            handleInsert(at: index, providers, into: parent, entries: children.entries)
         }
     }
 
@@ -143,8 +147,10 @@ struct BookmarkManagerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            // ダブルクリックで開く範囲から ⋯ を外す(⋯ の連打でファイルが開かないように)。
+            // ダブルクリックで開く範囲とドラッグを始める範囲から ⋯ を外す(⋯ の連打でファイルが
+            // 開かない / ⋯ を押したつもりでドラッグが始まらないように)。
             .simultaneousGesture(TapGesture(count: 2).onEnded { model.open(entry.url) })
+            .onDrag { Self.dragProvider(for: entry) }
             actionsMenu(labelKey: "bookmarks.manager.bookmarkActions") { bookmarkActions(entry) }
         }
         .contextMenu { bookmarkActions(entry) }

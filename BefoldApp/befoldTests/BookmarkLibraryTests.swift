@@ -254,11 +254,14 @@ struct BookmarkLibraryTests {
     }
 
     /// 記録の無いフォルダーに属するエントリ(手編集・旧版)は消えて見えないよう、ルート扱いで出す。
-    @Test("children はフォルダー → エントリの順で並び、所属先の無いエントリはルートに出る")
+    /// エントリは保存順(手動の並び)で、フォルダーだけ名前順(TASK-620.3)。
+    @Test("children はフォルダー(名前順) → エントリ(保存順)で並び、所属先の無いエントリはルートに出る")
     func childrenOrdersFoldersFirstAndRescuesOrphans() {
+        let zulu = URL(fileURLWithPath: "/mock/docs/zulu.md")
         let library = BookmarkLibrary(
             folders: [BookmarkFolder(path: ["zeta"]), BookmarkFolder(path: ["Alpha"])],
             entries: [
+                BookmarkEntry(path: zulu.path),
                 BookmarkEntry(path: note.path, alias: "b-note", folder: ["Alpha"]),
                 BookmarkEntry(path: diagram.path, folder: ["Missing"]),
             ]
@@ -266,7 +269,7 @@ struct BookmarkLibraryTests {
 
         let root = library.children(of: [])
         #expect(root.folders.map(\.name) == ["Alpha", "zeta"])
-        #expect(root.entries.map(\.path) == [diagram.path])
+        #expect(root.entries.map(\.path) == [zulu.path, diagram.path])
         #expect(library.children(of: ["Alpha"]).entries.map(\.displayName) == ["b-note"])
         #expect(library.children(of: ["zeta"]).isEmpty)
     }
