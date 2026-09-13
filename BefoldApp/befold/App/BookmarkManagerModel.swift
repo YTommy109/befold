@@ -76,8 +76,8 @@ final class BookmarkManagerModel {
         let outcome = await withBlockingWork {
             Self.dropDecision(urls, library: library, fileReader: fileReader)
         }
-        for added in outcome.added {
-            store.add(added.url, toFolder: folder, isDirectory: added.isDirectory)
+        for url in outcome.added {
+            store.add(url, toFolder: folder)
         }
         refresh()
         lastDrop = outcome
@@ -87,8 +87,9 @@ final class BookmarkManagerModel {
     /// 受け入れ規則(純粋関数)。
     /// - 登録済み(同じドロップ内の重複も)は追加も弾きもしない
     /// - 存在しなければ弾く(`missing`)
-    /// - 通常ファイルで対応形式でなければ弾く(`unsupported`)。ディレクトリは受け入れる
-    ///   (`DocumentOpener` がフォルダーを開ける)
+    /// - フォルダーは弾く(`folder`。規則は `BookmarkStore.canBookmark`。TASK-536.3 では受け入れていたが
+    ///   仕様と逆だった。TASK-621)
+    /// - 通常ファイルで対応形式でなければ弾く(`unsupported`)
     nonisolated static func dropDecision(
         _ urls: [URL], library: BookmarkLibrary, fileReader: any FileReading
     ) -> BookmarkDropOutcome {
@@ -100,12 +101,15 @@ final class BookmarkManagerModel {
                 outcome.rejected.append(.init(url: url, reason: .missing))
                 continue
             }
-            let isDirectory = fileReader.isDirectory(at: url)
-            guard isDirectory || FileType.isSupported(url) else {
+            guard BookmarkStore.canBookmark(url, fileReader: fileReader) else {
+                outcome.rejected.append(.init(url: url, reason: .folder))
+                continue
+            }
+            guard FileType.isSupported(url) else {
                 outcome.rejected.append(.init(url: url, reason: .unsupported))
                 continue
             }
-            outcome.added.append(.init(url: url, isDirectory: isDirectory))
+            outcome.added.append(url)
         }
         return outcome
     }

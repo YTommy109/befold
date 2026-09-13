@@ -14,7 +14,7 @@ struct BookmarkLibraryOrderTests {
         let charlie = URL(fileURLWithPath: "/mock/c.md")
         var library = BookmarkLibrary(folders: [BookmarkFolder(path: ["Work"])])
         for url in [alpha, bravo, charlie] {
-            library.add(url, isDirectory: false)
+            library.add(url)
         }
         let order = { (folder: [String]) in library.children(of: folder).entries.map(\.displayName) }
 

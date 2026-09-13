@@ -14,10 +14,10 @@ struct BookmarkLibraryTests {
     func addIsIdempotentAndLandsAtRoot() {
         var library = BookmarkLibrary()
 
-        library.add(note, isDirectory: false)
-        library.add(note, isDirectory: false)
+        library.add(note)
+        library.add(note)
 
-        #expect(library.entries == [BookmarkEntry(path: note.path, isDirectory: false)])
+        #expect(library.entries == [BookmarkEntry(path: note.path)])
         #expect(library.entries[0].folder.isEmpty)
         #expect(library.contains(note))
     }
@@ -25,8 +25,8 @@ struct BookmarkLibraryTests {
     @Test("表示名は別名があればそれ、無ければファイル名")
     func displayNameFallsBackToFileName() {
         var library = BookmarkLibrary()
-        library.add(note, isDirectory: false)
-        library.add(diagram, isDirectory: false)
+        library.add(note)
+        library.add(diagram)
 
         library.setAlias("Weekly notes", for: note)
 
@@ -42,27 +42,22 @@ struct BookmarkLibraryTests {
         #expect(BookmarkEntry(path: "/mock/docs/note.md").detailPath == "/mock/docs")
     }
 
-    /// アイコンは拡張子と記録済みの種別だけで決まる(ブックマーク先に触れない)。
-    /// 種別の記録が無い既存データだけ、拡張子の有無からフォルダーを推定する。
+    /// アイコンは拡張子だけで決まる(ブックマーク先に触れない)。拡張子の無い名前は汎用の書類。
     @Test(arguments: [
-        (entry: BookmarkEntry(path: "/mock/docs/note.md", isDirectory: false), type: UTType(filenameExtension: "md")!),
-        (entry: BookmarkEntry(path: "/mock/docs/archive.v1", isDirectory: true), type: UTType.folder),
-        (entry: BookmarkEntry(path: "/mock/docs", isDirectory: nil), type: UTType.folder),
-        (entry: BookmarkEntry(path: "/mock/docs/Makefile", isDirectory: false), type: UTType.data),
-        (
-            entry: BookmarkEntry(path: "/mock/docs/diagram.mmd", isDirectory: nil),
-            type: UTType(filenameExtension: "mmd")!
-        ),
+        (path: "/mock/docs/note.md", type: UTType(filenameExtension: "md")!),
+        (path: "/mock/docs/diagram.mmd", type: UTType(filenameExtension: "mmd")!),
+        (path: "/mock/docs/Makefile", type: UTType.data),
+        (path: "/mock/docs", type: UTType.data),
     ])
-    func iconTypeUsesRecordedKindAndExtension(entry: BookmarkEntry, type: UTType) {
-        #expect(entry.iconType == type)
+    func iconTypeUsesExtensionOnly(path: String, type: UTType) {
+        #expect(BookmarkEntry(path: path).iconType == type)
     }
 
     /// 空文字と nil の 2 状態を作らない。空白だけの入力も「別名なし」に畳む。
     @Test("setAlias は前後の空白を除き、空なら別名なしに戻す")
     func setAliasNormalizesEmptyToNil() {
         var library = BookmarkLibrary()
-        library.add(note, isDirectory: false)
+        library.add(note)
 
         library.setAlias("  Padded  ", for: note)
         #expect(library.entry(for: note)?.alias == "Padded")
@@ -117,8 +112,8 @@ struct BookmarkLibraryTests {
     @Test("removeAll は渡した分だけを取り除く")
     func removeAllDropsOnlyGivenPaths() {
         var library = BookmarkLibrary()
-        library.add(note, isDirectory: false)
-        library.add(diagram, isDirectory: false)
+        library.add(note)
+        library.add(diagram)
 
         library.removeAll([note, URL(fileURLWithPath: "/mock/unknown.md")])
 
@@ -142,7 +137,6 @@ struct BookmarkLibraryTests {
             entries: [
                 BookmarkEntry(path: note.path, alias: "Weekly", folder: ["Work"]),
                 BookmarkEntry(path: diagram.path),
-                BookmarkEntry(path: "/mock/docs", isDirectory: true),
             ]
         )
 
@@ -152,7 +146,6 @@ struct BookmarkLibraryTests {
         #expect(decoded == library)
         let json = try #require(String(data: data, encoding: .utf8))
         #expect(json.components(separatedBy: "\"alias\"").count == 2)
-        #expect(json.components(separatedBy: "\"isDirectory\"").count == 2)
     }
 
     // MARK: - フォルダー
@@ -239,7 +232,7 @@ struct BookmarkLibraryTests {
     @Test("move は存在するフォルダーへだけ移せる")
     func moveRequiresExistingFolder() {
         var library = BookmarkLibrary(folders: [BookmarkFolder(path: ["Work"])])
-        library.add(note, isDirectory: false)
+        library.add(note)
 
         let result11 = library.move(note, to: ["Work"])
         #expect(result11)
@@ -290,9 +283,9 @@ struct BookmarkLibraryTests {
     func addToFolderFallsBackToRoot() {
         var library = BookmarkLibrary(folders: [BookmarkFolder(path: ["Work"])])
 
-        library.add(note, to: ["Work"], isDirectory: false)
-        library.add(diagram, to: ["Missing"], isDirectory: false)
-        library.add(note, to: [], isDirectory: false)
+        library.add(note, to: ["Work"])
+        library.add(diagram, to: ["Missing"])
+        library.add(note, to: [])
 
         #expect(library.entry(for: note)?.folder == ["Work"])
         #expect(library.entry(for: diagram)?.folder == [])

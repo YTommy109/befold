@@ -97,9 +97,10 @@ struct BookmarkManagerModelTests {
         URL(fileURLWithPath: path)
     }
 
-    /// 受け入れ規則を 1 回のドロップで全部通す: 対応ファイルとフォルダーは追加、存在しない・
+    /// 受け入れ規則を 1 回のドロップで全部通す: 対応ファイルは追加、フォルダー・存在しない・
     /// 非対応は理由付きで弾く、登録済みは追加も弾きもしない。追加があるので onChange は 1 回。
-    @Test("ドロップ: 存在する対応ファイルとフォルダーを追加し、存在しない・非対応は理由付きで弾く")
+    /// フォルダーは TASK-536.3 では受け入れていたが、ブックマークできない仕様と逆だった(TASK-621)。
+    @Test("ドロップ: 存在する対応ファイルを追加し、フォルダー・存在しない・非対応は理由付きで弾く")
     func addDroppedAppliesAcceptanceRules() async {
         let reader = InMemoryFileReader(
             files: ["/mock/new.md": "# new", "/mock/tool.exe": "x"], directories: ["/mock/dir"]
@@ -123,15 +124,11 @@ struct BookmarkManagerModelTests {
         )
 
         #expect(store.isBookmarked(Self.url("/mock/new.md")))
-        #expect(store.isBookmarked(Self.url("/mock/dir")))
+        #expect(!store.isBookmarked(Self.url("/mock/dir")))
         #expect(!store.isBookmarked(Self.url("/mock/tool.exe")))
-        #expect(model.lastDrop?.added == [
-            .init(url: Self.url("/mock/new.md"), isDirectory: false),
-            .init(url: Self.url("/mock/dir"), isDirectory: true),
-        ])
-        // 種別は受け入れ判定の結果がそのまま記録される(ストアの既定の読み手は /mock/dir を知らない)。
-        #expect(store.library().entry(for: Self.url("/mock/dir"))?.isDirectory == true)
+        #expect(model.lastDrop?.added == [Self.url("/mock/new.md")])
         #expect(model.lastDrop?.rejected == [
+            .init(url: Self.url("/mock/dir"), reason: .folder),
             .init(url: Self.url("/mock/tool.exe"), reason: .unsupported),
             .init(url: Self.url("/mock/missing.md"), reason: .missing),
         ])

@@ -95,7 +95,7 @@ struct BookmarkStoreMigrationTests {
 
         let store = BookmarkStore(defaults: defaults)
 
-        #expect(store.library().entries == [BookmarkEntry(path: diagram.path, alias: "Kept", isDirectory: false)])
+        #expect(store.library().entries == [BookmarkEntry(path: diagram.path, alias: "Kept")])
         #expect(!store.isBookmarked(note))
         #expect(defaults.object(forKey: legacyKey) == nil)
     }

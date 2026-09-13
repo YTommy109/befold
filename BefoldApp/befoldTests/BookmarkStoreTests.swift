@@ -31,26 +31,25 @@ struct BookmarkStoreTests {
         #expect(store.isBookmarked(url("a.mmd")))
     }
 
-    /// 種別は追加の瞬間にディスクへ問い合わせて記録し、以後の `url` はディスクを見ない。
-    /// `URL(fileURLWithPath:)` で作っていた頃は、記録が無くても実在するディレクトリを
-    /// 見に行って `hasDirectoryPath` が true になっていた(= 表示のたびに stat していた)。
-    @Test("add は実在のディレクトリとファイルの種別を記録し、記録の無い url はディスクを見ない")
-    func addRecordsKindAndURLDoesNotTouchDisk() throws {
+    /// `url` はディスクを見ない。`URL(fileURLWithPath:)` で作っていた頃は、実在するディレクトリを
+    /// 見に行って `hasDirectoryPath` が true になっていた(= 表示のたびに stat していた。TASK-620.1)。
+    @Test("エントリの url は実在するディレクトリでもディスクを見ない")
+    func entryURLDoesNotTouchDisk() throws {
         let temp = try TempDir()
         let folder = temp.url.appendingPathComponent("docs.v1")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        #expect(!BookmarkEntry(path: folder.normalizedPathKey).url.hasDirectoryPath)
+    }
+
+    /// フォルダーはブックマークできない。ドロップと CLI が共有する規則(TASK-621)。
+    @Test("canBookmark はファイルを通し、フォルダーを弾く")
+    func canBookmarkRejectsFolders() throws {
+        let temp = try TempDir()
         let file = try temp.file(named: "note.md", contents: "")
-        let store = makeStore()
 
-        // 末尾スラッシュの無い形で渡しても、URL の形ではなくディスクで判定する。
-        store.add(URL(filePath: folder.path, directoryHint: .notDirectory))
-        store.add(file)
-
-        let library = store.library()
-        #expect(library.entry(for: folder)?.isDirectory == true)
-        #expect(library.entry(for: file)?.isDirectory == false)
-        let unrecorded = BookmarkEntry(path: folder.normalizedPathKey)
-        #expect(!unrecorded.url.hasDirectoryPath)
+        #expect(BookmarkStore.canBookmark(file, fileReader: DefaultFileReader()))
+        #expect(!BookmarkStore.canBookmark(temp.url, fileReader: DefaultFileReader()))
     }
 
     @Test("remove で取り除かれる。未登録のパスを渡しても他の登録は壊れない")
