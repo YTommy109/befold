@@ -1,5 +1,4 @@
 import Foundation
-import UniformTypeIdentifiers
 
 /// ブックマーク 1 件。パス(正規化済み)に、任意の別名と所属フォルダーを添える。
 ///
@@ -40,16 +39,6 @@ public struct BookmarkEntry: Codable, Equatable, Sendable {
     /// TASK-620.5)。末尾を残して省略する前提で、ファイル名が切れない。
     public var detailPath: String {
         alias == nil ? (path as NSString).deletingLastPathComponent : path
-    }
-
-    /// 一覧に出すアイコンの型。拡張子と記録済みの種別だけから決め、ブックマーク先には触れない。
-    /// 種別の記録が無い既存データは拡張子が無ければフォルダーと推定する。
-    public var iconType: UTType {
-        if isDirectory == true { return .folder }
-        let pathExtension = (path as NSString).pathExtension
-        // ponytail: 記録の無い拡張子なしのファイル(Makefile 等)はフォルダーに見える。付け直せば直る
-        if pathExtension.isEmpty { return isDirectory == nil ? .folder : .data }
-        return UTType(filenameExtension: pathExtension) ?? .data
     }
 }
 

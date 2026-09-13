@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:42'
-updated_date: '2026-09-13 12:39'
+updated_date: '2026-09-13 15:30'
 labels: []
 milestone: m-9
 dependencies: []
@@ -60,6 +60,8 @@ responsibility-reviewer: 要対応 1 件——BookmarkStore.add(_:toFolder:) が
 - 型グループ: 閾値以内
 - 実機（.tmp/TASK-620/6201-*.png）: CLI で sample-folder / diagram.mmd / table.csv を追加 → パネルとメニューでフォルダー・CSV・書類のアイコン。同じフォルダーをサイドバーで開いたときのアイコンと一致。既存（isDirectory 記録なし）の .md も書類アイコン
 native-app-design.md: BookmarkStore / BookmarksMenuController / BookmarkManagerView の行を更新
+
+PR #663 の CI（type-group-size ジョブの check-befoldkit-platform-free.sh）で BefoldKit の import UniformTypeIdentifiers が弾かれた。検査の許可基準は swift-corelibs にも実装があるモジュールで、UTType は Apple 専用のため満たさない。上の任意指摘 (a) の「BefoldKit に据え置き」を撤回し、iconType を befold/App/BookmarkEntry+IconType.swift の extension へ移した（呼び出し元はすべて befold ターゲット）。project.yml に足した許容のコメントも戻した。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
