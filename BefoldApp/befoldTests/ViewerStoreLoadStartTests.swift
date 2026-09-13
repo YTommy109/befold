@@ -20,18 +20,21 @@ struct ViewerStoreLoadStartTests {
     /// 読み込みが「始まった」ことを、パイプラインが実際に読みに来たかで見る。
     /// メインアクターを塞いだまま待てるよう、隔離を持たない箱で受け渡す。
     private final class StartSignal: @unchecked Sendable {
-        private let lock = NSLock()
+        private let condition = NSCondition()
         private var started = false
 
         func markStarted() {
-            lock.lock()
-            defer { lock.unlock() }
+            condition.lock()
+            defer { condition.unlock() }
             started = true
+            condition.broadcast()
         }
 
-        var hasStarted: Bool {
-            lock.lock()
-            defer { lock.unlock() }
+        /// 開始を**呼び出したスレッドを塞いだまま**待つ。期限は回数ではなく時刻で切る。
+        func waitUntilStarted(before deadline: Date) -> Bool {
+            condition.lock()
+            defer { condition.unlock() }
+            while !started, condition.wait(until: deadline) {}
             return started
         }
     }
@@ -99,12 +102,15 @@ struct ViewerStoreLoadStartTests {
         defer { task.cancel() }
 
         // **await しない。** メインアクターを手放すと「空きを待つ実装」でも通ってしまい、
-        // 守りたい性質を測れなくなる。塞いだままポーリングして、開始が届くのを待つ。
-        var spun = 0
-        while !signal.hasStarted, spun < 200_000 {
-            spun += 1
-        }
-
-        #expect(signal.hasStarted, "メインアクターを塞いだままでは読み込みが始まらなかった")
+        // 守りたい性質を測れなくなる。塞いだまま、開始が届くのを待つ。
+        //
+        // 期限は時刻で切る（TASK-622）。かつては 20 万回の空ループ（数 ms）で待っており、
+        // フル実行で協調プールが混むと開始が届く前にループが尽きて落ちた。空回しは
+        // プール側の CPU も奪うので、条件変数で眠って待つ。
+        let deadline = Date(timeIntervalSinceNow: testTimeoutSeconds(fallback: 10))
+        #expect(
+            signal.waitUntilStarted(before: deadline),
+            "メインアクターを塞いだままでは読み込みが始まらなかった"
+        )
     }
 }
