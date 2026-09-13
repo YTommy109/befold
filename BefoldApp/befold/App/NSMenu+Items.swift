@@ -102,43 +102,31 @@ extension NSMenu {
         return submenu
     }
 
-    /// ファイルアイコン付きの項目を末尾へ追加する。
-    @discardableResult
-    func addFileItem(
-        title: String,
-        filePath: String,
-        action: Selector,
-        target: AnyObject,
-        representedObject: Any? = nil,
-        tag: Int = 0
-    ) -> NSMenuItem {
-        addActionItem(
-            title: title, action: action, target: target,
-            representedObject: representedObject,
-            image: NSMenuItem.icon(forFile: filePath), tag: tag
-        )
-    }
-
     /// ファイル URL の一覧を「表示名(左)＋親ディレクトリのパス(右)」の 2 列表示で追加する。
     /// 同名ファイルが別フォルダーにあるとき、メニュー上で区別できるようにするためのもの。
     /// 列の位置は与えられた URL 群の実測幅から決まるので、1 メニュー分をまとめて渡すこと。
     /// - Parameter titles: 左列の表示名。省略時はファイル名。ブックマークの別名のように
     ///   ファイル名と違う名前を出す呼び出し元が渡す(件数は `urls` と揃えること)。
+    /// - Parameter icons: 項目のアイコン(件数は `urls` と揃えること)。既定値を置かないのは、パスから引く
+    ///   `NSMenuItem.icon(forFile:)` がディスク I/O を伴うため。表示でファイルに触れない約束を持つ
+    ///   ブックマークが、既定に落ちて黙って約束を破らないよう、呼び出し元ごとに選ばせる(TASK-620.1)。
     @MainActor
     @discardableResult
     func addFileItems(
         urls: [URL],
         titles: [String]? = nil,
+        icons: [NSImage],
         action: Selector,
         target: AnyObject
     ) -> [NSMenuItem] {
         let names = titles ?? urls.map(\.lastPathComponent)
         precondition(names.count == urls.count, "titles と urls の件数が揃っていない")
+        precondition(icons.count == urls.count, "icons と urls の件数が揃っていない")
         let layout = FileMenuTitleLayout(names: names, urls: urls)
         return urls.enumerated().map { index, url in
-            let item = addFileItem(
-                title: names[index], filePath: url.path,
-                action: action, target: target, representedObject: url
+            let item = addActionItem(
+                title: names[index], action: action, target: target, representedObject: url,
+                image: icons[index]
             )
             item.attributedTitle = layout.attributedTitle(at: index)
             return item

@@ -133,12 +133,13 @@ struct BookmarkManagerView: View {
 
     private func bookmarkRow(_ entry: BookmarkEntry) -> some View {
         HStack(spacing: 8) {
-            // ファイル種別ごとのアイコン(`NSWorkspace.icon(forFile:)`)はディスク I/O を伴うため使わない。
-            Image(systemName: "bookmark")
-                .foregroundStyle(.secondary)
+            // `NSWorkspace.icon(forFile:)` はブックマーク先を見に行くため、型から引く(TASK-620.1)。
+            Image(nsImage: NSWorkspace.shared.icon(for: entry.iconType))
+                .resizable()
+                .frame(width: 16, height: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.displayName)
-                Text(entry.url.deletingLastPathComponent().path)
+                Text(entry.detailPath)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -148,7 +149,8 @@ struct BookmarkManagerView: View {
         .contentShape(.rect)
         .simultaneousGesture(TapGesture(count: 2).onEnded { model.open(entry.url) })
         .contextMenu {
-            Button(String(localized: "bookmarks.manager.renameAlias", bundle: .l10n)) {
+            // ファイル自体の改名と取り違えないよう「別名」と明示する(TASK-620.5)。
+            Button(String(localized: "bookmarks.manager.setAlias", bundle: .l10n)) {
                 start(.alias(entry))
             }
             moveMenu(for: entry)

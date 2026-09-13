@@ -15,7 +15,14 @@ struct BookmarkDropOutcome: Equatable, Sendable {
         let reason: Rejection
     }
 
-    var added: [URL] = []
+    /// 追加した分。種別は受け入れ判定の stat で分かっているので、ストアへそのまま渡す
+    /// (MainActor 上で調べ直さない)。
+    struct Added: Equatable, Sendable {
+        let url: URL
+        let isDirectory: Bool
+    }
+
+    var added: [Added] = []
     var rejected: [Rejected] = []
 
     /// 弾いた分があるときだけの 1 行。「n 件を追加できませんでした: 名前 (理由), …」。

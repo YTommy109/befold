@@ -22,7 +22,10 @@ final class RecentDocumentsMenuController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let urls = recentURLs()
-        menu.addFileItems(urls: urls, action: #selector(openRecentDocument(_:)), target: self)
+        menu.addFileItems(
+            urls: urls, icons: urls.map { NSMenuItem.icon(forFile: $0.path) },
+            action: #selector(openRecentDocument(_:)), target: self
+        )
         if !urls.isEmpty {
             menu.addItem(.separator())
         }

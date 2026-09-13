@@ -12,20 +12,33 @@ public struct BookmarkEntry: Codable, Equatable, Sendable {
     public var alias: String?
     /// 所属フォルダーの名前列(ルートからの経路)。`[]` はルート直下。
     public var folder: [String]
+    /// ディレクトリか。追加の瞬間に `BookmarkStore` がディスクへ問い合わせて記録する(TASK-620.1)。
+    /// nil はこのフィールドを持つ前に保存された既存データ(表示では推定する。`iconType`)。
+    public var isDirectory: Bool?
 
-    public init(path: String, alias: String? = nil, folder: [String] = []) {
+    public init(path: String, alias: String? = nil, folder: [String] = [], isDirectory: Bool? = nil) {
         self.path = path
         self.alias = alias
         self.folder = folder
+        self.isDirectory = isDirectory
     }
 
+    /// **ファイルシステムを見ない。** `URL(fileURLWithPath:)` はディレクトリかどうかを stat して
+    /// 決めるため、表示(ソートの比較ごと・メニューを開くたび)で使うと応答しないマウントで待たされる。
     public var url: URL {
-        URL(fileURLWithPath: path)
+        URL(filePath: path, directoryHint: isDirectory == true ? .isDirectory : .notDirectory)
     }
 
     /// 一覧に出す名前。別名があればそれ、無ければファイル名。
     public var displayName: String {
-        alias ?? url.lastPathComponent
+        alias ?? (path as NSString).lastPathComponent
+    }
+
+    /// 一覧で表示名の下に添えるパス。別名が無ければ親ディレクトリ(表示名がファイル名なので
+    /// 繰り返さない)、別名があればファイル名まで含むパス(表示名からファイル名が消えるため。
+    /// TASK-620.5)。末尾を残して省略する前提で、ファイル名が切れない。
+    public var detailPath: String {
+        alias == nil ? (path as NSString).deletingLastPathComponent : path
     }
 }
 
@@ -136,16 +149,15 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
 
     // MARK: - エントリの操作
 
-    /// 未登録ならルート直下へ追加する。登録済みなら何もしない(冪等)。
-    public mutating func add(_ url: URL) {
-        add(url, to: [])
-    }
-
-    /// 未登録なら `folder` の直下へ追加する。登録済みなら何もしない(所属も変えない)。
+    /// 未登録なら `folder` の直下へ追加する。登録済みなら何もしない(所属も種別も変えない)。
     /// フォルダーが無ければルートへ入れる(ドロップ中にフォルダーが消えても取りこぼさない)。
-    public mutating func add(_ url: URL, to folder: [String]) {
+    /// `isDirectory` に既定値を置かないのは、渡し忘れを種別の記録漏れとして黙って通さないため
+    /// (値型は種別を調べる手段を持たない。調べるのは `BookmarkStore`)。
+    public mutating func add(_ url: URL, to folder: [String] = [], isDirectory: Bool) {
         guard !contains(url) else { return }
-        entries.append(BookmarkEntry(path: url.normalizedPathKey, folder: folderExists(folder) ? folder : []))
+        entries.append(BookmarkEntry(
+            path: url.normalizedPathKey, folder: folderExists(folder) ? folder : [], isDirectory: isDirectory
+        ))
     }
 
     public mutating func remove(_ url: URL) {

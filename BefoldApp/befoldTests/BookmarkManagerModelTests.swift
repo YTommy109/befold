@@ -125,7 +125,12 @@ struct BookmarkManagerModelTests {
         #expect(store.isBookmarked(Self.url("/mock/new.md")))
         #expect(store.isBookmarked(Self.url("/mock/dir")))
         #expect(!store.isBookmarked(Self.url("/mock/tool.exe")))
-        #expect(model.lastDrop?.added == [Self.url("/mock/new.md"), Self.url("/mock/dir")])
+        #expect(model.lastDrop?.added == [
+            .init(url: Self.url("/mock/new.md"), isDirectory: false),
+            .init(url: Self.url("/mock/dir"), isDirectory: true),
+        ])
+        // 種別は受け入れ判定の結果がそのまま記録される(ストアの既定の読み手は /mock/dir を知らない)。
+        #expect(store.library().entry(for: Self.url("/mock/dir"))?.isDirectory == true)
         #expect(model.lastDrop?.rejected == [
             .init(url: Self.url("/mock/tool.exe"), reason: .unsupported),
             .init(url: Self.url("/mock/missing.md"), reason: .missing),
