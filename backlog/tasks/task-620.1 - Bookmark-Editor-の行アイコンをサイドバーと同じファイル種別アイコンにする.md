@@ -18,9 +18,9 @@ ordinal: 811000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-管理パネルのブックマーク行は全行同じ SF Symbol `bookmark` を出しており、アイコンが情報を持っていない。サイドバーの `FileListEntryRow` はファイル種別のアイコンを出しているので、見た目と意味を揃えたい。
+Bookmark Editor のブックマーク行は全行同じ SF Symbol `bookmark` を出しており、アイコンが情報を持っていない。サイドバーの `FileListEntryRow` はファイル種別のアイコンを出しているので、見た目と意味を揃えたい。
 
-注意すべき制約: 行のコメントにあるとおり、`bookmark` にしたのは `NSWorkspace.icon(forFile:)` がディスク I/O を伴うため。管理パネルと Bookmarks メニューは「表示では stat しない」を約束している（応答しないマウント上のブックマークで待たされるため。`docs/dev/native-app-design.md` の `BookmarkManagerModel` / `BookmarksMenuController` の行）。サイドバーは列挙済みのローカルなエントリを描くので同じ API で問題にならないが、ブックマークは切断済みのボリューム上にもありうる。拡張子から `UTType` を引いてアイコンを得るなど、ファイルに触れない方法があるかを着手時に確かめる。ディレクトリのブックマーク（Finder からの D&D で追加できる）は拡張子だけでは種別が決まらない点も考慮する。
+注意すべき制約: 行のコメントにあるとおり、`bookmark` にしたのは `NSWorkspace.icon(forFile:)` がディスク I/O を伴うため。Bookmark Editor と Bookmarks メニューは「表示では stat しない」を約束している（応答しないマウント上のブックマークで待たされるため。`docs/dev/native-app-design.md` の `BookmarkManagerModel` / `BookmarksMenuController` の行）。サイドバーは列挙済みのローカルなエントリを描くので同じ API で問題にならないが、ブックマークは切断済みのボリューム上にもありうる。拡張子から `UTType` を引いてアイコンを得るなど、ファイルに触れない方法があるかを着手時に確かめる。ディレクトリのブックマーク（Finder からの D&D で追加できる）は拡張子だけでは種別が決まらない点も考慮する。
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -28,20 +28,20 @@ ordinal: 811000
 - [x] #1 ファイルのブックマーク行に、サイドバーで同じファイルに出るものと同じ種別のアイコンが出る
 - [x] #2 ディレクトリのブックマーク行にフォルダーのアイコンが出る
 - [x] #3 一覧の描画でブックマーク先へのファイルシステムアクセスが発生しない（約束を変える場合は、その判断と理由を native-app-design.md に記録する）
-- [x] #4 native-app-design.md の管理パネルの記述が実装に追随している
+- [x] #4 native-app-design.md の Bookmark Editor の記述が実装に追随している
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-前提（実測）: BookmarkEntry.url は URL(fileURLWithPath:) で、ディレクトリを渡すと hasDirectoryPath=true になる＝ファイルシステムを見ている。パネルの行描画・displayName（ソートの比較ごと）・Bookmarks メニュー（addFileItems → NSWorkspace.icon(forFile:)）・Quick Open の bookmarkedURLs()（MainActor）がすべてこれを通るため、「表示では stat しない」は現状守られていない。ユーザー確認のうえ、約束を守る形に直す。
+前提（実測）: BookmarkEntry.url は URL(fileURLWithPath:) で、ディレクトリを渡すと hasDirectoryPath=true になる＝ファイルシステムを見ている。Bookmark Editor の行描画・displayName（ソートの比較ごと）・Bookmarks メニュー（addFileItems → NSWorkspace.icon(forFile:)）・Quick Open の bookmarkedURLs()（MainActor）がすべてこれを通るため、「表示では stat しない」は現状守られていない。ユーザー確認のうえ、約束を守る形に直す。
 
 1. BookmarkEntry に isDirectory: Bool?（nil = 記録なしの既存データ）
 2. BookmarkLibrary.add(_:to:isDirectory:) — isDirectory は必須引数
 3. 種別は追加の瞬間だけ調べる: BookmarkStore.add(_:)（⌘D・CLI）は注入した FileReading で、ドロップは dropDecision の stat 結果を BookmarkDropOutcome.Added で運び store.add(_:toFolder:isDirectory:) へ渡す（MainActor で調べ直さない）
 4. BookmarkEntry.url を URL(filePath:directoryHint:) に。displayName / detailPath はパス文字列から
 5. BookmarkEntry.iconType: UTType（純粋）
-6. パネルの行とメニュー項目のアイコンを NSWorkspace.shared.icon(for: iconType) に。addFileItems の icons を必須引数にし、未使用になった addFileItem を削除
+6. Bookmark Editor の行とメニュー項目のアイコンを NSWorkspace.shared.icon(for: iconType) に。addFileItems の icons を必須引数にし、未使用になった addFileItem を削除
 7. テストと native-app-design.md
 <!-- SECTION:PLAN:END -->
 
@@ -58,7 +58,7 @@ responsibility-reviewer: 要対応 1 件——BookmarkStore.add(_:toFolder:) が
 - 戻すと落ちる: url を URL(fileURLWithPath:) に戻す → BookmarkStoreTests「add は実在のディレクトリとファイルの種別を記録し…」が hasDirectoryPath=true で落ちる / 種別判定を url.hasDirectoryPath に戻す → 同テストが isDirectory=false で落ちる / ドロップで種別を渡さない → BookmarkManagerModelTests のドロップテストが isDirectory=false で落ちる
 - swiftlint: origin/main との差分ゼロ（途中で orphaned_doc_comment が 1 件出たので ponytail コメントを本体内へ移した）
 - 型グループ: 閾値以内
-- 実機（.tmp/TASK-620/6201-*.png）: CLI で sample-folder / diagram.mmd / table.csv を追加 → パネルとメニューでフォルダー・CSV・書類のアイコン。同じフォルダーをサイドバーで開いたときのアイコンと一致。既存（isDirectory 記録なし）の .md も書類アイコン
+- 実機（.tmp/TASK-620/6201-*.png）: CLI で sample-folder / diagram.mmd / table.csv を追加 → Bookmark Editor とメニューでフォルダー・CSV・書類のアイコン。同じフォルダーをサイドバーで開いたときのアイコンと一致。既存（isDirectory 記録なし）の .md も書類アイコン
 native-app-design.md: BookmarkStore / BookmarksMenuController / BookmarkManagerView の行を更新
 
 撤回（2026-09-14, TASK-621）: AC #2「ディレクトリのブックマーク行にフォルダーのアイコンが出る」は、フォルダーをブックマークできる前提（TASK-536.3 のドロップと CLI が受け入れていた）の上に立っていたが、フォルダーはブックマークできない仕様だった（ユーザー指摘）。TASK-621 で入口を塞ぎ、BookmarkEntry.isDirectory の記録とフォルダーアイコンを撤去した。表示で stat しない修正（url / icon(forFile:) の撤去）はそのまま有効。
@@ -69,5 +69,5 @@ PR #663 の CI（type-group-size ジョブの check-befoldkit-platform-free.sh�
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-ブックマーク行（パネル）と Bookmarks メニューのアイコンを、記録済みの種別と拡張子から引く型アイコンにした（ディレクトリはフォルダー）。種別は追加の瞬間だけ調べて BookmarkEntry.isDirectory に記録し、BookmarkEntry.url を stat しない形に直したことで、表示・ソート・Quick Open の候補収集でブックマーク先に触れなくなった（従来は URL(fileURLWithPath:) と icon(forFile:) で約束が破れていた）。Swift 1933 件パス、戻すと落ちるテスト 3 系統、実機でサイドバーと同じアイコンを確認。
+ブックマーク行（Bookmark Editor）と Bookmarks メニューのアイコンを、記録済みの種別と拡張子から引く型アイコンにした（ディレクトリはフォルダー）。種別は追加の瞬間だけ調べて BookmarkEntry.isDirectory に記録し、BookmarkEntry.url を stat しない形に直したことで、表示・ソート・Quick Open の候補収集でブックマーク先に触れなくなった（従来は URL(fileURLWithPath:) と icon(forFile:) で約束が破れていた）。Swift 1933 件パス、戻すと落ちるテスト 3 系統、実機でサイドバーと同じアイコンを確認。
 <!-- SECTION:FINAL_SUMMARY:END -->

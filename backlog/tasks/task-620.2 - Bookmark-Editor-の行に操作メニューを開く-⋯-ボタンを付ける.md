@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:42'
-updated_date: '2026-09-13 13:09'
+updated_date: '2026-09-13 15:11'
 labels: []
 milestone: m-9
 dependencies: []
@@ -18,7 +18,7 @@ ordinal: 812000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-管理パネルの行の操作（ブックマーク行: 別名・フォルダーへ移動・削除、フォルダー行: 改名・新規フォルダー・削除）は右クリックの `contextMenu` にしか無く、使う人がその存在に気づけない。サイドバーのヘッダー右端にある ⋯（`SidebarHeaderControls` の overflow、`ellipsis.circle`）のように、目に見える入口を置きたい。
+Bookmark Editor の行の操作（ブックマーク行: 別名・フォルダーへ移動・削除、フォルダー行: 改名・新規フォルダー・削除）は右クリックの `contextMenu` にしか無く、使う人がその存在に気づけない。サイドバーのヘッダー右端にある ⋯（`SidebarHeaderControls` の overflow、`ellipsis.circle`）のように、目に見える入口を置きたい。
 
 右クリックメニューは残す（慣れた人の近道として）。2 つの入口の中身が別々に定義されると片方だけ項目が増える・並びがずれる形で割れるので、同じ定義から作ること（CLAUDE.md「決めたことには、破れたら落ちるものを付ける」）。
 <!-- SECTION:DESCRIPTION:END -->
