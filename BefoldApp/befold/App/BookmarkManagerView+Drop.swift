@@ -4,24 +4,24 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension UTType {
-    /// 管理パネル内でブックマーク行をドラッグするときの型(TASK-620.3)。自プロセス内だけで使い、
+    /// Bookmark Editor 内でブックマーク行をドラッグするときの型(TASK-620.3)。自プロセス内だけで使い、
     /// `.fileURL` は載せない——載せると Finder からのドロップ(追加)と同じ受け口に拾われ、
     /// 並び替えのつもりが「登録済みなので何もしない」追加として消える。
     static let bookmarkEntry = UTType(exportedAs: "com.degino.befold.bookmark-entry")
 }
 
-/// 管理パネルの D&D。受け口は 2 種類で、**型で取り違えない**。
+/// Bookmark Editor の D&D。受け口は 2 種類で、**型で取り違えない**。
 /// - Finder からのドロップ(`.fileURL`)でブックマークを追加する(TASK-536.3)
-/// - パネル内の行ドラッグ(`.bookmarkEntry`)で並び替え・フォルダーへの格納をする(TASK-620.3)
+/// - Bookmark Editor 内の行ドラッグ(`.bookmarkEntry`)で並び替え・フォルダーへの格納をする(TASK-620.3)
 ///
 /// `NSItemProvider` からの取り出しは非同期なので、ドロップの受理(true)だけを同期で返し、
 /// 反映はモデルに任せる。受け入れ規則(存在・形式・重複・並びの規則)はモデル側にあり、
 /// ここは「どこへ落とされたか」だけを渡す。
 extension BookmarkManagerView {
-    /// `.onDrop` で受け付ける型。Finder からのファイル URL と、パネル内の行。
+    /// `.onDrop` で受け付ける型。Finder からのファイル URL と、Bookmark Editor 内の行。
     static let droppableTypes: [UTType] = [.fileURL, .bookmarkEntry]
 
-    /// ドロップを受理し、取り出しと反映を非同期に始める。パネル内の行なら `folder` の末尾へ移し、
+    /// ドロップを受理し、取り出しと反映を非同期に始める。Bookmark Editor 内の行なら `folder` の末尾へ移し、
     /// そうでなければファイル URL として追加する。どちらも含まないドロップは受理しない(false)。
     func handleDrop(_ providers: [NSItemProvider], into folder: [String]) -> Bool {
         if handleReorder(providers, into: folder, before: nil) { return true }
@@ -45,7 +45,7 @@ extension BookmarkManagerView {
         entries.indices.contains(index) ? entries[index].url : nil
     }
 
-    /// パネル内の行のドロップなら受理し、`folder` の中の `sibling` の直前へ移す(nil なら末尾)。
+    /// Bookmark Editor 内の行のドロップなら受理し、`folder` の中の `sibling` の直前へ移す(nil なら末尾)。
     /// 挿入先は兄弟の URL で持つ——取り出しを待つあいだに一覧が変わっても、index のずれで
     /// 別の位置へ入らない(兄弟や行き先が消えていれば、規則どおり末尾か何もしない)。
     func handleReorder(_ providers: [NSItemProvider], into folder: [String], before sibling: URL?) -> Bool {

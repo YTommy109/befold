@@ -1,6 +1,6 @@
 import Foundation
 
-/// 管理パネルへのドロップ 1 回分の結果。追加した分と、弾いた分(理由付き)。
+/// Bookmark Editor へのドロップ 1 回分の結果。追加した分と、弾いた分(理由付き)。
 /// ビューはこれを 1 行の文言にまとめる(モーダルは出さない。ドロップは連続で起きる)。
 struct BookmarkDropOutcome: Equatable, Sendable {
     enum Rejection: Equatable, Sendable {

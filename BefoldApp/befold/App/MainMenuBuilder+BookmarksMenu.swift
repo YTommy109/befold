@@ -26,7 +26,7 @@ extension MainMenuBuilder {
         addEditBookmarksItem(to: menu)
     }
 
-    /// 管理パネル(`HostedPanel.bookmarks`)を開閉する。⇧⌘D にした経緯は native-app-design.md の `MainMenuBuilder` の行。
+    /// Bookmark Editor(`HostedPanel.bookmarks`)を開閉する。⇧⌘D にした経緯は native-app-design.md の `MainMenuBuilder` の行。
     static func addEditBookmarksItem(to menu: NSMenu) {
         menu.addLocalizedItem(
             "menu.bookmarks.edit", action: #selector(AppDelegate.showBookmarkManager(_:)),

@@ -4,7 +4,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 管理パネルのモデル。ストアへの書き込みと、集合が変わったときだけ `onChange` が呼ばれることを固定する。
+/// Bookmark Editor のモデル。ストアへの書き込みと、集合が変わったときだけ `onChange` が呼ばれることを固定する。
 @Suite
 @MainActor
 struct BookmarkManagerModelTests {
@@ -58,7 +58,7 @@ struct BookmarkManagerModelTests {
         #expect(changes == 0)
     }
 
-    /// パネルの外(窓の ⌘D・欠落の一括削除)で変わった分は refresh で拾う。
+    /// Bookmark Editor の外(窓の ⌘D・欠落の一括削除)で変わった分は refresh で拾う。
     @Test("refresh はストアの現在値を取り直す")
     func refreshPicksUpExternalChanges() {
         let store = makeStore()

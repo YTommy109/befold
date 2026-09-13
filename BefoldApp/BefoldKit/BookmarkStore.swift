@@ -47,14 +47,14 @@ public final class BookmarkStore {
         add(url, toFolder: [])
     }
 
-    /// 指定フォルダーの直下へ追加する(管理パネルへのドロップ用)。規則は `BookmarkLibrary.add(_:to:)`。
+    /// 指定フォルダーの直下へ追加する(Bookmark Editor へのドロップ用)。規則は `BookmarkLibrary.add(_:to:)`。
     public func add(_ url: URL, toFolder folder: [String]) {
         mutate { $0.add(url, to: folder) }
     }
 
     /// ブックマークできる対象か。**フォルダー(ディレクトリ)はブックマークできない**——ウィンドウ側の
     /// トグルがフォルダー一覧の表示中は無効なのと同じ仕様(TASK-621)。パスを外から受け取る入口
-    /// (管理パネルへのドロップ・`befold --bookmark`)がこの 1 つで弾く。⌘D は提示中の文書にしか
+    /// (Bookmark Editor へのドロップ・`befold --bookmark`)がこの 1 つで弾く。⌘D は提示中の文書にしか
     /// 効かないので通らない。stat を伴うため、表示の経路からは呼ばない。
     public nonisolated static func canBookmark(_ url: URL, fileReader: any FileReading) -> Bool {
         !fileReader.isDirectory(at: url)

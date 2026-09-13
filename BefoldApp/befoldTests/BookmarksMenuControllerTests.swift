@@ -38,7 +38,7 @@ struct BookmarksMenuControllerTests {
         menu.items.last.flatMap { $0.isSeparatorItem || $0.target == nil ? nil : $0 }
     }
 
-    /// 並びは保存順(パネルでの手動の並びと同じ `children(of:)`。TASK-620.3 で表示名順をやめた)。
+    /// 並びは保存順(Bookmark Editor での手動の並びと同じ `children(of:)`。TASK-620.3 で表示名順をやめた)。
     @Test("ブックマーク済み URL から保存順でメニュー項目を構築する")
     func populatesMenuItemsInStoredOrder() {
         let urls = [

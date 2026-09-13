@@ -152,7 +152,7 @@ public struct BookmarkLibrary: Codable, Equatable, Sendable {
         folderExists(entry.folder) ? entry.folder : []
     }
 
-    /// `parent` 直下の中身。フォルダーが先(名前順)、エントリが後(保存順)。メニューとパネルが
+    /// `parent` 直下の中身。フォルダーが先(名前順)、エントリが後(保存順)。メニューと Bookmark Editor が
     /// 同じ順で並ぶよう、順序の規則はここ 1 箇所に置く。
     public func children(of parent: [String]) -> BookmarkChildren {
         let subfolders = folders
