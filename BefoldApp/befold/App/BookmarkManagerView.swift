@@ -2,7 +2,7 @@ import AppKit
 import BefoldKit
 import SwiftUI
 
-/// ブックマーク管理パネルの中身。フォルダーのツリーと、行の右クリックからの操作
+/// ブックマーク管理パネルの中身。フォルダーのツリーと、行の右クリック・右端の ⋯ からの操作
 /// (別名変更・削除・フォルダーの作成/改名/削除・フォルダーへ移動)。
 ///
 /// 一覧は `BookmarkManagerModel` のスナップショットだけを描く。**存在確認(stat)はしない**
@@ -112,52 +112,89 @@ struct BookmarkManagerView: View {
     }
 
     private func folderRow(_ folder: BookmarkFolder) -> some View {
-        Label(folder.name, systemImage: "folder")
-            .contentShape(.rect)
-            // フォルダー行へ落とすとそのフォルダーの直下へ(一覧全体の受け口より内側なので優先される)。
-            .onDrop(of: Self.droppableTypes, isTargeted: nil) { providers in
-                handleDrop(providers, into: folder.path)
-            }
-            .contextMenu {
-                Button(String(localized: "bookmarks.manager.renameFolder", bundle: .l10n)) {
-                    start(.renameFolder(folder.path))
-                }
-                Button(String(localized: "bookmarks.manager.newFolder", bundle: .l10n)) {
-                    start(.newFolder(parent: folder.path))
-                }
-                Button(String(localized: "bookmarks.manager.deleteFolder", bundle: .l10n)) {
-                    deleteFolder(at: folder.path)
-                }
-            }
+        HStack {
+            Label(folder.name, systemImage: "folder")
+            Spacer()
+            actionsMenu(labelKey: "bookmarks.manager.folderActions") { folderActions(folder) }
+        }
+        .contentShape(.rect)
+        // フォルダー行へ落とすとそのフォルダーの直下へ(一覧全体の受け口より内側なので優先される)。
+        .onDrop(of: Self.droppableTypes, isTargeted: nil) { providers in
+            handleDrop(providers, into: folder.path)
+        }
+        .contextMenu { folderActions(folder) }
     }
 
     private func bookmarkRow(_ entry: BookmarkEntry) -> some View {
         HStack(spacing: 8) {
-            // `NSWorkspace.icon(forFile:)` はブックマーク先を見に行くため、型から引く(TASK-620.1)。
-            Image(nsImage: NSWorkspace.shared.icon(for: entry.iconType))
-                .resizable()
-                .frame(width: 16, height: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.displayName)
-                Text(entry.detailPath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
+            HStack(spacing: 8) {
+                // `NSWorkspace.icon(forFile:)` はブックマーク先を見に行くため、型から引く(TASK-620.1)。
+                Image(nsImage: NSWorkspace.shared.icon(for: entry.iconType))
+                    .resizable()
+                    .frame(width: 16, height: 16)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.displayName)
+                    Text(entry.detailPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            // ダブルクリックで開く範囲から ⋯ を外す(⋯ の連打でファイルが開かないように)。
+            .simultaneousGesture(TapGesture(count: 2).onEnded { model.open(entry.url) })
+            actionsMenu(labelKey: "bookmarks.manager.bookmarkActions") { bookmarkActions(entry) }
         }
-        .contentShape(.rect)
-        .simultaneousGesture(TapGesture(count: 2).onEnded { model.open(entry.url) })
-        .contextMenu {
-            // ファイル自体の改名と取り違えないよう「別名」と明示する(TASK-620.5)。
-            Button(String(localized: "bookmarks.manager.setAlias", bundle: .l10n)) {
-                start(.alias(entry))
-            }
-            moveMenu(for: entry)
-            // 文言は Bookmarks メニューのトグル(解除側)と揃える。
-            Button(String(localized: "menu.bookmarks.remove", bundle: .l10n)) {
-                remove(entry)
-            }
+        .contextMenu { bookmarkActions(entry) }
+    }
+
+    /// 行の右端の ⋯。右クリックメニューはあることに気づけないので、見える入口を置く(TASK-620.2)。
+    /// **中身は右クリックメニューと同じ関数(`bookmarkActions` / `folderActions`)から作る**——
+    /// 入口ごとに項目を書くと、片方だけ項目が増える・並びや有効/無効がずれる形で割れる。
+    private func actionsMenu(
+        labelKey: String.LocalizationValue, @ViewBuilder content: () -> some View
+    ) -> some View {
+        let label = String(localized: labelKey, bundle: .l10n)
+        // フォルダー行(DisclosureGroup のラベル)では SwiftUI が行の中身を 1 要素にまとめ、
+        // ⋯ の読み上げ名はフォルダー名になる(help は残る)。`.contain` / `.combine` を当てても
+        // 変わらず、`.contain` では ⋯ ごと見出しに吸収された(実測)。Label で持たせておくと
+        // 名前が空の「menu button」にはならない。
+        return Menu(content: content) {
+            Label(label, systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(label)
+    }
+
+    @ViewBuilder
+    private func folderActions(_ folder: BookmarkFolder) -> some View {
+        Button(String(localized: "bookmarks.manager.renameFolder", bundle: .l10n)) {
+            start(.renameFolder(folder.path))
+        }
+        Button(String(localized: "bookmarks.manager.newFolder", bundle: .l10n)) {
+            start(.newFolder(parent: folder.path))
+        }
+        Button(String(localized: "bookmarks.manager.deleteFolder", bundle: .l10n)) {
+            deleteFolder(at: folder.path)
+        }
+    }
+
+    @ViewBuilder
+    private func bookmarkActions(_ entry: BookmarkEntry) -> some View {
+        // ファイル自体の改名と取り違えないよう「別名」と明示する(TASK-620.5)。
+        Button(String(localized: "bookmarks.manager.setAlias", bundle: .l10n)) {
+            start(.alias(entry))
+        }
+        moveMenu(for: entry)
+        // 文言は Bookmarks メニューのトグル(解除側)と揃える。
+        Button(String(localized: "menu.bookmarks.remove", bundle: .l10n)) {
+            remove(entry)
         }
     }
 

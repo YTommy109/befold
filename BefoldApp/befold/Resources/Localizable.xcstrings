@@ -783,6 +783,23 @@
         }
       }
     },
+    "bookmarks.manager.bookmarkActions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark Actions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブックマークの操作"
+          }
+        }
+      }
+    },
     "bookmarks.manager.create": {
       "extractionState": "manual",
       "localizations": {
@@ -898,6 +915,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "ブックマークはありません"
+          }
+        }
+      }
+    },
+    "bookmarks.manager.folderActions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Actions"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーの操作"
           }
         }
       }
