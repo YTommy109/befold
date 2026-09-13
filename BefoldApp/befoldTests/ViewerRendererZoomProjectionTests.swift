@@ -96,29 +96,23 @@ struct ViewerRendererZoomProjectionTests {
     /// そこで当てると、まだ画面に出ている前のファイルの倍率が変わる（TASK-567 の実測。
     /// PDF へ切り替えるときに「Markdown の倍率が変わってから PDF が出る」形で見えた）。
     @Test("内容に差が無い更新では倍率を当てない")
-    func doesNotApplyZoomWhenNothingIsRedrawn() async {
+    func doesNotApplyZoomWhenNothingIsRedrawn() {
         let renderer = makeRenderer()
         renderer.isVisible = true
         finishLoad(renderer)
-        // **markdown を使わない。** markdown だけがローカル画像の data URI 差し替え
-        // (`MarkdownImageEmbedder`、MainActor 外)を通るため、`rendered` の更新が非同期になり
-        // フル実行の負荷下で 1 度目の描画が着地する前に 2 度目を送ってしまう
-        // (実測: `contentRevision == 1` の待機が予算切れし、`.skip` にならず倍率が当たった)。
-        // このテストが見たいのは「差が無ければ当てない」という計画の判断だけで、種別は問わない。
         let file = URL(fileURLWithPath: "/files/a.mmd")
 
-        renderer.updateContent(
-            "graph TD;", contentRevision: 1, fileType: .mmd, filePath: file,
-            hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
-            truncation: Self.truncation
-        )
-        // 描画は種別によらず非同期（`applyRender` が常に `await embeddedContent` を通る）。
-        // **ここで待つのは正当**——WebKit のロード待ちと違い、これは Swift 側の仕事なので
-        // スリープでも前進する。予算を既定の 10 秒より厚く取るのは、フル実行の並列負荷で
-        // MainActor 外の埋め込みが遅れて予算切れした実測があるため。
-        await waitUntilOnMainActor(timeout: testTimeout(fallback: 30)) {
-            renderer.rendered.contentRevision == 1
-        }
+        // **1 度目の描画は実際に走らせず、描画済みミラーを直接確定させる（TASK-622）。**
+        // 実描画は `Task { @MainActor }` → MainActor 外の埋め込み → MainActor で再開、と
+        // メインキューを何度も待つ。フル実行では ~1900 件の `@MainActor` テストがキューを
+        // 埋めるため着地が後ろへ回され、待機予算を 30 秒・60 秒と延ばしても予算切れした
+        // (TASK-607 の didFinish と同じ型)。このテストが見たいのは「差が無ければ当てない」
+        // という判断だけなので、差が無い状態は本番の確定口 `recordRendered` で作れば足りる。
+        renderer.recordRendered(RenderedStateMirror(
+            contentRevision: 1, fileType: .mmd, filePath: file,
+            showLineNumbers: false, isSourceMode: false,
+            truncation: Self.truncation, diffState: renderer.diffState
+        ))
 
         // 切り替え先の倍率が流し込まれ、同じ内容でもう一度呼ばれた状態を模す。
         renderer.initialPageZoom = 0.5
