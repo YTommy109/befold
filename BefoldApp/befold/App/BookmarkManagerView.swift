@@ -138,7 +138,7 @@ struct BookmarkManagerView: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.displayName)
-                Text(entry.url.deletingLastPathComponent().path)
+                Text(entry.detailPath)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -148,7 +148,8 @@ struct BookmarkManagerView: View {
         .contentShape(.rect)
         .simultaneousGesture(TapGesture(count: 2).onEnded { model.open(entry.url) })
         .contextMenu {
-            Button(String(localized: "bookmarks.manager.renameAlias", bundle: .l10n)) {
+            // ファイル自体の改名と取り違えないよう「別名」と明示する(TASK-620.5)。
+            Button(String(localized: "bookmarks.manager.setAlias", bundle: .l10n)) {
                 start(.alias(entry))
             }
             moveMenu(for: entry)

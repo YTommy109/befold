@@ -970,24 +970,24 @@
         }
       }
     },
-    "bookmarks.manager.renameAlias": {
+    "bookmarks.manager.setAlias": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rename…"
+            "value": "Set Alias…"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "名前を変更…"
+            "value": "別名を設定…"
           }
         }
       }
     },
-    "bookmarks.manager.renameAlias.apply": {
+    "bookmarks.manager.save": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -1004,36 +1004,36 @@
         }
       }
     },
-    "bookmarks.manager.renameAlias.placeholder": {
+    "bookmarks.manager.setAlias.placeholder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leave empty to show the file name"
+            "value": "Alias (empty for file name)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "空にするとファイル名で表示"
+            "value": "別名（空欄ならファイル名）"
           }
         }
       }
     },
-    "bookmarks.manager.renameAlias.title": {
+    "bookmarks.manager.setAlias.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bookmark Name"
+            "value": "Bookmark Alias"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ブックマークの名前"
+            "value": "ブックマークの別名"
           }
         }
       }

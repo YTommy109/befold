@@ -32,6 +32,14 @@ struct BookmarkLibraryTests {
         #expect(library.entry(for: diagram)?.displayName == "diagram.mmd")
     }
 
+    /// 別名を付けるとファイル名が表示名から消えるので、添えるパスの側でファイル名を見せる。
+    /// 別名が無ければ表示名がファイル名なので、添えるのは親ディレクトリだけにする。
+    @Test("添えるパスは別名があればファイル名まで、無ければ親ディレクトリ")
+    func detailPathShowsFileNameOnlyWhenAliased() {
+        #expect(BookmarkEntry(path: "/mock/docs/note.md", alias: "Weekly").detailPath == "/mock/docs/note.md")
+        #expect(BookmarkEntry(path: "/mock/docs/note.md").detailPath == "/mock/docs")
+    }
+
     /// 空文字と nil の 2 状態を作らない。空白だけの入力も「別名なし」に畳む。
     @Test("setAlias は前後の空白を除き、空なら別名なしに戻す")
     func setAliasNormalizesEmptyToNil() {
