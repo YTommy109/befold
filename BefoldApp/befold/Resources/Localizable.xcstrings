@@ -834,6 +834,23 @@
         }
       }
     },
+    "bookmarks.manager.drop.folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "folders can't be bookmarked"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダーはブックマークできません"
+          }
+        }
+      }
+    },
     "bookmarks.manager.drop.missing": {
       "extractionState": "manual",
       "localizations": {

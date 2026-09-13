@@ -21,14 +21,10 @@ public final class BookmarkStore {
     private static let legacyDefaultsKey = "BookmarkedPaths"
 
     private let defaults: UserDefaults
-    /// 引数 1 つの `add(_:)` が追加の瞬間に種別(ディレクトリか)を調べるためだけに使う。
-    /// 共有物ではないので既定値を持つ(`MissingBookmarksPruner` と同じ)。
-    private let fileReader: any FileReading
     private var cached: BookmarkLibrary?
 
-    public init(defaults: UserDefaults, fileReader: any FileReading = DefaultFileReader()) {
+    public init(defaults: UserDefaults) {
         self.defaults = defaults
-        self.fileReader = fileReader
         Self.migrateIfNeeded(defaults: defaults)
     }
 
@@ -47,17 +43,21 @@ public final class BookmarkStore {
 
     /// 指定 URL をブックマークに追加する。既に追加済みなら何もしない(冪等)。
     /// `befold --bookmark` から(GUI 起動中は転送経由で)呼ばれる。追加先は常にルート直下・別名なし。
-    /// 種別(ディレクトリか)はこの瞬間だけ `fileReader` で調べて記録し、表示では調べない
-    /// (⌘D のトグルと CLI の経路。URL の形 `hasDirectoryPath` では判定しない——作り方しだいで実態とずれる)。
     public func add(_ url: URL) {
-        guard !isBookmarked(url) else { return }
-        add(url, toFolder: [], isDirectory: fileReader.isDirectory(at: url))
+        add(url, toFolder: [])
     }
 
-    /// 種別が分かっている呼び出し元の追加(管理パネルへのドロップは MainActor の外で調べ済み)。
-    /// ここでは調べない。規則は `BookmarkLibrary.add(_:to:isDirectory:)`。
-    public func add(_ url: URL, toFolder folder: [String], isDirectory: Bool) {
-        mutate { $0.add(url, to: folder, isDirectory: isDirectory) }
+    /// 指定フォルダーの直下へ追加する(Bookmark Editor へのドロップ用)。規則は `BookmarkLibrary.add(_:to:)`。
+    public func add(_ url: URL, toFolder folder: [String]) {
+        mutate { $0.add(url, to: folder) }
+    }
+
+    /// ブックマークできる対象か。**フォルダー(ディレクトリ)はブックマークできない**——ウィンドウ側の
+    /// トグルがフォルダー一覧の表示中は無効なのと同じ仕様(TASK-621)。パスを外から受け取る入口
+    /// (Bookmark Editor へのドロップ・`befold --bookmark`)がこの 1 つで弾く。⌘D は提示中の文書にしか
+    /// 効かないので通らない。stat を伴うため、表示の経路からは呼ばない。
+    public nonisolated static func canBookmark(_ url: URL, fileReader: any FileReading) -> Bool {
+        !fileReader.isDirectory(at: url)
     }
 
     /// ブックマークの有無を反転させる。

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:43'
-updated_date: '2026-09-13 12:06'
+updated_date: '2026-09-13 15:11'
 labels: []
 milestone: m-9
 dependencies: []
@@ -18,7 +18,7 @@ ordinal: 814000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-ブックマーク管理パネルを開く手段が Bookmarks > ブックマークを編集… のメニューしか無い。ブックマークの追加/解除が cmd+D（`BookmarkShortcut`）なので、隣の cmd+shift+D で管理パネルを開けるようにしたい。
+Bookmark Editor を開く手段が Bookmarks > ブックマークを編集… のメニューしか無い。ブックマークの追加/解除が cmd+D（`BookmarkShortcut`）なので、隣の cmd+shift+D で Bookmark Editor を開けるようにしたい。
 
 TASK-536.1 では「ブックマークを編集…」に「キー等価は付けない——付けると紹介サイトのショートカット検証（`site/test/shortcuts.test.ts`）と Help の一覧に載る項目が増える」と判断していた（`MainMenuBuilder.addEditBookmarksItem(to:)` の doc コメントと native-app-design.md の `MainMenuBuilder` の行）。今回はその判断を覆すので、載る項目が増えることを受け入れ、サイト側・Help 側・文書を揃える。
 
@@ -29,7 +29,7 @@ TASK-536.1 では「ブックマークを編集…」に「キー等価は付け
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 cmd+shift+D で管理パネルが開き、もう一度押すと閉じる
+- [x] #1 cmd+shift+D で Bookmark Editor が開き、もう一度押すと閉じる
 - [x] #2 ビューア窓が 1 枚も無い状態でも cmd+shift+D で開ける
 - [x] #3 Bookmarks メニューの「ブックマークを編集…」にキー表記が出る
 - [x] #4 Help > キーボードショートカット の一覧に載る（MenuShortcutCatalogTests で担保）

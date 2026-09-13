@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:43'
-updated_date: '2026-09-13 12:16'
+updated_date: '2026-09-13 15:11'
 labels: []
 milestone: m-9
 dependencies: []
@@ -18,11 +18,11 @@ ordinal: 815000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-管理パネルのブックマーク行の右クリックメニューは `bookmarks.manager.renameAlias` で、表示は「名前を変更…」/「Rename…」、入力 alert のタイトルは「ブックマークの名前」/「Bookmark Name」になっている。実際に変わるのはブックマークの表示名（`BookmarkEntry.alias`）だけでファイルは改名されないのに、ファイル自体の改名と誤解される。TASK-536 の設計文書では「別名を変更…」とする想定だった（`docs/superpowers/specs/2026-09-12-bookmark-management-design.md`）。
+Bookmark Editor のブックマーク行の右クリックメニューは `bookmarks.manager.renameAlias` で、表示は「名前を変更…」/「Rename…」、入力 alert のタイトルは「ブックマークの名前」/「Bookmark Name」になっている。実際に変わるのはブックマークの表示名（`BookmarkEntry.alias`）だけでファイルは改名されないのに、ファイル自体の改名と誤解される。TASK-536 の設計文書では「別名を変更…」とする想定だった（`docs/superpowers/specs/2026-09-12-bookmark-management-design.md`）。
 
 加えて、別名を付けると行の 1 行目が `displayName`（別名 ?? ファイル名）に置き換わり、2 行目は親ディレクトリのパスなので、**ファイル名がどこにも出なくなる**。何のファイルのブックマークか分からない。
 
-Bookmarks メニュー（`BookmarksMenuController`）も表示名 = 別名、右列 = 親ディレクトリで同じ構造を持つ。本タスクの対象はパネル。メニューも揃えるかは着手時にユーザーへ確認する。
+Bookmarks メニュー（`BookmarksMenuController`）も表示名 = 別名、右列 = 親ディレクトリで同じ構造を持つ。本タスクの対象は Bookmark Editor。メニューも揃えるかは着手時にユーザーへ確認する。
 
 l10n キーは意味が変わるので、キー名（`renameAlias`）の改名も検討する。`Localizable.xcstrings` はソートし直さない（CLAUDE.md）。
 <!-- SECTION:DESCRIPTION:END -->
@@ -47,7 +47,7 @@ l10n キーは意味が変わるので、キー名（`renameAlias`）の改名�
 
 <!-- SECTION:NOTES:BEGIN -->
 方針: 行の 2 行目だけを切り替えた。別名があるときはフルパス（truncationMode(.head) で末尾のファイル名が必ず残る）、無いときは従来どおり親ディレクトリ。3 行目を足す・1 行目に括弧でファイル名を並べる案より行の高さも構成も変わらず小さい。detailPath はパス文字列の操作だけで作る（URL を経由すると URL(fileURLWithPath:) が stat するため。TASK-620.1 で扱う）。
-メニュー（BookmarksMenuController）はユーザー確認のうえ対象外（パネルだけ）。
+メニュー（BookmarksMenuController）はユーザー確認のうえ対象外（Bookmark Editor だけ）。
 l10n キー: renameAlias → setAlias、renameAlias.title/.placeholder → setAlias.title/.placeholder、renameAlias.apply（フォルダー改名と共用で名前が実態とずれていた）→ save。xcstrings はキー名の置換だけで並べ替えていない。
 文言: 当初 en placeholder を「Alias (leave empty to show the file name)」にしたところ、実機の alert の入力欄で途中で切れた（ja も余裕なし）ため、「Alias (empty for file name)」/「別名（空欄ならファイル名）」へ短縮し、実機で収まることを確認。
 検証:

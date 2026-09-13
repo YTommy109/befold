@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:43'
-updated_date: '2026-09-13 14:49'
+updated_date: '2026-09-13 15:16'
 labels: []
 milestone: m-9
 dependencies:
@@ -19,18 +19,18 @@ ordinal: 813000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-管理パネルでは並び順が常に名前順（`BookmarkLibrary.children(of:)` がフォルダーは名前順、エントリは表示名順にソート）で変えられず、フォルダーへの格納も右クリック > フォルダーへ移動 からしかできない。行をドラッグして順序を変えたり、フォルダー行へ落として格納したりしたい。
+Bookmark Editor では並び順が常に名前順（`BookmarkLibrary.children(of:)` がフォルダーは名前順、エントリは表示名順にソート）で変えられず、フォルダーへの格納も右クリック > フォルダーへ移動 からしかできない。行をドラッグして順序を変えたり、フォルダー行へ落として格納したりしたい。
 
-TASK-536 の設計では「パネル内の行 D&D（並び替え・フォルダー間移動）」と「手動並び替え（保存順は持つが表示は名前順のまま）」を明示的にスコープ外にしていた（`docs/superpowers/specs/2026-09-12-bookmark-management-design.md` の対象外の節）。今回それを取り込む。
+TASK-536 の設計では「Bookmark Editor 内の行 D&D（並び替え・フォルダー間移動）」と「手動並び替え（保存順は持つが表示は名前順のまま）」を明示的にスコープ外にしていた（`docs/superpowers/specs/2026-09-12-bookmark-management-design.md` の対象外の節）。今回それを取り込む。
 
 TASK-620.2 に依存させている理由: ⋯ ボタンは行の中に置くボタンで、行をドラッグ元にするとボタンのクリックとドラッグ開始の扱いが干渉しうる。行の構成を先に確定させてからドラッグを載せないと、行の組み直しで二度手間になる。
 
 着手時に決めること・気をつけること:
 - **表示順の意味が変わる**: いまユーザーが見ている順は名前順で、保存配列の順（追加順）とは違う。手動順へ切り替えた瞬間に既存ユーザーの並びが崩れないよう扱う必要がある。永続化キー `Bookmarks` の値の意味を変える変更なので CLAUDE.md「UserDefaults キーの廃止・改名」の節を通す
-- Bookmarks メニュー（`BookmarksMenuController`）も同じ `children(of:)` で並ぶ。パネルとメニューで順序が食い違わないこと
+- Bookmarks メニュー（`BookmarksMenuController`）も同じ `children(of:)` で並ぶ。Bookmark Editor とメニューで順序が食い違わないこと
 - 手動順を入れても「フォルダーが先、エントリが後」を保つか、混在を許すか
 - 新しく追加したブックマーク（cmd+D・CLI・Finder からの D&D）がどこに入るか
-- パネルとフォルダー行には既に Finder からの `.onDrop(of: [.fileURL])`（`BookmarkManagerView+Drop`）がある。パネル内の行ドラッグと Finder からのドロップを取り違えない
+- Bookmark Editor とフォルダー行には既に Finder からの `.onDrop(of: [.fileURL])`（`BookmarkManagerView+Drop`）がある。Bookmark Editor 内の行ドラッグと Finder からのドロップを取り違えない
 - ドラッグ対象はブックマーク行。フォルダー行のドラッグ（フォルダーごとの移動・並び替え）を含めるかは着手時に判断し、含めないなら理由を Notes に残す
 - 新しい状態・値の持ち方の変更なので、実装前に `/review-design` を回す
 <!-- SECTION:DESCRIPTION:END -->
@@ -64,17 +64,17 @@ TASK-620.2 に依存させている理由: ⋯ ボタンは行の中に置くボ
 ビュー（BookmarkManagerView + 新規 BookmarkManagerView+Reorder）
 7. ドラッグ元: ブックマーク行の本体（⋯ を除く）に .onDrag。アプリ内専用の型 com.degino.befold.bookmark（.fileURL は載せない = Finder からのドロップと取り違えない）
 8. 行間へのドロップ: 各階層のエントリの ForEach に .onInsert(of: [内部型]) → move(to: その階層, before: 挿入位置の兄弟)。挿入位置の兄弟はドロップの瞬間に同期で決め、非同期の取り出し後に index を引き直さない
-9. フォルダー行へのドロップ: 既存の .onDrop に内部型を足し、内部型ならそのフォルダーの末尾へ move、.fileURL なら従来の Finder 追加。パネル全体の受け口も同様（→ トップレベル末尾）
+9. フォルダー行へのドロップ: 既存の .onDrop に内部型を足し、内部型ならそのフォルダーの末尾へ move、.fileURL なら従来の Finder 追加。Bookmark Editor 全体の受け口も同様（→ トップレベル末尾）
 10. 実機で並び替え・フォルダーへの格納・トップレベルへの取り出し・再起動後の保持・メニューの順・Finder ドロップの非退行を確認
 
 /review-design（2026-09-13）
 - 1 判定の真実の源: 移行済みかは印（事実）で判定し、配列の並びの形からは推定しない。内部ドラッグと Finder の判別は型（内部型 / .fileURL）で、内部ドラッグは .fileURL を載せない
 - 2 不変条件: 1 パス 1 件は取り外して入れ直すので保たれる。フォルダーが先は ForEach の順で構造的に保たれる。記録の無い所属（ルート扱い）の兄弟判定は resolvedFolder で行う
-- 3 消費経路: 並びの読み手は children(of:)（パネル・メニュー）と deleteFolder の繰り上げ。bookmarkedURLs（Quick Open / Pruner）は順序に依存しない。兄弟判断: setAlias が暗黙に位置を変えていた効果は消える（意図どおり）
+- 3 消費経路: 並びの読み手は children(of:)（Bookmark Editor・メニュー）と deleteFolder の繰り上げ。bookmarkedURLs（Quick Open / Pruner）は順序に依存しない。兄弟判断: setAlias が暗黙に位置を変えていた効果は消える（意図どおり）
 - 4 新状態の表示: 行間は onInsert の標準の挿入線。フォルダー行は既存 Finder ドロップと同じく強調なし
 - 5 順序: 移行は init で cached を作る前に 1 回。CLI プロセスの BookmarkStore でも走る（旧キー移行と同じ扱い）
 - 6 コスト: children(of:) からソートが消え軽くなる
-- 7 測るもの: 移行はテストで直接測る。メニューとパネルは同じ children(of:) を読むので順序の一致はそこで測る
+- 7 測るもの: 移行はテストで直接測る。メニューと Bookmark Editor は同じ children(of:) を読むので順序の一致はそこで測る
 - 8 非同期: NSItemProvider の取り出しは非同期。挿入先は兄弟の URL で持ち、着地時に行き先や兄弟が消えていれば move が false で何もしない（index を持ち越さない）
 - 9 決めたことの担保: 並びの規則は BookmarkLibrary の 1 箇所。move の before は兄弟が同じ行き先に居なければ末尾へ（テストで固定）
 - 10 行数: BookmarkLibrary 288 → 約 320、BookmarkStore 160 → 約 175、BookmarkManagerView 332 → D&D を +Reorder へ出しても合算で約 380（閾値 400 に近い。超えるなら既存の +Drop と統合して重複を削る）
@@ -96,13 +96,13 @@ AppKit のアウトラインの挙動（実測）: 展開したフォルダー�
 
 検証:
 - swift test --skip Integration --skip FileWatcherTests: 1939 件パス / xcodebuild ビルド成功 / swiftlint 差分ゼロ / 型グループ閾値内（BookmarkManagerView 386、BookmarkLibrary 316、BookmarkStore 172）
-- 戻すと落ちる: 移行を止める → BookmarkStoreMigrationTests の並び未移行・旧値ありの 2 件 / handleDrop から並び替えの振り分けを外す → BookmarkManagerViewDropTests「パネル内の行を落とすと追加ではなく移動になり…」
+- 戻すと落ちる: 移行を止める → BookmarkStoreMigrationTests の並び未移行・旧値ありの 2 件 / handleDrop から並び替えの振り分けを外す → BookmarkManagerViewDropTests「Bookmark Editor 内の行を落とすと追加ではなく移動になり…」
 - 実機（CGEvent でドラッグ、.tmp/TASK-620/6203-*.png。各ケースでドロップ直前の指示線と結果を突き合わせ、onInsert の index と兄弟を一時ログで確認してから外した）
   - 移行: 既存データ（印なし）で起動 → 並びは変わらず、保存値に hasManualOrder=true
   - AC1: トップレベルで diagram.mmd を sample-folder の直前へ（onInsert parent=[] index=0）
   - AC2: Degino を Sample フォルダー行へ → Sample の末尾（フォルダー行の onDrop → handleReorder）
   - AC3: Sample 内の task-535-sample.md を一覧下の空き領域へ → トップレベルの末尾
-  - AC4: 名前順ではない並び（task-535 → diagram → sample-folder → table）で再起動 → パネルと Bookmarks メニューが同じ順
+  - AC4: 名前順ではない並び（task-535 → diagram → sample-folder → table）で再起動 → Bookmark Editor と Bookmarks メニューが同じ順
   - AC6: 別プロセスの検証用ドラッグ元（NSURL を pasteboardWriter にする最小アプリ。Warp の全画面スペースに Finder の窓が出せないための代替）から extra.md を Sample 行へ → 追加され Sample の末尾に入った。並び替えの受け口は反応しない
 - フォルダー行のドラッグは含めない（ユーザー決定）。フォルダー行は名前順のまま
 
@@ -114,5 +114,5 @@ native-app-design.md: BookmarkStore / BookmarksMenuController / BookmarkManagerV
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-管理パネルのブックマーク行をドラッグして、同じ階層での並び替え・フォルダー行への格納・トップレベルへの取り出しをできるようにした。エントリの保存順を手動の並びとし（フォルダーは名前順で先）、既存データは初回起動で表示名順へ並べて印を付ける移行を旧キー移行と 1 本に合流させた（3 ケースのテスト）。ドラッグの型はアプリ内専用の UTType を Info.plist に宣言し、Finder からの追加と型で分けた。Swift 1940 件パス、実機で各 AC とメニューの順序・再起動後の保持・別プロセスからのファイルドロップ追加を確認。
+Bookmark Editor のブックマーク行をドラッグして、同じ階層での並び替え・フォルダー行への格納・トップレベルへの取り出しをできるようにした。エントリの保存順を手動の並びとし（フォルダーは名前順で先）、既存データは初回起動で表示名順へ並べて印を付ける移行を旧キー移行と 1 本に合流させた（3 ケースのテスト）。ドラッグの型はアプリ内専用の UTType を Info.plist に宣言し、Finder からの追加と型で分けた。Swift 1940 件パス、実機で各 AC とメニューの順序・再起動後の保持・別プロセスからのファイルドロップ追加を確認。
 <!-- SECTION:FINAL_SUMMARY:END -->

@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// `befold --bookmark <path>` — 既存の BookmarkStore を再利用してブックマークを追加する。
@@ -8,12 +9,16 @@ public enum CLIBookmarkCommand {
     public static func run(
         _ path: String,
         addBookmark: @MainActor (URL) async -> Bool,
-        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+        fileReader: any FileReading = DefaultFileReader()
     ) async -> CLICommandResult {
-        guard fileExists(path) else {
+        let url = URL(fileURLWithPath: path)
+        guard fileReader.fileExists(at: url) else {
             return CLICommandResult(message: "No such path: \(path)", exitCode: 1)
         }
-        let url = URL(fileURLWithPath: path)
+        // 起動中の GUI へ転送する前に弾く(転送先はパスを判定しない)。
+        guard BookmarkStore.canBookmark(url, fileReader: fileReader) else {
+            return CLICommandResult(message: "Folders cannot be bookmarked: \(path)", exitCode: 1)
+        }
         guard await addBookmark(url) else {
             return CLICommandResult(
                 message: "Failed to forward the bookmark to the running instance: \(url.path)", exitCode: 1

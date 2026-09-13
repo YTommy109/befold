@@ -2,7 +2,7 @@ import AppKit
 import BefoldKit
 import SwiftUI
 
-/// ブックマーク管理パネルの中身。フォルダーのツリーと、行の右クリック・右端の ⋯ からの操作
+/// Bookmark Editor の中身。フォルダーのツリーと、行の右クリック・右端の ⋯ からの操作
 /// (別名変更・削除・フォルダーの作成/改名/削除・フォルダーへ移動)。
 ///
 /// 一覧は `BookmarkManagerModel` のスナップショットだけを描く。**存在確認(stat)はしない**
@@ -59,7 +59,7 @@ struct BookmarkManagerView: View {
                     .allowsHitTesting(false)
             }
         }
-        // 窓側の ⌘D や CLI で変わった分を、パネルが前面に来たときに拾う。
+        // 窓側の ⌘D や CLI で変わった分を、Bookmark Editor が前面に来たときに拾う。
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refresh()
         }
