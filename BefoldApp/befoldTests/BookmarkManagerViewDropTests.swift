@@ -40,6 +40,56 @@ struct BookmarkManagerViewDropTests {
         #expect(changes == 1)
     }
 
+    /// パネル内の行ドラッグ(TASK-620.3)。行の provider は `.fileURL` を載せないので、Finder からの
+    /// 追加の経路には入らず、並び替え(既存のエントリの移動)になる。集合は変わらないので onChange も無い。
+    @Test("パネル内の行を落とすと追加ではなく移動になり、兄弟の直前へ入る")
+    func bookmarkRowProviderMovesInsteadOfAdding() async throws {
+        let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkManagerViewDrop.reorder"))
+        let diagram = URL(fileURLWithPath: "/mock/docs/diagram.mmd")
+        store.add(note)
+        store.add(diagram)
+        store.createFolder(named: "Work", in: [])
+        var changes = 0
+        let view = makeView(store: store) { changes += 1 }
+        let diagramEntry = try #require(store.library().entry(for: diagram))
+
+        let accepted = view.handleDrop([BookmarkManagerView.dragProvider(for: diagramEntry)], into: ["Work"])
+        await waitUntil { store.library().entry(for: diagram)?.folder == ["Work"] }
+
+        #expect(accepted)
+        #expect(store.library().entry(for: diagram)?.folder == ["Work"])
+        #expect(store.bookmarkedURLs().count == 2)
+        #expect(changes == 0)
+
+        let noteEntry = try #require(store.library().entry(for: note))
+        let reordered = view.handleReorder(
+            [BookmarkManagerView.dragProvider(for: noteEntry)], into: ["Work"], before: diagram
+        )
+        await waitUntil { store.library().children(of: ["Work"]).entries.count == 2 }
+
+        #expect(reordered)
+        #expect(store.library().children(of: ["Work"]).entries.map(\.path) == [note.path, diagram.path])
+    }
+
+    /// `onInsert` の index はその段のエントリの並びでの位置。末尾(= 件数)と範囲外は兄弟なし(末尾へ)。
+    @Test("行間の挿入位置は直後のエントリへ直し、末尾なら兄弟なしにする")
+    func insertIndexMapsToFollowingSibling() {
+        let entries = [BookmarkEntry(path: "/mock/a.md"), BookmarkEntry(path: "/mock/b.md")]
+
+        #expect(BookmarkManagerView.sibling(at: 0, in: entries)?.path == "/mock/a.md")
+        #expect(BookmarkManagerView.sibling(at: 1, in: entries)?.path == "/mock/b.md")
+        #expect(BookmarkManagerView.sibling(at: 2, in: entries) == nil)
+    }
+
+    /// Finder からのファイル URL を並び替えとして扱うと、追加されずに黙って消える。
+    @Test("ファイル URL の provider は並び替えとして受理しない")
+    func fileURLProviderIsNotAReorder() {
+        let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkManagerViewDrop.notReorder"))
+        let view = makeView(store: store)
+
+        #expect(!view.handleReorder([NSItemProvider(object: note as NSURL)], into: [], before: nil))
+    }
+
     @Test("ファイル URL を含まないドロップは受理しない")
     func rejectsProvidersWithoutFileURL() {
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkManagerViewDrop.reject"))

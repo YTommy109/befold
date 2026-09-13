@@ -38,8 +38,9 @@ struct BookmarksMenuControllerTests {
         menu.items.last.flatMap { $0.isSeparatorItem || $0.target == nil ? nil : $0 }
     }
 
-    @Test("ブックマーク済み URL からファイル名アルファベット順でメニュー項目を構築する")
-    func populatesMenuItemsSortedByFileName() {
+    /// 並びは保存順(パネルでの手動の並びと同じ `children(of:)`。TASK-620.3 で表示名順をやめた)。
+    @Test("ブックマーク済み URL から保存順でメニュー項目を構築する")
+    func populatesMenuItemsInStoredOrder() {
         let urls = [
             URL(fileURLWithPath: "/tmp/zebra.mmd"),
             URL(fileURLWithPath: "/tmp/apple.md"),
@@ -52,22 +53,22 @@ struct BookmarksMenuControllerTests {
         // 先頭は固定部 2 項目 + セパレータ、末尾はセパレータ + 一括除去。
         let first = Self.firstListIndex
         #expect(menu.items.count == Self.fixedItemCount + 5)
-        #expect(menu.items[first].title == "apple.md\t/tmp")
-        #expect(menu.items[first + 1].title == "zebra.mmd\t/tmp")
-        #expect(menu.items[first].attributedTitle?.string == "apple.md\t/tmp")
-        #expect(menu.items[first].representedObject as? URL == urls[1])
+        #expect(menu.items[first].title == "zebra.mmd\t/tmp")
+        #expect(menu.items[first + 1].title == "apple.md\t/tmp")
+        #expect(menu.items[first].attributedTitle?.string == "zebra.mmd\t/tmp")
+        #expect(menu.items[first].representedObject as? URL == urls[0])
         #expect(menu.items[first].image != nil)
     }
 
     /// 別名は左列にだけ効き、右列のパスと representedObject(開く先)はファイルのまま。
-    /// 並びも別名で決まる(別名 "Alpha" が付いた zebra.mmd が apple.md より前に来る)。
-    @Test("別名を付けたブックマークは別名で表示され、別名の順に並ぶ")
+    /// 並びは別名で変わらない(別名 "Alpha" が付いた zebra.mmd も保存順どおり apple.md の後)。
+    @Test("別名を付けたブックマークは別名で表示され、位置は保存順のまま")
     func showsAliasInsteadOfFileName() {
         let zebra = URL(fileURLWithPath: "/tmp/zebra.mmd")
         let apple = URL(fileURLWithPath: "/tmp/apple.md")
         let library = BookmarkLibrary(entries: [
-            BookmarkEntry(path: zebra.path, alias: "Alpha"),
             BookmarkEntry(path: apple.path),
+            BookmarkEntry(path: zebra.path, alias: "Alpha"),
         ])
         let controller = makeController(library: library)
         let menu = NSMenu(title: "Bookmarks")
@@ -75,9 +76,9 @@ struct BookmarksMenuControllerTests {
         controller.menuNeedsUpdate(menu)
 
         let first = Self.firstListIndex
-        #expect(menu.items[first].title == "Alpha\t/tmp")
-        #expect(menu.items[first].representedObject as? URL == zebra)
-        #expect(menu.items[first + 1].title == "apple.md\t/tmp")
+        #expect(menu.items[first].title == "apple.md\t/tmp")
+        #expect(menu.items[first + 1].title == "Alpha\t/tmp")
+        #expect(menu.items[first + 1].representedObject as? URL == zebra)
     }
 
     @Test("ブックマークが無い場合は固定部だけが残る")

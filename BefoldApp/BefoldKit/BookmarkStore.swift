@@ -16,6 +16,8 @@ import Foundation
 public final class BookmarkStore {
     private static let defaultsKey = "Bookmarks"
     /// 正規化パスの配列だけを持っていた旧形式のキー。`init` で一度だけ移行し、必ず消す。
+    /// 新キー `Bookmarks` も、エントリの配列順に意味を持たせた(手動の並び。TASK-620.3)ため、
+    /// 印の無い値は同じ移行で表示名順へ並べ直す。
     private static let legacyDefaultsKey = "BookmarkedPaths"
 
     private let defaults: UserDefaults
@@ -27,7 +29,7 @@ public final class BookmarkStore {
     public init(defaults: UserDefaults, fileReader: any FileReading = DefaultFileReader()) {
         self.defaults = defaults
         self.fileReader = fileReader
-        Self.migrateLegacyPathsIfNeeded(defaults: defaults)
+        Self.migrateIfNeeded(defaults: defaults)
     }
 
     /// 現在のブックマーク全体。表示や一覧の組み立てはこの値から行う。
@@ -111,9 +113,10 @@ public final class BookmarkStore {
         mutate { $0.deleteFolder(at: path) }
     }
 
+    /// 規則は `BookmarkLibrary.move(_:to:before:)`。
     @discardableResult
-    public func move(_ url: URL, toFolder folder: [String]) -> Bool {
-        mutate { $0.move(url, to: folder) }
+    public func move(_ url: URL, toFolder folder: [String], before sibling: URL? = nil) -> Bool {
+        mutate { $0.move(url, to: folder, before: sibling) }
     }
 
     public func setFolderExpanded(_ isExpanded: Bool, at path: [String]) {
@@ -148,14 +151,22 @@ public final class BookmarkStore {
         defaults.set(data, forKey: defaultsKey)
     }
 
-    /// 旧キーの配列を新キーへ 1 度だけ写す。新キーが既にあれば写さない(以後は新キーだけが真実の源)。
-    /// 旧キー自体は移行の有無にかかわらず消す(CLAUDE.md「UserDefaults キーの廃止・改名」)。
-    /// 読み手が居ないまま残すと、次に同名のキーを再利用したとき誤って読まれる。
-    private static func migrateLegacyPathsIfNeeded(defaults: UserDefaults) {
+    /// 一度きりの移行を 1 本で行う(CLAUDE.md「UserDefaults キーの廃止・改名」)。
+    /// 1. 新キーが無ければ旧キーの配列から変換する(新キーがあれば旧値は写さない)
+    /// 2. 手動の並びの印が無ければ、表示名順(移行前に見えていた順)へ並べて印を付けて保存する
+    /// 旧キー自体は移行の有無にかかわらず消す。読み手が居ないまま残すと、次に同名のキーを
+    /// 再利用したとき誤って読まれる。デコードできない新キーは空として読まれ(印あり)、上書きしない。
+    private static func migrateIfNeeded(defaults: UserDefaults) {
         defer { defaults.removeObject(forKey: legacyDefaultsKey) }
-        guard defaults.data(forKey: defaultsKey) == nil,
-              let paths = defaults.stringArray(forKey: legacyDefaultsKey)
-        else { return }
-        save(BookmarkLibrary.migrated(fromPaths: paths), to: defaults)
+        let stored: BookmarkLibrary
+        if defaults.data(forKey: defaultsKey) != nil {
+            stored = load(from: defaults)
+        } else if let paths = defaults.stringArray(forKey: legacyDefaultsKey) {
+            stored = BookmarkLibrary.migrated(fromPaths: paths)
+        } else {
+            return
+        }
+        guard stored.hasManualOrder != true else { return }
+        save(stored.orderedManually(), to: defaults)
     }
 }

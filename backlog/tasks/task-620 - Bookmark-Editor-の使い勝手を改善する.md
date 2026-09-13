@@ -1,11 +1,11 @@
 ---
 id: TASK-620
 title: Bookmark Editor の使い勝手を改善する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:41'
-updated_date: '2026-09-13 11:53'
+updated_date: '2026-09-13 14:50'
 labels: []
 milestone: m-9
 dependencies: []
@@ -33,5 +33,11 @@ TASK-536 で新設したブックマーク管理パネル（Bookmarks > ブッ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 5 つのサブタスクがすべて完了している
+- [x] #1 5 つのサブタスクがすべて完了している
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+5 つのサブタスクをすべて完了した: 620.4 cmd+shift+D で管理パネルを開閉 (#662) / 620.5 別名操作の文言と別名付き行のファイル名表示 (#663) / 620.1 ファイル種別アイコンと表示で stat しない形への修正 (#664) / 620.2 行の ⋯ ボタン (#665) / 620.3 パネル内の D&D による並び替えとフォルダーへの格納。
+<!-- SECTION:FINAL_SUMMARY:END -->

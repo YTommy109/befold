@@ -39,11 +39,6 @@ final class BookmarkManagerModel {
         refresh()
     }
 
-    /// 全エントリを表示名順で(フォルダーを問わない)。
-    var entries: [BookmarkEntry] {
-        library.entriesSortedByDisplayName
-    }
-
     /// `parent` 直下の中身(フォルダーが先、エントリが後)。ツリーの各段はこれで描く。
     func children(of parent: [String]) -> BookmarkChildren {
         library.children(of: parent)
@@ -136,10 +131,11 @@ final class BookmarkManagerModel {
         return store.deleteFolder(at: path)
     }
 
+    /// 規則は `BookmarkLibrary.move(_:to:before:)`(`sibling` の直前へ、nil なら行き先の末尾へ)。
     @discardableResult
-    func move(_ url: URL, to folder: [String]) -> Bool {
+    func move(_ url: URL, to folder: [String], before sibling: URL? = nil) -> Bool {
         defer { refresh() }
-        return store.move(url, toFolder: folder)
+        return store.move(url, toFolder: folder, before: sibling)
     }
 
     func setExpanded(_ isExpanded: Bool, for path: [String]) {
