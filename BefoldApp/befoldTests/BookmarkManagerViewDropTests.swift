@@ -42,7 +42,7 @@ struct BookmarkManagerViewDropTests {
 
     /// Bookmark Editor 内の行ドラッグ(TASK-620.3)。行の provider は `.fileURL` を載せないので、Finder からの
     /// 追加の経路には入らず、並び替え(既存のエントリの移動)になる。集合は変わらないので onChange も無い。
-    @Test("パネル内の行を落とすと追加ではなく移動になり、兄弟の直前へ入る")
+    @Test("Bookmark Editor 内の行を落とすと追加ではなく移動になり、兄弟の直前へ入る")
     func bookmarkRowProviderMovesInsteadOfAdding() async throws {
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkManagerViewDrop.reorder"))
         let diagram = URL(fileURLWithPath: "/mock/docs/diagram.mmd")

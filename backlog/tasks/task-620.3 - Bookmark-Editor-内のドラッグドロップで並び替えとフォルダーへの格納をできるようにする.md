@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-13 11:43'
-updated_date: '2026-09-13 15:11'
+updated_date: '2026-09-13 15:16'
 labels: []
 milestone: m-9
 dependencies:
@@ -96,7 +96,7 @@ AppKit のアウトラインの挙動（実測）: 展開したフォルダー�
 
 検証:
 - swift test --skip Integration --skip FileWatcherTests: 1939 件パス / xcodebuild ビルド成功 / swiftlint 差分ゼロ / 型グループ閾値内（BookmarkManagerView 386、BookmarkLibrary 316、BookmarkStore 172）
-- 戻すと落ちる: 移行を止める → BookmarkStoreMigrationTests の並び未移行・旧値ありの 2 件 / handleDrop から並び替えの振り分けを外す → BookmarkManagerViewDropTests「パネル内の行を落とすと追加ではなく移動になり…」
+- 戻すと落ちる: 移行を止める → BookmarkStoreMigrationTests の並び未移行・旧値ありの 2 件 / handleDrop から並び替えの振り分けを外す → BookmarkManagerViewDropTests「Bookmark Editor 内の行を落とすと追加ではなく移動になり…」
 - 実機（CGEvent でドラッグ、.tmp/TASK-620/6203-*.png。各ケースでドロップ直前の指示線と結果を突き合わせ、onInsert の index と兄弟を一時ログで確認してから外した）
   - 移行: 既存データ（印なし）で起動 → 並びは変わらず、保存値に hasManualOrder=true
   - AC1: トップレベルで diagram.mmd を sample-folder の直前へ（onInsert parent=[] index=0）
