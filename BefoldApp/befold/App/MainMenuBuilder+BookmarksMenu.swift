@@ -26,10 +26,12 @@ extension MainMenuBuilder {
         addEditBookmarksItem(to: menu)
     }
 
-    /// 管理パネル(`HostedPanel.bookmarks`)を開く。キー等価は付けない——付けると紹介サイトの
-    /// ショートカット検証(`site/test/shortcuts.test.ts`)と Help の一覧に載る項目が増える。
+    /// 管理パネル(`HostedPanel.bookmarks`)を開閉する。⇧⌘D にした経緯は native-app-design.md の `MainMenuBuilder` の行。
     static func addEditBookmarksItem(to menu: NSMenu) {
-        menu.addLocalizedItem("menu.bookmarks.edit", action: #selector(AppDelegate.showBookmarkManager(_:)))
+        menu.addLocalizedItem(
+            "menu.bookmarks.edit", action: #selector(AppDelegate.showBookmarkManager(_:)),
+            keyEquivalent: BookmarkShortcut.keyEquivalent, modifiers: [.command, .shift]
+        )
     }
 
     /// ブックマークの追加/削除トグル。表示名は `ViewerMenuValidator` が

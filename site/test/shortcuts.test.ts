@@ -90,6 +90,11 @@ const EXPECTED_MENU_ITEMS: {
     keyEquivalent: 'BookmarkShortcut.keyEquivalent',
     modifiers: null,
   },
+  {
+    localizationKey: 'menu.bookmarks.edit',
+    keyEquivalent: 'BookmarkShortcut.keyEquivalent',
+    modifiers: ['.command', '.shift'],
+  },
   { localizationKey: 'menu.view.toggleSidebar', keyEquivalent: '"s"', modifiers: ['.command'] },
   { localizationKey: 'menu.view.goBack', keyEquivalent: '"["', modifiers: null },
   { localizationKey: 'menu.view.goForward', keyEquivalent: '"]"', modifiers: null },
