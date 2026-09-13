@@ -27,6 +27,13 @@ public struct BookmarkEntry: Codable, Equatable, Sendable {
     public var displayName: String {
         alias ?? url.lastPathComponent
     }
+
+    /// 一覧で表示名の下に添えるパス。別名が無ければ親ディレクトリ(表示名がファイル名なので
+    /// 繰り返さない)、別名があればファイル名まで含むパス(表示名からファイル名が消えるため。
+    /// TASK-620.5)。末尾を残して省略する前提で、ファイル名が切れない。
+    public var detailPath: String {
+        alias == nil ? (path as NSString).deletingLastPathComponent : path
+    }
 }
 
 /// ユーザー定義の仮想フォルダー。中身を持たず、空のフォルダーも存在させるために明示的に保存する。

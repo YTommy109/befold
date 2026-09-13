@@ -23,7 +23,7 @@ enum BookmarkManagerPrompt: Equatable {
 
     var titleKey: String.LocalizationValue {
         switch self {
-        case .alias: "bookmarks.manager.renameAlias.title"
+        case .alias: "bookmarks.manager.setAlias.title"
         case .newFolder: "bookmarks.manager.newFolder.title"
         case .renameFolder: "bookmarks.manager.renameFolder.title"
         }
@@ -31,14 +31,14 @@ enum BookmarkManagerPrompt: Equatable {
 
     var placeholderKey: String.LocalizationValue {
         switch self {
-        case .alias: "bookmarks.manager.renameAlias.placeholder"
+        case .alias: "bookmarks.manager.setAlias.placeholder"
         case .newFolder, .renameFolder: "bookmarks.manager.folderName.placeholder"
         }
     }
 
     var applyKey: String.LocalizationValue {
         switch self {
-        case .alias, .renameFolder: "bookmarks.manager.renameAlias.apply"
+        case .alias, .renameFolder: "bookmarks.manager.save"
         case .newFolder: "bookmarks.manager.create"
         }
     }
