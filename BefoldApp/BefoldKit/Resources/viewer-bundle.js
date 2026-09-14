@@ -14586,7 +14586,7 @@
       flush();
       return scopes;
     }
-    function matchScope(root, textNodeList, regex, found) {
+    function matchScope(root, textNodeList, regex, found, domRange) {
       var starts = [];
       var text3 = "";
       textNodeList.forEach(function(node) {
@@ -14611,7 +14611,6 @@
         var end = locate(textNodeList, starts, range.end, false);
         var startAncestor = start.node.parentNode;
         var endAncestor = end.node.parentNode;
-        var domRange = document.createRange();
         domRange.setStart(start.node, start.localOffset);
         domRange.setEnd(end.node, end.localOffset);
         var mark = document.createElement("mark");
@@ -14625,8 +14624,9 @@
       found.push.apply(found, scopeFound);
     }
     function walk(root, regex, found) {
+      var domRange = document.createRange();
       collectScopes(root).forEach(function(textNodeList) {
-        matchScope(root, textNodeList, regex, found);
+        matchScope(root, textNodeList, regex, found, domRange);
       });
     }
     function updateCount() {
