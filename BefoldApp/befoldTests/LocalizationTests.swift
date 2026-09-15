@@ -5,6 +5,7 @@ import Foundation
 import Testing
 
 /// Localizable.xcstrings の訳の完全性を検証する。
+/// カタログの読み取りは `LocalizableCatalog`(BefoldTestSupport)が担う。
 /// swift test(SwiftPM)では String Catalog がコンパイルされず素の JSON のまま
 /// バンドルされ、xcodebuild では .lproj/Localizable.strings にコンパイルされる。
 /// どちらのビルドでも検証できるよう、両形式から訳を読み取る。
@@ -17,7 +18,7 @@ struct LocalizationTests {
 
     @Test("全キーに en / ja 両方の訳がある(訳漏れ検出)", arguments: [Bundle.l10n, Bundle.befoldKitResources])
     func allKeysHaveBothLanguages(bundle: Bundle) throws {
-        let catalog = try Self.loadCatalog(bundle: bundle)
+        let catalog = try Self.cachedCatalog(bundle: bundle)
 
         #expect(!catalog.isEmpty)
         for (key, translations) in catalog {
@@ -126,52 +127,8 @@ struct LocalizationTests {
     private static func cachedCatalog(bundle: Bundle) throws -> [String: [String: String]] {
         let key = ObjectIdentifier(bundle)
         if let cached = catalogCache.get()[key] { return cached }
-        let catalog = try loadCatalog(bundle: bundle)
+        let catalog = try LocalizableCatalog.load(bundle: bundle)
         catalogCache.update { $0[key] = catalog }
-        return catalog
-    }
-
-    /// key -> 言語 -> 訳 の辞書を返す。
-    private static func loadCatalog(bundle: Bundle) throws -> [String: [String: String]] {
-        if let url = bundle.url(forResource: "Localizable", withExtension: "xcstrings") {
-            return try parseStringCatalog(url)
-        }
-        return try loadCompiledStrings(bundle: bundle)
-    }
-
-    private static func parseStringCatalog(_ url: URL) throws -> [String: [String: String]] {
-        struct CatalogFile: Decodable {
-            struct Entry: Decodable {
-                struct Localization: Decodable {
-                    struct StringUnit: Decodable { let value: String }
-                    let stringUnit: StringUnit
-                }
-
-                let localizations: [String: Localization]?
-            }
-
-            let strings: [String: Entry]
-        }
-        let file = try JSONDecoder().decode(CatalogFile.self, from: Data(contentsOf: url))
-        return file.strings.mapValues { entry in
-            (entry.localizations ?? [:]).mapValues(\.stringUnit.value)
-        }
-    }
-
-    private static func loadCompiledStrings(bundle: Bundle) throws -> [String: [String: String]] {
-        var catalog: [String: [String: String]] = [:]
-        for language in languages {
-            let url = try #require(bundle.url(
-                forResource: "Localizable",
-                withExtension: "strings",
-                subdirectory: nil,
-                localization: language
-            ))
-            let entries = try #require(NSDictionary(contentsOf: url) as? [String: String])
-            for (key, value) in entries {
-                catalog[key, default: [:]][language] = value
-            }
-        }
         return catalog
     }
 }

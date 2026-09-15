@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -129,27 +130,38 @@ struct SidebarEmptyStateTests {
 
     /// キーが `Localizable.xcstrings` に無いと、`String(localized:)` はキー文字列を
     /// そのまま返す。理由を足してキーを足し忘れると、画面に `sidebar.empty.bothFilters` と
-    /// 出るだけで気づけないため、解決結果がキーと異なることまで確かめる。
+    /// 出るだけで気づけないため、キーが訳を持つことを確かめる。
+    ///
+    /// **`String(localized:)` の戻り値をキーと比較する形では判定できない**(実測:
+    /// TASK-618)。`swift test` では String Catalog がコンパイルされないため、
+    /// `String(localized:)` はキーが実在していても常にキー文字列を返す。一方
+    /// `String(describing: titleKey)` は `LocalizationValue(arguments: [], key: "...")`
+    /// という別形式を返すため、両者は常に不一致になり、キーが欠けていても検知できない。
+    /// そこでカタログ(`LocalizableCatalog`)を直接読み、キーが実在し訳が空でないことを見る。
     @Test("すべての理由に、解決できる見出し文言がある")
-    func resolvesTitleForEveryReason() {
+    func resolvesTitleForEveryReason() throws {
+        let catalog = try LocalizableCatalog.load(bundle: .l10n)
+
         for reason in Self.allReasons {
-            let title = String(localized: reason.titleKey, bundle: .l10n)
-            #expect(!title.isEmpty)
-            #expect(title != String(describing: reason.titleKey))
+            let key = reason.titleKey.rawKeyForTesting
+            #expect(catalog[key]?["ja"]?.isEmpty == false, "キー \(key) に ja の訳がありません")
+            #expect(catalog[key]?["en"]?.isEmpty == false, "キー \(key) に en の訳がありません")
         }
     }
 
     /// 絞り込みで空になった 3 通りと列挙失敗には、次の一手を伝える説明が要る。
     /// 「対応ファイルなし」だけは説明の代わりにフォルダー名を添えるため nil。
+    /// 判定の根拠は `resolvesTitleForEveryReason` と同じ(TASK-618)。
     @Test("説明文言を持つ理由には、解決できる説明文言がある")
     func resolvesDescriptionForFilteredReasons() throws {
         #expect(SidebarEmptyReason.noSupportedFiles.descriptionKey == nil)
 
+        let catalog = try LocalizableCatalog.load(bundle: .l10n)
         for reason in Self.allReasons where reason != .noSupportedFiles {
-            let key = try #require(reason.descriptionKey)
-            let description = String(localized: key, bundle: .l10n)
-            #expect(!description.isEmpty)
-            #expect(description != String(describing: key))
+            let localizationKey = try #require(reason.descriptionKey)
+            let key = localizationKey.rawKeyForTesting
+            #expect(catalog[key]?["ja"]?.isEmpty == false, "キー \(key) に ja の訳がありません")
+            #expect(catalog[key]?["en"]?.isEmpty == false, "キー \(key) に en の訳がありません")
         }
     }
 
