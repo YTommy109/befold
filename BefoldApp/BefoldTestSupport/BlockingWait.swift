@@ -71,6 +71,15 @@ public final class BlockingGate: @unchecked Sendable {
 
     /// ゲートが開くまで呼び出しスレッドを塞ぐ。上限に達したら `Issue.record` して戻る
     /// （上限が要る理由は `waitOrRecordTimeout` の doc を参照）。
+    /// - Parameter fixedBudget: 指定すると `BEFOLD_TEST_TIMEOUT_SECONDS` を無視し、
+    ///   この秒数をそのまま上限にする。この待機を解く条件が「模している処理の遅さ」ではなく
+    ///   MainActor の順番待ちなどランナーの輻輳そのものに左右される場合に使う(TASK-619)。
+    ///   輻輳への耐性と輻輳の実測値を同じ env 変数に委ねると、CI が遅くなるほど両方が
+    ///   同時に縮み、耐性が実測を下回る形で必ず食い合う。`waitForMainActorDelivery`
+    ///   (Waiting.swift)が同種の待機で壁時計予算を env に持たせない設計を、同期版のここでも
+    ///   踏襲する（ただしここは完全に無期限にはしない。`.timeLimit` はテストの async な
+    ///   待機点でしかキャンセルを効かせないため、同期ブロックに無期限を許すと
+    ///   協調スレッドプールを永久に塞ぐ TASK-424 の再発になる）。
     /// - Returns: ゲートが開いて戻ったら true。上限に達したら false。
     ///   呼び出し元がテスト本体なら無視してよい（失敗は記録済み）。ゲート自身の
     ///   テストのように「上限で戻った」を通過と区別したい場合にだけ参照する。
@@ -78,9 +87,10 @@ public final class BlockingGate: @unchecked Sendable {
     public func wait(
         _ label: String,
         fallback seconds: Double = 15,
+        fixedBudget: Double? = nil,
         sourceLocation: SourceLocation = #_sourceLocation
     ) -> Bool {
-        let budget = testTimeoutSeconds(fallback: seconds)
+        let budget = fixedBudget ?? testTimeoutSeconds(fallback: seconds)
         let deadline = Date(timeIntervalSinceNow: budget)
         condition.lock()
         defer { condition.unlock() }
