@@ -120,6 +120,10 @@ BefoldApp/
 │                               # index.ts をエントリに esbuild で
 │                               # BefoldKit/Resources/viewer-bundle.js を生成する
 │                               # （型検査は npm run typecheck:viewer が別途担当）
+├── viewer-test/                # viewer-src の Jest テスト（TypeScript）。Swift ターゲットの
+│                               # 外に置くため SPM / XcodeGen の除外指定が要らない（TASK-623）。
+│                               # 型検査は viewer-test/tsconfig.json（本体を extends）で
+│                               # npm run typecheck:viewer-test が担当
 ├── BefoldKit/                  # コアロジック＋レンダリングアセット（com.degino.befold.kit）
 │   ├── ContentLoader.swift / ViewerLoadPipeline.swift  # 読込可否・種別分岐
 │   ├── FileReading.swift / StringChunkReader.swift      # 読込抽象化・チャンク読み

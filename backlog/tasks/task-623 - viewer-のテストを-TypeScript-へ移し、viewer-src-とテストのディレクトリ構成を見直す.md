@@ -1,11 +1,11 @@
 ---
 id: TASK-623
 title: viewer のテストを TypeScript へ移し、viewer-src とテストのディレクトリ構成を見直す
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-14 11:56'
-updated_date: '2026-09-15 01:51'
+updated_date: '2026-09-15 02:21'
 labels: []
 dependencies: []
 priority: medium
@@ -40,8 +40,24 @@ viewer の本体（`BefoldApp/viewer-src/`）は TASK-499 で全モジュール 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 viewer のテストがすべて TypeScript で書かれ、型検査（`tsc`）が CI で 0 件を要求している
-- [ ] #2 `viewer-src` とテストのディレクトリ構成が、決めた方針とその理由の記録どおりになっている
-- [ ] #3 `BefoldKit/Resources/` 配下にテストが残っておらず、`Package.swift` / `project.yml` にテスト除外のための指定が残っていない
-- [ ] #4 Jest のテスト件数が移行前から減っていない
+- [x] #1 viewer のテストがすべて TypeScript で書かれ、型検査（`tsc`）が CI で 0 件を要求している
+- [x] #2 `viewer-src` とテストのディレクトリ構成が、決めた方針とその理由の記録どおりになっている
+- [x] #3 `BefoldKit/Resources/` 配下にテストが残っておらず、`Package.swift` / `project.yml` にテスト除外のための指定が残っていない
+- [x] #4 Jest のテスト件数が移行前から減っていない
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+サブタスク 623.1〜623.4 すべて Done（2026-09-15）。親 AC の裏付け:
+- #1: viewer-test は 18 ファイルすべて .ts（find で .js 0 本）。CI js-test に `npm run typecheck:viewer-test` を追加（.github/workflows/ci.yml）し、ローカルで exit 0
+- #2: 623.1 の決定（viewer-src はフラットのまま、テストは BefoldApp/viewer-test/）どおり。viewer-src は 36 本の .ts がフラット、理由は viewer-src/README.md「なぜここに置くか」と 623.1 Notes
+- #3: BefoldKit/Resources 配下の *.test.* / __tests__ は 0 件。Package.swift の exclude と project.yml の excludes からテスト指定を削除し、swift build と xcodegen + xcodebuild が通ることを 623.2 で確認
+- #4: Jest 16 suites / 645 tests（着手前のベースラインと同数）
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+viewer の Jest テストを BefoldKit/Resources/__tests__ から BefoldApp/viewer-test/ へ移し、ハーネスを含む全 18 ファイルを TypeScript にして、テスト用の型検査（typecheck:viewer-test）を CI で 0 件要求にした。途中で render / appendChunk の lang を Swift の実際の呼び方に合わせて省略可能にし、null 注入される window グローバル 4 つの型宣言の漏れを直した。Jest 645 件は移行前と同数、viewer-bundle.js は差分なし。
+<!-- SECTION:FINAL_SUMMARY:END -->
