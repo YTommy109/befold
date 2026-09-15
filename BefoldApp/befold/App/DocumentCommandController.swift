@@ -105,7 +105,9 @@ final class DocumentCommandController {
 
     func printDocument(over window: NSWindow?) {
         guard capabilities().canPrint else { return }
-        renderer.printDocument(over: window)
+        renderer.printDocument(
+            over: window, jobTitle: currentDocument.url.deletingPathExtension().lastPathComponent
+        )
     }
 
     // MARK: - Find

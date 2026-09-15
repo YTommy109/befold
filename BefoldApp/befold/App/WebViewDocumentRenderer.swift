@@ -89,7 +89,7 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerJumpBridge.jumpAvailabilityScript(kinds: ordered))
     }
 
-    func printDocument(over window: NSWindow?) {
+    func printDocument(over window: NSWindow?, jobTitle: String) {
         guard let window, let webView = webViewProxy.webView else { return }
         let printInfo = NSPrintInfo()
         printInfo.horizontalPagination = .automatic
@@ -100,6 +100,7 @@ final class WebViewDocumentRenderer: DocumentRendering {
         // WKWebView の printOperation はビューのフレームが zero のままだと
         // 白紙になるため、印刷対象の用紙サイズを明示する
         operation.view?.frame = NSRect(origin: .zero, size: printInfo.paperSize)
+        operation.jobTitle = jobTitle
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 

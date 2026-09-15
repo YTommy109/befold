@@ -23,7 +23,7 @@ final class FakeDocumentRenderer: DocumentRendering {
         case findPrevious
         case openJump(kind: DocumentJumpKind)
         case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
-        case print
+        case print(jobTitle: String)
         case currentScrollPosition
         case rotate(degrees: Int)
         case noteRename(old: URL, new: URL)
@@ -87,8 +87,8 @@ final class FakeDocumentRenderer: DocumentRendering {
         commands.append(.applyJumpAvailability(kinds: kinds))
     }
 
-    func printDocument(over _: NSWindow?) {
-        commands.append(.print)
+    func printDocument(over _: NSWindow?, jobTitle: String) {
+        commands.append(.print(jobTitle: jobTitle))
     }
 
     func currentScrollPosition(_ completion: @escaping (Double) -> Void) {

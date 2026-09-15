@@ -50,7 +50,9 @@ protocol DocumentSurfaceOperating: AnyObject {
     func openJump(kind: DocumentJumpKind)
 
     /// 表示内容を指定ウィンドウ上のシートとして印刷する。
-    func printDocument(over window: NSWindow?)
+    /// jobTitle は印刷パネルの「PDF として保存」の保存名の初期値になる。設定しないと
+    /// 初期値が「befold」になっていた(TASK-625)。
+    func printDocument(over window: NSWindow?, jobTitle: String)
 
     /// 現在のスクロール位置を問い合わせる。取得できなければ呼ばれない。
     func currentScrollPosition(_ completion: @escaping (Double) -> Void)

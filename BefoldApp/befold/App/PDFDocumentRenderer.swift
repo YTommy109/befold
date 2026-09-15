@@ -95,7 +95,7 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     /// `capabilities.canPrint` は PDF でも true なので、実体を持たせる
     /// (能力が true なのに何も起きない形は ADR 0002 が排した)。
-    func printDocument(over window: NSWindow?) {
+    func printDocument(over window: NSWindow?, jobTitle: String) {
         guard let window, let document = pdfViewProxy.pdfView?.document else { return }
         let printInfo = NSPrintInfo()
         printInfo.horizontalPagination = .automatic
@@ -103,6 +103,7 @@ final class PDFDocumentRenderer: DocumentRendering {
         guard let operation = document.printOperation(
             for: printInfo, scalingMode: .pageScaleDownToFit, autoRotate: true
         ) else { return }
+        operation.jobTitle = jobTitle
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
