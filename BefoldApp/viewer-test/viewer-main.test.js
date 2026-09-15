@@ -352,7 +352,7 @@ describe('render の型ディスパッチ', () => {
 
     // mermaid.min.js は jsdom では読み込めず _mmdEnsureMermaidLoaded() の await が
     // 解決しないため、DOM 構築が終わっている同期部分だけを検証する。
-    main.render('graph TD;\nA-->B', 'mmd');
+    void main.render('graph TD;\nA-->B', 'mmd');
 
     const wrap = document.getElementById('diagram-wrap');
     expect(wrap.querySelector('pre.mermaid').textContent).toBe('graph TD;\nA-->B');
@@ -362,7 +362,7 @@ describe('render の型ディスパッチ', () => {
   test('mmd はダイアグラム定義を HTML エスケープする', () => {
     const { document, main } = loadViewerMain({});
 
-    main.render('A["<img src=x onerror=alert(1)>"]', 'mmd');
+    void main.render('A["<img src=x onerror=alert(1)>"]', 'mmd');
 
     const wrap = document.getElementById('diagram-wrap');
     expect(wrap.querySelector('img')).toBeNull();
@@ -1140,7 +1140,7 @@ describe('mermaid のパースエラー表示', () => {
     const { main, document } = loadViewerMain({});
     // mermaid.min.js は jsdom では読み込めず await が解決しないため、型の記録が
     // 終わっている同期部分だけを使う(render の型ディスパッチのテストと同じ理由)。
-    main.render('graph TD; A-->B;', 'mmd');
+    void main.render('graph TD; A-->B;', 'mmd');
 
     main._mmdMermaidParseError(new Error('boom'));
 
@@ -1187,7 +1187,9 @@ describe('パス参照の表示時解決', () => {
     // 応答が返るまでは全候補が中立表示になる
     const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
     expect(refs.length).toBe(3);
-    refs.forEach((ref) => expect(ref.classList.contains('befold-link-pending')).toBe(true));
+    refs.forEach((ref) => {
+      expect(ref.classList.contains('befold-link-pending')).toBe(true);
+    });
   });
 
   test('解決できたものだけをリンク化し、絶対パスを DOM に残す', async () => {

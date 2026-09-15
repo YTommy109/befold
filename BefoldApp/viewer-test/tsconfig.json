@@ -1,0 +1,19 @@
+{
+  // viewer のテスト（viewer-test/）の型検査だけを行う設定（TASK-623.3）。
+  // `npm run typecheck:viewer-test` が使う。
+  //
+  // 本体の設定（../tsconfig.json）を extends し、テストに要るものだけを足す。
+  // 本体側の types: [] と DOM のみの lib はテスト都合で緩めない。viewer-src に
+  // Node 依存を持ち込んだら本体の型検査で落ちる状態を保つため。
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // テストは Array.prototype.toSorted（ES2023）を使う。
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // fs / path / __dirname。jest の describe / expect は @jest/globals から
+    // import するので、グローバル型（@types/jest）は入れない。
+    "types": ["node"]
+  },
+  // viewer-globals.d.ts は import されないグローバル宣言なので明示的に含める
+  // （テストから読む viewer-src のモジュールと、ハーネスの window 注入値が参照する）。
+  "include": ["./**/*", "../viewer-src/viewer-globals.d.ts"]
+}

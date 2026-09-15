@@ -133,8 +133,9 @@ npm run build:viewer         # ソースからバンドルを生成する
 npm run build:viewer-vendor  # npm から mermaid.min.js / ベンダー CSS をコピーする
 npm run check:viewer-bundle  # 再ビルドしてコミット済み成果物との差分を検出する
 npm run check:third-party-licenses  # THIRD_PARTY_LICENSES.md と実際の依存を突き合わせる
-npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
-npm run typecheck:viewer     # tsc --noEmit（型検査。対象は .ts のみ）
+npm run lint                 # Oxlint（type-aware。viewer-src とテストの両方）
+npm run typecheck:viewer     # tsc --noEmit（viewer-src の型検査）
+npm run typecheck:viewer-test  # tsc --noEmit -p viewer-test（テストの型検査）
 npm run check:viewer-cycles  # モジュール間の循環 import を検出する
 npx jest                     # Jest テスト（viewer-test/）
 ```
@@ -143,7 +144,7 @@ npx jest                     # Jest テスト（viewer-test/）
 `npm run build:viewer` の結果をコミットする。
 
 テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
-`main.ts` を直接 require し、DOM 側は `viewer-test/support/viewerMainHarness.js` が
+`main.ts` を直接 require し、DOM 側は `viewer-test/support/viewerMainHarness.ts` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン

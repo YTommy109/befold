@@ -696,6 +696,8 @@ describe('変更ブロックのジャンプ', () => {
     const loaded = openChangeBlockJumpOn(
       '<table class="code-table diff-table">' + rows.join('') + '</table>',
     );
+    // 退避した remove は下で this を明示して apply で呼び戻すので、束縛は要らない。
+    // oxlint-disable-next-line typescript/unbound-method
     const originalRemove = loaded.window.DOMTokenList.prototype.remove;
     let removals = 0;
     loaded.window.DOMTokenList.prototype.remove = function (...names) {

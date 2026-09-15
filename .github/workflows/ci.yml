@@ -248,6 +248,11 @@ jobs:
       - name: viewer-src の型を検査する
         run: npm run typecheck:viewer
 
+      # テストも babel が型注釈を落とすだけなので、本体の関数シグネチャを変えても
+      # tsc を通さない限りテストの呼び方のずれは検出されない（TASK-623）。
+      - name: viewer のテストの型を検査する
+        run: npm run typecheck:viewer-test
+
       - name: Jest テストを実行する
         run: npx jest
 
