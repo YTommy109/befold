@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Testing
 
 /// 文字入力の用件ごとに、初期値と文言のキーが揃っていることを View を起動せずに確かめる
@@ -22,15 +23,25 @@ struct BookmarkManagerPromptTests {
     }
 
     /// キーが `Localizable.xcstrings` に無いと `String(localized:)` はキー文字列をそのまま返す。
-    /// 用件を足してキーを足し忘れると alert にキー名が出るだけで気づけないため、解決結果がキーと
-    /// 異なることまで確かめる。
+    /// 用件を足してキーを足し忘れると alert にキー名が出るだけで気づけないため、キーが訳を
+    /// 持つことを確かめる。
+    ///
+    /// **`String(localized:)` の戻り値をキーと比較する形では判定できない**(実測:
+    /// TASK-618)。`swift test` では String Catalog がコンパイルされないため、
+    /// `String(localized:)` はキーが実在していても常にキー文字列を返す。一方
+    /// `String(describing: key)` は `LocalizationValue(arguments: [], key: "...")` という
+    /// 別形式を返すため、両者は常に不一致になり、キーが欠けていても検知できない。
+    /// そこでカタログ(`LocalizableCatalog`)を直接読み、キーが実在し訳が空でないことを見る
+    /// (`SidebarEmptyStateTests` と同じ判定)。
     @Test("すべての用件に、解決できる見出し・プレースホルダ・適用ボタンの文言がある")
-    func resolvesEveryKey() {
+    func resolvesEveryKey() throws {
+        let catalog = try LocalizableCatalog.load(bundle: .l10n)
+
         for prompt in Self.allPrompts {
-            for key in [prompt.titleKey, prompt.placeholderKey, prompt.applyKey] {
-                let text = String(localized: key, bundle: .l10n)
-                #expect(!text.isEmpty)
-                #expect(text != String(describing: key))
+            for localizationKey in [prompt.titleKey, prompt.placeholderKey, prompt.applyKey] {
+                let key = localizationKey.rawKeyForTesting
+                #expect(catalog[key]?["ja"]?.isEmpty == false, "キー \(key) に ja の訳がありません")
+                #expect(catalog[key]?["en"]?.isEmpty == false, "キー \(key) に en の訳がありません")
             }
         }
     }
