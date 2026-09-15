@@ -6,28 +6,31 @@
 // DOM に触れる層(描画・ズーム・検索・参照解決)のテスト。ファイル名は分割前の
 // viewer-main.js に由来する。公開面の barrel 経由で、jsdom + viewer.html の DOM 上でロジックを
 // 読み込み・初期化・単体呼び出しできることを確認する。
+import { describe, expect, jest, test } from '@jest/globals';
+import type { DOMWindow } from 'jsdom';
 
-const {
+import {
   loadViewerMain,
   captureBridgeMessages,
   dispatchTrustedClick,
   dispatchTrustedContextMenu,
-} = require('./support/viewerMainHarness');
+} from './support/viewerMainHarness.js';
+import type { LoadedViewer } from './support/viewerMainHarness.js';
 
 // カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
 // addEventListener が空実装のため、change を流すテストだけここで置き換える
 // (_mmdInit() が matchMedia を呼ぶより前に差し替える必要がある)。
-function installColorSchemeStub(window) {
-  const listeners = [];
-  window.matchMedia = function (query) {
+function installColorSchemeStub(window: DOMWindow) {
+  const listeners: (() => void)[] = [];
+  window.matchMedia = function (query: string) {
     return {
       media: query,
       matches: false,
-      addEventListener: function (type, fn) {
+      addEventListener: function (type: string, fn: () => void) {
         listeners.push(fn);
       },
       removeEventListener: function () {},
-    };
+    } as unknown as MediaQueryList;
   };
   return {
     fireChange: () => {
@@ -45,7 +48,9 @@ describe('エクスポート境界', () => {
     expect(typeof main.render).toBe('function');
     expect(typeof main._mmdInit).toBe('function');
     // _mmdInitFind() が反映するはずの状態が未適用であること
-    expect(document.getElementById('mmd-find-input').placeholder).toBe('検索');
+    expect((document.getElementById('mmd-find-input') as HTMLInputElement).placeholder).toBe(
+      '検索',
+    );
   });
 
   test('_mmdInit() を明示的に呼ぶと初期化が走る', () => {
@@ -53,24 +58,26 @@ describe('エクスポート境界', () => {
       findStrings: { placeholder: 'Find' },
     });
 
-    expect(document.getElementById('mmd-find-input').placeholder).toBe('Find');
+    expect((document.getElementById('mmd-find-input') as HTMLInputElement).placeholder).toBe(
+      'Find',
+    );
   });
 });
 
 describe('_mmdInitZoom', () => {
   test('Swift が注入した倍率を採用する', () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1.5' });
+    const { window, main } = loadViewerMain({ initialZoom: 1.5 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     // 注入値(1.5)が採用されていれば、既定倍率へのリセットは変化として通知される
     main._mmdZoomReset();
 
     expect(received.length).toBe(1);
-    expect(received[0].payload.zoom).toBe(main.ZOOM_DEFAULT);
+    expect((received[0]!.payload as { zoom: number }).zoom).toBe(main.ZOOM_DEFAULT);
   });
 
   test('注入値と同じ倍率では zoomChanged を通知しない', () => {
-    const { window, main } = loadViewerMain({ init: false, initialZoom: '1.5' });
+    const { window, main } = loadViewerMain({ init: false, initialZoom: 1.5 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     main._mmdInit();
@@ -79,41 +86,41 @@ describe('_mmdInitZoom', () => {
   });
 
   test('倍率が変わったときだけ zoomChanged を通知する', () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     main._mmdZoomIn();
 
     expect(received.length).toBe(1);
-    expect(received[0].name).toBe('zoomChanged');
-    expect(received[0].payload.zoom).toBeGreaterThan(1);
+    expect(received[0]!.name).toBe('zoomChanged');
+    expect((received[0]!.payload as { zoom: number }).zoom).toBeGreaterThan(1);
   });
 
   // 倍率も per-file に保存されるため、スクロール位置と同じく「その倍率が属する文書」を
   // 発火時に申告する。Swift 側の現在 URL を参照していた頃は、切替直後に配達された
   // 通知が切替先のキーを汚した(TASK-391)。
   test('zoomChanged に採用済みの文書パスを載せる', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
     main._mmdSetRenderDocPath('/mock/a.md');
     await main.render('a\nb\n', 'code', 'txt');
 
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/a.md');
   });
 
   test('文書が定まらない間(描画前)の zoomChanged は path に null を送る', () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBeNull();
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBeNull();
   });
 
   test('rename 後の zoomChanged は新しいパスを載せる', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
     main._mmdSetRenderDocPath('/mock/a.md');
     await main.render('a\nb\n', 'code', 'txt');
@@ -121,7 +128,7 @@ describe('_mmdInitZoom', () => {
     main._mmdRenameDocPath('/mock/a.md', '/mock/b.md');
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/b.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/b.md');
   });
 
   // 以下 4 件は、かつて scrollPositionChanged 側で文書パスの採用規則を見ていたもの。
@@ -129,7 +136,7 @@ describe('_mmdInitZoom', () => {
   // 揃えた）が、採用規則そのものは倍率の通知が同じ _mmdDocPath を使うので残っている。
   // 観測点を zoomChanged へ移して規則の担保を保つ。
   test('予告は render まで採用されない(採用前の通知は現在の文書のパスのまま)', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
     main._mmdSetRenderDocPath('/mock/a.md');
     await main.render('a\nb\n', 'code', 'txt');
@@ -139,11 +146,11 @@ describe('_mmdInitZoom', () => {
     main._mmdSetRenderDocPath('/mock/b.md');
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/a.md');
   });
 
   test('予告なしの内部再描画では採用済みのパスを保つ', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
     main._mmdSetRenderDocPath('/mock/a.md');
     await main.render('a\nb\n', 'code', 'txt');
@@ -152,11 +159,11 @@ describe('_mmdInitZoom', () => {
     await main.render('a\nb\n', 'code', 'txt');
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/a.md');
   });
 
   test('_mmdRenameDocPath は現在のパスが一致しないとき何もしない', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
     main._mmdSetRenderDocPath('/mock/a.md');
     await main.render('a\nb\n', 'code', 'txt');
@@ -165,11 +172,11 @@ describe('_mmdInitZoom', () => {
     main._mmdRenameDocPath('/mock/x.md', '/mock/y.md');
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/a.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/a.md');
   });
 
   test('_mmdRenameDocPath は未採用の予告パスも差し替える', async () => {
-    const { window, main } = loadViewerMain({ initialZoom: '1' });
+    const { window, main } = loadViewerMain({ initialZoom: 1 });
     const received = captureBridgeMessages(window, ['zoomChanged']);
 
     // 旧名の render が実行待ちのまま rename された場合、採用後のパスも新名になる
@@ -178,7 +185,7 @@ describe('_mmdInitZoom', () => {
     await main.render('a\nb\n', 'code', 'txt');
     main._mmdZoomIn();
 
-    expect(received.at(-1).payload.path).toBe('/mock/b.md');
+    expect((received.at(-1)!.payload as { path: string | null }).path).toBe('/mock/b.md');
   });
 });
 
@@ -191,7 +198,7 @@ describe('_mmdScrollTarget', () => {
 
   test('ソース表示では pre code を返す', () => {
     const { document, main } = loadViewerMain({});
-    const wrap = document.getElementById('diagram-wrap');
+    const wrap = document.getElementById('diagram-wrap')!;
     wrap.classList.add('code-body');
     wrap.innerHTML = '<pre><code>x</code></pre>';
 
@@ -211,9 +218,9 @@ describe('_mmdSetTruncated', () => {
   test('打ち切り解除でバナーを隠す', () => {
     const { document, main } = loadViewerMain({ bannerStrings });
 
-    main._mmdSetTruncated(false);
+    main._mmdSetTruncated(false, undefined, false);
 
-    expect(document.getElementById('mmd-truncated-banner').style.display).toBe('none');
+    expect(document.getElementById('mmd-truncated-banner')!.style.display).toBe('none');
   });
 
   test('行数付きでバナーと続き読み込みボタンを表示する', () => {
@@ -221,9 +228,9 @@ describe('_mmdSetTruncated', () => {
 
     main._mmdSetTruncated(true, 1000, false);
 
-    expect(document.getElementById('mmd-truncated-banner').style.display).toBe('flex');
-    expect(document.getElementById('mmd-truncated-text').textContent).toBe('1000 行を表示中');
-    const btn = document.getElementById('mmd-load-more-btn');
+    expect(document.getElementById('mmd-truncated-banner')!.style.display).toBe('flex');
+    expect(document.getElementById('mmd-truncated-text')!.textContent).toBe('1000 行を表示中');
+    const btn = document.getElementById('mmd-load-more-btn')!;
     expect(btn.style.display).toBe('inline-block');
     expect(btn.textContent).toBe('さらに読み込む');
   });
@@ -236,7 +243,7 @@ describe('_mmdSetTruncated', () => {
 
     main._mmdSetTruncated(true, 1000, false);
 
-    expect(document.getElementById('mmd-load-more-btn').style.display).toBe('none');
+    expect(document.getElementById('mmd-load-more-btn')!.style.display).toBe('none');
   });
 
   test('読み込み失敗ではエラー文言に切り替えボタンを隠す', () => {
@@ -244,10 +251,10 @@ describe('_mmdSetTruncated', () => {
 
     main._mmdSetTruncated(true, 1000, true);
 
-    expect(document.getElementById('mmd-truncated-text').textContent).toBe(
+    expect(document.getElementById('mmd-truncated-text')!.textContent).toBe(
       '残りの読み込みに失敗しました',
     );
-    expect(document.getElementById('mmd-load-more-btn').style.display).toBe('none');
+    expect(document.getElementById('mmd-load-more-btn')!.style.display).toBe('none');
   });
 });
 
@@ -259,7 +266,7 @@ describe('_mmdLoadMore', () => {
     main._mmdLoadMore();
 
     expect(received.length).toBe(1);
-    expect(received[0].name).toBe('loadMoreLines');
+    expect(received[0]!.name).toBe('loadMoreLines');
   });
 
   test('loadMore 無効ホストでは通知しない', () => {
@@ -278,9 +285,9 @@ describe('_mmdInitFind', () => {
       initialFindOptions: { caseSensitive: true, wholeWord: false, useRegex: true },
     });
 
-    expect(document.getElementById('mmd-find-case').classList.contains('active')).toBe(true);
-    expect(document.getElementById('mmd-find-word').classList.contains('active')).toBe(false);
-    expect(document.getElementById('mmd-find-regex').classList.contains('active')).toBe(true);
+    expect(document.getElementById('mmd-find-case')!.classList.contains('active')).toBe(true);
+    expect(document.getElementById('mmd-find-word')!.classList.contains('active')).toBe(false);
+    expect(document.getElementById('mmd-find-regex')!.classList.contains('active')).toBe(true);
   });
 
   test('ローカライズ済み文字列を反映する', () => {
@@ -296,13 +303,15 @@ describe('_mmdInitFind', () => {
       },
     });
 
-    expect(document.getElementById('mmd-find-input').placeholder).toBe('Find');
-    expect(document.getElementById('mmd-find-prev').title).toBe('Previous');
-    expect(document.getElementById('mmd-find-next').title).toBe('Next');
-    expect(document.getElementById('mmd-find-case').title).toBe('Match Case');
-    expect(document.getElementById('mmd-find-word').title).toBe('Match Whole Word');
-    expect(document.getElementById('mmd-find-regex').title).toBe('Use Regular Expression');
-    expect(document.getElementById('mmd-find-close').title).toBe('Close');
+    expect((document.getElementById('mmd-find-input') as HTMLInputElement).placeholder).toBe(
+      'Find',
+    );
+    expect(document.getElementById('mmd-find-prev')!.title).toBe('Previous');
+    expect(document.getElementById('mmd-find-next')!.title).toBe('Next');
+    expect(document.getElementById('mmd-find-case')!.title).toBe('Match Case');
+    expect(document.getElementById('mmd-find-word')!.title).toBe('Match Whole Word');
+    expect(document.getElementById('mmd-find-regex')!.title).toBe('Use Regular Expression');
+    expect(document.getElementById('mmd-find-close')!.title).toBe('Close');
   });
 });
 
@@ -313,11 +322,11 @@ describe('検索バーの配線', () => {
     });
     const received = captureBridgeMessages(window, ['findOptionsChanged']);
 
-    document.getElementById('mmd-find-case').click();
+    document.getElementById('mmd-find-case')!.click();
 
-    expect(document.getElementById('mmd-find-case').classList.contains('active')).toBe(true);
+    expect(document.getElementById('mmd-find-case')!.classList.contains('active')).toBe(true);
     expect(received.length).toBe(1);
-    expect(received[0].payload).toEqual({
+    expect(received[0]!.payload).toEqual({
       caseSensitive: true,
       wholeWord: false,
       useRegex: false,
@@ -330,19 +339,19 @@ describe('検索バーの配線', () => {
 
     main._mmdOpenFind();
     expect(main._mmdFind.isOpen()).toBe(true);
-    expect(document.getElementById('mmd-find-panel').style.display).toBe('flex');
+    expect(document.getElementById('mmd-find-panel')!.style.display).toBe('flex');
 
-    document.getElementById('mmd-find-close').click();
+    document.getElementById('mmd-find-close')!.click();
 
     expect(main._mmdFind.isOpen()).toBe(false);
-    expect(document.getElementById('mmd-find-panel').style.display).toBe('none');
+    expect(document.getElementById('mmd-find-panel')!.style.display).toBe('none');
   });
 });
 
 describe('render の型ディスパッチ', () => {
   // #diagram-wrap に付いた型別クラスだけを取り出す
-  function bodyClasses(document) {
-    return Array.from(document.getElementById('diagram-wrap').classList)
+  function bodyClasses(document: Document) {
+    return Array.from(document.getElementById('diagram-wrap')!.classList)
       .filter((c) => c.endsWith('-body'))
       .toSorted();
   }
@@ -354,8 +363,8 @@ describe('render の型ディスパッチ', () => {
     // 解決しないため、DOM 構築が終わっている同期部分だけを検証する。
     void main.render('graph TD;\nA-->B', 'mmd');
 
-    const wrap = document.getElementById('diagram-wrap');
-    expect(wrap.querySelector('pre.mermaid').textContent).toBe('graph TD;\nA-->B');
+    const wrap = document.getElementById('diagram-wrap')!;
+    expect(wrap.querySelector('pre.mermaid')!.textContent).toBe('graph TD;\nA-->B');
     expect(bodyClasses(document)).toEqual([]);
   });
 
@@ -364,9 +373,11 @@ describe('render の型ディスパッチ', () => {
 
     void main.render('A["<img src=x onerror=alert(1)>"]', 'mmd');
 
-    const wrap = document.getElementById('diagram-wrap');
+    const wrap = document.getElementById('diagram-wrap')!;
     expect(wrap.querySelector('img')).toBeNull();
-    expect(wrap.querySelector('pre.mermaid').textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(wrap.querySelector('pre.mermaid')!.textContent).toContain(
+      '<img src=x onerror=alert(1)>',
+    );
   });
 
   test('svg はズームラッパー付きの img を組み立てる', async () => {
@@ -374,13 +385,15 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('<svg><text>日本語</text></svg>', 'svg');
 
-    const img = document.querySelector('#diagram-wrap .diagram-zoom-wrap .diagram-zoom-inner img');
+    const img = document.querySelector<HTMLImageElement>(
+      '#diagram-wrap .diagram-zoom-wrap .diagram-zoom-inner img',
+    )!;
     expect(img).not.toBeNull();
     expect(img.alt).toBe('SVG');
     expect(img.src).toBe(window.svgDataURI('<svg><text>日本語</text></svg>'));
-    expect(document.querySelector('#diagram-wrap .diagram-zoom-wrap').dataset.diagramIndex).toBe(
-      '0',
-    );
+    expect(
+      document.querySelector<HTMLElement>('#diagram-wrap .diagram-zoom-wrap')!.dataset.diagramIndex,
+    ).toBe('0');
     // mermaid と同じズーム操作 UI が付く
     expect(document.querySelector('#diagram-wrap .diagram-zoom-controls')).not.toBeNull();
   });
@@ -390,7 +403,7 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('<p>hi</p>', 'html');
 
-    const iframe = document.querySelector('#diagram-wrap iframe');
+    const iframe = document.querySelector<HTMLIFrameElement>('#diagram-wrap iframe')!;
     expect(iframe.getAttribute('sandbox')).toBe('allow-same-origin');
     expect(iframe.srcdoc).toBe('<p>hi</p>');
     expect(bodyClasses(document)).toEqual(['html-body']);
@@ -417,7 +430,7 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('AAAA', 'image', 'image/webp');
 
-    const img = document.querySelector('#diagram-wrap img');
+    const img = document.querySelector<HTMLImageElement>('#diagram-wrap img')!;
     expect(img.getAttribute('src')).toBe('data:image/webp;base64,AAAA');
     expect(img.alt).toBe('Image');
     expect(bodyClasses(document)).toEqual(['image-body']);
@@ -428,7 +441,7 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('let x = 1', 'code', 'swift');
 
-    expect(document.querySelector('#diagram-wrap pre code').textContent).toBe('let x = 1');
+    expect(document.querySelector('#diagram-wrap pre code')!.textContent).toBe('let x = 1');
     expect(bodyClasses(document)).toEqual(['code-body']);
   });
 
@@ -439,7 +452,7 @@ describe('render の型ディスパッチ', () => {
 
     await main.render('# Title', 'md');
 
-    expect(document.querySelector('#diagram-wrap h1').textContent).toBe('Title');
+    expect(document.querySelector('#diagram-wrap h1')!.textContent).toBe('Title');
     expect(bodyClasses(document)).toEqual(['markdown-body']);
   });
 
@@ -468,7 +481,7 @@ describe('render の型ディスパッチ', () => {
 
   test('描画のたびにエラーパネルを消す', async () => {
     const { document, main } = loadViewerMain({});
-    const panel = document.getElementById('mmd-error');
+    const panel = document.getElementById('mmd-error')!;
     panel.textContent = 'previous error';
     panel.style.display = 'block';
 
@@ -482,18 +495,18 @@ describe('render の型ディスパッチ', () => {
 describe('検索ナビゲーション', () => {
   // 検索対象の DOM を用意し、検索バーを開いて query を入力した状態にする。
   // 入力は実際の input イベント経由で流し、配線ごと検証する。
-  function openFindOn(text, query) {
+  function openFindOn(text: string, query: string) {
     const loaded = loadViewerMain({});
-    loaded.document.getElementById('diagram-wrap').textContent = text;
+    loaded.document.getElementById('diagram-wrap')!.textContent = text;
     loaded.main._mmdOpenFind();
-    const input = loaded.document.getElementById('mmd-find-input');
+    const input = loaded.document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = query;
     input.dispatchEvent(new loaded.window.Event('input'));
     return loaded;
   }
 
-  const count = (document) => document.getElementById('mmd-find-count').textContent;
-  const currentMark = (document) => document.querySelector('mark.mmd-find-match-current');
+  const count = (document: Document) => document.getElementById('mmd-find-count')!.textContent;
+  const currentMark = (document: Document) => document.querySelector('mark.mmd-find-match-current');
 
   test('検索するとヒット件数と先頭のハイライトが出る', () => {
     const { document } = openFindOn('x a x b x', 'x');
@@ -506,10 +519,10 @@ describe('検索ナビゲーション', () => {
   test('CSV の複数セルを再検索しても Range は検索ごとに1つだけ生成する', async () => {
     const { document, window, main } = loadViewerMain({});
     await main.render('first,second\nalpha alpha,alpine\nbeta,gamma', 'csv', ',');
-    const wrap = document.getElementById('diagram-wrap');
+    const wrap = document.getElementById('diagram-wrap')!;
     const originalHtml = wrap.innerHTML;
     main._mmdOpenFind();
-    const input = document.getElementById('mmd-find-input');
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
     // jsdom の時間計測では WebKit の live Range 更新コストを検出できないため、
     // ヒット数・セル数に比例して Range を生成しないことを直接検証する。
     const createRange = jest.spyOn(document, 'createRange');
@@ -517,7 +530,7 @@ describe('検索ナビゲーション', () => {
     for (const [query, expected] of [
       ['a', 8],
       ['al', 3],
-    ]) {
+    ] as const) {
       createRange.mockClear();
       input.value = query;
       input.dispatchEvent(new window.Event('input'));
@@ -541,10 +554,10 @@ describe('検索ナビゲーション', () => {
   test('次へ/前へボタンをクリックすると反応する', () => {
     const { document } = openFindOn('x a x b x', 'x');
 
-    document.getElementById('mmd-find-next').click();
+    document.getElementById('mmd-find-next')!.click();
     expect(count(document)).toBe('2/3');
 
-    document.getElementById('mmd-find-prev').click();
+    document.getElementById('mmd-find-prev')!.click();
     expect(count(document)).toBe('1/3');
   });
 
@@ -606,7 +619,7 @@ describe('検索ナビゲーション', () => {
     main.claimBar('jump');
 
     expect(main.currentBar()).toBe('jump');
-    expect(document.getElementById('mmd-find-panel').style.display).toBe('none');
+    expect(document.getElementById('mmd-find-panel')!.style.display).toBe('none');
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
   });
 
@@ -625,21 +638,21 @@ describe('検索ナビゲーション', () => {
   // ジャンプ側には無い状態を引数で持ち回ることになり、検索の表示が静かに変わる)。
   test('クエリが空になると件数表示は空文字になる', () => {
     const { document } = openFindOn('x a x b x', 'x');
-    const input = document.getElementById('mmd-find-input');
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
 
     input.value = '';
-    input.dispatchEvent(new document.defaultView.Event('input'));
+    input.dispatchEvent(new document.defaultView!.Event('input'));
 
     expect(count(document)).toBe('');
   });
 
   test('正規表現として不正なクエリでは件数表示は空文字になる', () => {
     const { document } = openFindOn('x a x b x', 'x');
-    document.getElementById('mmd-find-regex').click();
-    const input = document.getElementById('mmd-find-input');
+    document.getElementById('mmd-find-regex')!.click();
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
 
     input.value = '[';
-    input.dispatchEvent(new document.defaultView.Event('input'));
+    input.dispatchEvent(new document.defaultView!.Event('input'));
 
     expect(input.classList.contains('mmd-find-error')).toBe(true);
     expect(count(document)).toBe('');
@@ -651,16 +664,16 @@ describe('検索ナビゲーション', () => {
     main._mmdCloseFind();
 
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
-    expect(document.getElementById('diagram-wrap').textContent).toBe('x a x b x');
+    expect(document.getElementById('diagram-wrap')!.textContent).toBe('x a x b x');
   });
 
   // シンタックスハイライトの <span> 境界(や _PATH_RE のリンク化)でテキストノードが
   // 分割されていても、その境界をまたぐ文字列を検索できることを検証する(Issue #336)。
-  function openFindOnHtml(html, query) {
+  function openFindOnHtml(html: string, query: string) {
     const loaded = loadViewerMain({});
-    loaded.document.getElementById('diagram-wrap').innerHTML = html;
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = html;
     loaded.main._mmdOpenFind();
-    const input = loaded.document.getElementById('mmd-find-input');
+    const input = loaded.document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = query;
     input.dispatchEvent(new loaded.window.Event('input'));
     return loaded;
@@ -673,7 +686,7 @@ describe('検索ナビゲーション', () => {
     );
 
     expect(count(document)).toBe('1/1');
-    const mark = document.querySelector('mark.mmd-find-match');
+    const mark = document.querySelector('mark.mmd-find-match')!;
     expect(mark.textContent).toBe('foo.bar');
   });
 
@@ -684,7 +697,7 @@ describe('検索ナビゲーション', () => {
     );
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('.bar');
+    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('.bar');
   });
 
   test('span 境界をまたぐ foo. が末尾ドットだけでもヒットする', () => {
@@ -694,7 +707,7 @@ describe('検索ナビゲーション', () => {
     );
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('foo.');
+    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('foo.');
   });
 
   test('span 境界をまたぐマッチはトグル(大小文字・単語一致・正規表現)を有効にしても検出できる', () => {
@@ -702,15 +715,15 @@ describe('検索ナビゲーション', () => {
       '<span class="hljs-title">Foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">Bar</span>',
       '',
     );
-    document.getElementById('mmd-find-case').click();
-    document.getElementById('mmd-find-word').click();
-    document.getElementById('mmd-find-regex').click();
-    const input = document.getElementById('mmd-find-input');
+    document.getElementById('mmd-find-case')!.click();
+    document.getElementById('mmd-find-word')!.click();
+    document.getElementById('mmd-find-regex')!.click();
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = 'Foo\\.Bar';
-    input.dispatchEvent(new document.defaultView.Event('input'));
+    input.dispatchEvent(new document.defaultView!.Event('input'));
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('Foo.Bar');
+    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('Foo.Bar');
   });
 
   test('span をまたいだハイライト解除後もテキスト内容が保たれる', () => {
@@ -722,7 +735,7 @@ describe('検索ナビゲーション', () => {
     main._mmdCloseFind();
 
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
-    expect(document.querySelector('#diagram-wrap').textContent).toBe('foo.bar');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toBe('foo.bar');
   });
 
   // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先 <span> を
@@ -733,7 +746,7 @@ describe('検索ナビゲーション', () => {
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
       '',
     );
-    const input = document.getElementById('mmd-find-input');
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
     const queries = [
       'f',
       'fo',
@@ -760,7 +773,7 @@ describe('検索ナビゲーション', () => {
       (span) => span.textContent === '',
     );
     expect(emptySpans.length).toBe(0);
-    expect(document.querySelector('#diagram-wrap').textContent).toBe('foo.bar');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toBe('foo.bar');
   });
 
   // マッチが1つの <span> 内に収まっている(境界をまたがない)場合は、その span 自体を
@@ -775,8 +788,8 @@ describe('検索ナビゲーション', () => {
 
     const titleSpans = document.querySelectorAll('#diagram-wrap span.hljs-title');
     expect(titleSpans.length).toBe(1);
-    expect(titleSpans[0].textContent).toBe('befold');
-    expect(document.querySelector('mark.mmd-find-match').textContent).toBe('b');
+    expect(titleSpans[0]!.textContent).toBe('befold');
+    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('b');
   });
 
   // 行番号付きコードブロックは行ごとに <tr><td class="line-content"> で区切られる。
@@ -795,7 +808,7 @@ describe('検索ナビゲーション', () => {
         '</table></code></pre>',
       '',
     );
-    const input = document.getElementById('mmd-find-input');
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
 
     ['b', 'be', 'bef', 'befo', 'befol', 'befold'].forEach((q) => {
       input.value = q;
@@ -804,23 +817,23 @@ describe('検索ナビゲーション', () => {
 
     const rows = document.querySelectorAll('#diagram-wrap table.code-table tr');
     expect(rows.length).toBe(2);
-    expect(rows[0].querySelector('.line-content').textContent).toBe('befold path/to/diagram.mmd');
-    expect(rows[1].querySelector('.line-content').textContent).toBe('befold --help');
+    expect(rows[0]!.querySelector('.line-content')!.textContent).toBe('befold path/to/diagram.mmd');
+    expect(rows[1]!.querySelector('.line-content')!.textContent).toBe('befold --help');
   });
 });
 
 describe('_mmdFindRefresh の現在位置維持', () => {
-  function openFindOn(text, query) {
+  function openFindOn(text: string, query: string) {
     const loaded = loadViewerMain({});
-    loaded.document.getElementById('diagram-wrap').textContent = text;
+    loaded.document.getElementById('diagram-wrap')!.textContent = text;
     loaded.main._mmdOpenFind();
-    const input = loaded.document.getElementById('mmd-find-input');
+    const input = loaded.document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = query;
     input.dispatchEvent(new loaded.window.Event('input'));
     return loaded;
   }
 
-  const count = (document) => document.getElementById('mmd-find-count').textContent;
+  const count = (document: Document) => document.getElementById('mmd-find-count')!.textContent;
 
   test('再検索しても現在位置を維持する', () => {
     const { document, main } = openFindOn('x a x b x', 'x');
@@ -848,7 +861,7 @@ describe('_mmdFindRefresh の現在位置維持', () => {
     expect(count(document)).toBe('3/3');
 
     // 再描画でヒットが 2 件に減った状況を作る
-    document.getElementById('diagram-wrap').textContent = 'x a x';
+    document.getElementById('diagram-wrap')!.textContent = 'x a x';
     main._mmdFindRefresh();
 
     expect(count(document)).toBe('2/2');
@@ -857,7 +870,7 @@ describe('_mmdFindRefresh の現在位置維持', () => {
   test('ヒットが無くなったら 0/0 を表示する', () => {
     const { document, main } = openFindOn('x a x b x', 'x');
 
-    document.getElementById('diagram-wrap').textContent = 'no hits here';
+    document.getElementById('diagram-wrap')!.textContent = 'no hits here';
     main._mmdFindRefresh();
 
     expect(count(document)).toBe('0/0');
@@ -870,28 +883,28 @@ describe('段階読み込み中の件数表示', () => {
       findStrings: { withinDisplayedRange: '表示範囲内' },
       bannerStrings: { showing: '{count} 行' },
     });
-    document.getElementById('diagram-wrap').textContent = 'x a x';
+    document.getElementById('diagram-wrap')!.textContent = 'x a x';
     main._mmdOpenFind();
-    const input = document.getElementById('mmd-find-input');
+    const input = document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = 'x';
     input.dispatchEvent(new window.Event('input'));
-    expect(document.getElementById('mmd-find-count').textContent).toBe('1/2');
+    expect(document.getElementById('mmd-find-count')!.textContent).toBe('1/2');
 
     main._mmdSetTruncated(true, 100, false);
 
-    expect(document.getElementById('mmd-find-count').textContent).toBe('1/2 (表示範囲内)');
+    expect(document.getElementById('mmd-find-count')!.textContent).toBe('1/2 (表示範囲内)');
   });
 });
 
 describe('モード切替の持ち越し', () => {
-  const count = (document) => document.getElementById('mmd-find-count').textContent;
+  const count = (document: Document) => document.getElementById('mmd-find-count')!.textContent;
 
   // csv を描画し、検索バーを開いて 2 件目を選択した状態にする
   async function renderAndSelectSecond() {
     const loaded = loadViewerMain({});
     await loaded.main.render('x,a\nx,b\n', 'csv', ',');
     loaded.main._mmdOpenFind();
-    const input = loaded.document.getElementById('mmd-find-input');
+    const input = loaded.document.getElementById('mmd-find-input') as HTMLInputElement;
     input.value = 'x';
     input.dispatchEvent(new loaded.window.Event('input'));
     loaded.main._mmdFind.next();
@@ -933,9 +946,9 @@ describe('モード切替の持ち越し', () => {
 });
 
 describe('チャンク末尾の改行の持ち越し', () => {
-  const lineNumbers = (document) =>
+  const lineNumbers = (document: Document) =>
     Array.from(document.querySelectorAll('#diagram-wrap table.code-table tr')).map(
-      (tr) => tr.querySelector('.line-number').textContent,
+      (tr) => tr.querySelector('.line-number')!.textContent,
     );
 
   test('改行で終わったチャンクの続きは新しい行になる', async () => {
@@ -958,19 +971,19 @@ describe('チャンク末尾の改行の持ち越し', () => {
 
     expect(lineNumbers(document)).toEqual(['1', '2']);
     const rows = document.querySelectorAll('#diagram-wrap table.code-table tr');
-    expect(rows[1].querySelector('.line-content').textContent).toBe('bcd');
+    expect(rows[1]!.querySelector('.line-content')!.textContent).toBe('bcd');
   });
 });
 
 describe('ダイアグラム個別ズーム', () => {
-  const labelOf = (wrap) => wrap.querySelector('.diagram-zoom-label').textContent;
-  const wraps = (document) =>
-    Array.from(document.querySelectorAll('#diagram-wrap .diagram-zoom-wrap'));
+  const labelOf = (wrap: Element) => wrap.querySelector('.diagram-zoom-label')!.textContent;
+  const wraps = (document: Document) =>
+    Array.from(document.querySelectorAll<HTMLElement>('#diagram-wrap .diagram-zoom-wrap'));
 
   // mermaid 実行後の DOM(=.mermaid が 2 つある状態)を作り、ズームラッパーで包む。
   // 実際の描画は mermaid.min.js を読まないハーネスでは走らないため、包む対象だけ用意する。
-  function wrapTwoDiagrams(loaded) {
-    const diagramWrap = loaded.document.getElementById('diagram-wrap');
+  function wrapTwoDiagrams(loaded: LoadedViewer) {
+    const diagramWrap = loaded.document.getElementById('diagram-wrap')!;
     diagramWrap.innerHTML =
       '<pre class="mermaid">graph TD; A-->B;</pre><pre class="mermaid">graph TD; C-->D;</pre>';
     loaded.main._mmdWrapDiagrams(diagramWrap);
@@ -982,12 +995,12 @@ describe('ダイアグラム個別ズーム', () => {
     const [first, second] = wrapTwoDiagrams(loaded);
 
     // 先頭以外を操作して、インデックスごとに独立していることを確かめる
-    second.querySelector('.diagram-zoom-in').click();
+    second!.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
 
-    expect(labelOf(second)).toBe(
+    expect(labelOf(second!)).toBe(
       loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT + loaded.main.ZOOM_STEP),
     );
-    expect(labelOf(first)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
+    expect(labelOf(first!)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
     expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.main.ZOOM_DEFAULT);
     // 全体ズームは個別ズームでは動かない
     expect(loaded.main._mmdZoom.value()).toBe(loaded.main.ZOOM_DEFAULT);
@@ -996,25 +1009,25 @@ describe('ダイアグラム個別ズーム', () => {
   test('個別ズームは再描画をまたいで維持される', () => {
     const loaded = loadViewerMain({});
     const [first] = wrapTwoDiagrams(loaded);
-    first.querySelector('.diagram-zoom-in').click();
-    const zoomed = labelOf(first);
+    first!.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
+    const zoomed = labelOf(first!);
     expect(zoomed).not.toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
 
     // ライブリロード相当: DOM を作り直して同じ順番のダイアグラムを包み直す
     const [reFirst, reSecond] = wrapTwoDiagrams(loaded);
 
-    expect(labelOf(reFirst)).toBe(zoomed);
-    expect(labelOf(reSecond)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
+    expect(labelOf(reFirst!)).toBe(zoomed);
+    expect(labelOf(reSecond!)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
   });
 
   test('倍率ラベルのクリックで既定倍率に戻る', () => {
     const loaded = loadViewerMain({});
     const [first] = wrapTwoDiagrams(loaded);
-    first.querySelector('.diagram-zoom-in').click();
+    first!.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
 
-    first.querySelector('.diagram-zoom-label').click();
+    first!.querySelector<HTMLElement>('.diagram-zoom-label')!.click();
 
-    expect(labelOf(first)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
+    expect(labelOf(first!)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
     expect(loaded.main._mmdDiagramZoomValue(0)).toBe(loaded.main.ZOOM_DEFAULT);
   });
 });
@@ -1026,7 +1039,7 @@ describe('カラースキーム変更時の再描画', () => {
     loaded.main._mmdInit();
     await loaded.main.render('a;b\n', 'csv', ';');
     // 描画結果を消し、再描画で戻ってくることを観測できる状態にする
-    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = '';
 
     colorScheme.fireChange();
 
@@ -1043,7 +1056,7 @@ describe('カラースキーム変更時の再描画', () => {
     loaded.main._mmdInit();
     await loaded.main.render('a\n', 'csv', ',');
     loaded.main.appendChunk('b\n', 'csv', ',');
-    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = '';
 
     colorScheme.fireChange();
 
@@ -1060,13 +1073,13 @@ describe('カラースキーム変更時の再描画', () => {
 
     colorScheme.fireChange();
 
-    expect(loaded.document.getElementById('diagram-wrap').innerHTML).toBe('');
+    expect(loaded.document.getElementById('diagram-wrap')!.innerHTML).toBe('');
   });
 });
 
 describe('行番号表示の反映', () => {
   // 行単位テーブルは行番号の有無に関わらず常に使うため、行番号セルの有無で判定する。
-  const hasLineNumbers = (document) =>
+  const hasLineNumbers = (document: Document) =>
     document.querySelector('#diagram-wrap td.line-number') !== null;
 
   test('無効にすると次の描画で行番号が付かない', async () => {
@@ -1102,10 +1115,10 @@ describe('インデントガイド(end-to-end)', () => {
     const cells = document.querySelectorAll('#diagram-wrap .line-content');
     // 2 行目(4 スペースインデント)のセルにガイド変数が乗っている。
     const indented = Array.from(cells).find(
-      (c) => c.getAttribute('style') && c.getAttribute('style').includes('--indent-cols:4'),
+      (c) => c.getAttribute('style') && c.getAttribute('style')!.includes('--indent-cols:4'),
     );
     expect(indented).toBeTruthy();
-    expect(indented.getAttribute('style')).toContain('--indent-depth:1');
+    expect(indented!.getAttribute('style')).toContain('--indent-depth:1');
     // 行番号セルは付かない。
     expect(document.querySelector('#diagram-wrap td.line-number')).toBeNull();
   });
@@ -1118,7 +1131,7 @@ describe('スクロール位置の復元', () => {
 
     await main.render('a\nb\n', 'code', 'txt');
 
-    expect(main._mmdScrollTarget().scrollTop).toBe(120);
+    expect(main._mmdScrollTarget()!.scrollTop).toBe(120);
   });
 
   test('注入位置は 1 回の描画で消費され、次の描画では現在位置を保つ', async () => {
@@ -1126,12 +1139,12 @@ describe('スクロール位置の復元', () => {
     main._mmdSetRestoreScroll(120);
     await main.render('a\nb\n', 'code', 'txt');
     // ソース表示のスクロール実体は描画のたびに作り直されるため都度取り直す
-    main._mmdScrollTarget().scrollTop = 40;
+    main._mmdScrollTarget()!.scrollTop = 40;
 
     // 内部再描画(カラースキーム変更相当)では注入位置は残っていない
     await main.render('a\nb\n', 'code', 'txt');
 
-    expect(main._mmdScrollTarget().scrollTop).toBe(40);
+    expect(main._mmdScrollTarget()!.scrollTop).toBe(40);
   });
 });
 
@@ -1144,9 +1157,9 @@ describe('mermaid のパースエラー表示', () => {
 
     main._mmdMermaidParseError(new Error('boom'));
 
-    expect(document.getElementById('mmd-error').style.display).toBe('block');
-    expect(document.getElementById('mmd-error').textContent).toBe('boom');
-    expect(document.getElementById('diagram-wrap').style.display).toBe('none');
+    expect(document.getElementById('mmd-error')!.style.display).toBe('block');
+    expect(document.getElementById('mmd-error')!.textContent).toBe('boom');
+    expect(document.getElementById('diagram-wrap')!.style.display).toBe('none');
   });
 
   test('Markdown 内の図では図の領域を隠さない', async () => {
@@ -1156,24 +1169,24 @@ describe('mermaid のパースエラー表示', () => {
 
     main._mmdMermaidParseError(new Error('boom'));
 
-    expect(document.getElementById('mmd-error').style.display).toBe('block');
-    expect(document.getElementById('diagram-wrap').style.display).toBe('block');
+    expect(document.getElementById('mmd-error')!.style.display).toBe('block');
+    expect(document.getElementById('diagram-wrap')!.style.display).toBe('block');
   });
 });
 
 describe('パス参照の表示時解決', () => {
   // #diagram-wrap に任意の HTML を流し込み、収集対象を組み立てる。
   // <a> は markdown-it 未ロードのハーネスでは render() から作れないため直接置く。
-  function setWrapHtml(loaded, html) {
-    loaded.document.getElementById('diagram-wrap').innerHTML = html;
+  function setWrapHtml(loaded: LoadedViewer, html: string) {
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = html;
   }
 
-  function classesOf(loaded, selector) {
-    return Array.from(loaded.document.querySelector(selector).classList).toSorted();
+  function classesOf(loaded: LoadedViewer, selector: string) {
+    return Array.from(loaded.document.querySelector(selector)!.classList).toSorted();
   }
 
-  function click(loaded, selector, init) {
-    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector), init);
+  function click(loaded: LoadedViewer, selector: string, init?: MouseEventInit) {
+    dispatchTrustedClick(loaded.window, loaded.document.querySelector(selector)!, init);
   }
 
   test('描画後にローカルパス候補を一意化して resolveReferences を送る', async () => {
@@ -1183,9 +1196,12 @@ describe('パス参照の表示時解決', () => {
     await loaded.main.render('src/a.swift\nsrc/a.swift\nsrc/b.swift\n', 'code', 'txt');
 
     expect(received.length).toBe(1);
-    expect(received[0].payload.paths.toSorted()).toEqual(['src/a.swift', 'src/b.swift']);
+    expect((received[0]!.payload as { paths: string[] }).paths.toSorted()).toEqual([
+      'src/a.swift',
+      'src/b.swift',
+    ]);
     // 応答が返るまでは全候補が中立表示になる
-    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
+    const refs = loaded.document.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref');
     expect(refs.length).toBe(3);
     refs.forEach((ref) => {
       expect(ref.classList.contains('befold-link-pending')).toBe(true);
@@ -1199,14 +1215,14 @@ describe('パス参照の表示時解決', () => {
 
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
 
-    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
-    expect(Array.from(refs[0].classList).toSorted()).toEqual(['befold-link', 'befold-path-ref']);
-    expect(refs[0].dataset.resolved).toBe('/repo/src/a.swift');
-    expect(Array.from(refs[1].classList).toSorted()).toEqual([
+    const refs = loaded.document.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref');
+    expect(Array.from(refs[0]!.classList).toSorted()).toEqual(['befold-link', 'befold-path-ref']);
+    expect(refs[0]!.dataset.resolved).toBe('/repo/src/a.swift');
+    expect(Array.from(refs[1]!.classList).toSorted()).toEqual([
       'befold-link-dead',
       'befold-path-ref',
     ]);
-    expect(refs[1].dataset.resolved).toBeUndefined();
+    expect(refs[1]!.dataset.resolved).toBeUndefined();
   });
 
   // ハイライトで span に割られたパスは片ごとに注釈される。解決要求は一意化された
@@ -1219,7 +1235,7 @@ describe('パス参照の表示時解決', () => {
     ]);
     await loaded.main.render('see ./notes.md for details\n', 'code', 'swift');
 
-    expect(received[0].payload.paths).toEqual(['./notes.md']);
+    expect((received[0]!.payload as { paths: string[] }).paths).toEqual(['./notes.md']);
     loaded.main._mmdApplyResolvedReferences({ './notes.md': '/repo/notes.md' });
 
     const refs = Array.from(loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref'));
@@ -1230,7 +1246,9 @@ describe('パス参照の表示時解決', () => {
     });
 
     expect(
-      received.filter((m) => m.name === 'referenceActivated').map((m) => m.payload.href),
+      received
+        .filter((m) => m.name === 'referenceActivated')
+        .map((m) => (m.payload as { href: string }).href),
     ).toEqual(refs.map(() => './notes.md'));
   });
 
@@ -1245,7 +1263,7 @@ describe('パス参照の表示時解決', () => {
     loaded.main._mmdResolveReferences();
     loaded.main._mmdApplyResolvedReferences({});
 
-    expect(loaded.document.getElementById('dead').hasAttribute('href')).toBe(false);
+    expect(loaded.document.getElementById('dead')!.hasAttribute('href')).toBe(false);
     click(loaded, '#dead');
     expect(received.filter((m) => m.name === 'referenceActivated')).toEqual([]);
   });
@@ -1343,7 +1361,7 @@ describe('パス参照の表示時解決', () => {
 
     loaded.main._mmdResolveReferences();
 
-    expect(received[0].payload.paths).toEqual(['viewer-main.js:12']);
+    expect((received[0]!.payload as { paths: string[] }).paths).toEqual(['viewer-main.js:12']);
   });
 
   test('メッセージハンドラ未登録のホストでは中立化したまま固まらない', () => {
@@ -1364,10 +1382,13 @@ describe('パス参照の表示時解決', () => {
 
     loaded.main.appendChunk('src/b.swift\n', 'code', 'txt');
 
-    expect(received.map((m) => m.payload.paths)).toEqual([['src/a.swift'], ['src/b.swift']]);
-    const refs = loaded.document.querySelectorAll('#diagram-wrap .befold-path-ref');
-    expect(refs[0].classList.contains('befold-link')).toBe(true);
-    expect(refs[1].classList.contains('befold-link-pending')).toBe(true);
+    expect(received.map((m) => (m.payload as { paths: string[] }).paths)).toEqual([
+      ['src/a.swift'],
+      ['src/b.swift'],
+    ]);
+    const refs = loaded.document.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref');
+    expect(refs[0]!.classList.contains('befold-link')).toBe(true);
+    expect(refs[1]!.classList.contains('befold-link-pending')).toBe(true);
   });
 
   test('未応答バッチが無い状態で応答が届いても何も起きない', async () => {
@@ -1375,7 +1396,7 @@ describe('パス参照の表示時解決', () => {
     captureBridgeMessages(loaded.window, ['resolveReferences']);
     await loaded.main.render('src/a.swift\n', 'code', 'txt');
     loaded.main._mmdApplyResolvedReferences({ 'src/a.swift': '/repo/src/a.swift' });
-    const ref = loaded.document.querySelector('#diagram-wrap .befold-path-ref');
+    const ref = loaded.document.querySelector<HTMLElement>('#diagram-wrap .befold-path-ref')!;
 
     // キューが空の状態での 2 度目の応答(Swift 側の重複応答を想定)
     loaded.main._mmdApplyResolvedReferences({});
@@ -1394,7 +1415,7 @@ describe('パス参照の表示時解決', () => {
     // 旧ドキュメント向けの応答が遅れて届く
     loaded.main._mmdApplyResolvedReferences({ 'src/old.swift': '/repo/src/old.swift' });
 
-    const ref = loaded.document.querySelector('#diagram-wrap .befold-path-ref');
+    const ref = loaded.document.querySelector<HTMLElement>('#diagram-wrap .befold-path-ref')!;
     expect(ref.textContent).toBe('src/new.swift');
     expect(ref.classList.contains('befold-link-pending')).toBe(true);
 
@@ -1418,7 +1439,7 @@ describe('パス参照の表示時解決', () => {
     loaded.main._mmdApplyResolvedReferences({});
 
     ['#ctor', '#hop', '#tostr'].forEach((sel) => {
-      const el = loaded.document.querySelector(sel);
+      const el = loaded.document.querySelector<HTMLElement>(sel)!;
       expect(el.classList.contains('befold-link')).toBe(false);
       expect(el.classList.contains('befold-link-dead')).toBe(true);
       expect(el.dataset.resolved).toBeUndefined();
@@ -1436,7 +1457,10 @@ describe('パス参照の表示時解決', () => {
 
     loaded.main._mmdResolveReferences();
 
-    expect(received[0].payload.paths.toSorted()).toEqual(['./doc.md', '__proto__']);
+    expect((received[0]!.payload as { paths: string[] }).paths.toSorted()).toEqual([
+      './doc.md',
+      '__proto__',
+    ]);
   });
 
   test('解決先の絶対パスを title に出し、解決失敗時は元の title を残さない', () => {
@@ -1452,8 +1476,8 @@ describe('パス参照の表示時解決', () => {
     loaded.main._mmdResolveReferences();
     loaded.main._mmdApplyResolvedReferences({ './secret.md': '/repo/secret.md' });
 
-    expect(loaded.document.getElementById('fake').getAttribute('title')).toBe('/repo/secret.md');
-    expect(loaded.document.getElementById('dead').hasAttribute('title')).toBe(false);
+    expect(loaded.document.getElementById('fake')!.getAttribute('title')).toBe('/repo/secret.md');
+    expect(loaded.document.getElementById('dead')!.hasAttribute('title')).toBe(false);
   });
 
   test('リンク上の contextmenu は既定メニューを抑止して referenceContextMenu を送る', async () => {
@@ -1467,7 +1491,7 @@ describe('パス参照の表示時解決', () => {
 
     const event = dispatchTrustedContextMenu(
       loaded.window,
-      loaded.document.querySelector('#diagram-wrap .befold-path-ref'),
+      loaded.document.querySelector('#diagram-wrap .befold-path-ref')!,
     );
 
     expect(event.defaultPrevented).toBe(true);
@@ -1483,7 +1507,7 @@ describe('パス参照の表示時解決', () => {
 
     const event = dispatchTrustedContextMenu(
       loaded.window,
-      loaded.document.getElementById('diagram-wrap'),
+      loaded.document.getElementById('diagram-wrap')!,
     );
 
     expect(event.defaultPrevented).toBe(false);
@@ -1492,7 +1516,7 @@ describe('パス参照の表示時解決', () => {
 });
 
 describe('Markdown のチャンク追記(Issue #307)', () => {
-  const wrap = (document) => document.getElementById('diagram-wrap');
+  const wrap = (document: Document) => document.getElementById('diagram-wrap')!;
 
   test('追記したチャンクが末尾にレンダリングされる', async () => {
     const { main, document } = loadViewerMain({});
@@ -1500,8 +1524,8 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
 
     main.appendChunk('## second\n\n', 'md');
 
-    expect(wrap(document).querySelector('h1').textContent).toBe('first');
-    expect(wrap(document).querySelector('h2').textContent).toBe('second');
+    expect(wrap(document).querySelector('h1')!.textContent).toBe('first');
+    expect(wrap(document).querySelector('h2')!.textContent).toBe('second');
   });
 
   test('追記しても先頭チャンクの DOM を作り直さない', async () => {
@@ -1521,7 +1545,7 @@ describe('Markdown のチャンク追記(Issue #307)', () => {
 
     main.appendChunk('<img src=x onerror="alert(1)">\n\n', 'md');
 
-    const img = wrap(document).querySelector('img');
+    const img = wrap(document).querySelector('img')!;
     expect(img).not.toBeNull();
     expect(img.getAttribute('onerror')).toBeNull();
   });

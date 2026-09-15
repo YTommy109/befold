@@ -4,13 +4,14 @@ var MACOS_DEFAULT_BODY = 13;
 var WEB_BASELINE = 16;
 
 // システム本文フォントサイズ(pt)を Markdown 表示の基準サイズ(px)へ換算する。
-// 受け取る値は 3 通りある。Swift の注入は number、未注入は undefined、
-// 文字列も許容する（viewer.test.js が '13' / 'abc' で呼んでいる）。
+// 受け取る値は 4 通りある。Swift の注入は number、エンコード失敗時の注入は null
+// (ViewerBridge.defaultingFallback)、未注入は undefined、文字列も許容する
+// （viewer.test.ts が '13' / 'abc' で呼んでいる）。null は String() で 'null' になり NaN へ縮退する。
 // parseFloat の型宣言は string しか受けないが、実行時は引数を必ず文字列化して
 // から解析する。String() を挟むのはその暗黙の変換を明示しただけで、
 // 非文字列を渡したときの NaN 化に依存した既存の縮退（NaN なら WEB_BASELINE）は
 // そのまま変わらない。
-function markdownFontSize(raw: number | string | undefined): number {
+function markdownFontSize(raw: number | string | null | undefined): number {
   // Number() に替えると '' が 0、'13px' が NaN になり縮退の分岐が変わる。
   // 末尾に単位が付いた文字列も受け付ける parseFloat の振る舞いが要件。
   // oxlint-disable-next-line unicorn/prefer-number-coercion

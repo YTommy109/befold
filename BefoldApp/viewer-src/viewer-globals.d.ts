@@ -71,16 +71,16 @@ interface Window {
   webkit?: { messageHandlers?: WebKitMessageHandlers };
 
   // ViewerBridge.initialZoomScript(_:)
-  _mmdInitialZoom?: number;
+  _mmdInitialZoom?: number | null;
   // ViewerBridge.systemFontSizeScript(_:)
-  _mmdSystemFontSize?: number;
+  _mmdSystemFontSize?: number | null;
   // ViewerBridge.monoFontFamilyScript(_:) — 未設定は空文字で注入される
   _mmdMonoFontFamily?: string;
   // ViewerBridge.codeFontSizeScript(_:) — 未カスタマイズは null が注入される
   _mmdCodeFontSize?: number | null;
   // ViewerBridge.csvNumberGroupingScript(_:) — 未注入のホスト(QuickLook 拡張)では
   // undefined になり、JS 側の既定(オン)で描く
-  _mmdCsvGrouping?: boolean;
+  _mmdCsvGrouping?: boolean | null;
   // ViewerBridge.csvNegativeStyleScript(_:) — 値は BefoldKit の CsvNegativeStyle の
   // rawValue。未注入・未知の値は JS 側で 'plain' へ倒す
   _mmdCsvNegativeStyle?: string;
@@ -98,5 +98,5 @@ interface Window {
   _mmdJumpStrings?: ViewerJumpStrings;
   // ViewerBridge.initialJumpLevelsScript(_:) が注入する保存済みの見出しレベル
   // （["h1","h2","h3"] 形式。空配列は「3 つとも OFF」で、未注入とは別）
-  _mmdInitialJumpLevels?: string[];
+  _mmdInitialJumpLevels?: string[] | null;
 }

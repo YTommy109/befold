@@ -144,7 +144,7 @@ npx jest                     # Jest テスト（viewer-test/）
 `npm run build:viewer` の結果をコミットする。
 
 テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
-`main.ts` を直接 require し、DOM 側は `viewer-test/support/viewerMainHarness.ts` が
+`main.ts` を直接 import し、DOM 側は `viewer-test/support/viewerMainHarness.ts` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン

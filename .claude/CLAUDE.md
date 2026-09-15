@@ -119,11 +119,12 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
   BefoldApp/ は描画の完了を待たない Promise が「たまに古い内容が残る」形で出るため
   （TASK-499）。導入時の実測で viewer-src の 2 箇所が引っかかり、どちらも意図した
   fire-and-forget だったので `void` を置いて明示した
-- **`no-unsafe-*` はプロジェクトレベルでは両面とも off。** BefoldApp では既定の
-  type-aware ルールセットが 4,749 件出るが、うち 4,423 件が `no-unsafe-*` で
-  **すべて型情報の無い .js / .mjs 由来**（`viewer-test` の 9 本と
-  `scripts/*.mjs` の実測 94 件。viewer-src は全モジュール .ts なので 0 件）。
-  テストとビルドスクリプトの TS 化は別の判断なので、それまで off にする
+- **`no-unsafe-*` はプロジェクトレベルでは両面とも off。** BefoldApp の
+  `no-unsafe-*` は実測（TASK-623.4、2026-09-15）で viewer-src 0 件・`viewer-test` 47 件・
+  `scripts/*.mjs` 94 件。viewer-test はテストも support もすべて .ts（TASK-623）で、
+  残る 47 件のうち 39 件は `no-unsafe-type-assertion`（DOM の取得結果やブリッジの
+  payload を `as` で絞る書き方）。scripts は型情報の無い .mjs で、その TS 化は別の判断。
+  件数のある面で error にしないため、プロジェクトレベルでは off にする
 - **プロジェクトレベルの off の一覧は `site/.oxlintrc.json` と
   `BefoldApp/.oxlintrc.json` で揃える**（片方だけ緩めると、どちらの面が厳しいのか
   分からなくなる）。一方で、**型情報が揃っているディレクトリでの再有効化は

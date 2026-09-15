@@ -1,12 +1,16 @@
 // 文書内ジャンプの共通基盤（TASK-485.1）。目印の列挙はプロバイダに委ね、
 // 位置・n/N 表示・ハイライト・再構築だけをコントローラが持つ、という
 // 分担が保たれていることを検証する。
-const { loadViewerMain, captureBridgeMessages } = require('./support/viewerMainHarness');
+import { describe, expect, test } from '@jest/globals';
+
+import { collectHeadings } from '../viewer-src/main.js';
+import { loadViewerMain, captureBridgeMessages } from './support/viewerMainHarness.js';
+import type { LoadedViewer, LoadViewerMainOptions } from './support/viewerMainHarness.js';
 
 // 見出しを持つ Markdown 描画結果を用意し、ジャンプバーを開いた状態にする。
-function openJumpOn(html) {
+function openJumpOn(html: string) {
   const loaded = loadViewerMain({});
-  loaded.document.getElementById('diagram-wrap').innerHTML = html;
+  loaded.document.getElementById('diagram-wrap')!.innerHTML = html;
   loaded.main._mmdOpenJump('heading');
   return loaded;
 }
@@ -16,7 +20,7 @@ const HEADINGS = '<h1>題</h1><h2>あ</h2><p>x</p><h3>い</h3><h2>う</h2>';
 
 // 両モードに存在する要素を目印にするテスト用プロバイダ。プロバイダの差し替えだけで
 // 別種のジャンプが作れることの検証も兼ねる。
-function registerAnyElementProvider(main) {
+function registerAnyElementProvider(main: LoadedViewer['main']) {
   main._mmdJump.register({
     id: 'test-any',
     collect: (root) =>
@@ -26,11 +30,12 @@ function registerAnyElementProvider(main) {
   });
 }
 
-const levelButton = (document, level) => document.getElementById('mmd-jump-level-h' + level);
+const levelButton = (document: Document, level: number) =>
+  document.getElementById('mmd-jump-level-h' + level);
 
 // ジャンプバーは入力欄を持たずキーボードフォーカスが乗らないため、
 // バー要素の keydown では Enter を受け取れない（実機で確認）。document で拾う。
-function pressEnter(loaded, shiftKey) {
+function pressEnter(loaded: LoadedViewer, shiftKey: boolean) {
   loaded.document.dispatchEvent(
     new loaded.window.KeyboardEvent('keydown', { key: 'Enter', shiftKey, bubbles: true }),
   );
@@ -38,7 +43,7 @@ function pressEnter(loaded, shiftKey) {
 
 // 修飾キー付きの Enter。dispatchEvent の戻り値で「既定動作を奪っていないか」を見る
 // （preventDefault されていれば false になる）。
-function pressEnterWith(loaded, modifiers) {
+function pressEnterWith(loaded: LoadedViewer, modifiers: KeyboardEventInit) {
   return loaded.document.dispatchEvent(
     new loaded.window.KeyboardEvent(
       'keydown',
@@ -48,7 +53,7 @@ function pressEnterWith(loaded, modifiers) {
 }
 
 // 差分表示の行番号ガター（旧側・新側）のセル。変更ブロックの目印はここへ付く。
-const numberCells = (oldNumber, newNumber) =>
+const numberCells = (oldNumber: number | string, newNumber: number | string) =>
   '<td class="line-number diff-old">' +
   oldNumber +
   '</td><td class="line-number diff-new">' +
@@ -58,16 +63,16 @@ const numberCells = (oldNumber, newNumber) =>
 // 列挙は必ず「その harness が読み込んだモジュール」から呼ぶ。require で別途
 // 読み直すと _mmdDocument が別インスタンスになり、描いた形の記録が空のまま
 // レンダリング表示として扱われる（TASK-485.17 のテストを書いたとき実際に踏んだ）。
-const headingTexts = (loaded) =>
+const headingTexts = (loaded: LoadedViewer) =>
   loaded.main
-    .collectHeadings(loaded.document.getElementById('diagram-wrap'))
-    .map((target) => target.anchor.textContent.trim());
+    .collectHeadings(loaded.document.getElementById('diagram-wrap')!)
+    .map((target) => target.anchor.textContent!.trim());
 
-const isBarVisible = (document) =>
-  document.getElementById('mmd-jump-panel').style.display === 'flex';
+const isBarVisible = (document: Document) =>
+  document.getElementById('mmd-jump-panel')!.style.display === 'flex';
 
-const count = (document) => document.getElementById('mmd-jump-count').textContent;
-const current = (document) => document.querySelector('.mmd-jump-current');
+const count = (document: Document) => document.getElementById('mmd-jump-count')!.textContent;
+const current = (document: Document) => document.querySelector('.mmd-jump-current');
 
 describe('文書内ジャンプ', () => {
   test('開くと目印の件数と先頭のハイライトが出る', () => {
@@ -93,7 +98,7 @@ describe('文書内ジャンプ', () => {
 
     main._mmdJumpNextIfOpen();
     expect(count(document)).toBe('2/4');
-    expect(current(document).textContent).toBe('あ');
+    expect(current(document)!.textContent).toBe('あ');
 
     main._mmdJumpNextIfOpen();
     main._mmdJumpNextIfOpen();
@@ -152,13 +157,13 @@ describe('文書内ジャンプ', () => {
     const loaded = openJumpOn(HEADINGS);
     const { document } = loaded;
 
-    document.getElementById('mmd-jump-next').click();
+    document.getElementById('mmd-jump-next')!.click();
     expect(count(document)).toBe('2/4');
 
-    document.getElementById('mmd-jump-prev').click();
+    document.getElementById('mmd-jump-prev')!.click();
     expect(count(document)).toBe('1/4');
 
-    document.getElementById('mmd-jump-close').click();
+    document.getElementById('mmd-jump-close')!.click();
     expect(loaded.main._mmdJump.isOpen()).toBe(false);
   });
 
@@ -188,7 +193,7 @@ describe('文書内ジャンプ', () => {
 
   test('フォーカス中のリンク上の Enter はジャンプに奪われない', () => {
     const loaded = openJumpOn(HEADINGS + '<p><a href="https://example.com">リンク</a></p>');
-    loaded.document.querySelector('a[href]').focus();
+    loaded.document.querySelector<HTMLAnchorElement>('a[href]')!.focus();
 
     const notPrevented = pressEnterWith(loaded, {});
 
@@ -204,7 +209,7 @@ describe('文書内ジャンプ', () => {
     ['入力欄', '<input id="focus-me">'],
   ])('フォーカス中の%s上の Enter はジャンプに奪われない', (_name, markup) => {
     const loaded = openJumpOn(HEADINGS + markup);
-    loaded.document.getElementById('focus-me').focus();
+    loaded.document.getElementById('focus-me')!.focus();
 
     const notPrevented = pressEnterWith(loaded, {});
 
@@ -214,7 +219,7 @@ describe('文書内ジャンプ', () => {
 
   test('href の無い <a> にフォーカスがあるときは Enter でジャンプする', () => {
     const loaded = openJumpOn(HEADINGS + '<p><a id="no-href" tabindex="0">印</a></p>');
-    loaded.document.getElementById('no-href').focus();
+    loaded.document.getElementById('no-href')!.focus();
 
     pressEnter(loaded, false);
 
@@ -238,7 +243,7 @@ describe('文書内ジャンプ', () => {
       new loaded.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     );
 
-    expect(loaded.document.getElementById('mmd-jump-panel').style.display).toBe('none');
+    expect(loaded.document.getElementById('mmd-jump-panel')!.style.display).toBe('none');
     expect(current(loaded.document)).toBe(null);
   });
 
@@ -248,7 +253,7 @@ describe('文書内ジャンプ', () => {
     main._mmdJump.close();
 
     expect(current(document)).toBe(null);
-    expect(document.getElementById('mmd-jump-panel').style.display).toBe('none');
+    expect(document.getElementById('mmd-jump-panel')!.style.display).toBe('none');
   });
 
   test('バーが閉じている間は次へ・前へが効かない', () => {
@@ -277,7 +282,7 @@ describe('文書内ジャンプ', () => {
 
     // 新しい文書の目印で作り直され、前の文書の要素は残らない。
     expect(count(document)).toBe('2/3');
-    expect(current(document).textContent).toBe('b');
+    expect(current(document)!.textContent).toBe('b');
     expect(document.querySelectorAll('.mmd-jump-current').length).toBe(1);
   });
 
@@ -366,7 +371,7 @@ describe('見出しレベルのトグル', () => {
     // h1 が 1 個減る。候補の印も付け直される。
     expect(count(document)).toBe('1/3');
     expect(document.querySelectorAll('.mmd-jump-target').length).toBe(3);
-    expect(document.querySelector('h1').classList.contains('mmd-jump-target')).toBe(false);
+    expect(document.querySelector('h1')!.classList.contains('mmd-jump-target')).toBe(false);
   });
 
   test('3 つとも OFF にしても壊れず 0/0 になる', () => {
@@ -407,7 +412,7 @@ describe('見出しレベルのトグル', () => {
     loaded.main.toggleHeadingLevel(1);
 
     expect(count(loaded.document)).toBe('1/2');
-    expect(loaded.document.querySelector('h1').classList.contains('mmd-jump-target')).toBe(false);
+    expect(loaded.document.querySelector('h1')!.classList.contains('mmd-jump-target')).toBe(false);
   });
 
   // 描画中（invalidate から着地の refresh までの間）にバーを開き、レベルを
@@ -429,7 +434,7 @@ describe('見出しレベルのトグル', () => {
 
     // 着地の refresh が新しい条件で作り直す。
     expect(count(loaded.document)).toBe('1/2');
-    expect(loaded.document.querySelector('h1').classList.contains('mmd-jump-target')).toBe(false);
+    expect(loaded.document.querySelector('h1')!.classList.contains('mmd-jump-target')).toBe(false);
   });
 
   // 描画中フラグを下ろすのは refresh の 1 箇所だけなので、バーを閉じたままの
@@ -483,18 +488,18 @@ describe('見出しレベルのトグル', () => {
   test('ボタンのクリックでもトグルが働く', () => {
     const loaded = openJumpOn(HEADINGS);
 
-    levelButton(loaded.document, 1).click();
+    levelButton(loaded.document, 1)!.click();
 
     expect(loaded.main.selectedHeadingLevels()).toEqual([2, 3]);
-    expect(levelButton(loaded.document, 1).classList.contains('active')).toBe(false);
+    expect(levelButton(loaded.document, 1)!.classList.contains('active')).toBe(false);
   });
 
   test('保存済みのレベルが復元され、ボタンの見た目も揃う', () => {
     const loaded = loadViewerMain({ initialJumpLevels: ['h2'] });
 
     expect(loaded.main.selectedHeadingLevels()).toEqual([2]);
-    expect(levelButton(loaded.document, 2).classList.contains('active')).toBe(true);
-    expect(levelButton(loaded.document, 1).classList.contains('active')).toBe(false);
+    expect(levelButton(loaded.document, 2)!.classList.contains('active')).toBe(true);
+    expect(levelButton(loaded.document, 1)!.classList.contains('active')).toBe(false);
   });
 
   test('保存値が「3 つとも OFF」なら、それを尊重して既定へ戻さない', () => {
@@ -518,17 +523,16 @@ describe('見出しレベルのトグル', () => {
   });
 });
 
-describe('見出しの列挙（collectHeadings）', () => {
-  function rootWith(html) {
-    const { document } = loadViewerMain({});
-    const root = document.getElementById('diagram-wrap');
-    root.innerHTML = html;
-    return { root, main: loadViewerMain };
-  }
+function rootWith(html: string) {
+  const { document } = loadViewerMain({});
+  const root = document.getElementById('diagram-wrap')!;
+  root.innerHTML = html;
+  return { root, main: loadViewerMain };
+}
 
+describe('見出しの列挙（collectHeadings）', () => {
   test('既定では h1 / h2 / h3 を文書順に拾い、h4 以降は拾わない', () => {
     const { root } = rootWith('<h1>0</h1><h3>1</h3><h2>2</h2><h4>x</h4><h3>3</h3>');
-    const { collectHeadings } = require('../viewer-src/main.js');
 
     const texts = collectHeadings(root).map((target) => target.anchor.textContent);
 
@@ -537,21 +541,26 @@ describe('見出しの列挙（collectHeadings）', () => {
 
   test('目印はスクロール先と強調対象を持つ', () => {
     const { root } = rootWith('<h2>a</h2>');
-    const { collectHeadings } = require('../viewer-src/main.js');
 
     const [target] = collectHeadings(root);
 
-    expect(target.anchor).toBe(root.querySelector('h2'));
-    expect(target.highlight).toEqual([root.querySelector('h2')]);
+    expect(target!.anchor).toBe(root.querySelector('h2'));
+    expect(target!.highlight).toEqual([root.querySelector('h2')]);
   });
 
   test('見出しが無ければ空の列になる', () => {
     const { root } = rootWith('<p>なし</p>');
-    const { collectHeadings } = require('../viewer-src/main.js');
 
     expect(collectHeadings(root)).toEqual([]);
   });
 });
+
+function openChangeBlockJumpOn(html: string) {
+  const loaded = loadViewerMain({});
+  loaded.document.getElementById('diagram-wrap')!.innerHTML = html;
+  loaded.main._mmdOpenJump('changeBlock');
+  return loaded;
+}
 
 // 変更ブロックのジャンプ（TASK-485.3）。列挙は描画時に振られた data-diff-block だけを
 // 読むので、DOM の形（インラインは tr にクラス、分割は側セルにクラス）に依存しない。
@@ -601,13 +610,6 @@ describe('変更ブロックのジャンプ', () => {
     '</table>',
   ].join('');
 
-  function openChangeBlockJumpOn(html) {
-    const loaded = loadViewerMain({});
-    loaded.document.getElementById('diagram-wrap').innerHTML = html;
-    loaded.main._mmdOpenJump('changeBlock');
-    return loaded;
-  }
-
   test.each([
     ['インライン', INLINE_DIFF_DOM],
     ['左右分割', SPLIT_DIFF_DOM],
@@ -650,11 +652,10 @@ describe('変更ブロックのジャンプ', () => {
 
     // 先頭ブロックは 2 行なので 2 セル。どれも行の最初のセル。
     expect(highlighted.length).toBe(2);
-    expect(highlighted.every((cell) => cell === cell.parentElement.firstElementChild)).toBe(true);
-    expect(highlighted.map((cell) => cell.closest('[data-diff-block]').dataset.diffBlock)).toEqual([
-      '0',
-      '0',
-    ]);
+    expect(highlighted.every((cell) => cell === cell.parentElement!.firstElementChild)).toBe(true);
+    expect(
+      highlighted.map((cell) => cell.closest<HTMLElement>('[data-diff-block]')!.dataset.diffBlock),
+    ).toEqual(['0', '0']);
   });
 
   test('左右分割では左のペインに印が付く', () => {
@@ -663,7 +664,7 @@ describe('変更ブロックのジャンプ', () => {
     const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
 
     expect(highlighted.length).toBe(1);
-    expect(highlighted[0].classList.contains('diff-side-left')).toBe(true);
+    expect(highlighted[0]!.classList.contains('diff-side-left')).toBe(true);
   });
 
   test('移動すると印が次のブロックへ移る', () => {
@@ -673,7 +674,7 @@ describe('変更ブロックのジャンプ', () => {
 
     const highlighted = Array.from(document.querySelectorAll('.mmd-jump-current'));
     expect(highlighted.length).toBe(1);
-    expect(highlighted[0].closest('[data-diff-block]').dataset.diffBlock).toBe('1');
+    expect(highlighted[0]!.closest<HTMLElement>('[data-diff-block]')!.dataset.diffBlock).toBe('1');
   });
 
   // 現在位置の印の外し方が「列の全要素を走査する」形へ戻ると落ちる（TASK-485.12）。
@@ -714,9 +715,9 @@ describe('変更ブロックのジャンプ', () => {
   // 印が付いていても、移動先はスクロール対象でも確かめる。
   test('移動するとブロックの先頭行までスクロールする', () => {
     const loaded = loadViewerMain({});
-    loaded.document.getElementById('diagram-wrap').innerHTML = INLINE_DIFF_DOM;
-    const scrolled = [];
-    loaded.window.Element.prototype.scrollIntoView = function () {
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = INLINE_DIFF_DOM;
+    const scrolled: HTMLElement[] = [];
+    loaded.window.Element.prototype.scrollIntoView = function (this: HTMLElement) {
       scrolled.push(this);
     };
 
@@ -768,13 +769,21 @@ describe('変更ブロックのジャンプ', () => {
 
   test('見出しレベルのトグルは見出しジャンプのときだけ出す', () => {
     const { document, main } = openChangeBlockJumpOn(INLINE_DIFF_DOM);
-    expect(document.getElementById('mmd-jump-levels').style.display).toBe('none');
+    expect(document.getElementById('mmd-jump-levels')!.style.display).toBe('none');
 
     main._mmdOpenJump('heading');
 
-    expect(document.getElementById('mmd-jump-levels').style.display).toBe('flex');
+    expect(document.getElementById('mmd-jump-levels')!.style.display).toBe('flex');
   });
 });
+
+// 実描画を通す。DOM を手で組むと「shape をどう記録したか」を確かめられない。
+async function renderMarkdown(mode: string, content: string, options?: LoadViewerMainOptions) {
+  const loaded = loadViewerMain(options ?? {});
+  loaded.main.setViewMode(mode);
+  await loaded.main.render(content, 'md');
+  return loaded;
+}
 
 // Markdown ソース表示の見出しジャンプ（TASK-485.17）。
 //
@@ -783,14 +792,6 @@ describe('変更ブロックのジャンプ', () => {
 // _mmdDocument.shape()（render が実際に描いた形）だけを見ることも、
 // 差分表示・CSV ソース・Markdown 以外のソースが 0 件になることで確かめる。
 describe('Markdown ソース表示の見出しジャンプ', () => {
-  // 実描画を通す。DOM を手で組むと「shape をどう記録したか」を確かめられない。
-  async function renderMarkdown(mode, content, options) {
-    const loaded = loadViewerMain(options ?? {});
-    loaded.main.setViewMode(mode);
-    await loaded.main.render(content, 'md');
-    return loaded;
-  }
-
   // ATX 見出しだけで書いた文書。setext（=== / --- による下線）は対象外なので
   // 使わない（ソース側は行頭 # だけを見るため、混ぜると両モードが一致しない）。
   const DOC = [
@@ -831,7 +832,7 @@ describe('Markdown ソース表示の見出しジャンプ', () => {
     main._mmdOpenJump('heading');
 
     expect(count(document)).toBe('1/4');
-    expect(current(document).classList.contains('line-content')).toBe(true);
+    expect(current(document)!.classList.contains('line-content')).toBe(true);
     main._mmdJumpNextIfOpen();
     expect(count(document)).toBe('2/4');
   });
@@ -846,7 +847,7 @@ describe('Markdown ソース表示の見出しジャンプ', () => {
     // h2 だけ ON なので「あ」「う」の 2 件。
     expect(count(document)).toBe('1/2');
 
-    levelButton(document, 3).click();
+    levelButton(document, 3)!.click();
     expect(count(document)).toBe('1/3');
   });
 
@@ -930,7 +931,7 @@ describe('ジャンプ可否の同期', () => {
 
   test('閉じているときに届いても何も起きない（検索バーを巻き込まない）', () => {
     const { document, main } = loadViewerMain({});
-    document.getElementById('diagram-wrap').innerHTML = HEADINGS;
+    document.getElementById('diagram-wrap')!.innerHTML = HEADINGS;
     main._mmdOpenFind();
 
     main._mmdApplyJumpAvailability([]);

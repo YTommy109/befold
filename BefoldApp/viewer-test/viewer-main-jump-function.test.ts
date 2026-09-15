@@ -5,12 +5,14 @@
 // 一切測らないテストになる（同じファイルの中に、path-ref 用に手書きした裸の
 // hljs-title が既にある）。ここは main.render() を通し、code-html.ts の
 // reflowSpanBalancedLines が行ごとに span を開き直した結果を読む。
-const { loadViewerMain } = require('./support/viewerMainHarness');
+import { describe, expect, test } from '@jest/globals';
 
-const count = (document) => document.getElementById('mmd-jump-count').textContent;
+import { loadViewerMain } from './support/viewerMainHarness.js';
+
+const count = (document: Document) => document.getElementById('mmd-jump-count')!.textContent;
 
 // ソース表示でコードを描画し、定義ジャンプを開く。
-async function openDefinitionJump(lang, lines) {
+async function openDefinitionJump(lang: string, lines: string[]) {
   const loaded = loadViewerMain({});
   loaded.main.setViewMode('source');
   await loaded.main.render(lines.join('\n'), 'code', lang);
@@ -19,10 +21,10 @@ async function openDefinitionJump(lang, lines) {
 }
 
 // 目印が付いた行のテキスト（行番号セルを含まない本文だけ）。
-function markedLines(document) {
+function markedLines(document: Document) {
   return Array.from(
     document.querySelectorAll('#diagram-wrap .mmd-jump-target, #diagram-wrap .mmd-jump-current'),
-  ).map((cell) => cell.textContent.trim());
+  ).map((cell) => cell.textContent!.trim());
 }
 
 describe('定義ジャンプ: 対応言語で定義を拾う', () => {
@@ -56,7 +58,7 @@ describe('定義ジャンプ: 対応言語で定義を拾う', () => {
       'func third() {}',
     ]);
 
-    const currentText = () => document.querySelector('.mmd-jump-current').textContent.trim();
+    const currentText = () => document.querySelector('.mmd-jump-current')!.textContent!.trim();
 
     expect(count(document)).toBe('1/3');
     expect(currentText()).toBe('func first() {}');

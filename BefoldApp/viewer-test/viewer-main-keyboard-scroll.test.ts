@@ -4,9 +4,13 @@
 // 実測(TASK-486): 実 WKWebView 上で behavior:'auto' は最初のフレームで既に目標位置へ
 // 到達し(0 → 600px)、中間フレームが 1 つも無い。'smooth' は約 16 フレームかけて
 // 0 → 600px を踏む。読んでいた行を見失うという報告はこの瞬間移動が原因。
-const { loadViewerMain } = require('./support/viewerMainHarness');
+import { describe, expect, test } from '@jest/globals';
+import type { DOMWindow } from 'jsdom';
 
-function dispatchKey(window, key, init) {
+import { loadViewerMain } from './support/viewerMainHarness.js';
+import type { LoadedViewer } from './support/viewerMainHarness.js';
+
+function dispatchKey(window: DOMWindow, key: string, init?: KeyboardEventInit) {
   const event = new window.KeyboardEvent(
     'keydown',
     Object.assign({ key: key, bubbles: true, cancelable: true }, init || {}),
@@ -16,13 +20,14 @@ function dispatchKey(window, key, init) {
 }
 
 // _mmdScrollTarget() が返す要素の scrollBy を記録する。
-function captureScrollBy(main) {
+function captureScrollBy(main: LoadedViewer['main']) {
   const target = main._mmdScrollTarget();
   expect(target).toBeTruthy();
-  const calls = [];
-  target.scrollBy = function (options) {
+  const calls: ScrollToOptions[] = [];
+  // viewer は options 形式でしか呼ばないため、(x, y) のオーバーロードは持たせない。
+  target!.scrollBy = function (options: ScrollToOptions) {
     calls.push(options);
-  };
+  } as Element['scrollBy'];
   return calls;
 }
 
@@ -42,7 +47,7 @@ describe('キーボードスクロールの behavior', () => {
     dispatchKey(window, key, init);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].behavior).toBe('smooth');
+    expect(calls[0]!.behavior).toBe('smooth');
   });
 
   test('向きと量はこれまでどおり(下は正・上は負、Shift はより大きく進む)', () => {
@@ -52,7 +57,7 @@ describe('キーボードスクロールの behavior', () => {
     dispatchKey(window, 'ArrowDown', {});
     dispatchKey(window, 'ArrowUp', {});
 
-    expect(calls[0].top).toBeGreaterThan(0);
-    expect(calls[1].top).toBe(-calls[0].top);
+    expect(calls[0]!.top).toBeGreaterThan(0);
+    expect(calls[1]!.top).toBe(-calls[0]!.top!);
   });
 });

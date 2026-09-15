@@ -93,7 +93,10 @@ function _mmdFindRefreshAfterRender(): void {
   _mmdJump.refresh(modeJustSwitched);
 }
 
-async function render(content: string, type: string, lang: string | undefined): Promise<void> {
+// Swift の ViewerBridge.callScript は、lang が無い種別(md / mmd など)では第 3 引数を
+// 省略して `render(content, 'md')` と呼ぶ。lang を省略可能にしてあるのはその呼び方を
+// そのまま型にしたもので、appendChunk も同じ経路で呼ばれる(TASK-623.4)。
+async function render(content: string, type: string, lang?: string): Promise<void> {
   // 予告されていた文書パスをここで採用する。以後の per-file な通知(倍率)は
   // このパスをキーにする。render 開始より前に採用すると、まだ旧文書が DOM に
   // 出ている間の通知が新パスのキーで保存される。
@@ -203,7 +206,8 @@ function _mmdInitCsvNumberFormat(): void {
 // **追記先の分岐には使わない**。同じ type でも表示モードや差分の有無で DOM の形は
 // 変わるため、type から推し直すと render 側の判定と食い違う(TASK-414)。
 // 分岐は _mmdDocument.shape()(render が実際に描いた形)だけを見ること。
-function appendChunk(text: string, type: string, lang: string | undefined): void {
+// lang を省略可能にしている理由は render と同じ(Swift が第 3 引数を省略して呼ぶ)。
+function appendChunk(text: string, type: string, lang?: string): void {
   // 空チャンク(チャンク読込エラー時のセンチネル)は追記する内容がない。
   // buildLineNumberRows('') は初回描画(空ファイル1行目)用に空行1つを返す契約のため、
   // ここで弾かないと既存テーブルの末尾に幻の空行が増えてしまう。

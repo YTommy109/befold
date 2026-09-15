@@ -5,14 +5,14 @@
 // デコードできていた。ここは JS 側の一次防御(挿入前に代替表示へ置換する)を
 // 固定する。ネイティブ側の二次防御(RemoteLoadBlocker の WKContentRuleList)は
 // scripts/webview-smoke.swift の checkExfilBlocked が測る。
+import { describe, expect, test } from '@jest/globals';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
 
-const { JSDOM } = require('jsdom');
-const createDOMPurify = require('dompurify');
+import { replaceRemoteImages, sanitizeRenderedHtml } from '../viewer-src/main.js';
 
 // replaceRemoteImages が使う DOMParser / window は support/browserGlobals.js が
 // setupFiles で全 suite に用意する(TASK-548)。ここでは載せ直さない。
-
-const { replaceRemoteImages, sanitizeRenderedHtml } = require('../viewer-src/main.js');
 
 const purify = createDOMPurify(new JSDOM('').window);
 

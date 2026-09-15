@@ -19,7 +19,7 @@
   },
   "jest": {
     "testMatch": [
-      "<rootDir>/viewer-test/**/*.test.{js,ts}"
+      "<rootDir>/viewer-test/**/*.test.ts"
     ],
     "moduleFileExtensions": [
       "ts",

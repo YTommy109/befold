@@ -1,6 +1,14 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const {
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+import { describe, expect, test } from '@jest/globals';
+import createDOMPurify from 'dompurify';
+import hljs from 'highlight.js';
+import bundledHljs from 'highlight.js/lib/common';
+import { JSDOM } from 'jsdom';
+import markdownit from 'markdown-it';
+
+import {
   ZOOM_MIN,
   ZOOM_MAX,
   ZOOM_STEP,
@@ -50,7 +58,7 @@ const {
   csvRowsHtml,
   codeChunkInnerHtml,
   lastLines,
-} = require('../viewer-src/main.js');
+} from '../viewer-src/main.js';
 
 describe('clampZoom', () => {
   test('returns value within range unchanged', () => {
@@ -156,6 +164,7 @@ describe('parseStoredZoom', () => {
   });
 
   test('returns ZOOM_DEFAULT for undefined', () => {
+    // @ts-expect-error -- 契約外の引数省略（未保存）に対する既定値を確かめる
     expect(parseStoredZoom()).toBe(ZOOM_DEFAULT);
   });
 
@@ -217,8 +226,6 @@ describe('sanitizeLang', () => {
 });
 
 describe('highlightCode', () => {
-  const hljs = require('highlight.js');
-
   test('wraps known-language code in pre/code with hljs classes', () => {
     const result = highlightCode(hljs, 'const x = 1;', 'javascript');
     expect(result.startsWith('<pre><code class="hljs language-javascript">')).toBe(true);
@@ -237,6 +244,7 @@ describe('highlightCode', () => {
 
   test('returns empty string when language is missing', () => {
     expect(highlightCode(hljs, 'foo', '')).toBe('');
+    // @ts-expect-error -- 契約外の言語名の省略に対する縮退を確かめる
     expect(highlightCode(hljs, 'foo')).toBe('');
   });
 
@@ -252,8 +260,6 @@ describe('highlightCode', () => {
 });
 
 describe('markdown-it integration with highlightCode', () => {
-  const hljs = require('highlight.js');
-  const markdownit = require('markdown-it');
   // viewer.html の markdownit 初期化と同じ配線
   const md = markdownit({
     html: true,
@@ -283,22 +289,19 @@ describe('markdown-it integration with highlightCode', () => {
   });
 });
 
-describe('sanitizeRenderedHtml', () => {
-  const { JSDOM } = require('jsdom');
-  const createDOMPurify = require('dompurify');
-  const markdownit = require('markdown-it');
-  const purify = createDOMPurify(new JSDOM('').window);
+// 実際に innerHTML へ挿入した DOM を検査し、on* ハンドラ属性が存在しないことを確認する。
+// (旧サニタイザは文字列置換のため、on* を含む文字列がタグの外/属性値の中に残っても
+// それだけでは脆弱性ではない。DOM 構造として実行可能なハンドラが無いことが本質。)
+function hasEventHandlerAttribute(html: string) {
+  const container = new JSDOM('').window.document.createElement('div');
+  container.innerHTML = html;
+  return Array.from(container.querySelectorAll('*')).some((el) =>
+    Array.from(el.attributes).some((attr) => /^on/iu.test(attr.name)),
+  );
+}
 
-  // 実際に innerHTML へ挿入した DOM を検査し、on* ハンドラ属性が存在しないことを確認する。
-  // (旧サニタイザは文字列置換のため、on* を含む文字列がタグの外/属性値の中に残っても
-  // それだけでは脆弱性ではない。DOM 構造として実行可能なハンドラが無いことが本質。)
-  function hasEventHandlerAttribute(html) {
-    const container = new JSDOM('').window.document.createElement('div');
-    container.innerHTML = html;
-    return Array.from(container.querySelectorAll('*')).some((el) =>
-      Array.from(el.attributes).some((attr) => /^on/iu.test(attr.name)),
-    );
-  }
+describe('sanitizeRenderedHtml', () => {
+  const purify = createDOMPurify(new JSDOM('').window);
 
   test('strips onerror hidden behind a slash after a quoted attribute (regex-sanitizer /\\s+on.../ bypass)', () => {
     // 閉じクォート直後の "/" は HTML5 仕様上 attribute name state に戻るため、
@@ -496,6 +499,7 @@ describe('lineScrollStep', () => {
   });
 
   test('falls back when line-height is missing', () => {
+    // @ts-expect-error -- 契約外の undefined（line-height が取れない）に対する縮退を確かめる
     expect(lineScrollStep(undefined, DEFAULT_LINE_SCROLL_STEP)).toBe(DEFAULT_LINE_SCROLL_STEP);
   });
 });
@@ -503,6 +507,7 @@ describe('lineScrollStep', () => {
 describe('isHostFeatureEnabled', () => {
   test('未注入(undefined/null)の場合は常に有効とみなす', () => {
     expect(isHostFeatureEnabled(undefined, 'loadMore')).toBe(true);
+    // @ts-expect-error -- 契約外の null（未注入）を有効とみなすことを確かめる
     expect(isHostFeatureEnabled(null, 'spaceScroll')).toBe(true);
   });
 
@@ -574,6 +579,7 @@ describe('markdownFontSize', () => {
   });
 
   test('falls back to 16 (web-standard baseline) for invalid input', () => {
+    // @ts-expect-error -- 契約外の引数省略に対する既定値を確かめる
     expect(markdownFontSize()).toBe(16);
     expect(markdownFontSize('abc')).toBe(16);
     expect(markdownFontSize(0)).toBe(16);
@@ -596,17 +602,15 @@ describe('escapeHtml', () => {
 });
 
 describe('renderCodeHtml', () => {
-  const hljs = require('highlight.js');
-
   test('known language produces full-page hljs markup', () => {
-    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift', false);
     expect(result.startsWith('<pre><code class="hljs language-swift">')).toBe(true);
     expect(result).toContain('hljs-keyword');
     expect(result.endsWith('</code></pre>')).toBe(true);
   });
 
   test('行番号なしでも行単位テーブル構造で包む(ガイド描画のため統一)', () => {
-    const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
+    const result = renderCodeHtml(hljs, 'let x = 1', 'swift', false);
     expect(result).toContain('<table class="code-table">');
     expect(result).toContain('<td class="line-content"');
     // 行番号セルは付かない
@@ -614,7 +618,7 @@ describe('renderCodeHtml', () => {
   });
 
   test('unsupported language falls back to escaped line-based block', () => {
-    const result = renderCodeHtml(hljs, '<b>raw</b>', 'no-such-lang-xyz');
+    const result = renderCodeHtml(hljs, '<b>raw</b>', 'no-such-lang-xyz', false);
     expect(result.startsWith('<pre><code>')).toBe(true);
     expect(result).toContain('<table class="code-table">');
     expect(result).toContain('&lt;b&gt;raw&lt;/b&gt;');
@@ -622,21 +626,19 @@ describe('renderCodeHtml', () => {
   });
 
   test('missing hljs falls back to escaped line-based block', () => {
-    const result = renderCodeHtml(null, 'const x = 1;', 'javascript');
+    const result = renderCodeHtml(null, 'const x = 1;', 'javascript', false);
     expect(result).toContain('<table class="code-table">');
     expect(result).toContain('const x = 1;');
   });
 
   test('escapes HTML in fallback path (XSS)', () => {
-    const result = renderCodeHtml(null, '<script>alert(1)</script>', 'javascript');
+    const result = renderCodeHtml(null, '<script>alert(1)</script>', 'javascript', false);
     expect(result).not.toContain('<script>');
     expect(result).toContain('&lt;script&gt;');
   });
 });
 
 describe('renderCodeHtml with line numbers', () => {
-  const hljs = require('highlight.js');
-
   test('showLineNumbers=true wraps output in a table with line numbers', () => {
     const result = renderCodeHtml(hljs, 'line1\nline2\nline3', 'plaintext', true);
     expect(result).toContain('<table class="code-table">');
@@ -655,6 +657,7 @@ describe('renderCodeHtml with line numbers', () => {
   });
 
   test('showLineNumbers 省略時は行番号セルを付けない', () => {
+    // @ts-expect-error -- showLineNumbers の省略が行番号なしになることを確かめる
     const result = renderCodeHtml(hljs, 'let x = 1', 'swift');
     expect(result).not.toContain('<td class="line-number">');
   });
@@ -687,7 +690,7 @@ describe('renderCodeHtml with line numbers', () => {
   test('multi-line hljs span (block comment) stays balanced per row', () => {
     const result = renderCodeHtml(hljs, '/* a\nb */', 'swift', true);
     // 各 <td class="line-content"> 内で <span> の開閉が釣り合っていること
-    const cells = result.match(/<td class="line-content">.*?<\/td>/gu);
+    const cells = result.match(/<td class="line-content">.*?<\/td>/gu)!;
     expect(cells).toHaveLength(2);
     for (const cell of cells) {
       const opens = (cell.match(/<span\b/gu) || []).length;
@@ -701,13 +704,13 @@ describe('renderCodeHtml with line numbers', () => {
 
 describe('wrapWithLineNumbers', () => {
   test('span crossing a newline is closed at row end and reopened on the next row', () => {
-    const html = wrapWithLineNumbers('<span class="x">a\nb</span>');
+    const html = wrapWithLineNumbers('<span class="x">a\nb</span>', false);
     expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
     expect(html).toContain('<td class="line-content"><span class="x">b</span></td>');
   });
 
   test('nested spans are reopened in order', () => {
-    const html = wrapWithLineNumbers('<span class="o"><span class="i">a\nb</span></span>');
+    const html = wrapWithLineNumbers('<span class="o"><span class="i">a\nb</span></span>', false);
     expect(html).toContain(
       '<td class="line-content"><span class="o"><span class="i">a</span></span></td>',
     );
@@ -717,7 +720,7 @@ describe('wrapWithLineNumbers', () => {
   });
 
   test('balanced single-line spans are left untouched', () => {
-    const html = wrapWithLineNumbers('<span class="x">a</span>\nplain');
+    const html = wrapWithLineNumbers('<span class="x">a</span>\nplain', false);
     expect(html).toContain('<td class="line-content"><span class="x">a</span></td>');
     expect(html).toContain('<td class="line-content">plain</td>');
   });
@@ -728,7 +731,6 @@ describe('FileType.swift の言語名契約', () => {
   // full ビルド(192 言語)ではなく、実際にバンドルへ入る common ビルド(36 言語)に
   // 対して検証する。full だと同梱していない言語まで通ってしまい偽陽性になる
   // (取り込み口は viewer-src/vendor.js の 1 箇所)。
-  const bundledHljs = require('highlight.js/lib/common');
   const LANGUAGES = [
     'swift',
     'python',
@@ -910,19 +912,19 @@ describe('buildTableHtml', () => {
     const html = buildTableHtml([['A', 'B', 'C'], ['1']], ['text', 'text', 'text']);
     // 1行目は th×3、2行目は td が 3 つ(うち 2 つは空)
     expect(html).toContain('<td>1</td>');
-    expect(html.match(/<td><\/td>/gu).length).toBe(2);
+    expect(html.match(/<td><\/td>/gu)!.length).toBe(2);
   });
 });
 
 describe('renderCsvSourceHtml', () => {
   test('wraps output in pre/code', () => {
-    const html = renderCsvSourceHtml('a,b\n1,2', ',');
+    const html = renderCsvSourceHtml('a,b\n1,2', ',', false);
     expect(html.startsWith('<pre><code class="csv-source">')).toBe(true);
     expect(html.endsWith('</code></pre>')).toBe(true);
   });
 
   test('applies rotating colors to columns', () => {
-    const html = renderCsvSourceHtml('a,b,c', ',');
+    const html = renderCsvSourceHtml('a,b,c', ',', false);
     // 各列が異なる色の span で囲まれている
     expect(html).toContain('<span class="csv-col-0">');
     expect(html).toContain('<span class="csv-col-1">');
@@ -930,29 +932,29 @@ describe('renderCsvSourceHtml', () => {
   });
 
   test('delimiter is not wrapped in a color span', () => {
-    const html = renderCsvSourceHtml('a,b', ',');
+    const html = renderCsvSourceHtml('a,b', ',', false);
     // delimiter はそのまま表示される
     expect(html).toContain('</span>,<span');
   });
 
   test('escapes HTML in field values', () => {
-    const html = renderCsvSourceHtml('<b>,&', ',');
+    const html = renderCsvSourceHtml('<b>,&', ',', false);
     expect(html).toContain('&lt;b&gt;');
     expect(html).toContain('&amp;');
   });
 
   test('handles tab delimiter', () => {
-    const html = renderCsvSourceHtml('a\tb', '\t');
+    const html = renderCsvSourceHtml('a\tb', '\t', false);
     expect(html).toContain('</span>\t<span');
   });
 
   test('returns empty pre/code for empty string', () => {
-    const html = renderCsvSourceHtml('', ',');
+    const html = renderCsvSourceHtml('', ',', false);
     expect(html).toBe('<pre><code class="csv-source"></code></pre>');
   });
 
   test('handles quoted fields preserving quotes in source view', () => {
-    const html = renderCsvSourceHtml('"a,b",c', ',');
+    const html = renderCsvSourceHtml('"a,b",c', ',', false);
     // ソース表示ではクオート付きフィールドを1つの色で表示する
     expect(html).toContain('<span class="csv-col-0">&quot;a,b&quot;</span>');
     expect(html).toContain('<span class="csv-col-1">c</span>');
@@ -974,13 +976,14 @@ describe('renderCsvSourceHtml with line numbers', () => {
   });
 
   test('showLineNumbers defaults to false when omitted', () => {
+    // @ts-expect-error -- showLineNumbers の省略が行番号なしになることを確かめる
     const html = renderCsvSourceHtml('a,b', ',');
     expect(html).not.toContain('code-table');
   });
 
   test('quoted cell with embedded newline keeps csv-col spans balanced per row', () => {
     const html = renderCsvSourceHtml('a,"x\ny",b', ',', true);
-    const cells = html.match(/<td class="line-content">.*?<\/td>/gu);
+    const cells = html.match(/<td class="line-content">.*?<\/td>/gu)!;
     expect(cells).toHaveLength(2);
     for (const cell of cells) {
       const opens = (cell.match(/<span\b/gu) || []).length;
@@ -998,7 +1001,7 @@ describe('csvSourceInnerHtml', () => {
   test('is the exact body renderCsvSourceHtml wraps in pre/code (no line numbers)', () => {
     const content = 'a,b,c\n1,"x,y",3';
     const inner = csvSourceInnerHtml(content, ',');
-    expect(renderCsvSourceHtml(content, ',')).toBe(
+    expect(renderCsvSourceHtml(content, ',', false)).toBe(
       '<pre><code class="csv-source">' + inner + '</code></pre>',
     );
   });
@@ -1100,6 +1103,7 @@ describe('isLocalPathHref', () => {
   test('excludes empty and nullish hrefs', () => {
     expect(isLocalPathHref('')).toBe(false);
     expect(isLocalPathHref(null)).toBe(false);
+    // @ts-expect-error -- 契約外の引数省略（href 無し）に対する縮退を確かめる
     expect(isLocalPathHref()).toBe(false);
   });
 
@@ -1113,7 +1117,7 @@ describe('isLocalPathHref', () => {
 
 describe('buildFindRegExp', () => {
   test('plain mode matches literal substrings', () => {
-    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: false, useRegex: false });
+    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: false, useRegex: false })!;
     expect(re.test('the cat sat')).toBe(true);
   });
 
@@ -1122,34 +1126,34 @@ describe('buildFindRegExp', () => {
       caseSensitive: false,
       wholeWord: false,
       useRegex: false,
-    });
+    })!;
     expect(re.test('a.b*c')).toBe(true);
     re.lastIndex = 0;
     expect(re.test('aXbYYc')).toBe(false);
   });
 
   test('caseSensitive true only matches exact case', () => {
-    const re = buildFindRegExp('Cat', { caseSensitive: true, wholeWord: false, useRegex: false });
+    const re = buildFindRegExp('Cat', { caseSensitive: true, wholeWord: false, useRegex: false })!;
     expect(re.test('Cat')).toBe(true);
     expect(re.test('cat')).toBe(false);
   });
 
   test('caseSensitive false (default) matches regardless of case', () => {
-    const re = buildFindRegExp('Cat', { caseSensitive: false, wholeWord: false, useRegex: false });
+    const re = buildFindRegExp('Cat', { caseSensitive: false, wholeWord: false, useRegex: false })!;
     expect(re.test('cat')).toBe(true);
     re.lastIndex = 0;
     expect(re.test('CAT')).toBe(true);
   });
 
   test('wholeWord true matches only at word boundaries', () => {
-    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: true, useRegex: false });
+    const re = buildFindRegExp('cat', { caseSensitive: false, wholeWord: true, useRegex: false })!;
     expect(re.test('the cat sat')).toBe(true);
     re.lastIndex = 0;
     expect(re.test('category')).toBe(false);
   });
 
   test('useRegex true uses the query as-is as regex source', () => {
-    const re = buildFindRegExp('a+', { caseSensitive: false, wholeWord: false, useRegex: true });
+    const re = buildFindRegExp('a+', { caseSensitive: false, wholeWord: false, useRegex: true })!;
     expect(re.test('aaa')).toBe(true);
     re.lastIndex = 0;
     expect(re.test('b')).toBe(false);
@@ -1168,7 +1172,7 @@ describe('buildFindRegExp', () => {
   });
 
   test('returned RegExp always has the global flag set', () => {
-    const re = buildFindRegExp('cat', { caseSensitive: true, wholeWord: false, useRegex: false });
+    const re = buildFindRegExp('cat', { caseSensitive: true, wholeWord: false, useRegex: false })!;
     expect(re.global).toBe(true);
   });
 });
@@ -1192,7 +1196,7 @@ describe('buildLineNumberRows', () => {
       '<tr><td class="line-number">44</td><td class="line-content"><span class="hljs-comment">*/</span></td></tr>',
     );
     // 各行のセルは自己完結: 行ごとに open と close の数が一致する
-    const cells = rows.match(/<td class="line-content">.*?<\/td>/gu);
+    const cells = rows.match(/<td class="line-content">.*?<\/td>/gu)!;
     for (const cell of cells) {
       const opens = (cell.match(/<span\b/gu) || []).length;
       const closes = (cell.match(/<\/span>/gu) || []).length;
@@ -1201,20 +1205,22 @@ describe('buildLineNumberRows', () => {
   });
 
   test('drops a single trailing empty line (highlight.js trailing newline)', () => {
-    const rows = buildLineNumberRows('a\nb\n', 1);
+    const rows = buildLineNumberRows('a\nb\n', 1, false);
     expect((rows.match(/<tr>/gu) || []).length).toBe(2);
   });
 
   test('omitting showLineNumbers means no line numbers (same rule as renderCodeHtml)', () => {
+    // @ts-expect-error -- showLineNumbers の省略が行番号なしになることを確かめる
     expect(buildLineNumberRows('a\nb', 1)).not.toContain('line-number');
+    // @ts-expect-error -- showLineNumbers の省略が行番号なしになることを確かめる
     expect(wrapWithLineNumbers('a\nb')).not.toContain('line-number');
     expect(buildLineNumberRows('a\nb', 1, true)).toContain('line-number');
   });
 
   test('wrapWithLineNumbers equals code-table wrapper around buildLineNumberRows from line 1', () => {
     const input = '<span class="x">a\nb</span>\nplain';
-    expect(wrapWithLineNumbers(input)).toBe(
-      '<table class="code-table">' + buildLineNumberRows(input, 1) + '</table>',
+    expect(wrapWithLineNumbers(input, false)).toBe(
+      '<table class="code-table">' + buildLineNumberRows(input, 1, false) + '</table>',
     );
   });
 
@@ -1324,7 +1330,7 @@ describe('lineContentCell(ガイド用 CSS 変数の付与)', () => {
   });
 
   test('buildLineNumberRows がインデント行に CSS 変数を乗せる', () => {
-    const rows = buildLineNumberRows('    x', 1);
+    const rows = buildLineNumberRows('    x', 1, false);
     expect(rows).toContain(
       '<td class="line-content" style="--indent-cols:4;--indent-depth:1">    x</td>',
     );
@@ -1355,10 +1361,8 @@ describe('csvRowsHtml', () => {
 });
 
 describe('codeChunkInnerHtml', () => {
-  const hljs = require('highlight.js');
-
   test('strips the pre/code wrapper from highlighted output', () => {
-    const inner = codeChunkInnerHtml(hljs, 'const x = 1;', 'javascript');
+    const inner = codeChunkInnerHtml(hljs, 'const x = 1;', 'javascript', '');
     expect(inner).not.toMatch(/<pre>|<code|<\/code>|<\/pre>/u);
     expect(inner).toContain('hljs-keyword');
     expect(inner).toBe(
@@ -1369,19 +1373,24 @@ describe('codeChunkInnerHtml', () => {
   });
 
   test('falls back to escapeHtml when hljs is unavailable', () => {
-    expect(codeChunkInnerHtml(null, '<b> & "x"', 'javascript')).toBe(
+    expect(codeChunkInnerHtml(null, '<b> & "x"', 'javascript', '')).toBe(
       '&lt;b&gt; &amp; &quot;x&quot;',
     );
   });
 
   test('falls back to escapeHtml when the language is unknown', () => {
-    expect(codeChunkInnerHtml(hljs, 'a < b', 'no-such-lang')).toBe('a &lt; b');
+    expect(codeChunkInnerHtml(hljs, 'a < b', 'no-such-lang', '')).toBe('a &lt; b');
   });
 
   test('without context, a block comment continuation is misidentified as code', () => {
     // チャンク境界後の 'still comment' は、文脈なしでは通常コードとして扱われる
     // (これが TASK-14 のバグ本体)。
-    const continuation = codeChunkInnerHtml(hljs, 'still comment */\nconst y = 2;', 'javascript');
+    const continuation = codeChunkInnerHtml(
+      hljs,
+      'still comment */\nconst y = 2;',
+      'javascript',
+      '',
+    );
     expect(continuation).not.toContain('hljs-comment');
   });
 
@@ -1476,6 +1485,7 @@ describe('imageDataURI', () => {
 
   test('falls back to image/png when the MIME type is missing', () => {
     expect(imageDataURI('AAAA', '')).toBe('data:image/png;base64,AAAA');
+    // @ts-expect-error -- 契約外の MIME タイプ省略に対する既定値を確かめる
     expect(imageDataURI('AAAA')).toBe('data:image/png;base64,AAAA');
   });
 });

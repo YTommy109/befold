@@ -3,10 +3,10 @@
 // 変換そのものは WebKit 同梱の XSLTProcessor が行う。jsdom には XSLTProcessor が
 // 無いため、ここではスタブを置いて「呼び出しの形」と「失敗時にソース表示へ落ちること」を
 // 固定する。実 WKWebView 上で XSLTProcessor が動くことはタスクの Notes に実測がある。
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals';
+import { JSDOM } from 'jsdom';
 
-const { JSDOM } = require('jsdom');
-
-const { _renderXslt } = require('../viewer-src/main.js');
+import { _renderXslt } from '../viewer-src/main.js';
 
 const dom = new JSDOM('<div id="diagram-wrap"></div>');
 
@@ -14,8 +14,11 @@ const dom = new JSDOM('<div id="diagram-wrap"></div>');
  * 変換結果として fragment を返すスタブ。
  * onImport を渡すと importStylesheet の時点でそれを呼ぶ（例外経路の再現に使う）。
  */
-function installXSLTProcessor(makeFragment, onImport) {
-  global.XSLTProcessor = class {
+function installXSLTProcessor(
+  makeFragment: (doc: Document) => DocumentFragment | null,
+  onImport?: () => void,
+) {
+  (globalThis as Record<string, unknown>).XSLTProcessor = class {
     importStylesheet() {
       if (onImport) {
         onImport();
@@ -27,21 +30,21 @@ function installXSLTProcessor(makeFragment, onImport) {
   };
 }
 
-let diagramWrap;
+let diagramWrap: HTMLElement;
 
 beforeEach(() => {
   global.document = dom.window.document;
   global.DOMParser = dom.window.DOMParser;
-  diagramWrap = dom.window.document.getElementById('diagram-wrap');
+  diagramWrap = dom.window.document.getElementById('diagram-wrap') as HTMLElement;
   diagramWrap.className = '';
   diagramWrap.innerHTML = '';
 });
 
 afterEach(() => {
-  delete global.XSLTProcessor;
+  delete (globalThis as Record<string, unknown>).XSLTProcessor;
 });
 
-const payload = (xml, xsl) => JSON.stringify({ xml, xsl });
+const payload = (xml: string, xsl: string) => JSON.stringify({ xml, xsl });
 const VALID_XSL =
   '<?xml version="1.0"?><xsl:stylesheet version="1.0" ' +
   'xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"/></xsl:stylesheet>';

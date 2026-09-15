@@ -7,10 +7,12 @@
 // 「全セル 4 桁で同じ桁数」にも該当する）ため、出力の有無ではなく
 // classifyCsvColumn が返す reason を突き合わせる。
 
-const fs = require('node:fs');
-const path = require('node:path');
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-const {
+import { describe, expect, test } from '@jest/globals';
+
+import {
   analyzeCsvColumns,
   buildCsvTable,
   classifyCsvColumn,
@@ -19,8 +21,8 @@ const {
   csvSourceInnerHtml,
   groupCsvNumber,
   parseCsv,
-} = require('../viewer-src/main.js');
-const { loadViewerMain } = require('./support/viewerMainHarness');
+} from '../viewer-src/main.js';
+import { loadViewerMain, type LoadedViewer } from './support/viewerMainHarness.js';
 
 describe('classifyCsvColumn の第 1 段（右寄せ）', () => {
   test('非空セルがすべて数値なら numeric になる', () => {
@@ -256,7 +258,7 @@ describe('analyzeCsvColumns のサンプル範囲', () => {
 });
 
 // テーブル本文のセルを「文字列 + 数値列として扱われたか」の組で取り出す。
-function tableCells(document) {
+function tableCells(document: Document) {
   return Array.from(document.querySelectorAll('#diagram-wrap tbody td')).map((cell) => ({
     text: cell.textContent,
     numeric: cell.classList.contains('csv-num'),
@@ -304,7 +306,13 @@ describe('チャンク追記が初回チャンクの判定を再利用する', (
 // アプリ全体の設定を Swift が window へ注入し、_mmdInitCsvNumberFormat() が
 // それを読んで現在の文書を描き直す。ここでは JS 側だけを測る。
 // 設定を注入してから描く。Swift 側は「注入 → 入口を呼ぶ」の順で送ってくる。
-async function renderWithSetting(main, window, grouping, negativeStyle, csv) {
+async function renderWithSetting(
+  main: LoadedViewer['main'],
+  window: LoadedViewer['window'],
+  grouping: boolean,
+  negativeStyle: string,
+  csv: string,
+) {
   window._mmdCsvGrouping = grouping;
   window._mmdCsvNegativeStyle = negativeStyle;
   main._mmdInitCsvNumberFormat();
@@ -345,7 +353,7 @@ describe('数値表示の設定', () => {
     expect(tableCells(document).map((c) => c.text)).toEqual(['a', '1,200', 'b', '-3,400']);
     const negatives = document.querySelectorAll('#diagram-wrap td.csv-negative');
     expect(negatives.length).toBe(1);
-    expect(negatives[0].textContent).toBe('-3,400');
+    expect(negatives[0]!.textContent).toBe('-3,400');
   });
 
   test('▲+赤字は両方が効く', async () => {
@@ -353,7 +361,7 @@ describe('数値表示の設定', () => {
     await renderWithSetting(main, window, true, 'triangleRed', AMOUNTS);
     const negatives = document.querySelectorAll('#diagram-wrap td.csv-negative');
     expect(negatives.length).toBe(1);
-    expect(negatives[0].textContent).toBe('▲3,400');
+    expect(negatives[0]!.textContent).toBe('▲3,400');
   });
 
   // AC #5: 第 1 段のみの列（コードとみなされた列）は右寄せまで。

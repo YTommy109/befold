@@ -16,11 +16,13 @@
   // _mmdRunMermaid）が引っかかり、どちらも意図した fire-and-forget だったので
   // `void` を置いて明示した。意図が読めない await 漏れとの区別が付くようになる。
   //
-  // 既定の type-aware ルールセットは BefoldApp に 4,749 件出る。うち 4,423 件は
-  // `no-unsafe-*` で、**すべて型情報の無い .js / .mjs 由来**
-  // （viewer-test の 9 本と scripts/*.mjs の実測 94 件。
-  // viewer-src はすべて .ts なので 0 件）。テストとビルドスクリプトの TS 化は
-  // 別の判断なので、ここでは site/ と同じ理由で off にしてある。
+  // `no-unsafe-*` はプロジェクトレベルでは off にしてある。実測（TASK-623.4、
+  // 2026-09-15、oxlint 1.78.0）は viewer-src 0 件・viewer-test 47 件・scripts/*.mjs 94 件。
+  // viewer-test はテスト 16 本と support 2 本がすべて .ts になり（TASK-623）、
+  // 残る 47 件のうち 39 件は `no-unsafe-type-assertion`（DOM の取得結果や
+  // ブリッジの payload を `as` で絞るテストの書き方）。scripts は型情報の無い .mjs で、
+  // その TS 化は別の判断。どちらも件数のあるルールを error にすると「直すべき指摘の
+  // 置き場」になるため、site/ と同じ理由で off のままにする。
   //
   // **プロジェクトレベルの off の一覧は site/.oxlintrc.json と揃えること**
   // （片方だけ緩めると、どちらの面が厳しいのか分からなくなる）。型情報が
@@ -43,8 +45,8 @@
     // DOM 要素・トークン配列を受け取る関数ばかりで、readonly 化しても
     // 守られる不変条件が無い。
     "typescript/prefer-readonly-parameter-types": "off",
-    // 型情報の無い .js / .mjs（viewer-test と scripts 配下）を触った瞬間に鳴る。
-    // それらの TS 化は別タスクの判断なので、それまでは off にする。実測 4,423 件。
+    // viewer-test（as による絞り込み）と型情報の無い scripts/*.mjs で鳴る。
+    // 実測 viewer-test 47 件・scripts 94 件（TASK-623.4）。
     // viewer-src では下の override で error に戻している。
     "typescript/no-unsafe-call": "off",
     "typescript/no-unsafe-member-access": "off",
