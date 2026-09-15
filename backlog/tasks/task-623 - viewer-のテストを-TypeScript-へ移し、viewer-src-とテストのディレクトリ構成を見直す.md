@@ -1,10 +1,11 @@
 ---
 id: TASK-623
 title: viewer のテストを TypeScript へ移し、viewer-src とテストのディレクトリ構成を見直す
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-14 11:56'
-updated_date: '2026-09-14 11:57'
+updated_date: '2026-09-15 01:51'
 labels: []
 dependencies: []
 priority: medium
