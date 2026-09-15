@@ -1,22 +1,26 @@
 // ソース表示に差分を差し込む経路(setDiff → _renderSource)のテスト。
 // 差分 HTML の組み立てそのものは viewer-diff.test.js が見る。ここでは
 // 「届いていれば差分を出す」「無い/壊れていれば通常のソース表示へ戻る」を確かめる。
+import { describe, expect, test } from '@jest/globals';
+import type { DOMWindow } from 'jsdom';
 
-const { loadViewerMain } = require('./support/viewerMainHarness');
+import { loadViewerMain } from './support/viewerMainHarness.js';
+import type { LoadedViewer } from './support/viewerMainHarness.js';
 
 // カラースキーム変更を発火できる matchMedia に差し替える（ハーネス既定のスタブは
 // addEventListener が空実装のため）。蓄積済み内容からの描き直しを観測するのに使う。
-function installColorSchemeStub(window) {
-  const listeners = [];
-  window.matchMedia = function (query) {
+function installColorSchemeStub(window: DOMWindow) {
+  const listeners: (() => void)[] = [];
+  window.matchMedia = function (query: string) {
+    // viewer が触るのは matches と change の購読だけなので、残りは持たせない。
     return {
       media: query,
       matches: false,
-      addEventListener: function (type, fn) {
+      addEventListener: function (_type: string, fn: () => void) {
         listeners.push(fn);
       },
       removeEventListener: function () {},
-    };
+    } as unknown as MediaQueryList;
   };
   return {
     fireChange: () => {
@@ -38,7 +42,7 @@ const DIFF = [
   '',
 ].join('\n');
 
-function renderSource(main, content, type, lang) {
+function renderSource(main: LoadedViewer['main'], content: string, type: string, lang: string) {
   main.setViewMode('source');
   return main.render(content, type, lang);
 }
@@ -70,7 +74,7 @@ describe('ソース表示への差分の差し込み', () => {
 
     const rows = document.querySelectorAll('#diagram-wrap table.diff-table tr');
     expect(rows).toHaveLength(before);
-    expect(document.querySelector('#diagram-wrap').textContent).not.toContain('let z = 4');
+    expect(document.querySelector('#diagram-wrap')!.textContent).not.toContain('let z = 4');
   });
 
   // DOM への追記は止めるが、蓄積そのものは続ける。止めると、蓄積済み内容から
@@ -83,11 +87,11 @@ describe('ソース表示への差分の差し込み', () => {
     await renderSource(loaded.main, 'let x = 2\n', 'code', 'swift');
     loaded.main.appendChunk('let z = 4\n', 'code', 'swift');
     loaded.main.setDiff(null);
-    loaded.document.getElementById('diagram-wrap').innerHTML = '';
+    loaded.document.getElementById('diagram-wrap')!.innerHTML = '';
 
     colorScheme.fireChange();
 
-    expect(loaded.document.querySelector('#diagram-wrap').textContent).toContain('let z = 4');
+    expect(loaded.document.querySelector('#diagram-wrap')!.textContent).toContain('let z = 4');
   });
 
   test('差分が無ければ通常のソース表示のまま', async () => {
@@ -96,7 +100,7 @@ describe('ソース表示への差分の差し込み', () => {
     await renderSource(main, 'let x = 2', 'code', 'swift');
 
     expect(document.querySelector('#diagram-wrap table.diff-table')).toBeNull();
-    expect(document.querySelector('#diagram-wrap pre code').textContent).toContain('let x = 2');
+    expect(document.querySelector('#diagram-wrap pre code')!.textContent).toContain('let x = 2');
   });
 
   // 差分が壊れていても内容は必ず読めること(表示が空にならない)。
@@ -107,7 +111,7 @@ describe('ソース表示への差分の差し込み', () => {
     await renderSource(main, 'let x = 2', 'code', 'swift');
 
     expect(document.querySelector('#diagram-wrap table.diff-table')).toBeNull();
-    expect(document.querySelector('#diagram-wrap pre code').textContent).toContain('let x = 2');
+    expect(document.querySelector('#diagram-wrap pre code')!.textContent).toContain('let x = 2');
   });
 
   test('setDiff(null) で差分表示を解除できる', async () => {
@@ -157,7 +161,7 @@ describe('ソース表示への差分の差し込み', () => {
 
     main.appendChunk('追記された段落\n', 'md');
 
-    expect(document.querySelector('#diagram-wrap').textContent).toContain('追記された段落');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toContain('追記された段落');
   });
 
   test('CSV のソース表示は差分が届いていてもチャンクを追記する', async () => {
@@ -168,7 +172,7 @@ describe('ソース表示への差分の差し込み', () => {
 
     main.appendChunk('3,4\n', 'csv', ',');
 
-    expect(document.querySelector('#diagram-wrap').textContent).toContain('3,4');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toContain('3,4');
   });
 
   // 抑止の判定を DOM(table.diff-table の有無)で行うと、markdown-it が html:true で
@@ -183,6 +187,6 @@ describe('ソース表示への差分の差し込み', () => {
 
     main.appendChunk('追記された段落\n', 'md');
 
-    expect(document.querySelector('#diagram-wrap').textContent).toContain('追記された段落');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toContain('追記された段落');
   });
 });

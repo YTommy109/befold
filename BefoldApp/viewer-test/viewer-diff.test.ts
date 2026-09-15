@@ -1,4 +1,7 @@
-const {
+import { describe, expect, test } from '@jest/globals';
+import hljs from 'highlight.js';
+
+import {
   assignChangeBlockIndexes,
   parseUnifiedDiff,
   renderInlineDiffHtml,
@@ -6,7 +9,8 @@ const {
   renderSideBySideDiffHtml,
   renderDiffHtml,
   highlightedDiffLines,
-} = require('../../../viewer-src/main.js');
+} from '../viewer-src/main.js';
+import type { DiffLineType } from '../viewer-src/main.js';
 
 const SIMPLE_DIFF = [
   'diff --git a/a.swift b/a.swift',
@@ -50,13 +54,14 @@ const TRAILING_BLANK_DIFF = [
   '',
 ].join('\n');
 
-const linesOfTypes = (types) => types.map((t, i) => ({ type: t, text: String(i) }));
+const linesOfTypes = (types: DiffLineType[]) =>
+  types.map((t, i) => ({ type: t, text: String(i), oldNumber: null, newNumber: null }));
 
 describe('highlightedDiffLines', () => {
   // 行 HTML は添字で引かれるため、要素数がハンクの行数より少ないと
   // 左右分割の描画が undefined を掴んで落ちる。長さは常に一致させる。
   test('末尾が空行でもハンクの行数と同じ長さの配列を返す', () => {
-    const hunk = parseUnifiedDiff(TRAILING_BLANK_DIFF)[0].hunks[0];
+    const hunk = parseUnifiedDiff(TRAILING_BLANK_DIFF)[0]!.hunks[0]!;
 
     expect(hunk.lines).toHaveLength(4);
     expect(highlightedDiffLines(null, hunk, 'plaintext')).toHaveLength(4);
@@ -67,7 +72,6 @@ describe('highlightedDiffLines', () => {
   // 複数行文字列の開始行を書き換えると、旧版と新版を連結した並びではクォートの
   // 対応が崩れ（開始行が 2 本並ぶ）、以降の行がすべて文字列として着色される。
   test('複数行文字列の開始行を書き換えても後続行のハイライトが壊れない', () => {
-    const hljs = require('highlight.js');
     const diff = [
       'diff --git a/a.py b/a.py',
       '--- a/a.py',
@@ -79,7 +83,7 @@ describe('highlightedDiffLines', () => {
       ' import os',
       '',
     ].join('\n');
-    const hunk = parseUnifiedDiff(diff)[0].hunks[0];
+    const hunk = parseUnifiedDiff(diff)[0]!.hunks[0]!;
 
     const htmls = highlightedDiffLines(hljs, hunk, 'python');
 
@@ -87,10 +91,12 @@ describe('highlightedDiffLines', () => {
     const plain = highlightedDiffLines(
       hljs,
       {
+        oldStart: 1,
+        newStart: 1,
         lines: [
-          { type: 'context', text: 's = """hi' },
-          { type: 'context', text: 'world"""' },
-          { type: 'context', text: 'import os' },
+          { type: 'context', text: 's = """hi', oldNumber: 1, newNumber: 1 },
+          { type: 'context', text: 'world"""', oldNumber: 2, newNumber: 2 },
+          { type: 'context', text: 'import os', oldNumber: 3, newNumber: 3 },
         ],
       },
       'python',
@@ -105,16 +111,16 @@ describe('parseUnifiedDiff', () => {
     const files = parseUnifiedDiff(SIMPLE_DIFF);
 
     expect(files).toHaveLength(1);
-    expect(files[0].oldPath).toBe('a.swift');
-    expect(files[0].newPath).toBe('a.swift');
-    expect(files[0].hunks).toHaveLength(1);
-    expect(files[0].hunks[0].lines.map((l) => l.type)).toEqual([
+    expect(files[0]!.oldPath).toBe('a.swift');
+    expect(files[0]!.newPath).toBe('a.swift');
+    expect(files[0]!.hunks).toHaveLength(1);
+    expect(files[0]!.hunks[0]!.lines.map((l) => l.type)).toEqual([
       'context',
       'del',
       'add',
       'context',
     ]);
-    expect(files[0].hunks[0].lines.map((l) => l.text)).toEqual([
+    expect(files[0]!.hunks[0]!.lines.map((l) => l.text)).toEqual([
       'let a = 1',
       'let b = 2',
       'let b = 3',
@@ -139,18 +145,18 @@ describe('parseUnifiedDiff', () => {
       '',
     ].join('\n');
 
-    const file = parseUnifiedDiff(diff)[0];
+    const file = parseUnifiedDiff(diff)[0]!;
 
     expect(file.oldPath).toBe('q.sql');
     expect(file.newPath).toBe('q.sql');
-    expect(file.hunks[0].lines.map((l) => l.type)).toEqual(['context', 'del', 'add', 'context']);
-    expect(file.hunks[0].lines.map((l) => l.text)).toEqual([
+    expect(file.hunks[0]!.lines.map((l) => l.type)).toEqual(['context', 'del', 'add', 'context']);
+    expect(file.hunks[0]!.lines.map((l) => l.text)).toEqual([
       'SELECT 1;',
       '-- old comment',
       '++ new comment',
       'SELECT 2;',
     ]);
-    expect(file.hunks[0].lines.map((l) => l.oldNumber)).toEqual([1, 2, null, 3]);
+    expect(file.hunks[0]!.lines.map((l) => l.oldNumber)).toEqual([1, 2, null, 3]);
   });
 
   // パーサの取りこぼしは両レイアウトの描画に伝わるため、両方で本文が出ることを見る。
@@ -175,7 +181,7 @@ describe('parseUnifiedDiff', () => {
 
   // 旧側・新側で番号の進み方が違う。片側にしか無い行はもう一方が null になる。
   test('旧側と新側の行番号をそれぞれ振る', () => {
-    const lines = parseUnifiedDiff(SIMPLE_DIFF)[0].hunks[0].lines;
+    const lines = parseUnifiedDiff(SIMPLE_DIFF)[0]!.hunks[0]!.lines;
 
     expect(lines.map((l) => l.oldNumber)).toEqual([1, 2, null, 3]);
     expect(lines.map((l) => l.newNumber)).toEqual([1, null, 2, 3]);
@@ -196,12 +202,12 @@ describe('parseUnifiedDiff', () => {
       '',
     ].join('\n');
 
-    const hunks = parseUnifiedDiff(diff)[0].hunks;
+    const hunks = parseUnifiedDiff(diff)[0]!.hunks;
 
     expect(hunks).toHaveLength(2);
-    expect(hunks[1].oldStart).toBe(10);
-    expect(hunks[1].newStart).toBe(10);
-    expect(hunks[1].lines.map((l) => l.newNumber)).toEqual([10, 11]);
+    expect(hunks[1]!.oldStart).toBe(10);
+    expect(hunks[1]!.newStart).toBe(10);
+    expect(hunks[1]!.lines.map((l) => l.newNumber)).toEqual([10, 11]);
   });
 
   // `\ No newline at end of file` は直前の行への注記で、行として数えると
@@ -219,10 +225,10 @@ describe('parseUnifiedDiff', () => {
       '',
     ].join('\n');
 
-    const lines = parseUnifiedDiff(diff)[0].hunks[0].lines;
+    const lines = parseUnifiedDiff(diff)[0]!.hunks[0]!.lines;
 
     expect(lines.map((l) => l.type)).toEqual(['del', 'add', 'context']);
-    expect(lines[2].oldNumber).toBe(2);
+    expect(lines[2]!.oldNumber).toBe(2);
   });
 
   test('バイナリ差分を isBinary で示し、ハンクを持たない', () => {
@@ -235,8 +241,8 @@ describe('parseUnifiedDiff', () => {
 
     const files = parseUnifiedDiff(diff);
 
-    expect(files[0].isBinary).toBe(true);
-    expect(files[0].hunks).toHaveLength(0);
+    expect(files[0]!.isBinary).toBe(true);
+    expect(files[0]!.hunks).toHaveLength(0);
   });
 
   test('空文字列・null では空配列を返す', () => {
@@ -351,16 +357,16 @@ describe('renderInlineDiffHtml', () => {
   // ただしハンク全体を 1 ブロックにすると旧版と新版が連結されて字句状態が壊れるため、
   // 旧版(文脈+削除)と新版(文脈+追加)の 2 ブロックに分ける。
   test('hljs へは旧版・新版それぞれをまとめて渡す', () => {
-    const calls = [];
-    const hljs = {
+    const calls: string[] = [];
+    const stubHljs = {
       getLanguage: () => true,
-      highlight: (str) => {
+      highlight: (str: string) => {
         calls.push(str);
         return { value: str.replaceAll('<', '&lt;') };
       },
     };
 
-    renderInlineDiffHtml(hljs, SIMPLE_DIFF, 'swift', false);
+    renderInlineDiffHtml(stubHljs, SIMPLE_DIFF, 'swift', false);
 
     expect(calls).toHaveLength(2);
     expect(calls[0]).toBe('let a = 1\nlet b = 2\nlet c = 4');
@@ -507,7 +513,7 @@ describe('assignChangeBlockIndexes', () => {
 
 // 属性値を出現順に並べ、同じブロックの連続を 1 つに畳んで「ブロックの並び」にする。
 // ジャンプの列挙（collectChangeBlocks）が読むのと同じ順序。
-const blockSequence = (html) =>
+const blockSequence = (html: string) =>
   Array.from(html.matchAll(/data-diff-block="(\d+)"/gu))
     .map((m) => m[1])
     .filter((value, index, all) => index === 0 || all[index - 1] !== value);

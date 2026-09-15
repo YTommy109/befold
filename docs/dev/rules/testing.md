@@ -2,7 +2,7 @@
 
 <!-- derived-from ../coding_rule.md -->
 
-Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-src/` の viewer 用 JS）のテスト規約。
+Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-src/` の viewer 用 TypeScript）のテスト規約。
 コメント規約は [`./comments.md`](./comments.md) を参照（プロダクト/テスト共通）。
 全体の位置づけは [`../coding_rule.md`](../coding_rule.md) を参照。
 
@@ -16,15 +16,21 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 ## テストフレームワーク
 
 - **Swift**: Swift Testing（`import Testing`）を使う（XCTest は使わない）
-- **JavaScript**: Jest を使う。テストは `BefoldKit/Resources/__tests__/` に置き、
+- **JavaScript**: Jest を使う。テストは `BefoldApp/viewer-test/` に置き、
   対象は成果物の `viewer-bundle.js` ではなくソースの `viewer-src/` を読む
-  （DOM を要さない純粋関数は公開面の barrel `viewer-src/main.ts` を直接 require、
-  DOM 側は `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして
-  jsdom 上で評価する。どちらも同じ barrel を入口にする）。テストファイル自体は
-  `.js` のままで、`.ts` へ移行したモジュールも `./foo.js` の指定で解決される
-  （Jest の `moduleNameMapper` が相対指定の `.js` を剥がし、`moduleFileExtensions`
-  が `ts` → `js` の順で拾う）。babel は型注釈を落とすだけなので、
-  **Jest を通しても型は検査されない**（`npm run typecheck:viewer` が担当する）
+  （DOM を要さない純粋関数は公開面の barrel `viewer-src/main.ts` を直接 import、
+  DOM 側は `viewer-test/support/viewerMainHarness.ts` が esbuild でバンドルして
+  jsdom 上で評価する。どちらも同じ barrel を入口にする）。テストファイルも
+  TypeScript（`*.test.ts`）で、`describe` / `expect` などは `@jest/globals` から
+  import する（`@types/jest` のグローバル型は入れていない）。import 指定子の拡張子は
+  `.ts` ではなく `.js` で書く（Jest の `moduleNameMapper` が相対指定の
+  `.js` を剥がし、`moduleFileExtensions` が `ts` → `js` の順で拾う）。babel は
+  型注釈を落とすだけなので、**Jest を通しても型は検査されない**（本体は
+  `npm run typecheck:viewer`、テストは `viewer-test/tsconfig.json` を使う
+  `npm run typecheck:viewer-test` が担当する）
+- **契約外の入力を意図して渡すテスト**（必須引数の省略・宣言外の型）は、呼び出しの
+  直前に `// @ts-expect-error -- <理由>` を置いて意図を明示する。型エラーが消えると
+  このコメント自体が tsc で落ちるため、契約が変わったことに気づける
 
 ## Swift テスト構造
 

@@ -11,21 +11,28 @@
 //     描画済み Markdown が挟まる（appendChunk が type だけで md と判断していた）
 //   - source 表示の初回描画でパス参照が注釈されない（render が早期 return していた）
 //   - 追記された行だけがリンクになり、上の行は死んだまま
+import { describe, expect, test } from '@jest/globals';
 
-const { loadViewerMain } = require('./support/viewerMainHarness');
+import { loadViewerMain, type LoadedViewer } from './support/viewerMainHarness.js';
 
 const MD = ['# title', '', 'see ./notes.md for details', ''].join('\n');
 
-function renderIn(main, mode, content, type, lang) {
+function renderIn(
+  main: LoadedViewer['main'],
+  mode: string,
+  content: string,
+  type: string,
+  lang?: string,
+) {
   main.setViewMode(mode);
   return main.render(content, type, lang);
 }
 
-function codeTableRows(document) {
+function codeTableRows(document: Document) {
   return document.querySelectorAll('#diagram-wrap table.code-table tr');
 }
 
-function lineNumbers(document) {
+function lineNumbers(document: Document) {
   return Array.from(document.querySelectorAll('#diagram-wrap td.line-number')).map(
     (cell) => cell.textContent,
   );
@@ -44,7 +51,7 @@ describe('ソース表示中のチャンク追記', () => {
     expect(codeTableRows(document).length).toBe(before + 1);
     // md.render の結果（<h2>）が紛れ込んでいない。ソースは記号のまま読める。
     expect(document.querySelector('#diagram-wrap h2')).toBeNull();
-    expect(document.querySelector('#diagram-wrap').textContent).toContain('## second');
+    expect(document.querySelector('#diagram-wrap')!.textContent).toContain('## second');
   });
 
   test('追記後も行番号が 1 から連続する', async () => {
@@ -83,7 +90,7 @@ describe('ソース表示中のチャンク追記', () => {
     // ソース表示はソースのまま増え、テーブル行にはならない。
     expect(source.document.querySelector('#diagram-wrap tbody tr')).toBeNull();
     expect(source.document.querySelector('#diagram-wrap code.csv-source')).not.toBeNull();
-    expect(source.document.querySelector('#diagram-wrap').textContent).toContain('3,4');
+    expect(source.document.querySelector('#diagram-wrap')!.textContent).toContain('3,4');
   });
 
   // render が判定を更新したら appendChunk 側もそれに従う。両者が別々に判定を
@@ -121,10 +128,10 @@ describe('ソース表示のパス参照', () => {
     await renderIn(md.main, 'source', 'see ./notes.md for details\n', 'md');
     await renderIn(code.main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
 
-    const paths = (doc) =>
+    const paths = (doc: Document) =>
       Array.from(
         new Set(
-          Array.from(doc.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
+          Array.from(doc.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref')).map(
             (el) => el.dataset.path,
           ),
         ),
@@ -141,12 +148,14 @@ describe('ソース表示のパス参照', () => {
 
     await renderIn(main, 'source', 'see ./notes.md for details\n', 'code', 'swift');
 
-    const line = document.querySelector('#diagram-wrap td.line-content');
+    const line = document.querySelector('#diagram-wrap td.line-content')!;
     // 前提（この行が実際に span で割れていること）を固定する。割れなくなったら
     // このテストは退行検知としての意味を失うため、明示的に確かめる。
     expect(line.querySelectorAll('span.hljs-operator').length).toBeGreaterThan(0);
 
-    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref'));
+    const refs = Array.from(
+      document.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref'),
+    );
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.map((el) => el.dataset.path)).toEqual(refs.map(() => './notes.md'));
     expect(refs.map((el) => el.textContent).join('')).toBe('./notes.md');
@@ -163,9 +172,9 @@ describe('ソース表示のパス参照', () => {
     main.appendChunk('see ./second.md too\n', 'md');
 
     // 追記された行も注釈され、先に描かれた行の注釈も残っている。
-    const refs = Array.from(document.querySelectorAll('#diagram-wrap .befold-path-ref')).map(
-      (el) => el.dataset.path,
-    );
+    const refs = Array.from(
+      document.querySelectorAll<HTMLElement>('#diagram-wrap .befold-path-ref'),
+    ).map((el) => el.dataset.path);
     expect(refs).toContain('./first.md');
     expect(refs).toContain('./second.md');
   });

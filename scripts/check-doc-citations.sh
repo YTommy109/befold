@@ -56,7 +56,7 @@ path_exists() {
   # 文書からの相対、または ROOT からの相対で直接解決できるならそれで済ませる。
   { [ -e "$dir/$p" ] || [ -e "$ROOT/$p" ]; } && return 0
   load_files
-  # 途中のディレクトリを省いた引用（`viewer.html` / `__tests__/support/foo.js`）は、
+  # 途中のディレクトリを省いた引用（`viewer.html` / `support/foo.js`）は、
   # パス末尾の一致で解決する。pipefail 下で grep -q が早期終了すると sed が SIGPIPE で
   # 落ちるため、パイプの右端に -q を置かない。
   grep -q -E "(^|/)$(sed 's/[.[\\*^$()+?{|]/\\&/g' <<< "$p")\$" <<< "$FILES"

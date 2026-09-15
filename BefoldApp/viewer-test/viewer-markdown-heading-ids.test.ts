@@ -7,32 +7,34 @@
 // node で window が無く、dompurify は sanitize を持たない形で読み込まれるため、
 // ここでは parse + renderer.render で HTML を得て、サニタイズは既存テストと同じ
 // jsdom 上に構築した DOMPurify を sanitizeRenderedHtml へ渡して確かめる。
-const { JSDOM } = require('jsdom');
-const createDOMPurify = require('dompurify');
-const {
+import { describe, expect, test } from '@jest/globals';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
+import {
   markdownRenderer,
   sanitizeRenderedHtml,
   slugifyHeading,
   uniqueHeadingSlug,
-} = require('../../../viewer-src/main.js');
+} from '../viewer-src/main.js';
 
 const md = markdownRenderer();
 const purify = createDOMPurify(new JSDOM('').window);
 
 // 実インスタンスの core チェーン（befold_heading_ids を含む）を通した HTML。
-function renderBody(src) {
+function renderBody(src: string) {
   return md.renderer.render(md.parse(src, {}), md.options, {});
 }
 
 // 描画結果を DOM にして、クリック側と同じやり方で解決できるかを見る。
-function documentOf(html) {
+function documentOf(html: string) {
   return new JSDOM('<div id="diagram-wrap">' + html + '</div>').window.document;
 }
 
 // reference-clicks.js のアンカー解決と同じ手順。実ハンドラは e.isTrusted を要求し、
 // jsdom の dispatchEvent では false になるため直接は駆動できない。ここでは
 // 「href からキーを作り getElementById で引く」という同じ契約を検証する。
-function resolveAnchor(doc, href) {
+function resolveAnchor(doc: Document, href: string) {
   let id;
   try {
     id = decodeURIComponent(href.slice(1));
@@ -86,7 +88,7 @@ describe('見出しへの id 付与', () => {
     ['a', 'b', 'c', 'd', 'e', 'f'].forEach((slug, i) => {
       const el = doc.getElementById(slug);
       expect(el).not.toBeNull();
-      expect(el.tagName).toBe('H' + (i + 1));
+      expect(el!.tagName).toBe('H' + (i + 1));
     });
   });
 
@@ -119,16 +121,16 @@ describe('文書内アンカーリンクの解決', () => {
   test('日本語見出しへのリンクが見出しへ解決する', () => {
     const src = '# 有効期間の表現\n\n[有効期限の表現](#有効期間の表現)\n';
     const doc = documentOf(sanitizeRenderedHtml(purify, renderBody(src)));
-    const href = doc.querySelector('a').getAttribute('href');
+    const href = doc.querySelector('a')!.getAttribute('href')!;
     const el = resolveAnchor(doc, href);
     expect(el).not.toBeNull();
-    expect(el.tagName).toBe('H1');
+    expect(el!.tagName).toBe('H1');
   });
 
   test('href が percent-encode されていても id と一致する', () => {
     const src = '# 有効期間の表現\n\n[x](#有効期間の表現)\n';
     const doc = documentOf(sanitizeRenderedHtml(purify, renderBody(src)));
-    const href = doc.querySelector('a').getAttribute('href');
+    const href = doc.querySelector('a')!.getAttribute('href')!;
     // markdown-it の normalizeLink が encode するかは版に依存する。どちらでも
     // クリック側の decodeURIComponent を通せば id と一致することを固定する。
     expect(decodeURIComponent(href.slice(1))).toBe('有効期間の表現');

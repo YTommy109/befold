@@ -10,6 +10,7 @@
     "format": "oxfmt -c ../.oxfmtrc.json .",
     "format:check": "oxfmt -c ../.oxfmtrc.json --check .",
     "typecheck:viewer": "tsc --noEmit",
+    "typecheck:viewer-test": "tsc --noEmit -p viewer-test",
     "check:viewer-cycles": "node scripts/check-viewer-cycles.mjs",
     "build:viewer": "esbuild viewer-src/index.ts --bundle --format=iife --target=safari17 --outfile=BefoldKit/Resources/viewer-bundle.js",
     "build:viewer-vendor": "node scripts/copy-viewer-vendor.mjs",
@@ -18,7 +19,7 @@
   },
   "jest": {
     "testMatch": [
-      "**/__tests__/**/*.test.js"
+      "<rootDir>/viewer-test/**/*.test.ts"
     ],
     "moduleFileExtensions": [
       "ts",
@@ -27,7 +28,7 @@
       "node"
     ],
     "setupFiles": [
-      "<rootDir>/BefoldKit/Resources/__tests__/support/browserGlobals.js"
+      "<rootDir>/viewer-test/support/browserGlobals.ts"
     ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
@@ -37,7 +38,10 @@
     "@babel/core": "7.29.7",
     "@babel/preset-env": "7.29.7",
     "@babel/preset-typescript": "7.29.7",
+    "@jest/globals": "29.7.0",
+    "@types/jsdom": "21.1.7",
     "@types/markdown-it": "14.1.2",
+    "@types/node": "26.0.1",
     "babel-jest": "29.7.0",
     "dompurify": "3.4.12",
     "esbuild": "0.28.2",

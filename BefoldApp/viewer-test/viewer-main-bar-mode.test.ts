@@ -2,24 +2,27 @@
 // 実際の検索・列挙ロジックは find.ts / jump.ts が持つため、ここでは
 // 「クリックで正しいモードが開くか」「選択状態の見た目が実際の開閉と揃うか」
 // だけを検証する。
-const { loadViewerMain } = require('./support/viewerMainHarness');
+import { describe, expect, test } from '@jest/globals';
 
-const outerVisible = (document) => document.getElementById('mmd-bar').style.display === 'flex';
+import { loadViewerMain } from './support/viewerMainHarness.js';
+
+const outerVisible = (document: Document) =>
+  document.getElementById('mmd-bar')!.style.display === 'flex';
 
 // bar-mode.ts の MODES と同じ並び。片方だけ増えると、新しいモードが
 // 選択状態になっても activeModes に現れず、テストが黙って素通りする。
 const ALL_MODES = ['search', 'heading', 'changeBlock', 'functionDefinition'];
 
-const activeModes = (document) =>
+const activeModes = (document: Document) =>
   ALL_MODES.filter((mode) =>
-    document.getElementById('mmd-bar-mode-' + mode).classList.contains('active'),
+    document.getElementById('mmd-bar-mode-' + mode)!.classList.contains('active'),
   ).toSorted();
 
-const segmentVisible = (document, mode) =>
-  document.getElementById('mmd-bar-mode-' + mode).style.display !== 'none';
+const segmentVisible = (document: Document, mode: string) =>
+  document.getElementById('mmd-bar-mode-' + mode)!.style.display !== 'none';
 
-const clickMode = (document, mode) => {
-  document.getElementById('mmd-bar-mode-' + mode).click();
+const clickMode = (document: Document, mode: string) => {
+  document.getElementById('mmd-bar-mode-' + mode)!.click();
 };
 
 describe('バーのモード切替スイッチ', () => {
@@ -41,7 +44,7 @@ describe('バーのモード切替スイッチ', () => {
 
   test('見出しセグメントをクリックすると見出しジャンプが開き、検索は閉じる', () => {
     const { main, document } = loadViewerMain({});
-    document.getElementById('diagram-wrap').innerHTML = '<h1>題</h1>';
+    document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
     main._mmdOpenFind();
 
     clickMode(document, 'heading');
@@ -54,7 +57,7 @@ describe('バーのモード切替スイッチ', () => {
 
   test('見出しから変更箇所への切り替え（jump 内部の kind 変更）でも選択表示が移る', () => {
     const { main, document } = loadViewerMain({});
-    document.getElementById('diagram-wrap').innerHTML = '<h1>題</h1>';
+    document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
     main._mmdOpenJump('heading');
     expect(activeModes(document)).toEqual(['heading']);
 
@@ -122,7 +125,7 @@ describe('バーのモード切替スイッチ', () => {
 
     test('開いているモードが使えなくなるとバーごと閉じ、外枠・選択状態・セグメントが揃って消える', () => {
       const { main, document } = loadViewerMain({});
-      document.getElementById('diagram-wrap').innerHTML = '<h1>題</h1>';
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
       main._mmdApplyJumpAvailability(['heading', 'changeBlock']);
       main._mmdOpenJump('heading');
       expect(outerVisible(document)).toBe(true);
@@ -143,36 +146,38 @@ describe('バーのモード切替スイッチ', () => {
   describe('モード切替をまたぐ状態の保持', () => {
     test('検索クエリと大文字小文字トグルは、見出しへ切り替えて戻っても残る', () => {
       const { main, document } = loadViewerMain({});
-      document.getElementById('diagram-wrap').innerHTML = '<h1>ABC</h1><p>abc abc</p>';
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>ABC</h1><p>abc abc</p>';
       main._mmdApplyJumpAvailability(['heading']);
       main._mmdOpenFind();
-      const input = document.getElementById('mmd-find-input');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
       input.value = 'abc';
-      input.dispatchEvent(new document.defaultView.Event('input'));
-      document.getElementById('mmd-find-case').click();
-      expect(document.getElementById('mmd-find-count').textContent).toBe('1/2');
+      input.dispatchEvent(new document.defaultView!.Event('input'));
+      document.getElementById('mmd-find-case')!.click();
+      expect(document.getElementById('mmd-find-count')!.textContent).toBe('1/2');
 
       clickMode(document, 'heading');
       clickMode(document, 'search');
 
-      expect(document.getElementById('mmd-find-input').value).toBe('abc');
-      expect(document.getElementById('mmd-find-case').classList.contains('active')).toBe(true);
-      expect(document.getElementById('mmd-find-count').textContent).toBe('1/2');
+      expect((document.getElementById('mmd-find-input') as HTMLInputElement).value).toBe('abc');
+      expect(document.getElementById('mmd-find-case')!.classList.contains('active')).toBe(true);
+      expect(document.getElementById('mmd-find-count')!.textContent).toBe('1/2');
     });
 
     test('見出しレベルの選択は、検索へ切り替えて戻っても残る', () => {
       const { main, document } = loadViewerMain({});
-      document.getElementById('diagram-wrap').innerHTML = '<h1>a</h1><h2>b</h2>';
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>a</h1><h2>b</h2>';
       main._mmdApplyJumpAvailability(['heading']);
       main._mmdOpenJump('heading');
       main.toggleHeadingLevel(1);
-      expect(document.getElementById('mmd-jump-count').textContent).toBe('1/1');
+      expect(document.getElementById('mmd-jump-count')!.textContent).toBe('1/1');
 
       clickMode(document, 'search');
       clickMode(document, 'heading');
 
-      expect(document.getElementById('mmd-jump-count').textContent).toBe('1/1');
-      expect(document.getElementById('mmd-jump-level-h1').classList.contains('active')).toBe(false);
+      expect(document.getElementById('mmd-jump-count')!.textContent).toBe('1/1');
+      expect(document.getElementById('mmd-jump-level-h1')!.classList.contains('active')).toBe(
+        false,
+      );
     });
   });
 
@@ -185,9 +190,9 @@ describe('バーのモード切替スイッチ', () => {
       const { main, document } = loadViewerMain({});
       await main.render('abc\n', 'markdown');
       main._mmdOpenFind();
-      const input = document.getElementById('mmd-find-input');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
       input.value = 'abc';
-      input.dispatchEvent(new document.defaultView.Event('input'));
+      input.dispatchEvent(new document.defaultView!.Event('input'));
       expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(1);
       main._mmdCloseFind();
 

@@ -1,4 +1,6 @@
-const { renderShape } = require('../../../viewer-src/main.js');
+import { describe, expect, test } from '@jest/globals';
+
+import { renderShape } from '../viewer-src/main.js';
 
 // 「表示モードと種別から、いま DOM に描く形を決める」判定の単体テスト。
 //
@@ -60,6 +62,7 @@ describe('renderShape', () => {
   // 'rendered'/'source' 以外を弾くため、ここへ来るのは実質ありえないが、
   // 判定が真偽の取り違えで source 側へ倒れないことを固定する）。
   test('未知のモードはレンダリング表示として扱う', () => {
+    // @ts-expect-error -- 契約外のモード文字列がレンダリング表示側へ倒れることを確かめる
     expect(renderShape('md', 'unknown')).toBe('markdown');
   });
 });

@@ -8,13 +8,17 @@
 //
 // 既に定義されている場合は上書きしない。viewerMainHarness は suite ごとに専用の
 // jsdom window を作って window.eval で評価するため、ここの値には依存しない。
-const { JSDOM } = require('jsdom');
+import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('');
 
-if (global.DOMParser === undefined) {
-  global.DOMParser = dom.window.DOMParser;
+// lib.dom は DOMParser / window を常に在るものとして宣言するが、node 環境の
+// Jest では未定義なので、在るかどうかは実行時の値で見る。
+const globals: Record<string, unknown> = globalThis;
+
+if (globals.DOMParser === undefined) {
+  globals.DOMParser = dom.window.DOMParser;
 }
-if (global.window === undefined) {
-  global.window = dom.window;
+if (globals.window === undefined) {
+  globals.window = dom.window;
 }

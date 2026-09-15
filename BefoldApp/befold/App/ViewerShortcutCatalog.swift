@@ -9,7 +9,7 @@ import Foundation
 ///
 /// 割り当ての実体は JavaScript 側にあり(`viewer-src/keyboard.js` の `resolveScrollKey` /
 /// `resolveBarCloseKey`)、Swift からは呼べない。そこで **この宣言を jest 側がパースして
-/// 実装と突き合わせる**(`BefoldKit/Resources/__tests__/viewerShortcutCatalog.test.js`)。
+/// 実装と突き合わせる**(`viewer-test/viewerShortcutCatalog.test.js`)。
 /// 配布サイトが `MainMenuBuilder*.swift` を読んでページ記載のずれを検出しているのと同じ
 /// 手口で、言語をまたぐ乖離を機械的に落とす(TASK-503)。
 ///

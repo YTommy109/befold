@@ -7,16 +7,18 @@
 // 同じ手口。パース結果が 0 件なら失敗させる —— 空集合に対する検証は必ず通るため、
 // リテラル形式を変えてパーサが空振りしたときに黙って緑になるのを防ぐ。
 
-const fs = require('fs');
-const path = require('path');
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-const {
+import { describe, expect, test } from '@jest/globals';
+
+import {
   resolveScrollKey,
   resolveBarCloseKey,
   resolveJumpNavigationKey,
-} = require('../../../viewer-src/main.js');
+} from '../viewer-src/main.js';
 
-const CATALOG_PATH = path.join(__dirname, '../../../befold/App/ViewerShortcutCatalog.swift');
+const CATALOG_PATH = path.join(__dirname, '../befold/App/ViewerShortcutCatalog.swift');
 
 // Swift 側 ViewerShortcutCatalogTests の期待値と同じ値。片方だけ増やすと落ちる。
 const EXPECTED_SCROLL_COUNT = 6;
@@ -24,7 +26,7 @@ const EXPECTED_FIND_ONLY_COUNT = 1;
 const EXPECTED_JUMP_COUNT = 3;
 
 // resolveScrollKey の戻り値。バーの開閉・ジャンプは別の関数で判定する。
-const SCROLL_EXPECTATIONS = {
+const SCROLL_EXPECTATIONS: Record<string, { down: boolean; amount: string }> = {
   pageDown: { down: true, amount: 'page' },
   pageUp: { down: false, amount: 'page' },
   lineDown: { down: true, amount: 'line' },
@@ -34,7 +36,7 @@ const SCROLL_EXPECTATIONS = {
 };
 
 // 素の Enter / Shift+Enter を表す keydown 相当のオブジェクト。
-function jumpEvent(key, shift) {
+function jumpEvent(key: string, shift: boolean) {
   return {
     key,
     shiftKey: shift,
@@ -49,7 +51,7 @@ function jumpEvent(key, shift) {
 // 名前付きの配列リテラル 1 つ分を切り出してから Item を拾う。配列ごとに分けるのは、
 // ゲート閉(findOnlyItems)とゲート開(documentJumpItems)で Esc の行が入れ替わるため。
 // 全体を 1 回でなめると、どちらの構成に属する行かが分からなくなる。
-function parseCatalogArray(source, name) {
+function parseCatalogArray(source: string, name: string) {
   const arrayPattern = new RegExp(
     `static let ${name}: \\[Item\\] = \\[([\\s\\S]*?)\\n {4}\\]`,
     'u',
@@ -62,15 +64,15 @@ function parseCatalogArray(source, name) {
   // (実測: 7 件のうち 1 件が折り返されて 6 件になった)。
   const pattern =
     /Item\(\s*jsKeys:\s*\[([^\]]*)\],\s*shift:\s*(true|false),\s*expects:\s*\.(\w+),\s*titleKey:\s*"([^"]+)"\s*,?\s*\)/gu;
-  const items = [];
+  const items: { jsKeys: string[]; shift: boolean; expects: string; titleKey: string }[] = [];
   let match;
-  while ((match = pattern.exec(arrayMatch[1])) !== null) {
-    const jsKeys = match[1]
+  while ((match = pattern.exec(arrayMatch[1]!)) !== null) {
+    const jsKeys = match[1]!
       .split(',')
       .map((raw) => raw.trim())
       .filter((raw) => raw.length > 0)
-      .map((raw) => JSON.parse(raw));
-    items.push({ jsKeys, shift: match[2] === 'true', expects: match[3], titleKey: match[4] });
+      .map((raw) => JSON.parse(raw) as string);
+    items.push({ jsKeys, shift: match[2] === 'true', expects: match[3]!, titleKey: match[4]! });
   }
   return items;
 }
@@ -99,13 +101,13 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   test('スクロールのキーは宣言どおりの量・向きへ解決される', () => {
     // 失敗時にどの行かが分かるよう、キーを添えた形で比較する
     // (jest の expect は vitest と違いメッセージ引数を取らない)。
-    const actual = scrollItems.flatMap((item) =>
+    const actual = scrollItems!.flatMap((item) =>
       item.jsKeys.map(
         (key) =>
           `${key} shift=${item.shift} -> ${JSON.stringify(resolveScrollKey(key, item.shift))}`,
       ),
     );
-    const expected = scrollItems.flatMap((item) =>
+    const expected = scrollItems!.flatMap((item) =>
       item.jsKeys.map(
         (key) =>
           `${key} shift=${item.shift} -> ${JSON.stringify(SCROLL_EXPECTATIONS[item.expects])}`,
@@ -115,7 +117,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   });
 
   test('ゲート閉の Esc は検索バーを閉じる操作へ解決される', () => {
-    const closed = findOnlyItems.filter((item) => item.expects === 'findClose');
+    const closed = findOnlyItems!.filter((item) => item.expects === 'findClose');
     expect(closed.length).toBe(EXPECTED_FIND_ONLY_COUNT);
 
     expect(
@@ -126,13 +128,13 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   });
 
   test('ゲート開の Esc は検索バーとジャンプバーのどちらも閉じる', () => {
-    const both = jumpItems.filter((item) => item.expects === 'barClose');
+    const both = jumpItems!.filter((item) => item.expects === 'barClose');
     expect(both.length).toBe(1);
 
     expect(
       both.flatMap((item) =>
         item.jsKeys.flatMap((key) =>
-          ['find', 'jump'].map(
+          (['find', 'jump'] as const).map(
             (bar) => `${key} ${bar} -> ${resolveBarCloseKey(key, bar, false, 0)}`,
           ),
         ),
@@ -145,7 +147,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   });
 
   test('ジャンプのキーは宣言どおりの向きへ解決される', () => {
-    const moves = jumpItems.filter((item) => item.expects !== 'barClose');
+    const moves = jumpItems!.filter((item) => item.expects !== 'barClose');
     expect(moves.length).toBe(EXPECTED_JUMP_COUNT - 1);
 
     const actual = moves.flatMap((item) =>
@@ -170,7 +172,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
       'jumpNext',
       'jumpPrev',
     ]);
-    const all = [...scrollItems, ...findOnlyItems, ...jumpItems];
+    const all = [...scrollItems!, ...findOnlyItems!, ...jumpItems!];
     expect(all.map((item) => item.expects).filter((name) => !known.has(name))).toEqual([]);
   });
 
@@ -192,7 +194,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
 
   test('スクロールに反応するキーはすべてカタログに載っている', () => {
     const listed = new Set(
-      scrollItems.flatMap((item) => item.jsKeys.map((key) => `${key} ${item.shift}`)),
+      scrollItems!.flatMap((item) => item.jsKeys.map((key) => `${key} ${item.shift}`)),
     );
 
     for (const key of CANDIDATE_KEYS) {
@@ -209,7 +211,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
 
   test('ジャンプ移動に反応するキーはすべてカタログに載っている', () => {
     const listed = new Set(
-      jumpItems.flatMap((item) => item.jsKeys.map((key) => `${key} ${item.shift}`)),
+      jumpItems!.flatMap((item) => item.jsKeys.map((key) => `${key} ${item.shift}`)),
     );
 
     for (const key of CANDIDATE_KEYS) {

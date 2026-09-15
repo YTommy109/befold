@@ -110,6 +110,16 @@ strict で走っていた**。付けないと、出荷される成果物だけ�
 （`project.yml` の `sources` / `excludes`）の両方で除外設定が要る。ターゲットの
 `path` の外に置けばどちらも触らずに済むため、`BefoldApp/viewer-src/` を採用した。
 
+<!-- derived-from ../../backlog/tasks/task-623.1 - viewer-src-とテストのディレクトリ構成を決める.md -->
+
+テストも同じ理由で隣の `BefoldApp/viewer-test/` に置く（TASK-623）。viewer-src の中に
+同居させないのは、テストがモジュール単位ではなく公開面の barrel（`main.ts`）を
+相手にしていて `foo.ts` と `foo.test.ts` の対応が無いことと、同居させると本体の
+`tsconfig.json`（`types: []`）と `.oxlintrc.json` の `viewer-src/**` override が
+テストにもかかり、除外指定が要ることの 2 点による。viewer-src 自体は
+フラットのままにしてある。関心の束は `bar-*` / `csv-*` / `jump*` のような
+接頭辞で表れており、束はどれも 2〜3 本と小さいため。
+
 ## なぜ成果物をコミットするか
 
 `swift build` / `xcodebuild` に Node 依存を持ち込まないため。macOS の CI ジョブには
@@ -123,17 +133,18 @@ npm run build:viewer         # ソースからバンドルを生成する
 npm run build:viewer-vendor  # npm から mermaid.min.js / ベンダー CSS をコピーする
 npm run check:viewer-bundle  # 再ビルドしてコミット済み成果物との差分を検出する
 npm run check:third-party-licenses  # THIRD_PARTY_LICENSES.md と実際の依存を突き合わせる
-npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
-npm run typecheck:viewer     # tsc --noEmit（型検査。対象は .ts のみ）
+npm run lint                 # Oxlint（type-aware。viewer-src とテストの両方）
+npm run typecheck:viewer     # tsc --noEmit（viewer-src の型検査）
+npm run typecheck:viewer-test  # tsc --noEmit -p viewer-test（テストの型検査）
 npm run check:viewer-cycles  # モジュール間の循環 import を検出する
-npx jest                     # Jest テスト（BefoldKit/Resources/__tests__/）
+npx jest                     # Jest テスト（viewer-test/）
 ```
 
 `check:viewer-bundle` はローカルでも CI と同じコマンドで確認できる。差分が出たら
 `npm run build:viewer` の結果をコミットする。
 
 テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
-`main.ts` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
+`main.ts` を直接 import し、DOM 側は `viewer-test/support/viewerMainHarness.ts` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン
