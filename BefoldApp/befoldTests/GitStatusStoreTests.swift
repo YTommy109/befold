@@ -70,7 +70,12 @@ struct GitStatusStoreTests {
             let calls = calls
             lock.unlock()
             onCall?(calls)
-            if let block { block.wait("FakeReader.status") }
+            // `fixedBudget` で BEFOLD_TEST_TIMEOUT_SECONDS を無視する(TASK-619)。
+            // この足止めの解除は「git 実行の模した遅さ」ではなく、2 本目の要求が
+            // MainActor の順番待ちを経て secondRootResolved を開くまでの時間に支配される。
+            // 同じ env 変数を使うと、フルスイートでの輻輳が増えるほど耐性も同時に縮み、
+            // 実測 111〜137 秒の輻輳に対して CI の予算(60 秒)が先に切れて誤検知していた。
+            if let block { block.wait("FakeReader.status", fixedBudget: 300) }
             return result
         }
     }
@@ -207,7 +212,7 @@ struct GitStatusStoreTests {
     /// 2. 2 本目のルート解決完了をゲートで待つ。2 本目のメインアクターへの復帰は
     ///    この時点で既に enqueue されており、足止め解除後に走る 1 本目の完了より先に処理される。
     /// 3. 足止めを解除し、両方の完了を待つ。畳み込みが効いていれば reader は 1 回しか呼ばれない。
-    @Test("同一ルートへの同時要求は git 実行 1 回に畳み込まれる")
+    @Test("同一ルートへの同時要求は git 実行 1 回に畳み込まれる", testTimeLimit())
     func foldsConcurrentRequestsForSameRoot() async {
         let readerEntered = AsyncGate()
         let secondRootResolved = AsyncGate()
