@@ -110,6 +110,16 @@ strict で走っていた**。付けないと、出荷される成果物だけ�
 （`project.yml` の `sources` / `excludes`）の両方で除外設定が要る。ターゲットの
 `path` の外に置けばどちらも触らずに済むため、`BefoldApp/viewer-src/` を採用した。
 
+<!-- derived-from ../../backlog/tasks/task-623.1 - viewer-src-とテストのディレクトリ構成を決める.md -->
+
+テストも同じ理由で隣の `BefoldApp/viewer-test/` に置く（TASK-623）。viewer-src の中に
+同居させないのは、テストがモジュール単位ではなく公開面の barrel（`main.ts`）を
+相手にしていて `foo.ts` と `foo.test.ts` の対応が無いことと、同居させると本体の
+`tsconfig.json`（`types: []`）と `.oxlintrc.json` の `viewer-src/**` override が
+テストにもかかり、除外指定が要ることの 2 点による。viewer-src 自体は
+フラットのままにしてある。関心の束は `bar-*` / `csv-*` / `jump*` のような
+接頭辞で表れており、束はどれも 2〜3 本と小さいため。
+
 ## なぜ成果物をコミットするか
 
 `swift build` / `xcodebuild` に Node 依存を持ち込まないため。macOS の CI ジョブには
