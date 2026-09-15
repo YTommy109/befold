@@ -14,9 +14,9 @@ const {
   resolveScrollKey,
   resolveBarCloseKey,
   resolveJumpNavigationKey,
-} = require('../../../viewer-src/main.js');
+} = require('../viewer-src/main.js');
 
-const CATALOG_PATH = path.join(__dirname, '../../../befold/App/ViewerShortcutCatalog.swift');
+const CATALOG_PATH = path.join(__dirname, '../befold/App/ViewerShortcutCatalog.swift');
 
 // Swift 側 ViewerShortcutCatalogTests の期待値と同じ値。片方だけ増やすと落ちる。
 const EXPECTED_SCROLL_COUNT = 6;

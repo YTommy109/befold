@@ -5,7 +5,7 @@
 
 const { JSDOM } = require('jsdom');
 
-const { _annotatePathRefs } = require('../../../viewer-src/path-refs.js');
+const { _annotatePathRefs } = require('../viewer-src/path-refs.js');
 
 const dom = new JSDOM('<div id="diagram-wrap"></div>');
 

@@ -6,7 +6,7 @@
 
 const { JSDOM } = require('jsdom');
 
-const { _renderXslt } = require('../../../viewer-src/main.js');
+const { _renderXslt } = require('../viewer-src/main.js');
 
 const dom = new JSDOM('<div id="diagram-wrap"></div>');
 

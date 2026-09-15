@@ -528,7 +528,7 @@ describe('見出しの列挙（collectHeadings）', () => {
 
   test('既定では h1 / h2 / h3 を文書順に拾い、h4 以降は拾わない', () => {
     const { root } = rootWith('<h1>0</h1><h3>1</h3><h2>2</h2><h4>x</h4><h3>3</h3>');
-    const { collectHeadings } = require('../../../viewer-src/main.js');
+    const { collectHeadings } = require('../viewer-src/main.js');
 
     const texts = collectHeadings(root).map((target) => target.anchor.textContent);
 
@@ -537,7 +537,7 @@ describe('見出しの列挙（collectHeadings）', () => {
 
   test('目印はスクロール先と強調対象を持つ', () => {
     const { root } = rootWith('<h2>a</h2>');
-    const { collectHeadings } = require('../../../viewer-src/main.js');
+    const { collectHeadings } = require('../viewer-src/main.js');
 
     const [target] = collectHeadings(root);
 
@@ -547,7 +547,7 @@ describe('見出しの列挙（collectHeadings）', () => {
 
   test('見出しが無ければ空の列になる', () => {
     const { root } = rootWith('<p>なし</p>');
-    const { collectHeadings } = require('../../../viewer-src/main.js');
+    const { collectHeadings } = require('../viewer-src/main.js');
 
     expect(collectHeadings(root)).toEqual([]);
   });

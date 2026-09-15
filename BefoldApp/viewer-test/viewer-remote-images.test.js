@@ -12,7 +12,7 @@ const createDOMPurify = require('dompurify');
 // replaceRemoteImages が使う DOMParser / window は support/browserGlobals.js が
 // setupFiles で全 suite に用意する(TASK-548)。ここでは載せ直さない。
 
-const { replaceRemoteImages, sanitizeRenderedHtml } = require('../../../viewer-src/main.js');
+const { replaceRemoteImages, sanitizeRenderedHtml } = require('../viewer-src/main.js');
 
 const purify = createDOMPurify(new JSDOM('').window);
 

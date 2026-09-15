@@ -19,7 +19,7 @@ const {
   csvSourceInnerHtml,
   groupCsvNumber,
   parseCsv,
-} = require('../../../viewer-src/main.js');
+} = require('../viewer-src/main.js');
 const { loadViewerMain } = require('./support/viewerMainHarness');
 
 describe('classifyCsvColumn の第 1 段（右寄せ）', () => {
@@ -223,7 +223,10 @@ describe('テーブル HTML への反映', () => {
 
   test('style.css が csv-num の右寄せと tabular-nums を持つ', () => {
     // クラスを付けるだけでは桁は揃わない。見た目側の担保はここでしか測れない。
-    const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+    const css = fs.readFileSync(
+      path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
+      'utf8',
+    );
     expect(css).toContain('#diagram-wrap.csv-body table td.csv-num');
     expect(css).toContain('font-variant-numeric: tabular-nums;');
     // <th> は寄せない。セレクタに th.csv-num が復活したらここで落とす。
@@ -397,7 +400,10 @@ describe('数値表示の設定', () => {
   });
 
   test('style.css が赤字の色をライト・ダークの両方で定義している', () => {
-    const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+    const css = fs.readFileSync(
+      path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
+      'utf8',
+    );
     const dark = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
     expect(css).toContain('--csv-negative-fg:');
     expect(dark).toContain('--csv-negative-fg:');

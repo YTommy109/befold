@@ -16,10 +16,10 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 ## テストフレームワーク
 
 - **Swift**: Swift Testing（`import Testing`）を使う（XCTest は使わない）
-- **JavaScript**: Jest を使う。テストは `BefoldKit/Resources/__tests__/` に置き、
+- **JavaScript**: Jest を使う。テストは `BefoldApp/viewer-test/` に置き、
   対象は成果物の `viewer-bundle.js` ではなくソースの `viewer-src/` を読む
   （DOM を要さない純粋関数は公開面の barrel `viewer-src/main.ts` を直接 require、
-  DOM 側は `__tests__/support/viewerMainHarness.js` が esbuild でバンドルして
+  DOM 側は `viewer-test/support/viewerMainHarness.js` が esbuild でバンドルして
   jsdom 上で評価する。どちらも同じ barrel を入口にする）。テストファイル自体は
   `.js` のままで、`.ts` へ移行したモジュールも `./foo.js` の指定で解決される
   （Jest の `moduleNameMapper` が相対指定の `.js` を剥がし、`moduleFileExtensions`

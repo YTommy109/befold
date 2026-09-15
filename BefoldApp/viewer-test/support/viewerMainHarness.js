@@ -21,7 +21,7 @@ const { JSDOM } = require('jsdom');
 
 const esbuild = require('esbuild');
 
-const RESOURCES_DIR = path.join(__dirname, '..', '..');
+const RESOURCES_DIR = path.join(__dirname, '..', '..', 'BefoldKit', 'Resources');
 // viewer のモジュールソース。コミット済み成果物ではなくソースからバンドルするため、
 // ソースを編集した直後もビルドを挟まずにテストが現在の実装を見る。
 const VIEWER_SRC_DIR = path.join(RESOURCES_DIR, '..', '..', 'viewer-src');

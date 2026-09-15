@@ -57,7 +57,6 @@ let package = Package(
         .target(
             name: "BefoldKit",
             path: "BefoldKit",
-            exclude: ["Resources/__tests__"],
             resources: [
                 .process("Resources/Localizable.xcstrings"),
                 .copy("Resources/viewer.html"),

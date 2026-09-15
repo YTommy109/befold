@@ -126,14 +126,14 @@ npm run check:third-party-licenses  # THIRD_PARTY_LICENSES.md と実際の依存
 npm run lint:viewer          # ESLint（no-undef で未定義参照を機械検出する）
 npm run typecheck:viewer     # tsc --noEmit（型検査。対象は .ts のみ）
 npm run check:viewer-cycles  # モジュール間の循環 import を検出する
-npx jest                     # Jest テスト（BefoldKit/Resources/__tests__/）
+npx jest                     # Jest テスト（viewer-test/）
 ```
 
 `check:viewer-bundle` はローカルでも CI と同じコマンドで確認できる。差分が出たら
 `npm run build:viewer` の結果をコミットする。
 
 テストは成果物ではなくこのディレクトリのソースを対象にする。DOM を要さない純粋関数は
-`main.ts` を直接 require し、DOM 側は `__tests__/support/viewerMainHarness.js` が
+`main.ts` を直接 require し、DOM 側は `viewer-test/support/viewerMainHarness.js` が
 esbuild でテスト用エントリを IIFE にまとめて jsdom の `window.eval` で評価する。
 
 ## Node バージョン

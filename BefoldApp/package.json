@@ -18,7 +18,7 @@
   },
   "jest": {
     "testMatch": [
-      "**/__tests__/**/*.test.js"
+      "<rootDir>/viewer-test/**/*.test.js"
     ],
     "moduleFileExtensions": [
       "ts",
@@ -27,7 +27,7 @@
       "node"
     ],
     "setupFiles": [
-      "<rootDir>/BefoldKit/Resources/__tests__/support/browserGlobals.js"
+      "<rootDir>/viewer-test/support/browserGlobals.js"
     ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"

@@ -138,7 +138,7 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     // 3.3. 法令標準XML が内蔵スタイルシートで変換されるか（TASK-597）
     //
     // 変換は WebKit 同梱の XSLTProcessor（libxslt 由来の XSLT 1.0）が行う。
-    // jsdom には XSLTProcessor が無く Resources/__tests__ では確認できないため、
+    // jsdom には XSLTProcessor が無く viewer-test の Jest では確認できないため、
     // 実 WKWebView 上で「条・項・号が要素として出るか」をここで見る。
     func checkJapaneseLawXSLT() {
         let lawURL = resourceDir

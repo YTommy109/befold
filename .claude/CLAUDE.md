@@ -121,7 +121,7 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
   fire-and-forget だったので `void` を置いて明示した
 - **`no-unsafe-*` はプロジェクトレベルでは両面とも off。** BefoldApp では既定の
   type-aware ルールセットが 4,749 件出るが、うち 4,423 件が `no-unsafe-*` で
-  **すべて型情報の無い .js / .mjs 由来**（`BefoldKit/Resources/__tests__` の 9 本と
+  **すべて型情報の無い .js / .mjs 由来**（`viewer-test` の 9 本と
   `scripts/*.mjs` の実測 94 件。viewer-src は全モジュール .ts なので 0 件）。
   テストとビルドスクリプトの TS 化は別の判断なので、それまで off にする
 - **プロジェクトレベルの off の一覧は `site/.oxlintrc.json` と

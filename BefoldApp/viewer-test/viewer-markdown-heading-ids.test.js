@@ -14,7 +14,7 @@ const {
   sanitizeRenderedHtml,
   slugifyHeading,
   uniqueHeadingSlug,
-} = require('../../../viewer-src/main.js');
+} = require('../viewer-src/main.js');
 
 const md = markdownRenderer();
 const purify = createDOMPurify(new JSDOM('').window);

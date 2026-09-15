@@ -50,7 +50,7 @@ const {
   csvRowsHtml,
   codeChunkInnerHtml,
   lastLines,
-} = require('../../../viewer-src/main.js');
+} = require('../viewer-src/main.js');
 
 describe('clampZoom', () => {
   test('returns value within range unchanged', () => {
@@ -1243,7 +1243,10 @@ describe('buildLineNumberRows', () => {
     // クラスを付けるだけでは高さは出ない。見た目側の担保はここでしか測れない。
     // :empty ではなく ::after にするのは、reflowSpanBalancedLines が開き <span> を
     // 前置した空行が :empty に一致しないため。
-    const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+    const css = fs.readFileSync(
+      path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
+      'utf8',
+    );
     const rule = css.slice(css.indexOf('.line-content::after'));
     expect(css).toContain('.line-content::after');
     expect(rule).toContain('display: inline-block;');
