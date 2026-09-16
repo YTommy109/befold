@@ -1,9 +1,11 @@
 ---
 id: TASK-627
 title: ローカル Xcode 27.0 で swift build が main() must be '@MainActor' で落ちる
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@Tommy109'
 created_date: '2026-09-16 00:36'
+updated_date: '2026-09-16 00:46'
 labels:
   - build
 dependencies: []
@@ -36,7 +38,44 @@ Swift 6.4 が `nonisolated static func main()` を許さなくなったことに
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ローカル（Xcode 27.0 / Swift 6.4）で swift build と swift test が通る
+- [x] #1 ローカル（Xcode 27.0 / Swift 6.4）で swift build が通り、Swift ファイル編集時の PostToolUse フックが失敗しなくなる
 - [ ] #2 CI ピン（Xcode 26.6）でもビルドが通り、CI が緑のままである
-- [ ] #3 CI ピンを 27.0 へ上げるか据え置くかを決め、決めた理由を Notes に残す
+- [x] #3 CI ピンを 27.0 へ上げるか据え置くかを決め、決めた理由を Notes に残す
+- [x] #4 swift test に残る失敗を特定し、この修正と無関係であることを示したうえで別タスクへ切り出す
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. CI ランナーで Xcode 27 が使えるかを調べ、ピンを上げられるか確定する
+2. nonisolated を外して @MainActor 隔離をクラスから継承させる
+3. ローカルで swift build / swift test を回し、残る失敗がこの変更と無関係であることを示す
+4. push して CI（26.6）でビルドが通ることを確認する
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CI ピンの調査（実測 / 2026-09-16）
+
+actions/runner-images の README を実物で確認した結果、**CI ピンは既に上限**だった。
+
+- `macos-26` ランナーに入っている Xcode は 26.0.1 / 26.1.1 / 26.2 / 26.3 / 26.4.1 / 26.5 / 26.6 の 7 本で、**26.6 が最新かつ既定**。現在のピン（`ci.yml` × 2、`release.yml` × 1）がそのまま上限
+- **`macos-27` ランナーは存在しない。** Xcode 27 はプレビュー扱いの `xcode-27` / `xcode-27-xlarge` ラベル（arm64）にしかない
+- ローカルには Xcode 27.0（27A266a / Swift 6.4）しかなく、`xcode-select` で 26.6 へ戻せない
+
+**決定（ユーザー判断）: CI ピンは 26.6 のまま据え置く。** GitHub が `macos-27` を正式提供するまで動かさない。プレビューイメージは予告なく変わる/消えるため、特に `release.yml`（署名・公証・配布物の生成）を載せる先としては採らない。ローカルへ Xcode 26.6 を併存させることもしない（AC #4 の切り分けどおり、両バージョンで通るコードにして CI を検知役にする）。
+
+## 修正
+
+`AppDelegate.main()` から `nonisolated` を外し、クラスと同じ `@MainActor` 隔離を継承させた（1 語の削除 + 経緯の doc コメント）。
+
+`git log -L` で追ったところ、この `nonisolated` は初回コミット 074cb575 から付いており、コンパイラの指摘に応えて足されたものではなかった。`@MainActor` な `AppDelegate()` をこの関数の中で呼べている時点で実態はメインアクター上であり、宣言のほうが実態に合っていなかった。Swift 6.4 はそれを `main() must be @MainActor` で弾くようになっただけ。
+
+## 検証
+
+- ローカル（Xcode 27.0 / Swift 6.4）: `swift build` 成功。Swift ファイル編集時の PostToolUse フックも通るようになった
+- `swift test --skip Integration --skip FileWatcherTests`: 1876 テスト中 10 issues。**失敗は PDFKit を実際に動かす 3 スイート・6 テストだけ**で、いずれも `AppDelegate` を参照しない。TASK-628 として切り出した
+- swiftlint: 全体 46 件、`AppDelegate.swift` は 0 件（この変更で増えていない）
+- CI（Xcode 26.6）での確認は push 後
+<!-- SECTION:NOTES:END -->
