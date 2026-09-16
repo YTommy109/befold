@@ -70,7 +70,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
     }
 
-    nonisolated static func main() {
+    /// `@main` の入口。本体は必ずメインスレッドで走るため、クラスと同じ
+    /// `@MainActor` 隔離のままにする(`nonisolated` を付けると Swift 6.4 以降が
+    /// `main() must be '@MainActor'` で弾く。初回コミットから付いていたが、
+    /// `@MainActor` な `AppDelegate()` をここで呼べている時点で実態は
+    /// メインアクター上であり、宣言のほうが実態に合っていなかった)。
+    static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
         let delegate = AppDelegate()

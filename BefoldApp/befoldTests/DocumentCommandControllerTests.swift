@@ -39,7 +39,7 @@ struct DocumentCommandControllerTests {
 
         #expect(renderer.commands == [
             .changeZoom(.zoomIn), .changeZoom(.zoomOut), .changeZoom(.reset),
-            .openFind, .findNext, .findPrevious, .print,
+            .openFind, .findNext, .findPrevious, .print(jobTitle: "a"),
         ])
     }
 

@@ -53,7 +53,7 @@ struct DocumentSurfaceDispatchTests {
         func findNext() {}
         func findPrevious() {}
         func openJump(kind _: DocumentJumpKind) {}
-        func printDocument(over _: NSWindow?) {
+        func printDocument(over _: NSWindow?, jobTitle _: String) {
             printCalls += 1
         }
 

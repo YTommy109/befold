@@ -41,7 +41,7 @@ struct ViewerWindowScrollRestoreRaceTests {
         func applyJumpAvailability(_: Set<DocumentJumpKind>) {}
         func findNext() {}
         func findPrevious() {}
-        func printDocument(over _: NSWindow?) {}
+        func printDocument(over _: NSWindow?, jobTitle _: String) {}
         func noteRename(from _: URL, to _: URL) {}
 
         var currentRotation: Int {
