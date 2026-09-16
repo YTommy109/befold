@@ -1,11 +1,11 @@
 ---
 id: TASK-628
 title: macOS 27 / Xcode 27 で PDFKit 系テスト 6 件が落ちる
-status: In Progress
+status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-09-16 00:46'
-updated_date: '2026-09-16 01:44'
+updated_date: '2026-09-16 01:59'
 labels:
   - test
 dependencies: []
@@ -37,7 +37,7 @@ CI は macos-26（Xcode 26.6 が上限）のままなので緑で、実害は今
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 6 件が macOS 27 / Xcode 27 で通る
-- [ ] #2 CI（Xcode 26.6）でも引き続き通る
+- [x] #2 CI（Xcode 26.6）でも引き続き通る
 - [x] #3 原因が PDFSurfaceLayout の実装かテストの測り方かを実測で切り分け、Notes に記録する
 <!-- AC:END -->
 
@@ -219,4 +219,26 @@ doc コメントがまさにその症状を予告している）。
 - swiftformat: 差分なし。
 - markdownlint-cli2: 0 issues。
 - `scripts/check-doc-symbols.sh` / `scripts/check-doc-citations.sh`: 出力なし（合格）。
+
+## CI（macOS 26 / Xcode 26.6）での確認 — AC #2
+
+PR #675 の CI が全て pass（run 35045516235、2026-09-16）。
+
+- `build-and-test`: **2062 テスト / 339 スイートが 2 パスとも成功**
+  （通常 129.8 秒 + 協調スレッドプール幅 1 で 104.9 秒）
+- `type-group-size` / `js-test` / `changes` も pass、`thread-sanitizer` は skipping
+
+これで `scrollsDownward(in:)` の**両方の分岐**に裏付けが付いた。
+反転側（`true`）はローカルの macOS 27、非反転側（`false`）はこの CI。
+ローカルには macOS 26 が無いため、後者はここでしか測れない。
+
+なお元ブランチ `chore/file-print-bugs` は PR #674 で squash マージ済みだったため、
+`origin/main` から `fix/pdf-scroll-direction-macos27` を切り直してコミットを
+載せ替えた（`/pr` の手順 1「マージ済み / クローズ済みの PR しかない場合」）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+macOS 27 の PDFKit がスクロール座標の向きを反転させた（documentView.isFlipped が false → true / 実測）ため、旧 OS の実測値を 3 つの式へ別々のリテラルとして抱えていた PDFSurfaceLayout が 3 箇所とも逆を向いていた。テストの赤だけでなく、macOS 27 上では PDF の表示位置の記憶が上下反転しスペースキーの送り方向も逆になる実害があった（原因は実装側 = AC #3）。向きを決め打ちせず NSClipView.isFlipped に訊く述語 scrollsDownward(in:) へ 1 箇所に畳み、documentFraction / scrollOffset(forFraction:in:) / scrollAmount がそれを参照する形にした（状態も経路も増やさない）。あわせて /review-design が拾った偽陽性テスト（符号規約そのものをアサートしており macOS 27 でも通っていた）を、守りたい保証を測る形へ差し替えた。検証: ローカル macOS 27 / Xcode 27.0 で swift test 全件緑（1990 + 72、修正前は 1876 中 10 issues）、修正を旧決め打ちへ戻すと起票時と同一の 10 issues が再現、swiftlint は main 比 0 件。CI（macos-26 / Xcode 26.6）は PR #675 の build-and-test で 2062 テストが 2 パスとも pass（run 35045516235）= AC #2。
+<!-- SECTION:FINAL_SUMMARY:END -->
