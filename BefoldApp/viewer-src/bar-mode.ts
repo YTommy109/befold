@@ -77,6 +77,12 @@ function openMode(mode: BarMode): void {
 }
 
 function _mmdInitBarModeSwitch(): void {
+  var strings: ViewerUIStrings = window._mmdUIStrings || {};
+  document.documentElement.lang = strings.language || 'en';
+  applyModeLabel('search', strings.search);
+  applyModeLabel('heading', strings.heading);
+  applyModeLabel('changeBlock', strings.changeBlock);
+  applyModeLabel('functionDefinition', strings.functionDefinition);
   setOnBarChange(updateSwitchAppearance);
   setOnAvailabilityChange(updateSwitchAppearance);
   // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
@@ -89,6 +95,14 @@ function _mmdInitBarModeSwitch(): void {
       openMode(key);
     });
   });
+}
+
+function applyModeLabel(mode: BarMode, label: string | undefined): void {
+  if (!label) return;
+  var button = document.getElementById(MODE_BUTTON_IDS[mode]);
+  if (!button) return;
+  button.textContent = label;
+  button.title = label;
 }
 
 export { _mmdInitBarModeSwitch };

@@ -15121,6 +15121,12 @@
     }
   }
   function _mmdInitBarModeSwitch() {
+    var strings = window._mmdUIStrings || {};
+    document.documentElement.lang = strings.language || "en";
+    applyModeLabel("search", strings.search);
+    applyModeLabel("heading", strings.heading);
+    applyModeLabel("changeBlock", strings.changeBlock);
+    applyModeLabel("functionDefinition", strings.functionDefinition);
     setOnBarChange(updateSwitchAppearance);
     setOnAvailabilityChange(updateSwitchAppearance);
     updateSwitchAppearance();
@@ -15131,6 +15137,13 @@
         openMode(key);
       });
     });
+  }
+  function applyModeLabel(mode, label) {
+    if (!label) return;
+    var button = document.getElementById(MODE_BUTTON_IDS[mode]);
+    if (!button) return;
+    button.textContent = label;
+    button.title = label;
   }
 
   // viewer-src/encoding.ts
@@ -16374,24 +16387,25 @@
     _mmdApplyDiagramZoom(wrap);
   }
   function _mmdBuildDiagramControls(wrap) {
+    var strings = window._mmdUIStrings || {};
     var controls = document.createElement("div");
     controls.className = "diagram-zoom-controls";
     var zoomOut = document.createElement("button");
     zoomOut.className = "diagram-zoom-out";
-    zoomOut.title = "\u7E2E\u5C0F";
+    zoomOut.title = strings.zoomOut || "Zoom Out";
     zoomOut.textContent = "\u2212";
     zoomOut.addEventListener("click", function() {
       _mmdDiagramZoomStep(wrap, -ZOOM_STEP);
     });
     var label = document.createElement("span");
     label.className = "diagram-zoom-label";
-    label.title = "\u30AF\u30EA\u30C3\u30AF\u3067\u30EA\u30BB\u30C3\u30C8";
+    label.title = strings.zoomReset || "Click to Reset";
     label.addEventListener("click", function() {
       _mmdDiagramZoomReset(wrap);
     });
     var zoomIn = document.createElement("button");
     zoomIn.className = "diagram-zoom-in";
-    zoomIn.title = "\u62E1\u5927";
+    zoomIn.title = strings.zoomIn || "Zoom In";
     zoomIn.textContent = "+";
     zoomIn.addEventListener("click", function() {
       _mmdDiagramZoomStep(wrap, ZOOM_STEP);

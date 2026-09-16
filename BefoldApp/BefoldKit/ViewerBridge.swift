@@ -294,4 +294,20 @@ public enum ViewerBridge {
         ]
         return assignGlobalScript("window._mmdImageStrings", strings)
     }
+
+    /// ロード時に viewer.html のモード切替と Mermaid 個別ズームの文言を注入する。
+    /// ブラウザ側の `lang` も同じバンドルが選んだローカライズに合わせる。
+    public static func uiStringsScript(bundle: Bundle = .befoldKitResources) -> String {
+        let strings: [String: String] = [
+            "language": bundle.preferredLocalizations.first ?? "en",
+            "search": String(localized: "viewer.mode.search", bundle: bundle),
+            "heading": String(localized: "viewer.mode.heading", bundle: bundle),
+            "changeBlock": String(localized: "viewer.mode.changeBlock", bundle: bundle),
+            "functionDefinition": String(localized: "viewer.mode.functionDefinition", bundle: bundle),
+            "zoomOut": String(localized: "viewer.diagram.zoomOut", bundle: bundle),
+            "zoomReset": String(localized: "viewer.diagram.zoomReset", bundle: bundle),
+            "zoomIn": String(localized: "viewer.diagram.zoomIn", bundle: bundle),
+        ]
+        return assignGlobalScript("window._mmdUIStrings", strings)
+    }
 }

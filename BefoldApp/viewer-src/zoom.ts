@@ -284,24 +284,25 @@ function _mmdDiagramWheelZoom(wrap: HTMLElement, deltaY: number): void {
 
 // CSP により動的生成要素へ onclick 属性は使わず addEventListener で配線する。
 function _mmdBuildDiagramControls(wrap: HTMLElement): HTMLElement {
+  var strings: ViewerUIStrings = window._mmdUIStrings || {};
   var controls = document.createElement('div');
   controls.className = 'diagram-zoom-controls';
   var zoomOut = document.createElement('button');
   zoomOut.className = 'diagram-zoom-out';
-  zoomOut.title = '縮小';
+  zoomOut.title = strings.zoomOut || 'Zoom Out';
   zoomOut.textContent = '−';
   zoomOut.addEventListener('click', function () {
     _mmdDiagramZoomStep(wrap, -ZOOM_STEP);
   });
   var label = document.createElement('span');
   label.className = 'diagram-zoom-label';
-  label.title = 'クリックでリセット';
+  label.title = strings.zoomReset || 'Click to Reset';
   label.addEventListener('click', function () {
     _mmdDiagramZoomReset(wrap);
   });
   var zoomIn = document.createElement('button');
   zoomIn.className = 'diagram-zoom-in';
-  zoomIn.title = '拡大';
+  zoomIn.title = strings.zoomIn || 'Zoom In';
   zoomIn.textContent = '+';
   zoomIn.addEventListener('click', function () {
     _mmdDiagramZoomStep(wrap, ZOOM_STEP);

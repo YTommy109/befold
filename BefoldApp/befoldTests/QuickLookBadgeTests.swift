@@ -13,14 +13,14 @@ struct QuickLookBadgeTests {
             "CFBundleVersion": "748",
         ])
 
-        #expect(text == "befold QL, version 1.7.3 (748)")
+        #expect(text == "befold QL 1.7.3 (748)")
     }
 
     @Test("ビルド番号が無ければバージョンだけを表示する")
     func showsVersionOnlyWithoutBuild() {
         let text = QuickLookBadge.text(infoDictionary: ["CFBundleShortVersionString": "1.7.3"])
 
-        #expect(text == "befold QL, version 1.7.3")
+        #expect(text == "befold QL 1.7.3")
     }
 
     /// バージョンが取れない場合でも、どの拡張が担当したかの識別だけは残す。

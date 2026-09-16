@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <!--
@@ -44,31 +44,31 @@
        ため、パネル単位のID（mmd-find-* / mmd-jump-*）は変えていない。
        placeholder/title は _mmdInitFind() / _mmdInitJump() が
        window._mmdFindStrings / window._mmdJumpStrings(ローカライズ済み)で上書きする。
-       未定義時のフォールバックとして日本語を静的に残す。 -->
+       未定義時は sourceLanguage=en に合わせた英語へフォールバックする。 -->
   <div id="mmd-bar" class="mmd-find-bar">
     <div id="mmd-bar-modes" class="mmd-bar-modes">
-      <button id="mmd-bar-mode-search" class="mmd-find-toggle mmd-bar-mode" title="検索">検索</button>
-      <button id="mmd-bar-mode-heading" class="mmd-find-toggle mmd-bar-mode" title="見出し">見出し</button>
-      <button id="mmd-bar-mode-changeBlock" class="mmd-find-toggle mmd-bar-mode" title="変更箇所">変更箇所</button>
-      <button id="mmd-bar-mode-functionDefinition" class="mmd-find-toggle mmd-bar-mode" title="定義">定義</button>
+      <button id="mmd-bar-mode-search" class="mmd-find-toggle mmd-bar-mode" title="Search">Search</button>
+      <button id="mmd-bar-mode-heading" class="mmd-find-toggle mmd-bar-mode" title="Heading">Heading</button>
+      <button id="mmd-bar-mode-changeBlock" class="mmd-find-toggle mmd-bar-mode" title="Change">Change</button>
+      <button id="mmd-bar-mode-functionDefinition" class="mmd-find-toggle mmd-bar-mode" title="Definition">Definition</button>
     </div>
     <div id="mmd-find-panel" class="mmd-bar-panel">
       <div class="mmd-find-input-wrap">
-        <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="検索">
+        <input id="mmd-find-input" type="text" class="mmd-find-input" placeholder="Search">
         <div class="mmd-find-toggles">
-          <button id="mmd-find-case" class="mmd-find-toggle" title="大文字・小文字を区別">Aa</button>
-          <button id="mmd-find-word" class="mmd-find-toggle" title="単語単位で検索">ab|</button>
-          <button id="mmd-find-regex" class="mmd-find-toggle" title="正規表現">.*</button>
+          <button id="mmd-find-case" class="mmd-find-toggle" title="Match Case">Aa</button>
+          <button id="mmd-find-word" class="mmd-find-toggle" title="Match Whole Word">ab|</button>
+          <button id="mmd-find-regex" class="mmd-find-toggle" title="Use Regular Expression">.*</button>
         </div>
       </div>
       <span id="mmd-find-count" class="mmd-find-count"></span>
-      <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+      <button id="mmd-find-prev" class="mmd-find-nav mmd-find-nav-prev" title="Previous (Shift+Enter)">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+      <button id="mmd-find-next" class="mmd-find-nav mmd-find-nav-next" title="Next (Enter)">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button id="mmd-find-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+      <button id="mmd-find-close" class="mmd-find-close" title="Close (Esc)">&times;</button>
     </div>
     <div id="mmd-jump-panel" class="mmd-bar-panel">
       <!-- レベルのトグルは jump-providers.ts の HEADING_LEVELS から生成する。
@@ -76,13 +76,13 @@
            独立して存在し、片方だけ増やしても何も落ちない（TASK-485.11）。 -->
       <div id="mmd-jump-levels" class="mmd-jump-levels"></div>
       <span id="mmd-jump-count" class="mmd-find-count"></span>
-      <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="前へ (Shift+Enter)">
+      <button id="mmd-jump-prev" class="mmd-find-nav mmd-find-nav-prev" title="Previous (Shift+Enter)">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 6.5L5 2.5L9 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button id="mmd-jump-next" class="mmd-find-nav mmd-find-nav-next" title="次へ (Enter)">
+      <button id="mmd-jump-next" class="mmd-find-nav mmd-find-nav-next" title="Next (Enter)">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 3.5L5 7.5L9 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button id="mmd-jump-close" class="mmd-find-close" title="閉じる (Esc)">&times;</button>
+      <button id="mmd-jump-close" class="mmd-find-close" title="Close (Esc)">&times;</button>
     </div>
   </div>
 

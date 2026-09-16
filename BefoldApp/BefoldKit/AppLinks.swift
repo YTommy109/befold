@@ -53,7 +53,7 @@ public enum AppLinks {
 /// URL を開けないため(2026-07-26 / macOS 26.5.2 で実機確認)。
 /// 押しても何も起きないリンク表示になるより、通常テキストの方がよい。
 public enum QuickLookBadge {
-    /// 例: `befold QL, version 1.7.3 (748)`
+    /// 例: `befold QL 1.7.3 (748)`
     /// appex では Bundle.main が appex 自身のバンドルを指す。バージョンは
     /// project.yml の settings.base で本体と同じ値が焼き込まれる。
     /// バージョンが取れない場合も、どの拡張が担当したかの識別だけは残す。
@@ -61,6 +61,6 @@ public enum QuickLookBadge {
         guard let version = VersionFormatting.versionString(infoDictionary: infoDictionary) else {
             return "befold QL"
         }
-        return "befold QL, version " + version
+        return "befold QL " + version
     }
 }
