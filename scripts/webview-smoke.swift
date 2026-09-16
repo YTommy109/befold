@@ -8,12 +8,14 @@
 //   3. .md が markdown-it で描画される
 //   3.3. 法令標準XML が内蔵スタイルシート（japanese-law.xsl）で XSLT 変換される
 //   4. 外部画像による情報流出が CSP(img-src) でブロックされる
+//   5. 印刷・PDF 保存で文書の全文が複数ページに分かれて出る(TASK-626)
 //
 // 使い方: swift scripts/webview-smoke.swift [Resources ディレクトリ]
 //   省略時は BefoldApp/BefoldKit/Resources を対象にする。
 // 成功で exit 0 / 失敗で非 0。
 
 import AppKit
+import PDFKit
 import WebKit
 
 let resourceDir = URL(
@@ -26,6 +28,10 @@ let htmlURL = resourceDir.appendingPathComponent("viewer.html")
 
 final class SmokeRunner: NSObject, WKNavigationDelegate {
     let webView: WKWebView
+    /// 印刷検証(checkPrintPagination)の間だけ使う。シート表示に webView を載せる窓が要る。
+    private var printWindow: NSWindow?
+    private var printOutput: URL?
+    private var expectedParagraphs = 0
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -320,15 +326,88 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             let hasIframe = (result["hasIframe"] as? Bool) ?? true
             if !hasIframe {
                 // DOMPurify が <iframe> ごと除去した(sanitizer 層で防御達成)。
-                self.finish()
+                self.checkPrintPagination()
                 return
             }
             guard let directive = result["violation"] as? String,
                   directive.hasPrefix("frame-src") || directive.hasPrefix("child-src") else {
                 self.fail("data: iframe が sanitizer にも CSP にもブロックされなかった")
             }
-            self.finish()
+            self.checkPrintPagination()
         }
+    }
+
+
+    // 6. 印刷・PDF 保存で全文が出るか(TASK-626)
+    //
+    // 画面用レイアウトは body(height:100vh)の中で .viewer が overflow:auto の
+    // スクロールコンテナになる構造で、そのまま印刷すると document が 1 画面分の
+    // 高さしか持たず、見えている範囲だけで切れる(実測: 段落 400 本・高さ 600px で
+    // PDF 1 ページ・9 段落)。style.css の @media print がこの構造を解いている。
+    // ここは「出た段落数」で見る——ページ数だけだと用紙設定や既定フォントが
+    // 変わったときに通ってしまい、切り捨てを見逃す。
+    func checkPrintPagination() {
+        let paragraphs = 400
+        let doc = (1 ... paragraphs)
+            .map { "para\($0) " + String(repeating: "abcde ", count: 12) }
+            .joined(separator: "\n\n")
+        asyncJS(
+            "await render(\(jsString(doc)), 'md'); return 'ok';",
+            "print-render"
+        ) { _ in
+            self.printAndCount(expected: paragraphs)
+        }
+    }
+
+    func printAndCount(expected: Int) {
+        // runModal(for:) はシートのため WebView を載せたウィンドウが要る。
+        // 既に frame を持つ webView をそのまま contentView にしてレイアウトを変えない。
+        let window = NSWindow(
+            contentRect: webView.frame, styleMask: [.titled],
+            backing: .buffered, defer: false
+        )
+        window.contentView = webView
+        window.makeKeyAndOrderFront(nil)
+        printWindow = window
+
+        let out = FileManager.default.temporaryDirectory
+            .appendingPathComponent("befold-smoke-print.pdf")
+        try? FileManager.default.removeItem(at: out)
+        printOutput = out
+        expectedParagraphs = expected
+
+        // 本体 WebViewDocumentRenderer.printDocument と同じ設定
+        let printInfo = NSPrintInfo()
+        printInfo.horizontalPagination = .automatic
+        printInfo.verticalPagination = .automatic
+        printInfo.isHorizontallyCentered = true
+        printInfo.isVerticallyCentered = false
+        printInfo.jobDisposition = .save
+        printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = out
+        let operation = webView.printOperation(with: printInfo)
+        operation.view?.frame = NSRect(origin: .zero, size: printInfo.paperSize)
+        operation.showsPrintPanel = false
+        operation.showsProgressPanel = false
+        operation.runModal(
+            for: window, delegate: self,
+            didRun: #selector(printDidRun(_:success:contextInfo:)), contextInfo: nil
+        )
+    }
+
+    @objc func printDidRun(
+        _: NSPrintOperation, success: Bool, contextInfo _: UnsafeMutableRawPointer?
+    ) {
+        guard success, let url = printOutput, let pdf = PDFDocument(url: url) else {
+            fail("印刷から PDF を生成できなかった")
+        }
+        let text = (0 ..< pdf.pageCount).compactMap { pdf.page(at: $0)?.string }.joined()
+        let found = (1 ... expectedParagraphs).filter { text.contains("para\($0)") }.count
+        print("print: pages=\(pdf.pageCount) paragraphs=\(found)/\(expectedParagraphs)")
+        try? FileManager.default.removeItem(at: url)
+        if found < expectedParagraphs {
+            fail("印刷で文書が途中で切れた(出たのは \(found)/\(expectedParagraphs) 段落)")
+        }
+        finish()
     }
 
     // PDF の検証はここに無い。**viewer.html は PDF を描かない。**
@@ -341,7 +420,7 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
     func finish() {
         print(
             "PASS: CSP 下で全スクリプト稼働・mmd/md/法令XML(XSLT) 描画・"
-                + "外部画像/data: iframe ブロックを確認"
+                + "外部画像/data: iframe ブロック・印刷の全文出力を確認"
         )
         exit(0)
     }
@@ -352,7 +431,7 @@ app.setActivationPolicy(.accessory)
 let runner = SmokeRunner()
 runner.webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)
 
-DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+DispatchQueue.main.asyncAfter(deadline: .now() + 40) {
     print("FAIL: timeout")
     exit(2)
 }

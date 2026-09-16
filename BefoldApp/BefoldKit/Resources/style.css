@@ -1055,3 +1055,42 @@ pre .befold-link-dead {
 #diagram-wrap.csv-body table td.csv-negative {
   color: var(--csv-negative-fg);
 }
+
+/*
+  印刷・PDF 保存（TASK-626）。
+  画面用レイアウトは body（height:100vh）の中で .viewer が overflow:auto の
+  スクロールコンテナになる構造のため、印刷対象の document は 1 画面分の高さ
+  しか持たない。実測（段落 400 本・ウィンドウ高 700px）では body.scrollHeight
+  が 700 のまま（.viewer.scrollHeight は 16048）で、PDF は 11 段落で切れた。
+  出る範囲はウィンドウ高とスクロール位置そのもので決まる（高さ 1200px なら
+  2 ページ 19 段落、スクロール半ばなら段落 201 から）。
+  印刷時だけスクロールコンテナを解き、文書の実寸で用紙へ流し込む。
+*/
+@media print {
+  /* 高さの制約と入れ子のスクロールを全て解く。.diagram-zoom-scroll の高さは
+     zoom.ts がインラインで書くため !important でないと勝てない。 */
+  body,
+  .viewer,
+  #diagram-wrap.code-body,
+  #diagram-wrap.code-body pre,
+  #diagram-wrap.code-body pre code,
+  #diagram-wrap.image-body,
+  .diagram-zoom-scroll {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* flex のままだと .viewer が 1 行に収まろうとするため通常フローへ戻す */
+  body,
+  .viewer {
+    display: block;
+  }
+
+  /* 画面に重ねるだけの UI は紙に出さない */
+  .mmd-bar,
+  .mmd-truncated-banner,
+  .diagram-zoom-controls {
+    display: none !important;
+  }
+}

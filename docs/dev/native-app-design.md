@@ -306,6 +306,14 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ` ```mermaid ` フェンスは markdown-it のカスタムレンダラーで `<pre class="mermaid">` に出力し mermaid.js が SVG 描画する
 - **その他ファイル種別**: SVG / HTML / CSV・TSV / 画像 / 各種ソースコードは
   `FileType` の判定に従い、ソースコードは highlight.js でシンタックスハイライトする
+- **印刷・PDF 保存の扱い**: 画面用レイアウトは `body`（`height: 100vh`）の中で
+  `.viewer` が `overflow: auto` のスクロールコンテナになる構造のため、そのまま
+  印刷すると document が 1 画面分の高さしか持たず、見えている範囲だけで切れる。
+  `style.css` の `@media print` が印刷時だけ高さの制約と入れ子の overflow を解き、
+  画面に重ねるだけの UI（検索バー・切り詰めバナー・ズームコントロール）を消す
+  （TASK-626）。回帰は `scripts/webview-smoke.swift` が実際に PDF を作って
+  出た段落数を数えることで見る。
+
 - **`.xml` の扱い**: 同ディレクトリに XSL スタイルシートがあるときだけ XSLT 変換して
   表示する（TASK-596）。スタイルシートの探索は `XSLStylesheetResolver` が担い、
   `<?xml-stylesheet?>` 処理命令の href（プロローグに限る）→ 同名 `.xsl` の順に見て、
