@@ -929,6 +929,11 @@ mark.mmd-find-match-current {
    その table 自身に padding-right を持たせれば、右端までスクロールしても
    トレーリング側の余白が(WebKit のフレックス経由スクロールで起きがちな
    ように)欠落しない。 */
+#diagram-wrap.csv-body {
+  /* markdown-body の読み幅(980px)は表には適用せず、利用可能な幅を使う */
+  max-width: 100%;
+}
+
 #diagram-wrap.csv-body table {
   max-width: none;
   /* Markdown 本文サイズ × 0.75(ソースコード表示と同程度) */
