@@ -164,7 +164,7 @@ final class ZoomingPDFView: PDFView {
         let room = PDFSurfaceLayout.verticalScrollRoom(of: self)
         guard room > 0 else { return }
         var origin = scrollView.contentView.bounds.origin
-        origin.y = PDFSurfaceLayout.scrollOffset(forFraction: fraction, room: room)
+        origin.y = PDFSurfaceLayout.scrollOffset(forFraction: fraction, in: self)
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
     }
@@ -180,8 +180,9 @@ final class ZoomingPDFView: PDFView {
     }
 
     /// 指定量だけアニメーションでスクロールする。**向きの規則は
-    /// `PDFSurfaceLayout.scrollOffset(forFraction:room:)` の doc が持つ**(下へ送るほど
-    /// y は減る)。キーボード操作の入口(`keyDown`)は方向を決めて委譲するだけにする。
+    /// `PDFSurfaceLayout.scrollsDownward(in:)` が持つ**(OS によって違う)。
+    /// ここは符号つきの量を受け取って `[0, 余地]` へ収めるだけなので、どちらの向きでも
+    /// 同じコードで済む。キーボード操作の入口(`keyDown`)は方向を決めて委譲するだけにする。
     func scrollSmoothly(by amount: Double) {
         guard let scrollView = PDFSurfaceLayout.scrollView(in: self) else { return }
         let clipView = scrollView.contentView

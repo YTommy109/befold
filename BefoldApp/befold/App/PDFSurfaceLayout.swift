@@ -111,15 +111,40 @@ enum PDFSurfaceLayout {
         guard let scrollView = pdfView.documentView?.enclosingScrollView else { return 0 }
         let room = verticalScrollRoom(of: pdfView)
         guard room > 0 else { return 0 }
-        return min(max(1 - scrollView.contentView.bounds.origin.y / room, 0), 1)
+        let fromTop = scrollView.contentView.bounds.origin.y / room
+        return min(max(scrollsDownward(in: pdfView) ? fromTop : 1 - fromTop, 0), 1)
     }
 
-    /// **`PDFView` のスクロール座標は下へ行くほど y が小さい**（実測:
-    /// `documentView.isFlipped == false`。開いた直後 y = 2394.5 = 余地いっぱい、
-    /// 最終ページで y ≈ 0）。web の面は 0 = 先頭なので、ここで向きを合わせる。
-    /// 合わせないと表示位置の記憶が上下反転し、スペースキーの送り方向も逆になる。
-    static func scrollOffset(forFraction fraction: Double, room: Double) -> Double {
-        room * (1 - min(max(fraction, 0), 1))
+    /// **スクロール座標の向きを決め打ちしない。面に訊く。**
+    ///
+    /// `true` なら下へ行くほど y が大きい（先頭が y = 0）。`false` ならその逆で、
+    /// 先頭が y = 余地いっぱい・末尾が y ≈ 0 になる。
+    ///
+    /// OS によって違う。実測: macOS 26 / Xcode 26.6 では `documentView.isFlipped ==
+    /// false`（開いた直後 y = 2394.5 = 余地いっぱい、最終ページで y ≈ 0）、
+    /// macOS 27 / Xcode 27.0 では `true`（開いた直後 y = 0）。決め打ちすると
+    /// 片方の OS で表示位置の記憶が上下反転し、スペースキーの送り方向も逆になる
+    /// （TASK-628。macOS 27 で実際にそうなっていた）。
+    ///
+    /// **向きを読むのはこの 1 箇所だけ。** `documentFraction` /
+    /// `scrollOffset(forFraction:in:)` / `scrollAmount(for:in:)` の 3 つが同じ 1 つの
+    /// 事実を別々のリテラルとして抱えていたため、OS が変わったときに 3 箇所とも
+    /// 静かに逆を向いた。読むのは `NSClipView.isFlipped`——`bounds.origin.y` の
+    /// 意味を決めている当の事実であって、値の形から推測しているのではない。
+    ///
+    /// 面がまだスクロールビューを持たない間の値は使われない（この述語を読む 3 つは
+    /// いずれもスクロールビューか余地の有無で先に抜ける）。
+    static func scrollsDownward(in pdfView: PDFView) -> Bool {
+        scrollView(in: pdfView)?.contentView.isFlipped ?? true
+    }
+
+    /// その表示位置（0…1）に対応するクリップビューの y。
+    ///
+    /// web の面は 0 = 先頭なので、ここで面の向き（`scrollsDownward(in:)`）へ合わせる。
+    static func scrollOffset(forFraction fraction: Double, in pdfView: PDFView) -> Double {
+        let room = verticalScrollRoom(of: pdfView)
+        let fromTop = room * min(max(fraction, 0), 1)
+        return scrollsDownward(in: pdfView) ? fromTop : room - fromTop
     }
 
     /// いま見えている高さ(文書座標)。
@@ -232,16 +257,16 @@ enum PDFSurfaceLayout {
         }
     }
 
-    /// 送り量(文書座標・符号つき)。**向きの符号を持つのはここだけ。**
-    /// `documentView` は上下反転していないので下へ送るほど y は減る
-    /// (`scrollOffset(forFraction:room:)` の doc と同じ約束)。
+    /// 送り量(文書座標・符号つき)。**キーボード操作で向きを決めるのはここだけ。**
+    /// 面の向きは `scrollsDownward(in:)` に訊く(決め打ちしない)。
     static func scrollAmount(for scroll: KeyboardScroll, in pdfView: PDFView) -> Double {
         let magnitude = switch scroll.step {
         case .page: visibleHeight(of: pdfView)
         case .halfPage: visibleHeight(of: pdfView) / 2
         case .line: lineScrollStep / pdfView.scaleFactor
         }
-        return scroll.backwards ? magnitude : -magnitude
+        let towardsEnd = scrollsDownward(in: pdfView) ? magnitude : -magnitude
+        return scroll.backwards ? -towardsEnd : towardsEnd
     }
 
     /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。
