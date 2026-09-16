@@ -326,12 +326,25 @@ struct PDFSurfaceLayoutTests {
         }
     }
 
-    /// 送り量の符号は**この 1 箇所**が持つ。`documentView` は上下反転していないので
-    /// 下へ送るほど y は減る（`scrollOffset(forFraction:room:)` の doc と同じ約束）。
-    @Test("下へ送ると負、上へ送ると正になる")
+    /// **送り量の符号は「文書の末尾へ向かう向き」と一致する。**
+    ///
+    /// 符号そのもの（「下へ送ると負」）をアサートしてはならない。スクロール座標の
+    /// 向きは OS で変わり（macOS 26 は `isFlipped == false`、macOS 27 は `true` /
+    /// TASK-628 の実測）、決め打ちを測ると**実アプリがキーで逆方向へ送っていても
+    /// 緑になる**。実際 macOS 27 でこのテストだけが通り続け、位置の復元 6 件が
+    /// 落ちた形で表に出た。
+    ///
+    /// ここで測るのは `scrollOffset(forFraction:in:)` との一致。あちらの向きは
+    /// `PDFSurfacePositionTests` が「0 が先頭、1 が末尾」で固定しているので、
+    /// この 2 本で「送り量の符号 ↔ y の向き ↔ 表示位置の向き」が繋がる。
+    @Test("下へ送る量は文書の末尾へ向かう向きを指す")
     func directionIsCarriedBySignOfTheAmount() {
-        let pdfView = makeView()
+        let pageSize = NSSize(width: 612, height: 792)
+        let pdfView = makeView(pageSizes: Array(repeating: pageSize, count: 4))
+        #expect(PDFSurfaceLayout.verticalScrollRoom(of: pdfView) > 0) // 余地が無いと測れない
 
+        let towardsTop = PDFSurfaceLayout.scrollOffset(forFraction: 0, in: pdfView)
+        let towardsEnd = PDFSurfaceLayout.scrollOffset(forFraction: 1, in: pdfView)
         let downward = PDFSurfaceLayout.scrollAmount(
             for: .init(step: .page, backwards: false), in: pdfView
         )
@@ -339,8 +352,7 @@ struct PDFSurfaceLayoutTests {
             for: .init(step: .page, backwards: true), in: pdfView
         )
 
-        #expect(downward < 0)
-        #expect(upward > 0)
+        #expect((towardsEnd - towardsTop).sign == downward.sign)
         #expect(downward == -upward)
     }
 }

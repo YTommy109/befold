@@ -385,8 +385,12 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   ページの影は描かない（連続では全ページ分の影が乗り、描画コストの大半を占める。
   実測: 231 ページで 36.5ms → 4.3ms）。フィットは**ページ全体が収まる倍率**で、文書内でいちばん大きいページに合わせる
   （ページごとに合わせ直すと、スクロール中に倍率が動く）。表示位置は 0 が先頭・
-  1 が末尾で、`PDFView` のスクロール座標（下へ行くほど y が小さい）との向きの
-  変換は `PDFSurfaceLayout.scrollOffset(forFraction:room:)` が持つ。
+  1 が末尾で、`PDFView` のスクロール座標との向きの変換は
+  `PDFSurfaceLayout.scrollOffset(forFraction:in:)` が持つ。
+  **スクロール座標の向きは決め打ちせず面に訊く**（`PDFSurfaceLayout.scrollsDownward(in:)`）。
+  macOS 26 までは documentView が非反転で下へ行くほど y が小さく、macOS 27 で
+  反転した（TASK-628 の実測）。表示位置・送り量・復元位置の 3 つが同じ事実を
+  別々のリテラルとして抱えていたため、OS が変わった時点で 3 箇所とも静かに逆を向いた。
   表示位置（文書全体に対する 0…1）と 90 度回転（右上に重ねた `PDFRotationOverlay` の
   2 つのボタン。文書全体に効く）は
   ウィンドウの生存期間だけ記憶する（`WindowPresentationMemory`）。倍率だけは
