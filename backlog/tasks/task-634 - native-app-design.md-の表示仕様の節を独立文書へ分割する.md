@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-17 06:24'
-updated_date: '2026-09-17 06:39'
+updated_date: '2026-09-17 06:54'
 labels: []
 dependencies: []
 priority: low
@@ -49,6 +49,8 @@ native-app-design.md は 746 → 431 行。file-type-display.md 158 行、viewer
 #表示仕様 の見出しは索引として残したので、新 2 文書の derived-from はそこを指す。viewer-rendering-dataflow.md の derived-from は file-type-display.md へ付け替えた。#モジュール構成 / #ファイル監視 を指す 3 件は見出しが残るため変更不要。
 CLAUDE.md の specs バナーのテンプレートは入口として native-app-design.md を指したままにした（既存 65 件の specs は書き換えない）。
 検証: markdownlint-cli2 指摘 0 件（83 ファイル）、scripts/check-doc-citations.sh と scripts/check-doc-symbols.sh は終了コード 0。コード変更なしのため、テスト・swiftformat・swiftlint・ビルドは対象外。現在仕様の反映はこのタスクそのもの。
+
+追補: ユーザーの「viewer-ui.md が読みにくい」を受け、移動とは別コミットで構成を整えた。1 つの箇条書き（文書内ジャンプだけで約 100 行）を見出し単位に分け、役割分担・目印の種類・ショートカットの情報源・行の開き分けを表にした。記述の中身は変えていない（バッククォート内の識別子と TASK / ADR 番号を旧版と突き合わせ、欠落なし）。markdownlint 指摘 0 件。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
