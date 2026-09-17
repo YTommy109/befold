@@ -26,11 +26,8 @@ interface ViewerImageStrings {
 
 /// ViewerBridge.uiStringsScript(bundle:) が注入する viewer 共通 UI の文言。
 interface ViewerUIStrings {
-  language?: string;
-  search?: string;
-  heading?: string;
-  changeBlock?: string;
-  functionDefinition?: string;
+  // バーのモード名。キーは bar-mode.ts の MODES の要素。
+  modes?: Record<string, string>;
   zoomOut?: string;
   zoomReset?: string;
   zoomIn?: string;

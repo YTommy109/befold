@@ -255,26 +255,6 @@ struct ViewerBridgeTests {
         #expect(script.hasSuffix(";"))
     }
 
-    @Test("uiStringsScript が全キーを含む妥当な JSON を生成する")
-    func uiStringsScriptProducesValidJSONWithAllKeys() throws {
-        let script = ViewerBridge.uiStringsScript()
-
-        let jsonPart = script
-            .replacingOccurrences(of: "window._mmdUIStrings = ", with: "")
-            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
-        let data = try #require(jsonPart.data(using: .utf8))
-        let decoded = try #require(
-            try JSONSerialization.jsonObject(with: data) as? [String: String]
-        )
-
-        for key in [
-            "language", "search", "heading", "changeBlock",
-            "functionDefinition", "zoomOut", "zoomReset", "zoomIn",
-        ] {
-            #expect(decoded[key]?.isEmpty == false)
-        }
-    }
-
     @Test("resolveReferences のメッセージ名が固定値である")
     func resolveReferencesRawValueIsFixed() {
         #expect(ViewerBridgeMessage.resolveReferences.rawValue == "resolveReferences")

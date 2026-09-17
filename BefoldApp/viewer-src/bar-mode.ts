@@ -13,7 +13,8 @@ import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } f
 type BarMode = 'search' | 'heading' | 'changeBlock' | 'functionDefinition';
 
 // 検索以外のモード名は Swift の DocumentJumpKind.rawValue と一対一。
-// **モードの列挙はこの配列だけが持つ。** 種類を足すときに触る場所を 1 つに
+// **モードの列挙はこの配列だけが持つ**（Swift の ViewerBridge.barModes は
+// 契約テストでこの配列との一致を検査される）。 種類を足すときに触る場所を 1 つに
 // 保つためで、かつて currentMode() が `kind === 'heading' || kind === 'changeBlock'`
 // と独立に列挙しており、Swift 側が allCases で自動追随するのに対して
 // ここだけ取り残される形だった（TASK-485.4 の設計レビュー）。
@@ -77,12 +78,7 @@ function openMode(mode: BarMode): void {
 }
 
 function _mmdInitBarModeSwitch(): void {
-  var strings: ViewerUIStrings = window._mmdUIStrings || {};
-  document.documentElement.lang = strings.language || 'en';
-  applyModeLabel('search', strings.search);
-  applyModeLabel('heading', strings.heading);
-  applyModeLabel('changeBlock', strings.changeBlock);
-  applyModeLabel('functionDefinition', strings.functionDefinition);
+  var labels = (window._mmdUIStrings || {}).modes || {};
   setOnBarChange(updateSwitchAppearance);
   setOnAvailabilityChange(updateSwitchAppearance);
   // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
@@ -91,18 +87,17 @@ function _mmdInitBarModeSwitch(): void {
   MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;
+    // ラベルは ViewerBridge.uiStringsScript が viewer.mode.<モード名> から引いて渡す。
+    // 未注入なら viewer.html の静的な英語のまま（キーの漏れは Swift の契約テストが捕まえる）。
+    var label = labels[key];
+    if (label) {
+      button.textContent = label;
+      button.title = label;
+    }
     button.addEventListener('click', function () {
       openMode(key);
     });
   });
-}
-
-function applyModeLabel(mode: BarMode, label: string | undefined): void {
-  if (!label) return;
-  var button = document.getElementById(MODE_BUTTON_IDS[mode]);
-  if (!button) return;
-  button.textContent = label;
-  button.title = label;
 }
 
 export { _mmdInitBarModeSwitch };

@@ -295,19 +295,30 @@ public enum ViewerBridge {
         return assignGlobalScript("window._mmdImageStrings", strings)
     }
 
+    /// バーのモード名。bar-mode.ts の `MODES` と一致していなければならない
+    /// （`ViewerBridgeContractTests` が集合の一致と、各モードの訳の存在を検査する）。
+    /// `DocumentJumpKind` は本体アプリ側にあり BefoldKit から参照できないため、ここで持つ。
+    public static let barModes = ["search", "heading", "changeBlock", "functionDefinition"]
+
+    private struct UIStrings: Encodable {
+        let modes: [String: String]
+        let zoomOut: String
+        let zoomReset: String
+        let zoomIn: String
+    }
+
     /// ロード時に viewer.html のモード切替と Mermaid 個別ズームの文言を注入する。
-    /// ブラウザ側の `lang` も同じバンドルが選んだローカライズに合わせる。
+    /// モード名は `viewer.mode.<モード名>` から引く。キーが無ければキー文字列そのものが入る。
     public static func uiStringsScript(bundle: Bundle = .befoldKitResources) -> String {
-        let strings: [String: String] = [
-            "language": bundle.preferredLocalizations.first ?? "en",
-            "search": String(localized: "viewer.mode.search", bundle: bundle),
-            "heading": String(localized: "viewer.mode.heading", bundle: bundle),
-            "changeBlock": String(localized: "viewer.mode.changeBlock", bundle: bundle),
-            "functionDefinition": String(localized: "viewer.mode.functionDefinition", bundle: bundle),
-            "zoomOut": String(localized: "viewer.diagram.zoomOut", bundle: bundle),
-            "zoomReset": String(localized: "viewer.diagram.zoomReset", bundle: bundle),
-            "zoomIn": String(localized: "viewer.diagram.zoomIn", bundle: bundle),
-        ]
+        let modes = Dictionary(uniqueKeysWithValues: barModes.map { mode in
+            (mode, bundle.localizedString(forKey: "viewer.mode.\(mode)", value: nil, table: nil))
+        })
+        let strings = UIStrings(
+            modes: modes,
+            zoomOut: String(localized: "viewer.diagram.zoomOut", bundle: bundle),
+            zoomReset: String(localized: "viewer.diagram.zoomReset", bundle: bundle),
+            zoomIn: String(localized: "viewer.diagram.zoomIn", bundle: bundle)
+        )
         return assignGlobalScript("window._mmdUIStrings", strings)
     }
 }

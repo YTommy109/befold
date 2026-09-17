@@ -1,9 +1,11 @@
 ---
 id: TASK-631
 title: バーのモード名ラベルの供給元が二重化し、キーを足し忘れると黙って英語で出る
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-17 04:41'
+updated_date: '2026-09-17 04:58'
 labels: []
 dependencies:
   - TASK-630
@@ -36,8 +38,23 @@ PR #678 がラベルの供給元を増やしたため、この不変条件が破
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 MODES に新しいモードを足して xcstrings のキーを足し忘れた状態にすると、Swift のテストが落ちる
-- [ ] #2 ラベル適用の呼び出しが MODES の要素を個別に書き並べておらず、モードの列挙を再記述していない
-- [ ] #3 viewer.mode.* の 4 キーと viewer.diagram.zoomReset に、既存キーと同じ基準の comment が付いている
-- [ ] #4 docs/dev/native-app-design.md の統合バーの節が、モード名ラベルの供給元が Localizable.xcstrings であることに追随している
+- [x] #1 MODES に新しいモードを足して xcstrings のキーを足し忘れた状態にすると、Swift のテストが落ちる
+- [x] #2 ラベル適用の呼び出しが MODES の要素を個別に書き並べておらず、モードの列挙を再記述していない
+- [x] #3 viewer.mode.* の 4 キーと viewer.diagram.zoomReset に、既存キーと同じ基準の comment が付いている
+- [x] #4 docs/dev/native-app-design.md の統合バーの節が、モード名ラベルの供給元が Localizable.xcstrings であることに追随している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. uiStrings のモード名を modes 辞書に畳み、JS は MODES.forEach 内で strings.modes[key] を引く（列挙の再記述を消す）
+2. Swift 側のモード一覧は DocumentJumpKind が BefoldKit から見えないため ViewerBridge.barModes に置き、契約テストで JS の MODES と集合一致・全モードが訳されている（キーそのものに落ちていない）ことを検査
+3. xcstrings の viewer.mode.* と viewer.diagram.zoomReset に comment を付与
+4. native-app-design.md の統合バーの節を追随
+<!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+モード名ラベルを window._mmdUIStrings.modes に畳み、bar-mode.ts は既存の MODES.forEach の中で引く形にして列挙の再記述を削除。Swift 側のモード一覧は DocumentJumpKind が BefoldKit から見えないため ViewerBridge.barModes に置き、契約テスト barModesMatchJSAndAreLocalized が viewer-bundle.js の MODES との集合一致と en/ja の viewer.mode.* の訳の存在を検査する。変異確認: MODES にだけ追加→集合不一致と訳なしで失敗、両方に追加して訳なし→訳なしで失敗。xcstrings の viewer.mode.* 4 キーと viewer.diagram.zoomReset に comment を付与し、native-app-design.md の統合バーの節を追随。swiftlint の main 差分で PR 由来の type_body_length 超過（ViewerBridgeTests）が出たため、uiStrings のテストを ViewerBridgeContractTests へ移して解消。
+<!-- SECTION:FINAL_SUMMARY:END -->

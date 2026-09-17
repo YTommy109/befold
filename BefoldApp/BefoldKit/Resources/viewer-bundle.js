@@ -15121,29 +15121,22 @@
     }
   }
   function _mmdInitBarModeSwitch() {
-    var strings = window._mmdUIStrings || {};
-    document.documentElement.lang = strings.language || "en";
-    applyModeLabel("search", strings.search);
-    applyModeLabel("heading", strings.heading);
-    applyModeLabel("changeBlock", strings.changeBlock);
-    applyModeLabel("functionDefinition", strings.functionDefinition);
+    var labels = (window._mmdUIStrings || {}).modes || {};
     setOnBarChange(updateSwitchAppearance);
     setOnAvailabilityChange(updateSwitchAppearance);
     updateSwitchAppearance();
     MODES.forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
+      var label = labels[key];
+      if (label) {
+        button.textContent = label;
+        button.title = label;
+      }
       button.addEventListener("click", function() {
         openMode(key);
       });
     });
-  }
-  function applyModeLabel(mode, label) {
-    if (!label) return;
-    var button = document.getElementById(MODE_BUTTON_IDS[mode]);
-    if (!button) return;
-    button.textContent = label;
-    button.title = label;
   }
 
   // viewer-src/encoding.ts
