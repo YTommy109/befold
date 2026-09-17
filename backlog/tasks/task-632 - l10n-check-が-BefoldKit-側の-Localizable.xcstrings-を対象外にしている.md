@@ -1,9 +1,11 @@
 ---
 id: TASK-632
 title: /l10n-check が BefoldKit 側の Localizable.xcstrings を対象外にしている
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-17 04:42'
+updated_date: '2026-09-17 04:50'
 labels: []
 dependencies: []
 references:
@@ -27,6 +29,12 @@ PR #678 が BefoldKit 側へ 7 キー（viewer.diagram.zoomIn / zoomOut / zoomRe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 /l10n-check が BefoldApp/BefoldKit/Resources/Localizable.xcstrings も検査対象にしている
-- [ ] #2 検出結果にどちらのカタログのキーかが示される
+- [x] #1 /l10n-check が BefoldApp/BefoldKit/Resources/Localizable.xcstrings も検査対象にしている
+- [x] #2 検出結果にどちらのカタログのキーかが示される
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+/l10n-check の対象に BefoldApp/BefoldKit/Resources/Localizable.xcstrings を加え、出力の各行に [befold | BefoldKit] でカタログを示すようにした。手順どおりの検査を両カタログへ実行し、befold 244 キー / BefoldKit 22 キーとも翻訳漏れ・未対応状態なしを確認。
+<!-- SECTION:FINAL_SUMMARY:END -->
