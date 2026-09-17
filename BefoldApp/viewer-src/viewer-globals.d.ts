@@ -24,6 +24,18 @@ interface ViewerImageStrings {
   blockedRemote?: string;
 }
 
+/// ViewerBridge.uiStringsScript(bundle:) が注入する viewer 共通 UI の文言。
+interface ViewerUIStrings {
+  language?: string;
+  search?: string;
+  heading?: string;
+  changeBlock?: string;
+  functionDefinition?: string;
+  zoomOut?: string;
+  zoomReset?: string;
+  zoomIn?: string;
+}
+
 /// ViewerBridge.bannerStringsScript(bundle:) が注入する段階読み込みバナーの文言。
 interface ViewerBannerStrings {
   showing?: string;
@@ -90,6 +102,8 @@ interface Window {
   _mmdBannerStrings?: ViewerBannerStrings;
   // ViewerBridge.imageStringsScript(bundle:)
   _mmdImageStrings?: ViewerImageStrings;
+  // ViewerBridge.uiStringsScript(bundle:)
+  _mmdUIStrings?: ViewerUIStrings;
   // ViewerBridge.initialFindOptionsScript(_:)
   _mmdInitialFindOptions?: ViewerFindOptions;
   // ViewerBridge.findStringsScript(bundle:)

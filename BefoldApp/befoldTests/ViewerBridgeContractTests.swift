@@ -71,6 +71,7 @@ struct ViewerBridgeContractTests {
         #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdFindRefresh", parameterCount: 1))
         #expect(html.contains("window._mmdInitialFindOptions"))
         #expect(html.contains("window._mmdFindStrings"))
+        #expect(html.contains("window._mmdUIStrings"))
         #expect(ViewerBridgeContractSupport.definesFunction(html, "appendChunk", parameterCount: 3))
     }
 
@@ -132,6 +133,18 @@ struct ViewerBridgeContractTests {
         #expect(keys.count == 8)
         for key in keys {
             #expect(source.contains("strings.\(key)"), "find キー '\(key)' が viewer-bundle.js で読まれていない")
+        }
+    }
+
+    @Test("uiStrings の各キーが viewer-bundle.js で読み取られている")
+    func uiStringsKeysAreReadInJS() throws {
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
+        let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(
+            from: ViewerBridge.uiStringsScript(), global: "window._mmdUIStrings"
+        )
+        #expect(keys.count == 8)
+        for key in keys {
+            #expect(source.contains("strings.\(key)"), "UI キー '\(key)' が viewer-bundle.js で読まれていない")
         }
     }
 

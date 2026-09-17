@@ -103,6 +103,7 @@ export interface LoadViewerMainOptions {
   hostFeatures?: Window['_mmdHostFeatures'];
   initialFindOptions?: Window['_mmdInitialFindOptions'];
   findStrings?: Window['_mmdFindStrings'];
+  uiStrings?: Window['_mmdUIStrings'];
   // 見出しジャンプで目印にするレベルの保存値（["h1","h2","h3"] 形式）。
   // 空配列は「3 つとも OFF」で、未指定（プロパティ自体が無い）とは別の意味。
   initialJumpLevels?: Window['_mmdInitialJumpLevels'];
@@ -143,6 +144,9 @@ export function loadViewerMain(options: LoadViewerMainOptions = {}): LoadedViewe
   }
   if (options.findStrings !== undefined) {
     window._mmdFindStrings = options.findStrings;
+  }
+  if (options.uiStrings !== undefined) {
+    window._mmdUIStrings = options.uiStrings;
   }
   if (options.initialJumpLevels !== undefined) {
     window._mmdInitialJumpLevels = options.initialJumpLevels;

@@ -49,7 +49,7 @@ describe('エクスポート境界', () => {
     expect(typeof main._mmdInit).toBe('function');
     // _mmdInitFind() が反映するはずの状態が未適用であること
     expect((document.getElementById('mmd-find-input') as HTMLInputElement).placeholder).toBe(
-      '検索',
+      'Search',
     );
   });
 
@@ -989,6 +989,19 @@ describe('ダイアグラム個別ズーム', () => {
     loaded.main._mmdWrapDiagrams(diagramWrap);
     return wraps(loaded.document);
   }
+
+  test('注入されたツールチップを適用する', () => {
+    const loaded = loadViewerMain({
+      uiStrings: { zoomOut: '縮小', zoomReset: 'クリックでリセット', zoomIn: '拡大' },
+    });
+    const [first] = wrapTwoDiagrams(loaded);
+
+    expect(first!.querySelector<HTMLElement>('.diagram-zoom-out')!.title).toBe('縮小');
+    expect(first!.querySelector<HTMLElement>('.diagram-zoom-label')!.title).toBe(
+      'クリックでリセット',
+    );
+    expect(first!.querySelector<HTMLElement>('.diagram-zoom-in')!.title).toBe('拡大');
+  });
 
   test('個別ズームは対象のダイアグラムだけに効く', () => {
     const loaded = loadViewerMain({});

@@ -26,6 +26,23 @@ const clickMode = (document: Document, mode: string) => {
 };
 
 describe('バーのモード切替スイッチ', () => {
+  test('注入された言語とモード名を適用する', () => {
+    const labels = {
+      search: '検索',
+      heading: '見出し',
+      changeBlock: '変更箇所',
+      functionDefinition: '定義',
+    };
+    const { document } = loadViewerMain({ uiStrings: { language: 'ja', ...labels } });
+
+    expect(document.documentElement.lang).toBe('ja');
+    for (const [mode, label] of Object.entries(labels)) {
+      const button = document.getElementById('mmd-bar-mode-' + mode)!;
+      expect(button.textContent).toBe(label);
+      expect(button.title).toBe(label);
+    }
+  });
+
   test('何も開いていない間は外枠が非表示で、どのセグメントも選択状態を持たない', () => {
     const { document } = loadViewerMain({});
 

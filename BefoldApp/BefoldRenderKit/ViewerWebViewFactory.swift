@@ -180,6 +180,7 @@ public enum ViewerWebViewFactory {
             ViewerJumpBridge.initialJumpLevelsScript(options.headingJumpLevels),
             ViewerFindBridge.findStringsScript(),
             ViewerJumpBridge.jumpStringsScript(),
+            ViewerBridge.uiStringsScript(),
             ViewerBridge.bannerStringsScript(),
             ViewerBridge.imageStringsScript(),
             ViewerBridge.hostFeaturesScript(
