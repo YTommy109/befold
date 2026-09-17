@@ -229,6 +229,7 @@ describe('テーブル HTML への反映', () => {
       path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
       'utf8',
     );
+    expect(css).toMatch(/#diagram-wrap\.csv-body\s*\{[^}]*max-width:\s*100%;/u);
     expect(css).toContain('#diagram-wrap.csv-body table td.csv-num');
     expect(css).toContain('font-variant-numeric: tabular-nums;');
     // <th> は寄せない。セレクタに th.csv-num が復活したらここで落とす。
