@@ -599,6 +599,28 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   `SidebarLayoutTransition` が持ち、ライブ値の更新自体は上の入口を通る。
   展開状態とスナップショットはウィンドウ単位・メモリのみで永続化しない
 
+### ファイル種別ごとの表示幅
+
+`#diagram-wrap` は既定で幅 100%。種別ごとの差は `viewer-src/renderers.ts` が
+付ける body クラスと `style.css` の規則で決まる。
+
+| 種別 | body クラス | 幅の扱い |
+|---|---|---|
+| Markdown | `markdown-body` | 読み幅の上限 `980px`。本文内のダイアグラムは左寄せ |
+| XSLT 変換した XML | `xslt-body` | Markdown と同じ上限 `980px` |
+| CSV / TSV | `markdown-body` + `csv-body` | 上限なし（全幅）。表は内容幅で、広ければ表自身が横スクロールする |
+| Mermaid / SVG | なし | 全幅。図はズーム用ラッパー内で中央寄せ（SVG は `max-width: 100%` で幅に収める） |
+| HTML | `html-body` | iframe を幅 100% で置き、レイアウトは文書自身が持つ |
+| 画像 | `image-body` | 縦横ともウィンドウ内へフィット（寸法は `imageFitSize` が計算） |
+| コード・ソース表示 | `code-body` | 全幅。長い行は折り返す（`pre-wrap` + `break-all`） |
+| PDF | —（WebView を使わない） | ネイティブの `PDFView` が表示と拡大縮小を持つ |
+
+CSV に `markdown-body` を付けるのは github-markdown-css の表の装飾を借りるためで、
+`980px` の読み幅は Markdown 本文のためのもの。そのため CSV の上書きは
+`#diagram-wrap.markdown-body.csv-body` として**詳細度で** `markdown-body` の規則に
+勝たせ、style.css 内の記述順に依存させない（TASK-633。
+`viewer-csv-columns.test.ts` がカスケードを評価して確かめる）。
+
 ---
 
 ## リモート読み込みの遮断
