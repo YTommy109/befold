@@ -307,6 +307,41 @@ DROP が通る。`events` は追記のみでバックアップ運用が無く、
 成功する（1 行も変更しないため）。**権限だけでは書き込み文の実行そのものは
 止まらない**ので、`analytics-query.sh` 側の文面検査を外さないこと。
 
+## 古い dev リリースの一括削除
+
+しきい値バージョン以前の dev リリースをまとめて消すときは
+**`scripts/cleanup-old-dev-releases.sh` を唯一の入口にする**。
+
+```bash
+scripts/cleanup-old-dev-releases.sh --dry-run 1.19.0   # 対象確認のみ
+scripts/cleanup-old-dev-releases.sh 1.19.0              # 実削除
+```
+
+GitHub Release／タグ・R2 オブジェクト（`releases/<tag>/`）・
+`appcast.xml` / `appcast-develop.xml` の該当 item を同一タグ単位で
+まとめて消す。対象の洗い出しは **R2 を正として直接列挙する**
+（`site/src/lib/dist.ts` のとおり、GitHub Releases は移行期の後方互換用で
+正ではない）。実測（2026-09-17）: GitHub Releases 一覧から対象を洗い出すと、
+既に Release だけ個別に削除されて R2 にだけ孤立して残るオブジェクトを
+取りこぼす。
+
+### R2 管理用トークンの作り方
+
+1. Cloudflare ダッシュボード → My Profile → API Tokens → Create Token →
+   Create Custom Token
+2. Permissions に **Account / Workers R2 Storage / Edit** だけを追加する
+   （他は追加しない。一覧・削除・appcast の上書きに Edit 権限が必要）
+3. Account Resources を対象アカウントに限定する
+4. 発行された値を Keychain に入れる
+
+   ```bash
+   security add-generic-password -a "$USER" -s befold-r2-admin -w
+   ```
+
+   スクリプトは環境変数 `CLOUDFLARE_R2_ADMIN_TOKEN` を先に見て、無ければ
+   この Keychain 項目から取る。デプロイ用の `CLOUDFLARE_API_TOKEN` や
+   D1 読み取り専用トークンとは別物で、混ぜない。
+
 ## 接続元組織（ASN）の計測
 
 `request.cf.asOrganization`（Cloudflare が解決する AS 保有組織名、例: Google Cloud）を
