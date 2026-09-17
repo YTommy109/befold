@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-17 06:24'
-updated_date: '2026-09-17 06:54'
+updated_date: '2026-09-17 06:56'
 labels: []
 dependencies: []
 priority: low
@@ -51,6 +51,8 @@ CLAUDE.md の specs バナーのテンプレートは入口として native-app-
 検証: markdownlint-cli2 指摘 0 件（83 ファイル）、scripts/check-doc-citations.sh と scripts/check-doc-symbols.sh は終了コード 0。コード変更なしのため、テスト・swiftformat・swiftlint・ビルドは対象外。現在仕様の反映はこのタスクそのもの。
 
 追補: ユーザーの「viewer-ui.md が読みにくい」を受け、移動とは別コミットで構成を整えた。1 つの箇条書き（文書内ジャンプだけで約 100 行）を見出し単位に分け、役割分担・目印の種類・ショートカットの情報源・行の開き分けを表にした。記述の中身は変えていない（バッククォート内の識別子と TASK / ADR 番号を旧版と突き合わせ、欠落なし）。markdownlint 指摘 0 件。
+
+追補 2: file-type-display.md も同じ形に組み直した（共通 / Mermaid・Markdown / XML / PDF / CSV・TSV / 表示幅）。XML は解決順・種別・描画形・変換・全量読み込み・法令標準XML、PDF は読み込み・検索・見え方・スクロール位置・記憶する状態に分け、サイズ上限と記憶する状態は表にした。スタイルシート解決順の 3 番目（japanese-law.xsl）は、元の法令XMLの段にあった「最後の候補」を一覧へ明記しただけで内容の追加ではない。識別子・TASK/ADR 番号・実測値（MB/ms/pt/秒/行）を旧版と突き合わせ、欠落なし。markdownlint 指摘 0 件、check-doc-citations 通過。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
