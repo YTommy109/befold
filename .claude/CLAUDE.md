@@ -343,7 +343,7 @@ app-global キーの読み手が消えたまま残った。結果、旧状態で
 
 | 層 | 置き場 | 性質 | 更新のタイミング |
 |---|---|---|---|
-| 現在の仕様 | `docs/dev/native-app-design.md` | 常に「今」を表す単一の情報源 | 実装完了時に**必ず**追随させる |
+| 現在の仕様 | `docs/dev/native-app-design.md` と、その索引から辿る文書（表示仕様は `file-type-display.md` / `viewer-ui.md`） | 常に「今」を表す単一の情報源。入口は native-app-design.md | 実装完了時に**必ず**追随させる |
 | 設計スナップショット | `docs/superpowers/specs/*-design.md` | 書かれた時点の意図と検討経緯。追記も修正もしない | 起票・設計時に 1 回書くだけ |
 | 不可逆な設計判断 | `backlog/decisions/`（ADR） | 他の選択肢を潰した判断とその理由 | 判断を下した時点 |
 
@@ -363,7 +363,7 @@ app-global キーの読み手が消えたまま残った。結果、旧状態で
 
 **スナップショットを現在仕様へ吸収する動作は `/finish-task` の手順 5 で行う。**
 spec を書きっぱなしにすると、設計文書が増えるほど「今どうなっているか」が
-コードにしか無い状態になる。実装が終わった時点で `native-app-design.md` を更新し、
+コードにしか無い状態になる。実装が終わった時点で `native-app-design.md`（表示仕様なら `file-type-display.md` / `viewer-ui.md`）を更新し、
 更新不要と判断したならその理由を Notes に 1 行残す。
 
 なお OpenSpec のような外部の spec 管理ツールは導入しない。上の三層で同じ役割を

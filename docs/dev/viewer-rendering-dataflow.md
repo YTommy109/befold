@@ -1,6 +1,6 @@
 # ビューア描画データフロー（ファイル種別ごとの差異）
 
-<!-- derived-from ./native-app-design.md#表示仕様 -->
+<!-- derived-from ./file-type-display.md -->
 <!-- constrained-by ./text-loading-dataflow.md -->
 
 本文書は「読み込んだコンテンツを WKWebView 上でどう描画し分けるか」を、ファイル
