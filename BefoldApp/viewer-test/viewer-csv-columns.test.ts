@@ -11,6 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { describe, expect, test } from '@jest/globals';
+import { JSDOM } from 'jsdom';
 
 import {
   analyzeCsvColumns,
@@ -229,7 +230,6 @@ describe('テーブル HTML への反映', () => {
       path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
       'utf8',
     );
-    expect(css).toMatch(/#diagram-wrap\.csv-body\s*\{[^}]*max-width:\s*100%;/u);
     expect(css).toContain('#diagram-wrap.csv-body table td.csv-num');
     expect(css).toContain('font-variant-numeric: tabular-nums;');
     // <th> は寄せない。セレクタに th.csv-num が復活したらここで落とす。
@@ -417,5 +417,97 @@ describe('数値表示の設定', () => {
     expect(css).toContain('--csv-negative-fg:');
     expect(dark).toContain('--csv-negative-fg:');
     expect(css).toContain('#diagram-wrap.csv-body table td.csv-negative');
+  });
+});
+
+// jsdom の getComputedStyle は詳細度を見ず記述順だけで勝者を決め、jsdom の CSS
+// パーサは style.css 全体を読めない（どちらも実測）。そこでトップレベルの規則を
+// ここで切り出し、要素への一致だけを jsdom の matches に任せて、詳細度 → 記述順の
+// カスケードを評価する。@ 規則（@media など）の中身は見ない。詳細度は ID・
+// クラス/擬似クラス/属性・型の個数で近似する（該当規則の単純なセレクタには十分）。
+function topLevelRules(styleText: string): { selector: string; body: string }[] {
+  const text = styleText.replaceAll(/\/\*[\s\S]*?\*\//gu, '');
+  const rules: { selector: string; body: string }[] = [];
+  let depth = 0;
+  let head = '';
+  let body = '';
+  for (const ch of text) {
+    if (ch === '{') {
+      depth += 1;
+      if (depth === 1) {
+        continue;
+      }
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        rules.push({ selector: head.trim(), body });
+        head = '';
+        body = '';
+        continue;
+      }
+    }
+    if (depth === 0) {
+      head += ch;
+    } else {
+      body += ch;
+    }
+  }
+  return rules.filter((rule) => !rule.selector.startsWith('@'));
+}
+
+function specificity(sel: string): number {
+  const ids = (sel.match(/#[\w-]+/gu) ?? []).length;
+  const classes = (sel.match(/\.[\w-]+|:[\w-]+|\[/gu) ?? []).length;
+  const types = (sel.replaceAll(/[#.:][\w-]+|\[[^\]]*\]/gu, '').match(/[a-z][\w-]*/giu) ?? [])
+    .length;
+  return ids * 10_000 + classes * 100 + types;
+}
+
+function cascadedMaxWidth(styleText: string, className: string): string | undefined {
+  const { window } = new JSDOM(
+    `<div class="viewer"><div id="diagram-wrap" class="${className}"></div></div>`,
+  );
+  const el = window.document.getElementById('diagram-wrap');
+  if (el === null) {
+    throw new Error('DOM の準備に失敗した');
+  }
+  let best: { spec: number; value: string } | undefined = undefined;
+  for (const rule of topLevelRules(styleText)) {
+    const value = /(?:^|[;\s])max-width:\s*([^;]+);/u.exec(rule.body)?.[1]?.trim();
+    if (value === undefined) {
+      continue;
+    }
+    for (const sel of rule.selector.split(',').map((part) => part.trim())) {
+      if (!el.matches(sel)) {
+        continue;
+      }
+      const spec = specificity(sel);
+      if (best === undefined || spec >= best.spec) {
+        best = { spec, value };
+      }
+    }
+  }
+  return best?.value;
+}
+
+describe('CSV 表示の表示幅（TASK-633）', () => {
+  const css = fs.readFileSync(
+    path.join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'),
+    'utf8',
+  );
+
+  test('CSV 表示には markdown-body の 980px 上限が効かない', () => {
+    expect(cascadedMaxWidth(css, 'markdown-body csv-body')).toBe('100%');
+  });
+
+  test('Markdown 表示には 980px 上限が効く', () => {
+    expect(cascadedMaxWidth(css, 'markdown-body')).toBe('980px');
+  });
+
+  test('CSV の上書きを markdown-body の規則より前へ移しても 100% のまま', () => {
+    const override = /#diagram-wrap\.markdown-body\.csv-body \{[^}]*\}/u.exec(css)?.[0];
+    expect(override).toBeDefined();
+    const moved = `${override ?? ''}\n${css.replace(override ?? '', '')}`;
+    expect(cascadedMaxWidth(moved, 'markdown-body csv-body')).toBe('100%');
   });
 });
