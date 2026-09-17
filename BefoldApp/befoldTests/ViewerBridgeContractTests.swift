@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -176,13 +177,12 @@ struct ViewerBridgeContractTests {
         }
         #expect(Set(jsModes) == Set(ViewerBridge.barModes))
 
-        for lang in ["en", "ja"] {
-            let path = try #require(Bundle.befoldKitResources.path(forResource: lang, ofType: "lproj"))
-            let bundle = try #require(Bundle(path: path))
-            for mode in jsModes {
-                let key = "viewer.mode.\(mode)"
-                let value = bundle.localizedString(forKey: key, value: nil, table: nil)
-                #expect(value != key, "\(lang) に \(key) の訳が無い")
+        // swift test では String Catalog が未コンパイルのため、解決結果ではなくカタログを直接読む
+        let catalog = try LocalizableCatalog.load(bundle: .befoldKitResources)
+        for mode in jsModes {
+            let key = "viewer.mode.\(mode)"
+            for lang in ["en", "ja"] {
+                #expect(catalog[key]?[lang]?.isEmpty == false, "\(lang) に \(key) の訳が無い")
             }
         }
     }
