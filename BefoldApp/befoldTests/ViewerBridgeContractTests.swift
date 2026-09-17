@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -142,9 +143,47 @@ struct ViewerBridgeContractTests {
         let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(
             from: ViewerBridge.uiStringsScript(), global: "window._mmdUIStrings"
         )
-        #expect(keys.count == 8)
+        #expect(keys.count == 4)
         for key in keys {
-            #expect(source.contains("strings.\(key)"), "UI キー '\(key)' が viewer-bundle.js で読まれていない")
+            #expect(source.contains(".\(key)"), "UI キー '\(key)' が viewer-bundle.js で読まれていない")
+        }
+    }
+
+    @Test("uiStringsScript が全キーを含む妥当な JSON を生成する")
+    func uiStringsScriptProducesValidJSONWithAllKeys() throws {
+        let script = ViewerBridge.uiStringsScript()
+
+        let jsonPart = script
+            .replacingOccurrences(of: "window._mmdUIStrings = ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ";"))
+        let data = try #require(jsonPart.data(using: .utf8))
+        let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        for key in ["zoomOut", "zoomReset", "zoomIn"] {
+            #expect((decoded[key] as? String)?.isEmpty == false)
+        }
+        let modes = try #require(decoded["modes"] as? [String: String])
+        #expect(Set(modes.keys) == Set(ViewerBridge.barModes))
+    }
+
+    /// bar-mode.ts の MODES に足したモードが Swift のモード一覧と Localizable.xcstrings の
+    /// 両方へ届いていることを検査する。漏れると viewer.html の静的な英語のまま黙って出る（TASK-631）。
+    @Test("バーのモード一覧が JS の MODES と一致し、すべて en/ja に訳されている")
+    func barModesMatchJSAndAreLocalized() throws {
+        let source = try ViewerBridgeContractSupport.viewerBundleSource()
+        let line = try #require(source.firstMatch(of: /var MODES = \[([^\]]*)\]/))
+        let jsModes = line.1.split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        }
+        #expect(Set(jsModes) == Set(ViewerBridge.barModes))
+
+        // swift test では String Catalog が未コンパイルのため、解決結果ではなくカタログを直接読む
+        let catalog = try LocalizableCatalog.load(bundle: .befoldKitResources)
+        for mode in jsModes {
+            let key = "viewer.mode.\(mode)"
+            for lang in ["en", "ja"] {
+                #expect(catalog[key]?[lang]?.isEmpty == false, "\(lang) に \(key) の訳が無い")
+            }
         }
     }
 

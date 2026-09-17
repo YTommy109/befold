@@ -121,6 +121,7 @@
       }
     },
     "viewer.diagram.zoomReset": {
+      "comment": "Mermaid 図の個別ズームで、現在の倍率を表示する欄（.diagram-zoom-label）のツールチップ。この欄をクリックすると倍率が 100% に戻る。",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -368,6 +369,7 @@
       }
     },
     "viewer.mode.changeBlock": {
+      "comment": "バーのモード切替ボタンの名前。キー末尾「changeBlock」は viewer-src/bar-mode.ts の MODES と ViewerBridge.barModes の要素と一致させること（一致しないと viewer.html の静的な英語のまま出る）。",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -385,6 +387,7 @@
       }
     },
     "viewer.mode.functionDefinition": {
+      "comment": "バーのモード切替ボタンの名前。キー末尾「functionDefinition」は viewer-src/bar-mode.ts の MODES と ViewerBridge.barModes の要素と一致させること（一致しないと viewer.html の静的な英語のまま出る）。",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -402,6 +405,7 @@
       }
     },
     "viewer.mode.heading": {
+      "comment": "バーのモード切替ボタンの名前。キー末尾「heading」は viewer-src/bar-mode.ts の MODES と ViewerBridge.barModes の要素と一致させること（一致しないと viewer.html の静的な英語のまま出る）。",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -419,6 +423,7 @@
       }
     },
     "viewer.mode.search": {
+      "comment": "バーのモード切替ボタンの名前。キー末尾「search」は viewer-src/bar-mode.ts の MODES と ViewerBridge.barModes の要素と一致させること（一致しないと viewer.html の静的な英語のまま出る）。",
       "extractionState": "manual",
       "localizations": {
         "en": {

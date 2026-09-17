@@ -1,5 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- lang は UI のロケールではなく、CJK 字形の選択を固定するためのもの。
+     style.css は CJK フォントを名指ししておらず、WebKit のフォールバックが lang で
+     決まるため、en にすると日本語文書の漢字が中国語字形（PingFang SC）で出る。
+     UI 文言のローカライズは lang に依存しない（TASK-630）。 -->
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <!--

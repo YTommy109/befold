@@ -26,15 +26,16 @@ const clickMode = (document: Document, mode: string) => {
 };
 
 describe('バーのモード切替スイッチ', () => {
-  test('注入された言語とモード名を適用する', () => {
+  test('注入されたモード名を適用し、lang は書き換えない', () => {
     const labels = {
       search: '検索',
       heading: '見出し',
       changeBlock: '変更箇所',
       functionDefinition: '定義',
     };
-    const { document } = loadViewerMain({ uiStrings: { language: 'ja', ...labels } });
+    const { document } = loadViewerMain({ uiStrings: { modes: labels } });
 
+    // viewer.html の静的な lang="ja"（CJK 字形の固定、TASK-630）が残っている
     expect(document.documentElement.lang).toBe('ja');
     for (const [mode, label] of Object.entries(labels)) {
       const button = document.getElementById('mmd-bar-mode-' + mode)!;

@@ -435,7 +435,14 @@ viewer.html・style.css・mermaid 初期化設定は BefoldKit の `Resources/` 
   下段に選ばれたモード固有の入力領域（検索は入力欄+3トグル、見出しはレベルトグル、
   変更箇所と定義は無し）を出す。**モードの列挙は `bar-mode.ts` の `MODES` だけが持つ**
   （Swift 側は `DocumentJumpKind.allCases` で自動追随するので、JS 側だけが
-  取り残される形を作らない）。**実装（`find.ts` / `jump.ts`）は従来どおり別モジュールで、
+  取り残される形を作らない）。モード名のラベルは `Localizable.xcstrings`（BefoldKit）の
+  `viewer.mode.<モード名>` が供給元で、`ViewerBridge.uiStringsScript` が
+  `window._mmdUIStrings.modes` として注入し、`bar-mode.ts` は `MODES` の走査の中で引く。
+  BefoldKit から `DocumentJumpKind` は見えないため Swift 側のモード名一覧
+  （`ViewerBridge.barModes`）が別にあるが、`ViewerBridgeContractTests` が `MODES` との
+  一致と en/ja の訳の存在を検査する（漏れると viewer.html の静的な英語のまま出るため）。
+  `<html lang="ja">` は UI ロケールではなく CJK 字形の固定のためのもので、
+  UI 言語に合わせて書き換えない（TASK-630）。**実装（`find.ts` / `jump.ts`）は従来どおり別モジュールで、
   排他は引き続き `viewer-src/bar.ts` が持つ**。バー全体の開閉は
   `bar.ts` が一元管理し、モード切替スイッチの選択表示・非対応モードの非表示
   （`ViewerCapabilities.canJump(to:)` 由来）は `bar-mode.ts` が薄い調整役として持つ。
