@@ -222,3 +222,5 @@ v1.10.0 以前の配布済みバージョン向けに残しているだけで配
 
 - [コーディング規約](./coding_rule.md)
 - [ネイティブアプリ設計](./native-app-design.md)
+- [ファイル種別ごとの表示仕様](./file-type-display.md)
+- [ビューアの操作 UI](./viewer-ui.md)

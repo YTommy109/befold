@@ -86,7 +86,8 @@ backlog task edit $ARGUMENTS --final-summary "..." -s Done
 
 `docs/superpowers/specs/*-design.md` は**書かれた時点のスナップショット**であり、
 現在の仕様ではない（各ファイル冒頭にその旨を明記してある）。実装が終わった時点で、
-**現在の仕様の単一の情報源である `docs/dev/native-app-design.md` を更新する。**
+**現在の仕様の単一の情報源である `docs/dev/native-app-design.md` と、その索引から辿る文書を更新する。**
+ファイル種別ごとの扱い・表示幅は `docs/dev/file-type-display.md`、ビューアの操作 UI（ズーム・検索・ジャンプ・表示モード・サイドバー）は `docs/dev/viewer-ui.md` が持つ（TASK-634 で分割）。
 これを飛ばすと、設計文書が 65 件並んでいるのに「今どうなっているか」はコードを
 読むまで分からない状態が積み上がる。
 
@@ -99,7 +100,7 @@ backlog task edit $ARGUMENTS --final-summary "..." -s Done
 
 ```bash
 # 触った型が現在仕様に載っているかを確認する
-rg -n '<型名>' docs/dev/native-app-design.md
+rg -n '<型名>' docs/dev/native-app-design.md docs/dev/file-type-display.md docs/dev/viewer-ui.md
 ```
 
 該当せず更新不要と判断した場合は、**その判断を Notes に 1 行残す**
@@ -124,5 +125,5 @@ Conventional Commits + 日本語、本文にタスク ID を書く。
 - 採用した方針と、単純化の検討結果（指摘や当初案と違う形にしたならその理由）
 - 検証の証拠: テスト件数、ビルド結果、swiftlint のベースライン差分、
   「修正を戻すと落ちる」ことの実測
-- `docs/dev/native-app-design.md` を更新したか（不要と判断したならその理由）
+- `docs/dev/native-app-design.md`（および分割先の file-type-display.md / viewer-ui.md）を更新したか（不要と判断したならその理由）
 - コミットハッシュと、残っている関連タスク
