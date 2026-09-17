@@ -146,4 +146,14 @@ dev リリースの場合は追記しない。
    実行中なら `gh run cancel <id>`、既に完了して誤った Release/タグができて
    しまっていたら `gh release delete v<誤ったバージョン> --cleanup-tag -y` で
    Release とタグを一括削除する。
-4. 正しいレベルで `scripts/bump.sh <正しいレベル>` を再実行する。
+4. R2 バケット `befold-dist`（`site/wrangler.toml` の binding `DIST`）に
+   同タグの成果物が残っていないか確認する。`releases/<誤ったバージョン>/`
+   配下の DMG オブジェクトを削除し、`releases/latest.json` が誤った
+   バージョンを指していないか確認する（stable の場合のみ更新される）。
+5. `appcast.xml` / `appcast-develop.xml`（R2 直下、`APPCAST_KEY`）に
+   誤ったバージョンの `<item>` が残っていないか確認する。残っていれば
+   その `<item>` ブロックを削除し、R2 へ書き戻す
+   （`wrangler r2 object put befold-dist/appcast.xml --remote --file <ローカルファイル> --content-type application/xml`）。
+   実測（2026-09-17）: GitHub Release/タグ/R2 DMG を削除しても appcast は
+   自動連動せず、リンク切れの `<item>` が Sparkle 配信フィードに残った。
+6. 正しいレベルで `scripts/bump.sh <正しいレベル>` を再実行する。
