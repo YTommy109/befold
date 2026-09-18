@@ -104,6 +104,29 @@ struct GitDiffReaderIntegrationTests {
         #expect(result == .untracked)
     }
 
+    /// Issue #685 の回帰。Foundation のファイル書き込み API はファイルシステム表現を
+    /// 作る際に合成済み文字(NFC)を分解形(NFD)へ変換するため、実ディスク上のバイト列は
+    /// NFD になる(実測)。一方 `git add` に渡した文字列(NFC)はそのまま index に記録される
+    /// (実測: `git ls-files` は NFC のバイト列を返す)。この不一致を揃え損ねると、
+    /// pathspec・`git_index_get_bypath` のどちらもバイト一致せず untracked と誤判定する。
+    @Test("結合文字を含むファイル名でも差分が返る")
+    func returnsUnifiedDiffForFileNameWithCombiningCharacters() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        let name = "\u{305F}\u{3099}.md".precomposedStringWithCanonicalMapping // "だ.md"(NFC)
+        GitTestRepo.initRepository(at: temp.url)
+        try GitTestRepo.commitFile(named: name, contents: "a\n", in: temp.url)
+        try GitTestRepo.modifyWithoutStaging(name, contents: "b\n", in: temp.url)
+
+        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent(name), in: temp.url)
+
+        guard case let .diff(text) = result else {
+            Issue.record("差分が返らなかった(NFC/NFD 不一致で untracked 扱いになっていないか): \(String(describing: result))")
+            return
+        }
+        #expect(text.contains("+b"))
+    }
+
     @Test("バイナリファイルは binary")
     func reportsBinary() throws {
         let temp = try TempDir()
