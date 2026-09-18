@@ -343,9 +343,17 @@ describe('renderInlineDiffHtml', () => {
     ].join('\n');
 
     const html = renderInlineDiffHtml(null, diff, 'xml', false);
+    const doc = new DOMParser().parseFromString(html, 'text/html');
 
     expect(html).not.toContain('<script>alert(1)</script>');
-    expect(html).toContain('&lt;script&gt;');
+    // 守りたいのは「本文がマークアップではなくテキストとして出る」こと。
+    // 実体参照の並び(`&lt;script&gt;`)そのものを見ると、語単位の強調(TASK-528)の
+    // ように文字の間へ span が入る変更で、意味が同じままテストだけが落ちる。
+    expect(doc.querySelector('script')).toBeNull();
+    expect(Array.from(doc.querySelectorAll('.line-content')).map((c) => c.textContent)).toEqual([
+      '<b>old</b>',
+      '<script>alert(1)</script>',
+    ]);
   });
 
   test('ハンクが無ければ空文字列を返す（呼び出し側が通常表示へ戻せる）', () => {
@@ -419,7 +427,10 @@ describe('renderSideBySideDiffHtml', () => {
   // 変更行は同じ <tr> に左右で並ぶ(対応が目で追える)。
   test('削除と追加が同じ行に並ぶ', () => {
     const html = renderSideBySideDiffHtml(null, SIMPLE_DIFF, 'swift', false);
-    const rows = html.split('<tr class="diff-line">').slice(1);
+    // 行の中身は textContent で見る。生 HTML の部分一致だと、語単位の強調(TASK-528)の
+    // ように文字の間へ span が入る変更で、並びが正しいままテストだけが落ちる。
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rows = Array.from(doc.querySelectorAll('tr.diff-line')).map((r) => r.textContent ?? '');
 
     const changed = rows.find((r) => r.includes('let b = 2'));
     expect(changed).toContain('let b = 3');

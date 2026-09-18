@@ -14272,6 +14272,7 @@
     leadingIndentInfo: () => leadingIndentInfo,
     lineContentCell: () => lineContentCell,
     lineScrollStep: () => lineScrollStep,
+    markWordRanges: () => markWordRanges,
     markdownFontSize: () => markdownFontSize,
     markdownRenderer: () => markdownRenderer,
     mermaidTheme: () => mermaidTheme,
@@ -14302,6 +14303,7 @@
     resolveScrollKey: () => resolveScrollKey,
     sanitizeLang: () => sanitizeLang,
     sanitizeRenderedHtml: () => sanitizeRenderedHtml,
+    segmentWords: () => segmentWords,
     selectedHeadingLevels: () => selectedHeadingLevels,
     setDiff: () => setDiff,
     setDiffLayout: () => setDiffLayout,
@@ -14318,6 +14320,8 @@
     uniqueHeadingSlug: () => uniqueHeadingSlug,
     updateOuterVisibility: () => updateOuterVisibility,
     wheelZoom: () => wheelZoom,
+    wordDiffRanges: () => wordDiffRanges,
+    wordRangesForHunk: () => wordRangesForHunk,
     wrapWithLineNumbers: () => wrapWithLineNumbers,
     zoomLabel: () => zoomLabel
   });
@@ -15525,6 +15529,132 @@
     return str.slice(idx + 1);
   }
 
+  // viewer-src/diff-words.ts
+  var WORD_OPEN = '<span class="diff-word">';
+  var WORD_CLOSE = "</span>";
+  var HTML_TOKEN = /<[^>]*>|&[#0-9A-Za-z]+;|[^<&]+|[<&]/gu;
+  var WORD_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function" ? new Intl.Segmenter(void 0, { granularity: "word" }) : null;
+  function segmentWords(text3) {
+    return Array.from(WORD_SEGMENTER.segment(text3), function(segment) {
+      return segment.segment;
+    });
+  }
+  function commonPrefixCount(a, b) {
+    var limit = Math.min(a.length, b.length);
+    var i = 0;
+    while (i < limit && a[i] === b[i]) {
+      i += 1;
+    }
+    return i;
+  }
+  function commonSuffixCount(a, b, head) {
+    var limit = Math.min(a.length, b.length) - head;
+    var i = 0;
+    while (i < limit && a[a.length - 1 - i] === b[b.length - 1 - i]) {
+      i += 1;
+    }
+    return i;
+  }
+  function wordSpan(words, from, to) {
+    if (from >= to) {
+      return [];
+    }
+    var start = 0;
+    for (var i = 0; i < from; i++) {
+      start += words[i].length;
+    }
+    var end = start;
+    for (var k = from; k < to; k++) {
+      end += words[k].length;
+    }
+    return [{ start, end }];
+  }
+  function coversWholeLine(ranges, text3) {
+    if (ranges.length === 0) {
+      return text3.length === 0;
+    }
+    return ranges[0].start === 0 && ranges[0].end >= text3.length;
+  }
+  function wordDiffRanges(oldText, newText) {
+    if (WORD_SEGMENTER === null) {
+      return null;
+    }
+    var oldWords = segmentWords(oldText);
+    var newWords = segmentWords(newText);
+    var head = commonPrefixCount(oldWords, newWords);
+    var tail = commonSuffixCount(oldWords, newWords, head);
+    var oldRanges = wordSpan(oldWords, head, oldWords.length - tail);
+    var newRanges = wordSpan(newWords, head, newWords.length - tail);
+    if (coversWholeLine(oldRanges, oldText) && coversWholeLine(newRanges, newText)) {
+      return null;
+    }
+    return { old: oldRanges, new: newRanges };
+  }
+  function rangeAt(at, ranges) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (at >= ranges[i].start && at < ranges[i].end) {
+        return ranges[i];
+      }
+    }
+    return null;
+  }
+  function nextRangeStart(at, ranges) {
+    var best = null;
+    for (var i = 0; i < ranges.length; i++) {
+      var start = ranges[i].start;
+      if (start > at && (best === null || start < best)) {
+        best = start;
+      }
+    }
+    return best;
+  }
+  function markTextRun(run, start, ranges) {
+    var out = "";
+    var i = 0;
+    while (i < run.length) {
+      var at = start + i;
+      var range = rangeAt(at, ranges);
+      if (range === null) {
+        var next = nextRangeStart(at, ranges);
+        var plainEnd = next === null ? run.length : Math.min(run.length, next - start);
+        out += run.slice(i, plainEnd);
+        i = plainEnd;
+        continue;
+      }
+      var markedEnd = Math.min(run.length, range.end - start);
+      out += WORD_OPEN + run.slice(i, markedEnd) + WORD_CLOSE;
+      i = markedEnd;
+    }
+    return out;
+  }
+  function markWordRanges(lineHtml, text3, ranges) {
+    if (ranges === null || ranges.length === 0) {
+      return lineHtml;
+    }
+    var out = "";
+    var decoded = 0;
+    HTML_TOKEN.lastIndex = 0;
+    var token;
+    while ((token = HTML_TOKEN.exec(lineHtml)) !== null) {
+      var raw = token[0];
+      if (raw.length > 1 && raw.charAt(0) === "<") {
+        out += raw;
+        continue;
+      }
+      if (raw.length > 1 && raw.charAt(0) === "&") {
+        out += rangeAt(decoded, ranges) === null ? raw : WORD_OPEN + raw + WORD_CLOSE;
+        decoded += 1;
+        continue;
+      }
+      out += markTextRun(raw, decoded, ranges);
+      decoded += raw.length;
+    }
+    if (decoded !== text3.length) {
+      return lineHtml;
+    }
+    return out;
+  }
+
   // viewer-src/diff-html.ts
   var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
   function parseUnifiedDiff(text3) {
@@ -15644,6 +15774,36 @@
     }
     return result;
   }
+  function wordRangesForHunk(lines) {
+    var result = [];
+    for (var n = 0; n < lines.length; n++) {
+      result.push(null);
+    }
+    var pairs = pairDiffLines(lines);
+    for (var p = 0; p < pairs.length; p++) {
+      var left = pairs[p].left;
+      var right = pairs[p].right;
+      if (left === null || right === null) {
+        continue;
+      }
+      if (lines[left].type !== "del" || lines[right].type !== "add") {
+        continue;
+      }
+      var ranges = wordDiffRanges(lines[left].text, lines[right].text);
+      if (ranges === null) {
+        continue;
+      }
+      result[left] = ranges.old;
+      result[right] = ranges.new;
+    }
+    return result;
+  }
+  function diffLineHtml(lines, lineHtmls, wordRanges, index) {
+    if (index === null) {
+      return "";
+    }
+    return markWordRanges(lineHtmls[index], lines[index].text, wordRanges[index]);
+  }
   function assignChangeBlockIndexes(lines, startIndex) {
     var result = [];
     var next = startIndex;
@@ -15711,13 +15871,19 @@
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var wordRanges = wordRangesForHunk(hunk.lines);
         var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
         nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
           rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
         }
         for (var i = 0; i < hunk.lines.length; i++) {
-          rows += diffRow(hunk.lines[i], lineHtmls[i], showLineNumbers, blocks[i] ?? null);
+          rows += diffRow(
+            hunk.lines[i],
+            diffLineHtml(hunk.lines, lineHtmls, wordRanges, i),
+            showLineNumbers,
+            blocks[i] ?? null
+          );
         }
       }
     }
@@ -15774,6 +15940,7 @@
       for (var h = 0; h < hunks.length; h++) {
         var hunk = hunks[h];
         var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+        var wordRanges = wordRangesForHunk(hunk.lines);
         var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
         nextBlock = nextChangeBlockIndex(blocks, nextBlock);
         if (rows !== "") {
@@ -15788,12 +15955,12 @@
           var pairBlock = (left === null ? blocks[right] : blocks[left]) ?? null;
           rows += '<tr class="diff-line"' + changeBlockAttribute(pairBlock) + '><td class="diff-side diff-side-left ' + leftClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
             left === null ? null : hunk.lines[left],
-            left === null ? "" : lineHtmls[left],
+            diffLineHtml(hunk.lines, lineHtmls, wordRanges, left),
             showLineNumbers,
             "left"
           ) + '</tr></table></td><td class="diff-side diff-side-right ' + rightClass + '"><table class="diff-side-table"><tr>' + diffSideCells(
             right === null ? null : hunk.lines[right],
-            right === null ? "" : lineHtmls[right],
+            diffLineHtml(hunk.lines, lineHtmls, wordRanges, right),
             showLineNumbers,
             "right"
           ) + "</tr></table></td></tr>";
