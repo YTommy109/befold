@@ -61,18 +61,40 @@ else
   err "起点ブランチが見つかりません（origin/$MAIN_BRANCH も $MAIN_BRANCH も無し）。"
 fi
 
-# 完了判定: BASE に取り込み済み（squash merge では成立しない）か、上流が [gone]
+# 完了判定: OLD_BRANCH が BASE の祖先（fast-forward 相当）か、OLD_BRANCH がその
+# merge-base から変更したファイルすべてが BASE の現在の内容と一致するか（squash merge
+# を含む）で決める。
+#
+# 上流の追跡状態（[gone]）は判定に使わない。squash merge された PR の後、同じ
+# ローカルブランチへ**さらに別の未プッシュコミットを積む**ことがあり、その場合も
+# 上流はとっくに削除済みのまま [gone] を示し続けるため、安全の根拠にならない
+# （実例: TASK-528 の実装 2 コミットを squash-merge 済みブランチへ追記したまま
+# [gone] 判定で切り直され、reflog からの復旧を要した）。中身を見て判定する。
 REASON=""
 if git merge-base --is-ancestor "$OLD_BRANCH" "$BASE" 2>/dev/null; then
   REASON="merged"
-elif [ "$(git for-each-ref --format='%(upstream:track)' "refs/heads/$OLD_BRANCH" 2>/dev/null)" = "[gone]" ]; then
-  REASON="gone"
+else
+  MERGE_BASE="$(git merge-base "$OLD_BRANCH" "$BASE" 2>/dev/null || true)"
+  if [ -n "$MERGE_BASE" ]; then
+    # -z + read -d '' でファイル名の空白・非 ASCII 文字を壊さず配列へ集める
+    # （bash 3.2 は mapfile/readarray を持たないため手書きループにする。macOS 既定の
+    # /bin/bash が 3.2 のままなことは把握しておくこと）。
+    TOUCHED_FILES=()
+    while IFS= read -r -d '' file; do
+      TOUCHED_FILES+=("$file")
+    done < <(git diff -z --name-only "$MERGE_BASE" "$OLD_BRANCH")
+    if [ ${#TOUCHED_FILES[@]} -eq 0 ]; then
+      REASON="merged"
+    elif git diff --quiet "$BASE" "$OLD_BRANCH" -- "${TOUCHED_FILES[@]}"; then
+      REASON="squashed"
+    fi
+  fi
 fi
 
 if [ -z "$REASON" ]; then
   if ! $FORCE; then
     echo "エラー: ブランチ $OLD_BRANCH は未マージです" >&2
-    echo "  （$BASE 未取り込み / 上流も生存中）" >&2
+    echo "  （$BASE に取り込まれていない変更が残っています）" >&2
     echo "  作業を捨ててよければ --force を付けてください" >&2
     exit 1
   fi
