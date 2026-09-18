@@ -4,6 +4,11 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.20.0
+
+### 新機能
+- 差分表示で変更された行の中身を単語単位でハイライトするようにしました。(#686)
+
 ## v1.19.2
 
 ### 修正
