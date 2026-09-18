@@ -80,6 +80,8 @@
   /* git 差分の地色。シンタックスハイライトの上に重ねるため半透明ティントにする。 */
   --diff-add-bg: rgba(46, 160, 67, 0.15);
   --diff-del-bg: rgba(248, 81, 73, 0.15);
+  --diff-add-word-bg: rgba(46, 160, 67, 0.4);
+  --diff-del-word-bg: rgba(248, 81, 73, 0.4);
   --diff-add-fg: #1a7f37;
   --diff-del-fg: #cf222e;
   --diff-hunk-bg: rgba(0, 0, 0, 0.06);
@@ -111,6 +113,8 @@
 
     --diff-add-bg: rgba(63, 185, 80, 0.15);
     --diff-del-bg: rgba(248, 81, 73, 0.15);
+    --diff-add-word-bg: rgba(63, 185, 80, 0.45);
+    --diff-del-word-bg: rgba(248, 81, 73, 0.45);
     --diff-add-fg: #3fb950;
     --diff-del-fg: #f85149;
     --diff-hunk-bg: rgba(255, 255, 255, 0.06);
@@ -599,6 +603,27 @@ body {
 /* 対応する行が無い側。内容が無いことが分かるよう薄く塗る。 */
 .diff-empty {
   background-color: var(--diff-empty-bg);
+}
+
+/* 変更行の中で実際に変わった語(TASK-528)。行の地色より濃く塗り、
+   1 文字だけ直した長い行と行ごと書き換えた行を見分けられるようにする。
+   地色だけに頼らないよう下線を併せて引く(.diff-marker の +/- と同じ方針で、
+   色を見分けられない設定でも位置が分かる)。
+   インラインでは <tr>、左右分割では側の <td> が .diff-add / .diff-del を持つので、
+   子孫セレクタにしてレイアウト両方へ 1 本で効かせる。 */
+.diff-word {
+  border-radius: 2px;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.diff-add .diff-word {
+  background-color: var(--diff-add-word-bg);
+}
+
+.diff-del .diff-word {
+  background-color: var(--diff-del-word-bg);
 }
 
 /* 連続していないハンクの境目。位置情報は出さず、帯だけで range の切れ目を示す

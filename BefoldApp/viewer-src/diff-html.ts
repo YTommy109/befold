@@ -3,6 +3,8 @@
 // インデントガイド・シンタックスハイライト・検索がそのまま効く。
 
 import { highlightCode, lineContentCell, reflowSpanBalancedLines } from './code-html.js';
+import { markWordRanges, wordDiffRanges } from './diff-words.js';
+import type { WordRange } from './diff-words.js';
 import { escapeHtml } from './encoding.js';
 
 /// 依存注入される highlight.js の最小インターフェース。code-html.ts が
@@ -202,6 +204,53 @@ function highlightedDiffLines(
   return result;
 }
 
+// ハンクの行ごとに、行内で実際に変わった語の強調範囲を求める(TASK-528)。
+// 戻り値は必ず hunk.lines と同じ長さで、添字で引ける(highlightedDiffLines と同じ
+// 不変条件。長さがずれると呼び出し側が undefined を掴む)。強調しない行は null。
+//
+// 対応付けは `pairDiffLines` だけを使う。インラインと左右分割がこの 1 本を共有するので、
+// 「どの削除行とどの追加行が同じ行の変更か」がレイアウトによって食い違わないことが
+// 構造として決まる(行テキストの類似度や DOM の形からは決めない)。
+// 対にならなかった行(片側だけの追加・削除)は比較相手が居ないので強調しない。
+function wordRangesForHunk(lines: DiffLine[]): (WordRange[] | null)[] {
+  var result: (WordRange[] | null)[] = [];
+  for (var n = 0; n < lines.length; n++) {
+    result.push(null);
+  }
+  var pairs = pairDiffLines(lines);
+  for (var p = 0; p < pairs.length; p++) {
+    var left = pairs[p]!.left;
+    var right = pairs[p]!.right;
+    if (left === null || right === null) {
+      continue;
+    }
+    if (lines[left]!.type !== 'del' || lines[right]!.type !== 'add') {
+      continue;
+    }
+    var ranges = wordDiffRanges(lines[left]!.text, lines[right]!.text);
+    if (ranges === null) {
+      continue;
+    }
+    result[left] = ranges.old;
+    result[right] = ranges.new;
+  }
+  return result;
+}
+
+// 表へ載せる 1 行分の HTML。ハイライト済みの行に語強調を重ねる。
+// 行が無い側(左右分割の空マス)は空文字列。
+function diffLineHtml(
+  lines: DiffLine[],
+  lineHtmls: string[],
+  wordRanges: (WordRange[] | null)[],
+  index: number | null,
+): string {
+  if (index === null) {
+    return '';
+  }
+  return markWordRanges(lineHtmls[index]!, lines[index]!.text, wordRanges[index]!);
+}
+
 // 連続する変更行を 1 つの「変更ブロック」へまとめ、行ごとのブロック番号を返す。
 // 番号は文書順の通し番号で、`startIndex` から始める(ファイル・ハンクをまたいで
 // 続けるため、呼び出し側が次の開始値を持ち回る)。文脈行は null。
@@ -335,6 +384,7 @@ function renderInlineDiffHtml(
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h]!;
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      var wordRanges = wordRangesForHunk(hunk.lines);
       var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
       nextBlock = nextChangeBlockIndex(blocks, nextBlock);
       // 先頭には区切りを置かない(境目が無いところに帯だけが出るため)。
@@ -342,7 +392,12 @@ function renderInlineDiffHtml(
         rows += diffHunkSeparatorRow(showLineNumbers === true ? 4 : 2);
       }
       for (var i = 0; i < hunk.lines.length; i++) {
-        rows += diffRow(hunk.lines[i]!, lineHtmls[i]!, showLineNumbers, blocks[i] ?? null);
+        rows += diffRow(
+          hunk.lines[i]!,
+          diffLineHtml(hunk.lines, lineHtmls, wordRanges, i),
+          showLineNumbers,
+          blocks[i] ?? null,
+        );
       }
     }
   }
@@ -443,6 +498,7 @@ function renderSideBySideDiffHtml(
     for (var h = 0; h < hunks.length; h++) {
       var hunk = hunks[h]!;
       var lineHtmls = highlightedDiffLines(hljs, hunk, lang);
+      var wordRanges = wordRangesForHunk(hunk.lines);
       var blocks = assignChangeBlockIndexes(hunk.lines, nextBlock);
       nextBlock = nextChangeBlockIndex(blocks, nextBlock);
       if (rows !== '') {
@@ -466,7 +522,7 @@ function renderSideBySideDiffHtml(
           '"><table class="diff-side-table"><tr>' +
           diffSideCells(
             left === null ? null : hunk.lines[left]!,
-            left === null ? '' : lineHtmls[left]!,
+            diffLineHtml(hunk.lines, lineHtmls, wordRanges, left),
             showLineNumbers,
             'left',
           ) +
@@ -476,7 +532,7 @@ function renderSideBySideDiffHtml(
           '"><table class="diff-side-table"><tr>' +
           diffSideCells(
             right === null ? null : hunk.lines[right]!,
-            right === null ? '' : lineHtmls[right]!,
+            diffLineHtml(hunk.lines, lineHtmls, wordRanges, right),
             showLineNumbers,
             'right',
           ) +
@@ -517,5 +573,6 @@ export {
   renderInlineDiffHtml,
   renderSideBySideDiffHtml,
   renderDiffHtml,
+  wordRangesForHunk,
 };
 export type { DiffLineType, DiffLine, DiffHunk, DiffFile, DiffLinePair };

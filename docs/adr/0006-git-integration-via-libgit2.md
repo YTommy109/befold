@@ -175,6 +175,8 @@ brew + `.systemLibrary` は dylib パスと
   `git_submodule_foreach` でむしろ素直になるが、境界検出のロジックは要再設計）。
 - **`diff.algorithm` / textconv / 外部 diff driver は config ごと無視**される。
   word-diff も無い。現状これらを使う機能はないが、ユーザーの設定が反映されなくなる。
+  （追記: 語単位の差分表示は TASK-528 で入れたが、libgit2 には寄せず
+  `viewer-src/diff-words.ts` が行テキストから求める形にした。本項の結論は変わらない）
 - **partial clone と reftable 形式のリポジトリは開けない**。今後 git の既定が変わると効く
   （reftable 対応は 2026-08 に libgit2 の main へマージされたが、**未リリース**。
   本 ADR が固定している 1.9.2 には入っていない）
