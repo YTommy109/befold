@@ -44,7 +44,9 @@ struct GitDiffReader: GitDiffReading {
             // コミットが 1 つも無いリポジトリでは比較の相手が存在しない。
             // 出力の有無からは区別できないため、HEAD が未生成かという事実で判定する。
             guard git_repository_head_unborn(repository) == 0 else { return .noCommits }
-            guard let relativePath = Self.relativePath(of: url, in: root) else { return .notInRepository }
+            guard let relativePath = Self.relativePath(of: url, in: root, repository: repository) else {
+                return .notInRepository
+            }
             return Self.diff(in: repository, relativePath: relativePath, base: base)
         }
         switch outcome {
@@ -156,12 +158,28 @@ struct GitDiffReader: GitDiffReading {
     ///
     /// libgit2 の pathspec はリポジトリ相対でなければ一致しない
     /// (外部 git 方式は絶対パスをそのまま渡していた)。
-    private static func relativePath(of url: URL, in root: URL) -> String? {
+    ///
+    /// `core.precomposeunicode` が有効なリポジトリでは、libgit2 の workdir 走査
+    /// (`git_diff_tree_to_workdir_with_index`)が分解形(NFD)を合成形(NFC)へ変換して
+    /// から index・tree と突き合わせる。ここで作る文字列は `URL.path` 由来の生の
+    /// ファイルシステム表現(APFS では NFD)のままなので、同じ変換を揃えないと
+    /// バイト不一致で「追跡されていない」と誤判定される(Issue #685)。
+    private static func relativePath(of url: URL, in root: URL, repository: OpaquePointer) -> String? {
         let filePath = url.resolvingSymlinksInPath().path
         var rootPath = root.resolvingSymlinksInPath().path
         if !rootPath.hasSuffix("/") { rootPath += "/" }
         guard filePath.hasPrefix(rootPath) else { return nil }
         let relative = String(filePath.dropFirst(rootPath.count))
-        return relative.isEmpty ? nil : relative
+        guard !relative.isEmpty else { return nil }
+        return precomposesUnicode(in: repository) ? relative.precomposedStringWithCanonicalMapping : relative
+    }
+
+    /// `core.precomposeunicode` の値。読めなければ libgit2 の既定(false)に倣う。
+    private static func precomposesUnicode(in repository: OpaquePointer) -> Bool {
+        var config: OpaquePointer?
+        guard git_repository_config(&config, repository) == 0, let config else { return false }
+        defer { git_config_free(config) }
+        var value: Int32 = 0
+        return git_config_get_bool(&value, config, "core.precomposeunicode") == 0 && value != 0
     }
 }
