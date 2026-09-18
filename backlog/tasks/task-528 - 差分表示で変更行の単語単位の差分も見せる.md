@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@Tommy109'
 created_date: '2026-08-19 07:14'
-updated_date: '2026-09-18 11:03'
+updated_date: '2026-09-18 11:14'
 labels: []
 dependencies: []
 priority: medium
@@ -105,6 +105,32 @@ ordinal: 770000
 - `npm run lint`（--type-aware）/ `format:check` / `typecheck:viewer` / `typecheck:viewer-test` / `check:viewer-cycles` すべて通過。`markdownlint-cli2` / `check-doc-citations.sh` / `check-doc-symbols.sh` も 0 件。
 - 既存テスト 2 件を、生 HTML の部分一致から textContent ベースへ直した（`&lt;script&gt;` の連続と `let b = 2` の連続を見ていたもの）。語強調で文字の間に span が入ると、意味が同じままテストだけが落ちる形だったため。守りたい内容（マークアップではなくテキストとして出る / 削除と追加が同じ行に並ぶ）は変えていない。
 - **レンダリング後の見た目そのものは確認できていない。** WKWebView の `takeSnapshot` ハーネスを非対話のバックグラウンドで回したところ応答が返らず、Chrome 経由の確認も拡張が応答しなかった。代わりに (a) セレクタ `.diff-add .diff-word` / `.diff-del .diff-word` が両レイアウトの DOM に一致すること、(b) 地色変数がライト・ダークの両方で定義されていることをテストで測った。実際の配色・下線の見え方はリリース前の手動チェックに委ねる（CLAUDE.md の「WebView/GUI 層は自動テスト対象外」に沿う）。
+
+## 事実確認（ユーザー報告: 差分表示ボタンを押しても差分表示モードにならない）
+
+このファイル（task-528.md）はセッション内の直前コミット（87ad765f）以降、未コミットの
+変更が一切無い（`git status --short` 空、`git diff HEAD -- <このファイル>` 空）。
+working tree は HEAD と完全一致しており、**差分として出せる変更が存在しない**。
+
+コード側の事実:
+- `GitFileDiff.noChanges`（GitFileDiff.swift）が「追跡済みで HEAD と一致（差分なし）」の
+  ケース。このファイルは正にこの状態。
+- `ViewerDiffPresenter.displayableDiff(_:)`（ViewerDiffPresenter.swift）は
+  `case .diff` 以外を全て `.unavailable` にする。`.noChanges` もここに含まれる。
+- `ViewerDiffContent.unavailable`（ViewerDiffContent.swift）の doc コメント:
+  「表示は通常のソース表示になる」。つまり差分モードをトグルしても**確定後は黙って
+  通常のソース表示へ戻る**（エラー表示は出さない）。
+- `GitDiffAvailability.allowsDiffSelection`（GitDiffAvailability.swift）は
+  `.undetermined`（未解決）でも true を返す設計（初期表示での入れ替わりを1方向に限るため）。
+  そのため git 状態が届く前は「有効」に見えるボタンが、確定後は実体として差分を出せない
+  ということが起こり得る。
+
+**結論（未確認点あり）**: 「押しても差分表示モードにならない」ように見えるのは、この
+ファイルに差分そのものが無いため通常のソース表示へ静かにフォールバックしている可能性が高い
+（コード参照ベース）。TASK-528 の語単位差分の実装バグではなく、そもそも比較対象の入力
+（差分の有無）が原因という仮説。**未確認**: 実際に差分のあるファイルで同じ操作をしても
+再現するかは、このメモを使って検証する（このメモの追記自体が task-528.md に対する
+未コミット差分になるため、そのまま診断に使える）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
