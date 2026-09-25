@@ -128,6 +128,32 @@ struct ViewerMenuValidatorTests {
         #expect(!ViewerMenuValidator.validate(item, source: source))
     }
 
+    /// 項目の有効判定と実行経路が同じ `canToggleJump` を読むこと(TASK-485.32)。
+    /// 検索できない種別でもジャンプができるなら、項目は有効で、押せばジャンプが届く。
+    /// 片方だけ `canFind` を見ると、ここで項目がグレーになる。
+    @Test("ジャンプはできるが検索はできない表示では、ジャンプの項目が有効で押すとジャンプが届く")
+    func enablesJumpItemWhenJumpAvailableWithoutFind() {
+        let capabilities = ViewerCapabilities(
+            isPresentingDocument: true, isRejected: false, isRenderable: true,
+            isBinaryContent: false, showsCodeContent: false, showsDiff: false,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: nil, isDocumentJumpEnabled: true
+        )
+        #expect(!capabilities.canFind)
+        let source = StubSource()
+        source.capabilities = capabilities
+        let renderer = FakeDocumentRenderer()
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { capabilities })
+
+        #expect(ViewerMenuValidator.validate(
+            makeItem(#selector(ViewerWindowController.documentJump(_:))),
+            source: source
+        ))
+        controller.toggleJump()
+        #expect(renderer.commands == [.toggleJump(kind: .heading)])
+    }
+
     @Test("フォルダー一覧の表示中は文書向けのコマンドをすべて無効にする")
     func disablesDocumentCommandsWhilePresentingFolder() {
         let source = StubSource()

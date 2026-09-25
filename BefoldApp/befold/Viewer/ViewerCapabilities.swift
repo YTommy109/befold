@@ -149,10 +149,24 @@ struct ViewerCapabilities: Equatable {
         }
     }
 
+    /// いま使えるジャンプの種類の列挙。`allCases` を `canJump(to:)` で絞るのはここだけで、
+    /// ⇧⌘F の種類選択(`availableJumpKind`)と viewer への失効同期
+    /// (`DocumentCommandController.syncJumpAvailability()`)が共有する(TASK-485.32)。
+    var availableJumpKinds: [DocumentJumpKind] {
+        DocumentJumpKind.allCases.filter { canJump(to: $0) }
+    }
+
     /// いま使えるジャンプの種類。見出し・定義・変更ブロックは排他なので高々 1 つで、
     /// ⇧⌘F はこれを開く(nil なら検索へ倒す / TASK-485.28)。
     var availableJumpKind: DocumentJumpKind? {
-        DocumentJumpKind.allCases.first { canJump(to: $0) }
+        availableJumpKinds.first
+    }
+
+    /// ⇧⌘F が何かをするか。ジャンプが無ければ検索へ倒れるので、どちらかができれば可。
+    /// メニューの有効判定と実行経路の guard が両方これを読む(片方だけ `canFind` を
+    /// 見ると、ジャンプ可・検索不可の種別で実行できるのに項目がグレーになる / TASK-485.32)。
+    var canToggleJump: Bool {
+        availableJumpKind != nil || canFind
     }
 
     /// そのモードをいま選べるか。モード別のフラグを引き当てるだけの対応表であり、

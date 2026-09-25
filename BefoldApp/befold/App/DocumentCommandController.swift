@@ -145,23 +145,24 @@ final class DocumentCommandController {
     /// 種類ごとの可否をここで再実装しないので、メニュー以外の入口(キーバインド等)が
     /// 種類別の規則を迂回する穴も作らない(TASK-485.7)。
     func toggleJump() {
-        guard let kind = capabilities().availableJumpKind else {
-            toggleFind()
-            return
+        let capabilities = capabilities()
+        guard capabilities.canToggleJump else { return }
+        if let kind = capabilities.availableJumpKind {
+            renderer.toggleJump(kind: kind)
+        } else {
+            renderer.toggleFind()
         }
-        renderer.toggleJump(kind: kind)
     }
 
     /// いま使える種類を viewer へ送り直す。開いているバーの種類が使えなくなって
     /// いれば viewer 側が閉じる(TASK-485.18)。
     ///
-    /// 集合は `allCases` を `canJump(to:)` で絞って作る。openJump の guard と
-    /// **同じ述語**を通すので、開く条件と開き続けられる条件が食い違わない。
+    /// 集合は `ViewerCapabilities.availableJumpKinds` をそのまま使う。`toggleJump()` の
+    /// 種類選択と**同じ列挙**を通すので、開く条件と開き続けられる条件が食い違わない。
     /// 種類を足したときも列挙を書き足す必要が無い(書き足し漏れは
     /// 「新しい種類だけ失効しない」という形で表に出るため、構造で塞ぐ)。
     func syncJumpAvailability() {
-        let capabilities = capabilities()
-        let kinds = Set(DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) })
+        let kinds = Set(capabilities().availableJumpKinds)
         for surface in surfaces.syncingAll {
             surface.applyJumpAvailability(kinds)
         }

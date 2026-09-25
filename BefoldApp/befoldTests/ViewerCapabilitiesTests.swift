@@ -248,7 +248,7 @@ struct ViewerCapabilitiesTests {
                         supportsHeadingJump: supportsHeadingJump,
                         codeLanguage: codeLanguage
                     )
-                    let kinds = DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) }
+                    let kinds = capabilities.availableJumpKinds
 
                     #expect(
                         kinds.count <= 1,
@@ -265,7 +265,7 @@ struct ViewerCapabilitiesTests {
     @Test("見出しは Markdown だけで、それ以外は差分表示でも定義でもなければジャンプ種別を持たず検索だけになる")
     func dataDisplayHasNoJumpKindOutsideDiff() {
         let data = makeCapabilities(supportsHeadingJump: false, codeLanguage: nil)
-        #expect(DocumentJumpKind.allCases.filter { data.canJump(to: $0) }.isEmpty)
+        #expect(data.availableJumpKinds.isEmpty)
         #expect(FileType.markdown.supportsHeadingJump)
         let others: [FileType] = [
             .mmd, .svg, .html, .xml, .pdf, .csv(delimiter: ","), .csv(delimiter: "\t"),
@@ -277,7 +277,7 @@ struct ViewerCapabilitiesTests {
         }
         // 定義ジャンプ未対応の言語は見出しも持たないので、検索だけになる。
         let ruby = makeCapabilities(supportsHeadingJump: false, codeLanguage: "ruby")
-        #expect(DocumentJumpKind.allCases.filter { ruby.canJump(to: $0) }.isEmpty)
+        #expect(ruby.availableJumpKinds.isEmpty)
     }
 
     @Test("何も提示していない既定値はすべて不可")

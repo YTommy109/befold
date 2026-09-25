@@ -50,7 +50,7 @@ struct ToggleBarCommandTests {
         let renderer = FakeDocumentRenderer()
         // mmd・JSON・未対応言語など: 見出しも定義も持たず、差分表示でもない。
         let controller = makeDocumentCommandController(renderer: renderer, capabilities: {
-            makeCapabilities(supportsHeadingJump: false, isDocumentJumpEnabled: true)
+            makeCapabilities(showsDiff: false, supportsHeadingJump: false, isDocumentJumpEnabled: true)
         })
 
         controller.toggleJump()
@@ -64,7 +64,7 @@ struct ToggleBarCommandTests {
     func toggleJumpFallsBackToFindWhenJumpDisabled() {
         let renderer = FakeDocumentRenderer()
         let controller = makeDocumentCommandController(renderer: renderer, capabilities: {
-            makeCapabilities(supportsHeadingJump: true, isDocumentJumpEnabled: false)
+            makeCapabilities(showsDiff: true, supportsHeadingJump: true, isDocumentJumpEnabled: false)
         })
 
         controller.toggleJump()
@@ -83,14 +83,16 @@ struct ToggleBarCommandTests {
         #expect(renderer.commands.isEmpty)
     }
 
-    private func makeCapabilities(supportsHeadingJump: Bool, isDocumentJumpEnabled: Bool) -> ViewerCapabilities {
+    private func makeCapabilities(
+        showsDiff: Bool, supportsHeadingJump: Bool, isDocumentJumpEnabled: Bool
+    ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: true,
             isRejected: false,
             isRenderable: true,
             isBinaryContent: false,
             showsCodeContent: true,
-            showsDiff: !isDocumentJumpEnabled,
+            showsDiff: showsDiff,
             supportsSourceMode: true,
             supportsDiffDisplay: true,
             supportsFind: true,
