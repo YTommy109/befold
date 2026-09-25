@@ -197,9 +197,10 @@ struct PDFFindModelTests {
         #expect(model.matches.isEmpty)
     }
 
-    /// 閉じたら検索語もハイライトも捨てる。残すと、開き直したとき前の結果が出る。
-    @Test("閉じると検索語とヒットを捨てる")
-    func closingClearsState() async {
+    /// 閉じたらハイライトは捨て、検索語は残す（web 面と同じ / TASK-485.29）。
+    /// 開き直すと残した語で探し直す。
+    @Test("閉じるとヒットを捨て、開き直すと残した検索語で探し直す")
+    func closingKeepsQueryAndReopenSearchesAgain() async {
         let fixture = makeFixture(matchCount: 3)
         let model = fixture.model
         let pdfView = fixture.pdfView
@@ -211,9 +212,15 @@ struct PDFFindModelTests {
         model.close()
 
         #expect(!model.isOpen)
-        #expect(model.query.isEmpty)
+        #expect(model.query == "needle")
         #expect(model.matches.isEmpty)
         #expect(pdfView.highlightedSelections == nil)
+
+        model.open()
+        await waitForSearch(model)
+
+        #expect(model.matches.count == 3)
+        model.close()
     }
 
     /// 文書が差し替わったら前の文書のヒットは無効。残すと、別の文書の位置を指す

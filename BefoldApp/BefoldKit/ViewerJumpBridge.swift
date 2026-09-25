@@ -9,20 +9,23 @@ import Foundation
 ///
 /// 逆方向(JS → Swift の `jumpLevelsChanged`)は `ViewerBridgeMessage` が持つ。
 public enum ViewerJumpBridge {
-    /// 文書内ジャンプバーを開くスクリプト。目印の種類(kind)を引数に取るため
-    /// `ViewerBridge.PlainFunction`(引数なしの `name()` 形式)には載せられない。
-    /// JS 側の定義は `ViewerBridgeTests` が存在を検証する。
-    /// kind は JSON エンコードを経由させる(他の注入経路と同じエスケープの単一経路)。
-    public static func openJumpScript(kind: String) -> String {
-        guard let literal = ViewerBridge.jsonLiteral(kind) else {
-            return "_mmdOpenJump(null)"
+    /// 統合バーのモードをトグルするスクリプト(⌘F / ⇧⌘F、TASK-485.28)。
+    /// mode は `ViewerBridge.barModes` の 1 つ("search" か `DocumentJumpKind.rawValue`)。
+    /// 同じモードで開いていれば閉じ、それ以外なら開く・切り替える。開閉の状態は
+    /// JS の bar.ts だけが持つので、判定も JS 側(`_mmdToggleBarMode`)が行う。
+    /// 引数を取るため `ViewerBridge.PlainFunction` には載せられない。JS 側の定義は
+    /// `ViewerBridgeContractTests` が存在を検証する。
+    /// mode は JSON エンコードを経由させる(他の注入経路と同じエスケープの単一経路)。
+    public static func toggleBarModeScript(mode: String) -> String {
+        guard let literal = ViewerBridge.jsonLiteral(mode) else {
+            return "_mmdToggleBarMode(null)"
         }
-        return "_mmdOpenJump(\(literal))"
+        return "_mmdToggleBarMode(\(literal))"
     }
 
     /// いま使える目印の種類を JS へ知らせるスクリプト(TASK-485.18)。
     /// JS 側は開いているジャンプバーの種類がこの一覧から外れていれば閉じる。
-    /// 開くときの guard(`DocumentCommandController.openJump`)と同じ
+    /// 開くときの種類選択(`DocumentCommandController.toggleJump()`)と同じ
     /// `ViewerCapabilities.canJump(to:)` の結果が渡るため、可否の規則は Swift 側の
     /// 1 箇所だけが持つ(JS 側で判定し直さない)。
     /// エンコードに失敗したときは空配列を入れる。ここでの空は「どの種類も使えない」で、

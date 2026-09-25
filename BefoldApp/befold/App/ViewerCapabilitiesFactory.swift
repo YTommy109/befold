@@ -25,7 +25,10 @@ enum ViewerCapabilitiesFactory {
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool
     ) -> ViewerCapabilities {
-        ViewerCapabilities(
+        // 差分・見出しジャンプ・定義ジャンプの種別判定は URL 由来の FileType から取る。
+        // 切替中の contentState は旧ファイルの値を持ちうるため(上の fileURL の doc / TASK-338)。
+        let urlFileType = FileType(url: fileURL)
+        return ViewerCapabilities(
             isPresentingDocument: isPresentingDocument,
             isRejected: store.contentState.isRejected,
             isRenderable: store.contentState.fileType.isRenderable,
@@ -33,7 +36,7 @@ enum ViewerCapabilitiesFactory {
             showsCodeContent: store.showsCodeContent,
             showsDiff: store.showsDiff,
             supportsSourceMode: store.contentState.fileType.supportsSourceMode,
-            supportsDiffDisplay: FileType(url: fileURL).supportsDiffDisplay,
+            supportsDiffDisplay: urlFileType.supportsDiffDisplay,
             // 回転は PDF の面(PDFView)の機能。種別の判定はここ 1 箇所で、
             // メニュー・コマンドは能力しか見ない(ADR 0002 段 2)。
             supportsRotation: store.contentState.fileType == .pdf,
@@ -41,9 +44,8 @@ enum ViewerCapabilitiesFactory {
             supportsFind: store.contentState.fileType.supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
-            // supportsDiffDisplay と同じく URL 由来の FileType から取る(切替中の
-            // contentState は旧値を持ちうる。この型の :20-24 のコメントを参照)。
-            codeLanguage: FileType(url: fileURL).codeLanguage,
+            supportsHeadingJump: urlFileType.supportsHeadingJump,
+            codeLanguage: urlFileType.codeLanguage,
             // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、
             // メニューの有効判定とコマンドの実行ガードの両方が自動で塞がる
             // (露出点を数え上げて回る形にしない / TASK-485.1)。

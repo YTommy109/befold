@@ -21,6 +21,9 @@ const activeModes = (document: Document) =>
 const segmentVisible = (document: Document, mode: string) =>
   document.getElementById('mmd-bar-mode-' + mode)!.style.display !== 'none';
 
+const switchRowVisible = (document: Document) =>
+  document.getElementById('mmd-bar-modes')!.style.display !== 'none';
+
 const clickMode = (document: Document, mode: string) => {
   document.getElementById('mmd-bar-mode-' + mode)!.click();
 };
@@ -108,16 +111,125 @@ describe('バーのモード切替スイッチ', () => {
     expect(activeModes(document)).toEqual([]);
   });
 
+  // TASK-485.28: ⌘F / ⇧⌘F は Swift から _mmdToggleBarMode を呼ぶ。開閉の状態は
+  // JS だけが持つので、トグルの判定もここで確かめる。
+  describe('⌘F / ⇧⌘F のトグル', () => {
+    test('閉じていれば開き、同じモードでもう一度呼ぶと閉じる', () => {
+      const { main, document } = loadViewerMain({});
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(outerVisible(document)).toBe(true);
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdFind.isOpen()).toBe(false);
+      expect(outerVisible(document)).toBe(false);
+    });
+
+    test('検索欄が開いていても本文にフォーカスがあれば、閉じずに入力欄へ戻して語を全選択する', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
+      input.value = 'needle';
+      input.dispatchEvent(new document.defaultView!.Event('input'));
+      input.blur();
+
+      main._mmdToggleBarMode('search');
+
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe('needle'.length);
+    });
+
+    test('閉じて開き直しても検索語が残る', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
+      input.value = 'needle';
+      input.dispatchEvent(new document.defaultView!.Event('input'));
+
+      main._mmdToggleBarMode('search');
+      main._mmdToggleBarMode('search');
+
+      expect(input.value).toBe('needle');
+    });
+
+    test('ジャンプも同じ種類でもう一度呼ぶと閉じる', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdJump.activeMode()).toBe('heading');
+      expect(main._mmdJump.isOpen()).toBe(true);
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdJump.isOpen()).toBe(false);
+      expect(outerVisible(document)).toBe(false);
+    });
+
+    test('別のモードで開いていれば閉じずにそのモードへ切り替える', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
+      main._mmdToggleBarMode('search');
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdFind.isOpen()).toBe(false);
+      expect(main._mmdJump.isOpen()).toBe(true);
+      expect(activeModes(document)).toEqual(['heading']);
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdJump.isOpen()).toBe(false);
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(activeModes(document)).toEqual(['search']);
+    });
+
+    test('モード切替のボタンは選択中のモードを押しても閉じない', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+
+      clickMode(document, 'search');
+
+      expect(main._mmdFind.isOpen()).toBe(true);
+    });
+
+    test('未知のモード名では何もしない', () => {
+      const { main, document } = loadViewerMain({});
+
+      main._mmdToggleBarMode('unknown');
+
+      expect(outerVisible(document)).toBe(false);
+    });
+  });
+
   // TASK-485.19.3: 非対応モードのセグメントは、Swift 側 canJump(to:) 由来の
   // availableKinds（TASK-485.18 の可用性伝搬を流用）に基づき自動的に隠す。
   describe('モードの可用性に応じたセグメントの表示', () => {
-    test('Swift からまだ同期が届く前は見出し/変更箇所を隠し、検索だけ出す', () => {
+    test('Swift からまだ同期が届く前は選べるのが検索だけなので、スイッチの行ごと隠す', () => {
       const { document } = loadViewerMain({});
 
+      expect(switchRowVisible(document)).toBe(false);
       expect(segmentVisible(document, 'search')).toBe(true);
       expect(segmentVisible(document, 'heading')).toBe(false);
       expect(segmentVisible(document, 'changeBlock')).toBe(false);
       expect(segmentVisible(document, 'functionDefinition')).toBe(false);
+    });
+
+    // TASK-485.31: 見出しジャンプが Markdown だけになり(485.26)、mmd・JSON・未対応言語などでは
+    // 選べるのが検索だけになった。1 つだけのセグメントは押しても何も変わらないので出さない。
+    test('選べるモードが検索だけのときはスイッチの行を隠し、ジャンプが届けば出す', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdOpenFind();
+
+      main._mmdApplyJumpAvailability([]);
+      expect(outerVisible(document)).toBe(true);
+      expect(switchRowVisible(document)).toBe(false);
+
+      main._mmdApplyJumpAvailability(['heading']);
+      expect(switchRowVisible(document)).toBe(true);
+
+      main._mmdApplyJumpAvailability([]);
+      expect(switchRowVisible(document)).toBe(false);
     });
 
     test('_mmdApplyJumpAvailability で使える種類だけが表示される', () => {
@@ -220,8 +332,7 @@ describe('バーのモード切替スイッチ', () => {
     });
   });
 
-  // TASK-485.19 AC3: 差分表示時の既定モード選択（Swift 側 openBar(kind:) が
-  // ⌘F 相当の非明示オープンでだけ行う）は、バーを開く瞬間にしか効かない。
+  // モードの選択はバーを開く・切り替える瞬間にしか効かない。
   // jump.ts の refresh/invalidate は再描画のたびに呼ばれるが、これらは
   // どちらも activeKind や openBar の状態を変更しない（列を作り直すだけ）ため、
   // ユーザーが手動で切り替えたモードが再描画で黙って引き戻されることはない。

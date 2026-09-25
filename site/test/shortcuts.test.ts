@@ -80,6 +80,13 @@ const EXPECTED_MENU_ITEMS: {
     keyEquivalent: '"g"',
     modifiers: ['.command', '.shift'],
   },
+  // 文書内ジャンプ（TASK-485.28）。開発中機能のゲートの内側で構築される項目なので、
+  // 公開の表にはまだ載せない（「表 ⊆ 実装」しか検査しないので載せずに済む。掲載は TASK-485.25）。
+  {
+    localizationKey: 'menu.edit.jump',
+    keyEquivalent: '"f"',
+    modifiers: ['.command', '.shift'],
+  },
   { localizationKey: 'menu.view.actualSize', keyEquivalent: '"0"', modifiers: null },
   { localizationKey: 'menu.view.zoomIn', keyEquivalent: '"+"', modifiers: null },
   { localizationKey: 'menu.view.zoomOut', keyEquivalent: '"-"', modifiers: null },

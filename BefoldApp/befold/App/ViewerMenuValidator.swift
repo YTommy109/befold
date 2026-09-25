@@ -122,20 +122,17 @@ enum ViewerMenuValidator {
         return nil
     }
 
-    /// 文書内ジャンプ(Edit メニュー)の validate。種類ごとに条件が違う
-    /// (変更ブロックは差分表示中だけ)ため、項目のタグから種類を復元して引き当てる。
-    /// 自分の担当外の項目には nil を返す(`validateDisplayModeItem` と同じ形)。
+    /// Edit > ジャンプ… の validate。使える種類が無ければ検索へ倒れるので、
+    /// ジャンプか検索のどちらかができれば有効(TASK-485.28)。実行経路
+    /// (`DocumentCommandController.toggleJump()`)と同じ `canToggleJump` を読む(TASK-485.32)。自分の担当外の項目には nil を返す
+    /// (`validateDisplayModeItem` と同じ形)。
     private static func validateDocumentJumpItem(
         _ menuItem: NSMenuItem, capabilities: ViewerCapabilities
     ) -> Bool? {
         guard menuItem.action == #selector(ViewerWindowController.documentJump(_:)) else {
             return nil
         }
-        // タグから種類を復元できない項目は、種類によらない共通条件へ落とす。
-        guard let kind = DocumentJumpKind(menuItemTag: menuItem.tag) else {
-            return capabilities.canJump
-        }
-        return capabilities.canJump(to: kind)
+        return capabilities.canToggleJump
     }
 
     /// 文書に対する操作(印刷・ズーム)の validate。どれも「その能力があるか」を

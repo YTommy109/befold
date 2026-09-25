@@ -149,6 +149,13 @@ function isFindBarOpen(): boolean {
   return isBarOpen('find');
 }
 
+// 検索欄にキー入力が届く状態か。activeElement だけでは足りない:
+// サイドバーへ移っても WebView 内の activeElement は入力欄のまま残るため、
+// 文書自体がフォーカスを持つか（hasFocus）も併せて見る（TASK-485.29）。
+function isFindInputFocused(): boolean {
+  return document.hasFocus() && document.activeElement === findInputElement();
+}
+
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
@@ -548,8 +555,10 @@ registerBar('find', {
   },
 });
 
-// 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。ViewerBridge の
-// 各 script 定数と一対一で対応するため、コントローラへの委譲だけを行う。
+// 以下は名前で公開する入口で、コントローラへの委譲だけを行う。Swift が
+// evaluateJavaScript で直接呼ぶのは ViewerBridge.PlainFunction に載る
+// _mmdFindNextIfOpen / _mmdFindPrevIfOpen だけ。⌘F は _mmdToggleBarMode を通り
+// （TASK-485.28）、_mmdOpenFind はそこ（bar-mode.ts の openMode）から使われる。
 function _mmdInitFind(): void {
   _mmdFind.applyHostSettings();
 }
@@ -588,4 +597,5 @@ export {
   _mmdFindRefresh,
   _mmdFindNextIfOpen,
   _mmdFindPrevIfOpen,
+  isFindInputFocused,
 };

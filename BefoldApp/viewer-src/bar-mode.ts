@@ -1,13 +1,14 @@
 // バー右上のモード切替スイッチ（検索/見出し/変更箇所、TASK-485.19）。
 //
 // 実際の検索・列挙ロジックは持たない。クリックは既存の open 入口
-// （_mmdOpenFind / _mmdOpenJump）へ委譲し、いま開いているモードに応じて
+// （_mmdOpenFind / _mmdOpenJump）へ委譲し、Swift からの ⌘F / ⇧⌘F は
+// _mmdToggleBarMode（開閉のトグル）を通る。いま開いているモードに応じて
 // スイッチの選択状態の見た目を揃えるだけの薄い調整役。外枠（#mmd-bar）の
 // 表示・非表示は bar.ts が一元管理する（このモジュールは選択状態の
 // ハイライトだけを担当する）。
 
-import { currentBar, setOnBarChange } from './bar.js';
-import { _mmdOpenFind } from './find.js';
+import { closeCurrentBar, currentBar, setOnBarChange } from './bar.js';
+import { _mmdOpenFind, isFindInputFocused } from './find.js';
 import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
 type BarMode = 'search' | 'heading' | 'changeBlock' | 'functionDefinition';
@@ -59,13 +60,24 @@ function isModeAvailable(mode: BarMode): boolean {
 // バーの開閉・モード・可用性が変わるたびに呼ばれ、スイッチの選択表示と
 // 非対応セグメントの非表示を揃える（bar.ts の setOnBarChange、jump.ts の
 // setOnAvailabilityChange から呼ばれる。外枠の表示自体は bar.ts が持つ）。
+//
+// 選べるモードが検索だけなら、スイッチの行ごと隠す（TASK-485.31）。ジャンプは
+// 排他で高々 1 種類なので、選択肢は「検索 + どれか 1 つ」か「検索」だけになり、
+// 後者で 1 つだけのセグメントを出しても押して変わるものが無い。
 function updateSwitchAppearance(): void {
   var mode = currentMode();
+  var available = MODES.filter(function (key) {
+    return isModeAvailable(key);
+  });
+  var row = document.getElementById('mmd-bar-modes');
+  if (row) {
+    row.style.display = available.length > 1 ? '' : 'none';
+  }
   MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;
     button.classList.toggle('active', key === mode);
-    button.style.display = isModeAvailable(key) ? '' : 'none';
+    button.style.display = available.includes(key) ? '' : 'none';
   });
 }
 
@@ -77,12 +89,34 @@ function openMode(mode: BarMode): void {
   }
 }
 
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。⌘F / ⇧⌘F のトグル(TASK-485.28)。
+// mode は 'search' か DocumentJumpKind.rawValue。
+//
+// 同じモードで開いていれば閉じ、閉じていれば開き、別のモードで開いていれば
+// そのモードへ切り替える(閉じない)。ただし検索は、開いていても入力欄に
+// フォーカスが無ければ閉じずに入力欄へ戻して語を全選択する(TASK-485.29)。
+// 本文を読んでから語を変えようと ⌘F を押す慣習(Safari 等)を保つためで、
+// 入力欄の無いジャンプは単純なトグルのまま。開閉の状態は bar.ts だけが持ち、Swift は
+// 写しを持たない——判定をここに置くのはそのため。
+// モード切替スイッチのボタンは openMode を直接呼ぶので、押しても閉じない。
+function _mmdToggleBarMode(mode: string): void {
+  var target: BarMode | null = mode === 'search' ? 'search' : jumpMode(mode);
+  if (target === null) {
+    return;
+  }
+  if (currentMode() === target && (target !== 'search' || isFindInputFocused())) {
+    closeCurrentBar();
+    return;
+  }
+  openMode(target);
+}
+
 function _mmdInitBarModeSwitch(): void {
   var labels = (window._mmdUIStrings || {}).modes || {};
   setOnBarChange(updateSwitchAppearance);
   setOnAvailabilityChange(updateSwitchAppearance);
   // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
-  // 初期状態(見出し/変更箇所を隠す)を合わせておく。
+  // 初期状態(検索だけ = スイッチの行ごと隠す)を合わせておく。
   updateSwitchAppearance();
   MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
@@ -100,4 +134,4 @@ function _mmdInitBarModeSwitch(): void {
   });
 }
 
-export { _mmdInitBarModeSwitch };
+export { _mmdInitBarModeSwitch, _mmdToggleBarMode };

@@ -32,22 +32,24 @@ protocol DocumentSurfaceOperating: AnyObject {
     /// 呼ぶ（開いた瞬間に奪うとサイドバーの流し読みが壊れる / TASK-581）。
     func focusSurface()
 
-    /// ページ内検索を開く / 次へ / 前へ。
-    func openFind()
+    /// ページ内検索のトグル(開いていれば閉じる、⌘F / TASK-485.28) / 次へ / 前へ。
+    func toggleFind()
     func findNext()
     func findPrevious()
 
-    /// 文書内ジャンプを開く。
+    /// 文書内ジャンプのトグル(同じ種類で開いていれば閉じる、⇧⌘F / TASK-485.28)。
+    /// 開閉の状態は面の側だけが持つ(web 面は JS の bar.ts)。Swift に写しを置くと
+    /// Esc やモード切替ボタンで閉じたときに食い違う。
     /// kind は目印の種類。生の String ではなく `DocumentJumpKind` で受けるのは、
     /// 種類ごとの可否検査(`ViewerCapabilities.canJump(to:)`)をコマンド経路が
     /// 迂回できないようにするため(TASK-485.7)。文字列へ落とすのは JS 境界の
     /// `WebViewDocumentRenderer` 1 箇所だけ。
     ///
-    /// 閉じる / 次へ / 前へ は Swift 側の入口を持たない。Esc・Enter・Shift+Enter は
+    /// 次へ / 前へ は Swift 側の入口を持たない。Esc・Enter・Shift+Enter は
     /// viewer の keydown ハンドラが処理しており、Swift から呼ぶ経路が無いため
     /// 配管だけが残っていた(TASK-485.15 で撤去)。メニューやキーバインドから
     /// 呼ぶ必要が出たら、そのときに再導入する。
-    func openJump(kind: DocumentJumpKind)
+    func toggleJump(kind: DocumentJumpKind)
 
     /// 表示内容を指定ウィンドウ上のシートとして印刷する。
     /// jobTitle は印刷パネルの「PDF として保存」の保存名の初期値になる。設定しないと

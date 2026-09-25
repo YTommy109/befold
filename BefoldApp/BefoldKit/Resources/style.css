@@ -52,9 +52,13 @@
   --fg-muted: #555;
   --accent: #007aff;
 
-  /* 検索の候補ヒットと文書内ジャンプの候補で共有する地色。
-     どちらも「ここが該当する」を同じ読み方で見せる（TASK-485.22）。 */
+  /* 検索の候補ヒットの地色。 */
   --hit-bg: rgba(255, 213, 0, 0.55);
+
+  /* 文書内ジャンプの目印の地色(TASK-485.27)。差分表示と同じ淡い地色の調子に揃え、
+     候補と現在位置は濃さだけを変える。現在位置の強調は左端の縦バー(--accent)が担う。 */
+  --jump-target-bg: rgba(0, 122, 255, 0.07);
+  --jump-current-bg: rgba(0, 122, 255, 0.14);
 
   --panel-bg: rgba(255, 255, 255, 0.92);
   --panel-border: rgba(0, 0, 0, 0.12);
@@ -93,6 +97,9 @@
     --fg: #e4e4e4;
     --fg-muted: #aaa;
     --accent: #4aa3ff;
+
+    --jump-target-bg: rgba(74, 163, 255, 0.08);
+    --jump-current-bg: rgba(74, 163, 255, 0.16);
 
     --panel-bg: rgba(44, 44, 44, 0.92);
     --panel-border: rgba(255, 255, 255, 0.14);
@@ -902,25 +909,42 @@ mark.mmd-find-match-current {
   gap: 2px;
 }
 
-/* ── 文書内ジャンプの目印（候補と現在位置・TASK-485.22） ──
-   行番号ガター(td.line-number)を持たない表示——Markdown レンダリング表示の
-   見出しなど——では、検索の <mark> とまったく同じ装飾にする。候補は薄い地色
-   (--hit-bg)、現在位置はアクセントの地色。同じ「前後移動する UI」なので、
-   目印の読み方も検索と共有するのが分かりやすいという判断（ユーザー確認済み）。
+/* ── 文書内ジャンプの目印（候補と現在位置・TASK-485.27） ──
+   見出し・定義の目印は、差分表示と同じ淡いパステル調の地色にする。
+   現在位置は文字色を変えず、左端の濃い縦バー(インセット影)で示す。
+   差分表示の変更ブロックのアクティブ表示(下の .diff-table 側)と同じ読み方になる。
 
-   以前は候補に文字幅の下線、現在位置に outline の枠線を使っていたが、
-   見出しの周りに枠が出るのは画面がうるさく、検索とも読み方が違っていた。
+   以前(TASK-485.22)は検索の <mark> と同じ装飾(黄色地・アクセント地に白文字)だったが、
+   見出しの大きな文字が塗りつぶされて目立ちすぎた。
+   さらに前は outline の枠線だったが、見出しの周りに枠が出てうるさかった。
 
    背景色を使うため、地色を持つ差分表示だけは下で打ち消す。
    .diff-add / .diff-del は tr に background-color を持ち、同じ詳細度(0,1,0)の
    ここが後勝ちすると差分の色分けを潰してしまう。 */
 .mmd-jump-target {
-  background: var(--hit-bg);
+  background: var(--jump-target-bg);
 }
 
 .mmd-jump-current {
-  background: var(--accent);
-  color: #fff;
+  background: var(--jump-current-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* 縦バーと文字の間を空ける。地色とバーは影で要素の外(左 8px)へ描き、
+   要素の箱(余白・枠)には触れない。padding と負の margin で張り出させると、
+   h1 / h2 の下線(border-bottom)まで左へ伸び、見出しが元々持つ字下げも
+   上書きしていた(TASK-485.33)。外側の影は要素の箱の内側には描かれないので、
+   左の帯だけが見える。上の影ほど手前: 現在位置は地色(-5px)の下から
+   アクセントの 3px(-8px〜-5px)がのぞく。
+   表のセル(ソース表示の td.line-content)は元から内側の余白を持つので対象外。 */
+.mmd-jump-target:not(td) {
+  box-shadow: -8px 0 0 var(--jump-target-bg);
+}
+
+.mmd-jump-current:not(td) {
+  box-shadow:
+    -5px 0 0 var(--jump-current-bg),
+    -8px 0 0 var(--accent);
 }
 
 /* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
@@ -935,7 +959,6 @@ mark.mmd-find-match-current {
   outline: none;
   /* 上の .mmd-jump-current の地色を打ち消し、行の地色(.diff-add / .diff-del)を残す。 */
   background: transparent;
-  color: inherit;
 }
 
 /* 候補の印は差分表示では出さない。変更ブロックは地色で既に全部が見えており、

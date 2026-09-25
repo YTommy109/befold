@@ -14205,6 +14205,7 @@
     _mmdSetRenderDocPath: () => _mmdSetRenderDocPath,
     _mmdSetRestoreScroll: () => _mmdSetRestoreScroll,
     _mmdSetTruncated: () => _mmdSetTruncated,
+    _mmdToggleBarMode: () => _mmdToggleBarMode,
     _mmdViewOptions: () => _mmdViewOptions,
     _mmdWheelZoom: () => _mmdWheelZoom,
     _mmdWrapDiagrams: () => _mmdWrapDiagrams,
@@ -14263,6 +14264,7 @@
     imageFitSize: () => imageFitSize,
     indentColumns: () => indentColumns,
     isBarOpen: () => isBarOpen,
+    isFindInputFocused: () => isFindInputFocused,
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
@@ -14524,6 +14526,9 @@
   }
   function isFindBarOpen() {
     return isBarOpen("find");
+  }
+  function isFindInputFocused() {
+    return document.hasFocus() && document.activeElement === findInputElement();
   }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
@@ -15110,11 +15115,18 @@
   }
   function updateSwitchAppearance() {
     var mode = currentMode();
+    var available = MODES.filter(function(key) {
+      return isModeAvailable(key);
+    });
+    var row = document.getElementById("mmd-bar-modes");
+    if (row) {
+      row.style.display = available.length > 1 ? "" : "none";
+    }
     MODES.forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
       button.classList.toggle("active", key === mode);
-      button.style.display = isModeAvailable(key) ? "" : "none";
+      button.style.display = available.includes(key) ? "" : "none";
     });
   }
   function openMode(mode) {
@@ -15123,6 +15135,17 @@
     } else {
       _mmdOpenJump(mode);
     }
+  }
+  function _mmdToggleBarMode(mode) {
+    var target = mode === "search" ? "search" : jumpMode(mode);
+    if (target === null) {
+      return;
+    }
+    if (currentMode() === target && (target !== "search" || isFindInputFocused())) {
+      closeCurrentBar();
+      return;
+    }
+    openMode(target);
   }
   function _mmdInitBarModeSwitch() {
     var labels = (window._mmdUIStrings || {}).modes || {};

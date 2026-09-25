@@ -14,7 +14,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
         var isSourceMode = false
@@ -84,7 +85,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
             supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: true, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: true, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 
@@ -104,52 +106,52 @@ struct ViewerMenuValidatorTests {
         #expect(ViewerMenuValidator.validate(makeItem(#selector(ViewerWindowController.resetZoom(_:))), source: source))
     }
 
-    @Test("文書内ジャンプは項目のタグが指す種類ごとに判定する")
-    func mapsDocumentJumpItemsToTheirKind() {
+    /// Edit > ジャンプ… は、使える種類が無ければ検索へ倒れる(TASK-485.28)。
+    /// そのため種類の有無ではなく検索の可否で有効になる。ジャンプ未対応の言語でも
+    /// グレーアウトしない(押すと検索が開く)。
+    @Test("ジャンプの項目は検索できる限り有効で、ジャンプ未対応の表示でも無効にならない")
+    func enablesJumpItemWheneverFindIsAvailable() {
         let source = StubSource()
-        // 差分表示ではない状態(既定は showsDiff: true なので作り直す)。
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: false,
+            codeLanguage: "ruby", isDocumentJumpEnabled: true
         )
-        let jump = #selector(ViewerWindowController.documentJump(_:))
+        let item = makeItem(#selector(ViewerWindowController.documentJump(_:)))
 
-        let heading = makeItem(jump, tag: DocumentJumpKind.heading.menuItemTag)
-        let changeBlock = makeItem(jump, tag: DocumentJumpKind.changeBlock.menuItemTag)
+        #expect(source.capabilities.availableJumpKind == nil)
+        #expect(ViewerMenuValidator.validate(item, source: source))
 
-        #expect(ViewerMenuValidator.validate(heading, source: source))
-        #expect(!ViewerMenuValidator.validate(changeBlock, source: source))
-
-        source.capabilities = StubSource().capabilities // showsDiff: true
-        #expect(ViewerMenuValidator.validate(changeBlock, source: source))
+        source.capabilities = .none
+        #expect(!ViewerMenuValidator.validate(item, source: source))
     }
 
-    /// 非対応言語では「定義へジャンプ」が**押す前に**グレーアウトしていること
-    /// （TASK-485.4 の受け入れ基準 #2）。押しても何も起きない形にはしない。
-    @Test("非対応言語では定義へジャンプのメニュー項目が無効になる")
-    func disablesFunctionDefinitionJumpForUnsupportedLanguage() {
-        func source(language: String?) -> StubSource {
-            let stub = StubSource()
-            stub.capabilities = ViewerCapabilities(
-                isPresentingDocument: true, isRejected: false, isRenderable: true,
-                isBinaryContent: false, showsCodeContent: true, showsDiff: false,
-                supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-                gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: language,
-                isDocumentJumpEnabled: true
-            )
-            return stub
-        }
-        let item = makeItem(
-            #selector(ViewerWindowController.documentJump(_:)),
-            tag: DocumentJumpKind.functionDefinition.menuItemTag
+    /// 項目の有効判定と実行経路が同じ `canToggleJump` を読むこと(TASK-485.32)。
+    /// 検索できない種別でもジャンプができるなら、項目は有効で、押せばジャンプが届く。
+    /// 片方だけ `canFind` を見ると、ここで項目がグレーになる。
+    @Test("ジャンプはできるが検索はできない表示では、ジャンプの項目が有効で押すとジャンプが届く")
+    func enablesJumpItemWhenJumpAvailableWithoutFind() {
+        let capabilities = ViewerCapabilities(
+            isPresentingDocument: true, isRejected: false, isRenderable: true,
+            isBinaryContent: false, showsCodeContent: false, showsDiff: false,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: nil, isDocumentJumpEnabled: true
         )
+        #expect(!capabilities.canFind)
+        let source = StubSource()
+        source.capabilities = capabilities
+        let renderer = FakeDocumentRenderer()
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { capabilities })
 
-        #expect(ViewerMenuValidator.validate(item, source: source(language: "swift")))
-        #expect(!ViewerMenuValidator.validate(item, source: source(language: "ruby")))
-        #expect(!ViewerMenuValidator.validate(item, source: source(language: nil)))
+        #expect(ViewerMenuValidator.validate(
+            makeItem(#selector(ViewerWindowController.documentJump(_:))),
+            source: source
+        ))
+        controller.toggleJump()
+        #expect(renderer.commands == [.toggleJump(kind: .heading)])
     }
 
     @Test("フォルダー一覧の表示中は文書向けのコマンドをすべて無効にする")
@@ -219,7 +221,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
             supportsDiffDisplay: false, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 

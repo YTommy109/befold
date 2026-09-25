@@ -37,7 +37,7 @@ struct ViewerBridgeContractTests {
         #expect(ViewerBridgeContractSupport.definesFunction(html, "render", parameterCount: 3))
         // 引数を取るため PlainFunction には載せられない入口。契約テストの網から
         // 外れるので、ここで明示的に定義の存在を確かめる(TASK-485.1)。
-        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdOpenJump", parameterCount: 1))
+        #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdToggleBarMode", parameterCount: 1))
         #expect(ViewerBridgeContractSupport.definesFunction(html, "_mmdApplyJumpAvailability", parameterCount: 1))
         #expect(html.contains("_MSG_ZOOM_CHANGED = \"\(ViewerBridgeMessage.zoomChanged.rawValue)\""))
         #expect(html.contains("_MSG_REFERENCE_ACTIVATED = \"\(ViewerBridgeMessage.referenceActivated.rawValue)\""))

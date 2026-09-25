@@ -112,30 +112,6 @@ final class DocumentCommandController {
 
     // MARK: - Find
 
-    /// 統合バー(TASK-485.19)の単一入口。Edit > 検索…(⌘F、kind なし)と
-    /// Edit > 見出しへジャンプ / 変更箇所へジャンプ(kind あり)がここへ収斂する。
-    ///
-    /// kind を明示したときは常にそのモードを強制する(検索とジャンプは同じ理由で
-    /// 使い分けるものではなく、ユーザーが選んだ種類をそのまま尊重する)。
-    /// kind が nil のとき(⌘F 相当の非明示オープン)だけ、
-    /// `ViewerCapabilities.defaultBarKind` に既定モードの選択を委ねる。
-    /// ここで `showsDiff` 等の個別フラグを直接見ないのは、「変更ブロックへ
-    /// ジャンプできるか」の条件(ジャンプの能力・フィーチャーゲート込み)を
-    /// `ViewerCapabilities` の外で再実装すると、条件の一部だけを見落として
-    /// (例: フィーチャーゲートが閉じているのに差分表示中というだけで
-    /// 変更箇所ジャンプへ倒し、ジャンプ側の guard で無言の no-op になり
-    /// ⌘F が何も開かなくなる)取りこぼす経路ができるため(ADR 0002 段 2
-    /// 「条件は 1 箇所」)。
-    func openBar(kind: DocumentJumpKind?) {
-        guard let resolvedKind = kind ?? capabilities().defaultBarKind else {
-            openFind()
-            return
-        }
-        openJump(kind: resolvedKind)
-    }
-
-    /// 本番コードからは `openBar(kind:)` を経由すること。ここへの直接呼び出しは
-    /// テスト専用(`openBar` の既定モード選択を迂回してしまうため)。
     /// キーボードのフォーカスを**いま描いている面**へ移す（⌘→ / TASK-584）。
     ///
     /// 能力では絞らない。どの種別でも「本文を読む」ことはできるので、フォーカスを
@@ -144,9 +120,10 @@ final class DocumentCommandController {
         renderer.focusSurface()
     }
 
-    func openFind() {
+    /// ⌘F。表示に依らず検索をトグルする(開いていれば閉じる / TASK-485.28)。
+    func toggleFind() {
         guard capabilities().canFind else { return }
-        renderer.openFind()
+        renderer.toggleFind()
     }
 
     func findNext() {
@@ -161,26 +138,31 @@ final class DocumentCommandController {
 
     // MARK: - Document jump
 
-    /// 種類ごとの可否で閉じる。粗い `canJump` だけで通すと、メニュー検証だけが
-    /// 種類別の規則(変更ブロックは差分表示が必要)を守る形になり、メニュー以外の
-    /// 入口(キーバインド・ツールバー)が同じ穴を継承する(TASK-485.7)。
+    /// ⇧⌘F。その表示で使えるジャンプ(見出し・定義・変更箇所は排他で高々 1 つ)を
+    /// トグルし、どれも無ければ検索をトグルする(TASK-485.28)。
     ///
-    /// 本番コードからは `openBar(kind:)` を経由すること(理由は `openFind()` と同じ)。
-    func openJump(kind: DocumentJumpKind) {
-        guard capabilities().canJump(to: kind) else { return }
-        renderer.openJump(kind: kind)
+    /// 種類は `ViewerCapabilities.availableJumpKind` が `canJump(to:)` から決める。
+    /// 種類ごとの可否をここで再実装しないので、メニュー以外の入口(キーバインド等)が
+    /// 種類別の規則を迂回する穴も作らない(TASK-485.7)。
+    func toggleJump() {
+        let capabilities = capabilities()
+        guard capabilities.canToggleJump else { return }
+        if let kind = capabilities.availableJumpKind {
+            renderer.toggleJump(kind: kind)
+        } else {
+            renderer.toggleFind()
+        }
     }
 
     /// いま使える種類を viewer へ送り直す。開いているバーの種類が使えなくなって
     /// いれば viewer 側が閉じる(TASK-485.18)。
     ///
-    /// 集合は `allCases` を `canJump(to:)` で絞って作る。openJump の guard と
-    /// **同じ述語**を通すので、開く条件と開き続けられる条件が食い違わない。
+    /// 集合は `ViewerCapabilities.availableJumpKinds` をそのまま使う。`toggleJump()` の
+    /// 種類選択と**同じ列挙**を通すので、開く条件と開き続けられる条件が食い違わない。
     /// 種類を足したときも列挙を書き足す必要が無い(書き足し漏れは
     /// 「新しい種類だけ失効しない」という形で表に出るため、構造で塞ぐ)。
     func syncJumpAvailability() {
-        let capabilities = capabilities()
-        let kinds = Set(DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) })
+        let kinds = Set(capabilities().availableJumpKinds)
         for surface in surfaces.syncingAll {
             surface.applyJumpAvailability(kinds)
         }

@@ -92,6 +92,43 @@ struct PDFSurfaceTextFieldTests {
         #expect(surface.window.requestedFirstResponder === surface.pdfView)
     }
 
+    // MARK: - ⌘F（TASK-485.29）
+
+    /// 本文を読んでいる間の ⌘F は閉じずに入力欄へ戻す（web 面の bar-mode.ts と同じ規則）。
+    /// 閉じてしまうと、語を変えるのにもう一度押す必要がある。
+    @Test("入力欄に居なければ ⌘F は閉じずに入力欄へフォーカスを取り直させる")
+    func toggleFindRefocusesInputWhenSurfaceHasFocus() {
+        let surface = makeSurface()
+        let model = PDFFindModel(pdfViewProxy: surface.proxy, caseSensitive: { false })
+        let renderer = PDFDocumentRenderer(pdfViewProxy: surface.proxy, findModel: model)
+        renderer.toggleFind()
+        let request = model.focusRequest
+        surface.window.makeFirstResponder(surface.pdfView)
+
+        renderer.toggleFind()
+
+        #expect(model.isOpen)
+        #expect(model.focusRequest > request)
+    }
+
+    @Test("入力欄に居れば ⌘F で閉じ、検索語は残る")
+    func toggleFindClosesWhenInputHasFocus() {
+        let surface = makeSurface()
+        let model = PDFFindModel(pdfViewProxy: surface.proxy, caseSensitive: { false })
+        let renderer = PDFDocumentRenderer(pdfViewProxy: surface.proxy, findModel: model)
+        let field = NSTextField(string: "")
+        field.identifier = PDFFindOverlay.inputIdentifier
+        surface.pdfView.addSubview(field)
+        renderer.toggleFind()
+        model.setQuery("needle")
+        surface.window.makeFirstResponder(field)
+
+        renderer.toggleFind()
+
+        #expect(!model.isOpen)
+        #expect(model.query == "needle")
+    }
+
     /// **文書の差し替えではフォーカスを動かさない。** サイドバーを矢印で流し読みして
     /// いる最中に奪うと、次の矢印が一覧へ届かなくなる（TASK-581 で実際に起きた回帰）。
     /// 検索バー側の経路が同じ穴を開けないことを押さえる。

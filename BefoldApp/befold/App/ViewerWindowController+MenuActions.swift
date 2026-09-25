@@ -37,13 +37,11 @@ extension ViewerWindowController {
         documentCommands.printDocument(over: window)
     }
 
-    /// Edit > 検索…。プレビュー右上の統合バーを開く(kind なし = 非明示オープン)。
-    /// 差分表示中は既定モードが変更ブロックジャンプへ振り分けられる
-    /// (`DocumentCommandController.openBar(kind:)`)。
+    /// Edit > 検索…(⌘F)。表示に依らず検索をトグルする(TASK-485.28)。
     /// HTML ファイルの直接ロード表示中は viewer.html の JS が存在しないため無効化する
     /// (validateMenuItem 側で判定)。
     @objc func find(_ sender: Any?) {
-        documentCommands.openBar(kind: nil)
+        documentCommands.toggleFind()
     }
 
     /// Edit > 次を検索。検索バーが開いている間のみ JS 側で処理される。
@@ -56,13 +54,9 @@ extension ViewerWindowController {
         documentCommands.findPrevious()
     }
 
-    /// Edit > 文書内ジャンプ。目印の種類は sender のタグが運ぶ（TASK-485）。
-    /// 種類ごとにアクションを分けず 1 本に畳んであるのは、`ViewerWindowController`
-    /// 型グループが行数上限（恒久例外 900 行）に近いため。表示モード選択
-    /// （`selectDisplayMode(_:)`）と同じタグ方式。
+    /// Edit > ジャンプ…(⇧⌘F)。使える種類のジャンプを、無ければ検索をトグルする(TASK-485.28)。
     @objc func documentJump(_ sender: Any?) {
-        guard let tag = (sender as? NSMenuItem)?.tag, let kind = DocumentJumpKind(menuItemTag: tag) else { return }
-        documentCommands.openBar(kind: kind)
+        documentCommands.toggleJump()
     }
 
     /// View > Toggle Line Numbers / ツールバーの行番号ボタン。行番号表示の有無を切り替える。

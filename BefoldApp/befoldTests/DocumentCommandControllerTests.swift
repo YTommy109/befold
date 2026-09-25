@@ -16,7 +16,7 @@ struct DocumentCommandControllerTests {
         controller.zoomIn()
         controller.zoomOut()
         controller.resetZoom()
-        controller.openFind()
+        controller.toggleFind()
         controller.findNext()
         controller.findPrevious()
         controller.printDocument(over: nil)
@@ -32,14 +32,14 @@ struct DocumentCommandControllerTests {
         controller.zoomIn()
         controller.zoomOut()
         controller.resetZoom()
-        controller.openFind()
+        controller.toggleFind()
         controller.findNext()
         controller.findPrevious()
         controller.printDocument(over: nil)
 
         #expect(renderer.commands == [
             .changeZoom(.zoomIn), .changeZoom(.zoomOut), .changeZoom(.reset),
-            .openFind, .findNext, .findPrevious, .print(jobTitle: "a"),
+            .toggleFind, .findNext, .findPrevious, .print(jobTitle: "a"),
         ])
     }
 
