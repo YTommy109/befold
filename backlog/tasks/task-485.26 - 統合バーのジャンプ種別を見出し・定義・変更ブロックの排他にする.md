@@ -4,7 +4,7 @@ title: 統合バーのジャンプ種別を見出し・定義・変更ブロッ�
 status: Done
 assignee: []
 created_date: '2026-09-25 07:44'
-updated_date: '2026-09-25 08:01'
+updated_date: '2026-09-25 08:29'
 labels: []
 dependencies: []
 parent_task_id: TASK-485
@@ -22,9 +22,9 @@ ordinal: 827000
 <!-- AC:BEGIN -->
 - [x] #1 差分表示中は変更ブロックだけが選べ、見出し・定義は選べない
 - [x] #2 定義ジャンプ対応言語のソース表示中は定義だけが選べ、見出しは選べない
-- [x] #3 それ以外の表示では見出しだけが選べる
-- [x] #4 どの表示でもジャンプ種別がちょうど 1 つになることをユニットテストで担保する
-- [x] #5 CSV/TSV の差分表示でないときはジャンプ種別を持たず、統合バーは検索だけになる
+- [x] #3 差分表示でない Markdown（レンダリング・ソース）では見出しだけが選べる
+- [x] #4 どれにも当たらない表示（mmd・JSON・YAML・TOML・XML・CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）はジャンプ種別を持たず、統合バーは検索だけ（既定）
+- [x] #5 どの表示でもジャンプ種別が 2 つ以上にならないことをユニットテストで担保する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -40,10 +40,14 @@ ViewerCapabilities に canJumpToHeading を足し、見出しを変更ブロッ�
 旧仕様を固定していたテストを書き換えた: OpenBarCommandTests（差分表示中でも見出しを明示すれば開く→開かない）、DocumentJumpCommandTests（同期集合が 2 種→1 種、全種類の網羅は 3 状態の和で見る）。
 ruby 等の非対応言語のソース表示では見出しが出る（目印 0 件）。対応言語は順次広げる方針なのでそのまま（ユーザー確認済み）。
 検証: swift test 全 1995 件合格、/swiftlint-baseline 新規 0・解消 0、markdownlint 0 件。アプリでの目視確認は未実施。
+
+追補: JSON（.code(language: "json")、.jsonc 含む）と XML も CSV/TSV と同じく見出しを持たない扱いにした（ユーザー指示）。FileType.supportsHeadingJump で除外。swift test 全 1995 件合格。
+
+方針変更（ユーザー指示）: ジャンプの既定は「検索だけ」。見出しは Markdown だけ（FileType.supportsHeadingJump = self == .markdown）。ruby など定義ジャンプ未対応の言語も検索だけ。排他のテストは「ちょうど 1 つ」から「2 つ以上にならない」へ変更。!canJumpToFunctionDefinition は Markdown では冗長だが、排他を種別の組み合わせに依らず保つため残した。swift test 全 1995 件合格、swiftlint 新規 0。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-統合バーのジャンプ 3 種（見出し・定義・変更ブロック）を排他にし、選択肢を常に「検索 + 1 つ」にした。CSV/TSV の非差分表示は検索だけ。ViewerCapabilities.canJumpToHeading と FileType.supportsHeadingJump を追加し、viewer-ui.md を更新。swift test 全件合格・swiftlint 差分 0 で確認。
+統合バーのジャンプ 3 種（見出し・定義・変更ブロック）を排他にし、既定を「検索だけ」にした。見出しは Markdown、定義は対応言語のソース表示、変更ブロックは差分表示だけで出る。ViewerCapabilities.canJumpToHeading と FileType.supportsHeadingJump を追加し、viewer-ui.md を更新。swift test 全件合格・swiftlint 差分 0 で確認。
 <!-- SECTION:FINAL_SUMMARY:END -->

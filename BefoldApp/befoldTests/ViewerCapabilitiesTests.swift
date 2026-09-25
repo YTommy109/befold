@@ -236,19 +236,25 @@ struct ViewerCapabilitiesTests {
             .canJump(to: .changeBlock))
     }
 
-    /// 見出し・変更ブロック・定義は排他。バーの選択肢は常に「検索 + どれか 1 つ」の
-    /// 2 つに保つ(差分表示中に見出しや定義は不要)。ここが破れるとセグメントが増える。
-    @Test("見出し・変更ブロック・定義のジャンプはいつもちょうど 1 つだけ使える")
+    /// 見出し・変更ブロック・定義は排他。バーの選択肢は「検索 + どれか 1 つ」か「検索だけ」
+    /// (差分表示中に見出しや定義は不要)。ここが破れるとセグメントが増える。
+    @Test("見出し・変更ブロック・定義のジャンプは同時に 2 つ以上使えない")
     func jumpKindsAreMutuallyExclusive() {
         for showsDiff in [true, false] {
-            for codeLanguage in ["swift", "ruby", nil] as [String?] {
-                let capabilities = makeCapabilities(showsDiff: showsDiff, codeLanguage: codeLanguage)
-                let kinds = DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) }
+            for supportsHeadingJump in [true, false] {
+                for codeLanguage in ["swift", "ruby", nil] as [String?] {
+                    let capabilities = makeCapabilities(
+                        showsDiff: showsDiff,
+                        supportsHeadingJump: supportsHeadingJump,
+                        codeLanguage: codeLanguage
+                    )
+                    let kinds = DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) }
 
-                #expect(
-                    kinds.count == 1,
-                    "showsDiff=\(showsDiff) language=\(String(describing: codeLanguage)) → \(kinds)"
-                )
+                    #expect(
+                        kinds.count <= 1,
+                        "\(showsDiff) \(supportsHeadingJump) \(String(describing: codeLanguage)) → \(kinds)"
+                    )
+                }
             }
         }
         #expect(makeCapabilities(showsDiff: true, codeLanguage: nil).canJump(to: .changeBlock))
@@ -256,13 +262,22 @@ struct ViewerCapabilitiesTests {
         #expect(makeCapabilities(showsDiff: false, codeLanguage: nil).canJump(to: .heading))
     }
 
-    @Test("データ表示(CSV/TSV)は差分表示でなければジャンプ種別を持たず検索だけになる")
+    @Test("見出しは Markdown だけで、それ以外は差分表示でも定義でもなければジャンプ種別を持たず検索だけになる")
     func dataDisplayHasNoJumpKindOutsideDiff() {
         let data = makeCapabilities(supportsHeadingJump: false, codeLanguage: nil)
         #expect(DocumentJumpKind.allCases.filter { data.canJump(to: $0) }.isEmpty)
-        #expect(!FileType.csv(delimiter: ",").supportsHeadingJump)
-        #expect(!FileType.csv(delimiter: "\t").supportsHeadingJump)
         #expect(FileType.markdown.supportsHeadingJump)
+        let others: [FileType] = [
+            .mmd, .svg, .html, .xml, .pdf, .csv(delimiter: ","), .csv(delimiter: "\t"),
+            .image(mimeType: "image/png"), .code(language: "json"), .code(language: "yaml"),
+            .code(language: "ini"), .code(language: "ruby"), .code(language: "swift"),
+        ]
+        for type in others {
+            #expect(!type.supportsHeadingJump, "\(type)")
+        }
+        // 定義ジャンプ未対応の言語は見出しも持たないので、検索だけになる。
+        let ruby = makeCapabilities(supportsHeadingJump: false, codeLanguage: "ruby")
+        #expect(DocumentJumpKind.allCases.filter { ruby.canJump(to: $0) }.isEmpty)
     }
 
     @Test("何も提示していない既定値はすべて不可")

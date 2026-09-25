@@ -30,10 +30,9 @@ struct ViewerCapabilities: Equatable {
     /// 目印が何個あるかでは判定しない。判定するのは「いま差分表示か」という事実だけで、
     /// 目印が 0 個であることは viewer 側の 0/0 表示が伝える(`canJump` と同じ立場)。
     let canJumpToChangeBlock: Bool
-    /// 文書内ジャンプのうち「見出し」を選べるか。見出し・定義・変更ブロックは排他で、
-    /// 差分表示中は変更ブロック、定義を選べるソース表示中は定義だけを出す。
-    /// これで統合バーの選択肢は常に「検索 + 3 種のどれか 1 つ」の 2 つになる。
-    /// ただしデータ表示(CSV/TSV)は見出しも定義も持たないので、差分以外では「検索」だけ。
+    /// 文書内ジャンプのうち「見出し」を選べるか。Markdown の差分表示でないときだけ。
+    /// 見出し・定義・変更ブロックは排他で、統合バーの選択肢は「検索 + どれか 1 つ」か
+    /// 「検索」だけ。既定は検索だけ(mmd・JSON・定義ジャンプ未対応の言語などは検索だけ)。
     let canJumpToHeading: Bool
     /// ズーム(拡大・縮小・等倍)。
     let canZoom: Bool
@@ -74,7 +73,7 @@ struct ViewerCapabilities: Equatable {
     ///     `isBinaryContent` とは別の問いで、PDF はバイナリだが検索できる
     ///     (`FileType.supportsFind` の doc / TASK-570)。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
-    ///   - supportsHeadingJump: 見出しジャンプを持つ種別か(CSV/TSV は不可)。
+    ///   - supportsHeadingJump: 見出しジャンプを持つ種別か(Markdown だけ)。
     ///     既定値は持たせない——渡し忘れが静かに「全種別で見出しあり」へ倒れると、
     ///     データ表示のバーに目印 0 件の見出しが並ぶ。
     ///   - codeLanguage: ソース表示の highlight.js 言語名(コード種別でなければ nil)。
@@ -135,6 +134,8 @@ struct ViewerCapabilities: Equatable {
         // !showsDiff を落とすと差分表示中にメニューが有効のまま 0 件になる。
         canJumpToFunctionDefinition = canJump && showsCodeContent && !showsDiff
             && FunctionJumpLanguages.supports(codeLanguage)
+        // 見出しは Markdown だけで定義ジャンプとは実際には重ならないが、
+        // !canJumpToFunctionDefinition を残して排他を種別の組み合わせに依らず保つ。
         canJumpToHeading = canJump && supportsHeadingJump && !showsDiff && !canJumpToFunctionDefinition
     }
 

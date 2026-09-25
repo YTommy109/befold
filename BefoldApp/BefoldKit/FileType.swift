@@ -208,13 +208,12 @@ public enum FileType: Sendable, Equatable {
         isRenderable && !isBinaryContent
     }
 
-    /// 文書内ジャンプの「見出し」を持つ種別かどうか。
-    /// データ表示(CSV/TSV)は見出しも定義も持たず、統合バーは検索だけになる。
+    /// 文書内ジャンプの「見出し」を持つ種別かどうか。Markdown だけ(レンダリング・ソースとも)。
+    /// ジャンプの既定は「無し」で、統合バーは検索だけになる。見出しでも定義でもない種別
+    /// (mmd・JSON・YAML・XML・CSV/TSV・定義ジャンプ未対応の言語など)に目印 0 件の
+    /// モードを並べない(TASK-485.26)。
     public var supportsHeadingJump: Bool {
-        switch self {
-        case .csv, .image, .pdf: false
-        case .mmd, .markdown, .svg, .html, .code, .xml: true
-        }
+        self == .markdown
     }
 
     /// ソース表示へ git 差分を重ねられる種別かどうか。
