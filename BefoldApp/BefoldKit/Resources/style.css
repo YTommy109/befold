@@ -930,13 +930,21 @@ mark.mmd-find-match-current {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-/* 縦バーと文字の間を空ける。余白と同じ幅の負のマージンで地色とバーだけを左へ
-   張り出させ、文字の位置は動かさない(バーの開閉でレイアウトが揺れない)。
+/* 縦バーと文字の間を空ける。地色とバーは影で要素の外(左 8px)へ描き、
+   要素の箱(余白・枠)には触れない。padding と負の margin で張り出させると、
+   h1 / h2 の下線(border-bottom)まで左へ伸び、見出しが元々持つ字下げも
+   上書きしていた(TASK-485.33)。外側の影は要素の箱の内側には描かれないので、
+   左の帯だけが見える。上の影ほど手前: 現在位置は地色(-5px)の下から
+   アクセントの 3px(-8px〜-5px)がのぞく。
    表のセル(ソース表示の td.line-content)は元から内側の余白を持つので対象外。 */
-.mmd-jump-target:not(td),
+.mmd-jump-target:not(td) {
+  box-shadow: -8px 0 0 var(--jump-target-bg);
+}
+
 .mmd-jump-current:not(td) {
-  padding-left: 8px;
-  margin-left: -8px;
+  box-shadow:
+    -5px 0 0 var(--jump-current-bg),
+    -8px 0 0 var(--accent);
 }
 
 /* ── 差分表示での目印（変更ブロック・TASK-485.3） ──
