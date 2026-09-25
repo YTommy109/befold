@@ -65,8 +65,8 @@ final class WebViewDocumentRenderer: DocumentRendering {
         webViewProxy.focusSurface()
     }
 
-    func openFind() {
-        evaluate(ViewerFindBridge.openFindScript)
+    func toggleFind() {
+        evaluate(ViewerJumpBridge.toggleBarModeScript(mode: "search"))
     }
 
     func findNext() {
@@ -77,8 +77,8 @@ final class WebViewDocumentRenderer: DocumentRendering {
         evaluate(ViewerFindBridge.findPrevScript)
     }
 
-    func openJump(kind: DocumentJumpKind) {
-        evaluate(ViewerJumpBridge.openJumpScript(kind: kind.rawValue))
+    func toggleJump(kind: DocumentJumpKind) {
+        evaluate(ViewerJumpBridge.toggleBarModeScript(mode: kind.rawValue))
     }
 
     /// 文字列へ落とすのは openJump と同じくこの JS 境界だけ。順序を安定させるため

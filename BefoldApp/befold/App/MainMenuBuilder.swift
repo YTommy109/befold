@@ -165,29 +165,24 @@ enum MainMenuBuilder {
         return item
     }
 
-    /// Edit > 文書内ジャンプ（TASK-485）。目印の種類ごとに 1 項目を出す。
-    ///
-    /// キー等価はまだ付けない。空いている ⌃⌘ 系は View メニューが使い切っており
-    /// （⌃⌘F/G/H/T）、素の ⌘G / ⇧⌘G は検索送りが持っている。加えて紹介サイトの
-    /// ショートカット表を作る `site/src/lib/shortcuts.ts` は開発中機能のゲートを
-    /// 認識しないため、キー等価を付けると stable のユーザーへ存在しない機能を
-    /// 告知することになる。割り当ては stable 昇格と同時に決める。
+    /// Edit > ジャンプ…（⇧⌘F / TASK-485.28）。1 項目で、その表示で使える種類
+    /// （見出し・定義・変更箇所は排他で高々 1 つ）を開閉する。使える種類が無ければ
+    /// 検索を開閉する。種類ごとに項目を分けないのは、同時に有効なのが常に 1 つで、
+    /// キー等価も 1 つしか割り当てられないため。
     ///
     /// 前後移動はバー内の Enter / Shift+Enter（検索バーと同じ形）。
     ///
-    /// ゲート閉（stable ビルド）では呼び出し側が構築ごとスキップする。`canJump` が常に
-    /// false になるため、構築してしまうと永久にグレーアウトした項目が stable のユーザーへ
-    /// 露出する（TASK-485.8）。無効化ではなく非構築なのは、上のコメントどおり
-    /// 「開発中機能の存在自体を stable へ漏らさない」という判断による。
+    /// ゲート閉（stable ビルド）では呼び出し側が構築ごとスキップする。構築すると
+    /// 開発中機能の存在が stable のユーザーへ漏れる（TASK-485.8）。紹介サイトの
+    /// ショートカット表への掲載はゲート撤去後（TASK-485.25）。
     private static func addDocumentJumpItems(to menu: NSMenu) {
         menu.addItem(.separator())
-        for kind in DocumentJumpKind.allCases {
-            let item = menu.addLocalizedItem(
-                kind.menuLabelKey,
-                action: #selector(ViewerWindowController.documentJump(_:))
-            )
-            item.tag = kind.menuItemTag
-        }
+        menu.addLocalizedItem(
+            "menu.edit.jump",
+            action: #selector(ViewerWindowController.documentJump(_:)),
+            keyEquivalent: "f",
+            modifiers: [.command, .shift]
+        )
     }
 
     /// ウィンドウの最小化・ズームとタブ操作をまとめた Window メニュー。項目はすべて

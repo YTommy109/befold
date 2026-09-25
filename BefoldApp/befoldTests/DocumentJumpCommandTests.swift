@@ -5,62 +5,15 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 文書内ジャンプ(種類別の可否と、使える種類の同期)。
+/// 文書内ジャンプの使える種類の同期(TASK-485.18)。
 ///
-/// 境界は**種類ごとの可否**——`canJump` の粗い判定だけでは通ってしまう
-/// 「差分表示でないのに変更ブロックへ跳ぶ」形をここで止める。倍率・スクロール・印刷など
-/// コマンド層の一般の方針は `DocumentCommandControllerTests`、⌘F の入口の振り分けは
-/// `OpenBarCommandTests` にある。
+/// ⌘F / ⇧⌘F がどの種類を開くかは `ToggleBarCommandTests`、コマンド層の一般の方針は
+/// `DocumentCommandControllerTests` にある。
 ///
 /// 共有のフェイクと組み立ては `DocumentCommandControllerTestSupport.swift`。
 @Suite
 @MainActor
 struct DocumentJumpCommandTests {
-    @Test("文書内ジャンプは canJump が false のとき JS へ届かない")
-    func documentJumpIsBlockedWithoutCapability() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { .none })
-
-        controller.openJump(kind: .heading)
-
-        #expect(renderer.commands.isEmpty)
-    }
-
-    @Test("文書内ジャンプは canJump が true なら種類つきで JS へ届く")
-    func documentJumpReachesRendererWithCapability() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeDocumentCommandController(renderer: renderer)
-
-        controller.openJump(kind: .functionDefinition)
-
-        #expect(renderer.commands == [.openJump(kind: .functionDefinition)])
-    }
-
-    @Test("変更ブロックへのジャンプは差分表示でないとき JS へ届かない")
-    func changeBlockJumpIsBlockedWithoutDiff() {
-        let renderer = FakeDocumentRenderer()
-        // 粗い canJump は true（allEnabledForTesting は showsDiff 既定 false）。
-        // 種類別の検査が無ければ、この呼び出しは素通りして 0/0 のバーが開く。
-        let controller = makeDocumentCommandController(renderer: renderer)
-
-        controller.openJump(kind: .changeBlock)
-
-        #expect(renderer.commands.isEmpty)
-    }
-
-    @Test("変更ブロックへのジャンプは差分表示中なら JS へ届く")
-    func changeBlockJumpReachesRendererWhileShowingDiff() {
-        let renderer = FakeDocumentRenderer()
-        let controller = makeDocumentCommandController(
-            renderer: renderer,
-            capabilities: { .allEnabledShowingDiffForTesting }
-        )
-
-        controller.openJump(kind: .changeBlock)
-
-        #expect(renderer.commands == [.openJump(kind: .changeBlock)])
-    }
-
     // 失効の同期(TASK-485.18)。開くときの guard と同じ canJump(to:) を通すことで、
     // 「開けるが開き続けられない」「開けないのに閉じない」という食い違いを作らない。
 

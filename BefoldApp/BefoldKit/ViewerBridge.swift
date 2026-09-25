@@ -18,7 +18,6 @@ public enum ViewerBridge {
         case initZoom = "_mmdInitZoom"
         /// スクロール対象要素を返す(currentScrollPositionScript が使う)。
         case scrollTarget = "_mmdScrollTarget"
-        case openFind = "_mmdOpenFind"
         case findNextIfOpen = "_mmdFindNextIfOpen"
         case findPrevIfOpen = "_mmdFindPrevIfOpen"
         /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。

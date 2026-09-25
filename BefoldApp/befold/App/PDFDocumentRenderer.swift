@@ -63,13 +63,18 @@ final class PDFDocumentRenderer: DocumentRendering {
 
     // MARK: - Find / Jump
 
-    /// 検索バーを開く。実体は `PDFFindModel`(PDFKit の `beginFindString`)。
     func focusSurface() {
         pdfViewProxy.focusSurface()
     }
 
-    func openFind() {
-        findModel.open()
+    /// 検索バーのトグル(⌘F、TASK-485.28)。開いていれば閉じる。
+    /// web 面は JS の bar.ts が開閉を持つが、PDF 面では `PDFFindModel` が持つ。
+    func toggleFind() {
+        if findModel.isOpen {
+            findModel.close()
+        } else {
+            findModel.open()
+        }
     }
 
     /// 次 / 前の一致へ。**バーが閉じている間は何もしない**（web 面の
@@ -89,7 +94,7 @@ final class PDFDocumentRenderer: DocumentRendering {
     /// ための約束であり、no-op で握り潰すためのものではない。見出し構造の抽出が
     /// 別の問題として要るので、実装するときは能力の条件と一緒に開けること
     /// (検索は TASK-570 でそうした)。
-    func openJump(kind: DocumentJumpKind) {}
+    func toggleJump(kind: DocumentJumpKind) {}
 
     // MARK: - Print
 

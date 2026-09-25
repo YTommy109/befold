@@ -18,10 +18,10 @@ final class FakeDocumentRenderer: DocumentRendering {
         case applyCodeFont(family: String?, points: Double?)
         case applyCsvNumberFormat(grouping: Bool, negativeStyle: CsvNegativeStyle)
         case changeZoom(ZoomChange)
-        case openFind
+        case toggleFind
         case findNext
         case findPrevious
-        case openJump(kind: DocumentJumpKind)
+        case toggleJump(kind: DocumentJumpKind)
         case applyJumpAvailability(kinds: Set<DocumentJumpKind>)
         case print(jobTitle: String)
         case currentScrollPosition
@@ -67,8 +67,8 @@ final class FakeDocumentRenderer: DocumentRendering {
         focusSurfaceCount += 1
     }
 
-    func openFind() {
-        commands.append(.openFind)
+    func toggleFind() {
+        commands.append(.toggleFind)
     }
 
     func findNext() {
@@ -79,8 +79,8 @@ final class FakeDocumentRenderer: DocumentRendering {
         commands.append(.findPrevious)
     }
 
-    func openJump(kind: DocumentJumpKind) {
-        commands.append(.openJump(kind: kind))
+    func toggleJump(kind: DocumentJumpKind) {
+        commands.append(.toggleJump(kind: kind))
     }
 
     func applyJumpAvailability(_ kinds: Set<DocumentJumpKind>) {

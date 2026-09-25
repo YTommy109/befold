@@ -286,26 +286,25 @@ struct MainMenuBuilderTests {
         let edit = try #require(closedFixture.submenu(titledKey: "menu.edit.title"))
 
         #expect(!edit.items.contains { $0.action == #selector(ViewerWindowController.documentJump(_:)) })
-        for kind in DocumentJumpKind.allCases {
-            #expect(!edit.items.contains { $0.title == closedFixture.localizedTitle(kind.menuLabelKey) })
-        }
+        #expect(!edit.items.contains { $0.keyEquivalent == "f" && $0.keyEquivalentModifierMask.contains(.shift) })
         // 末尾に区切り線だけが取り残されていないこと。
         #expect(edit.items.last?.isSeparatorItem == false)
     }
 
-    @Test("ゲート開のときは Edit メニューに種類ぶんの文書内ジャンプ項目が並ぶ")
-    func editMenuHasDocumentJumpItemsWhenGateIsOpen() throws {
+    /// ジャンプの種類は排他で同時に 1 つしか使えないので、項目も 1 つ(TASK-485.28)。
+    @Test("ゲート開のときは Edit メニューにジャンプ項目が 1 つだけ ⇧⌘F で並ぶ")
+    func editMenuHasSingleDocumentJumpItemWhenGateIsOpen() throws {
         let edit = try #require(fixture.submenu(titledKey: "menu.edit.title"))
 
         let jumpItems = edit.items.filter { $0.action == #selector(ViewerWindowController.documentJump(_:)) }
-        #expect(jumpItems.count == DocumentJumpKind.allCases.count)
-        #expect(jumpItems.map(\.tag) == DocumentJumpKind.allCases.map(\.menuItemTag))
-        for kind in DocumentJumpKind.allCases {
-            #expect(jumpItems.contains { $0.title == fixture.localizedTitle(kind.menuLabelKey) })
-        }
+        let item = try #require(jumpItems.first)
+        #expect(jumpItems.count == 1)
+        #expect(item.title == fixture.localizedTitle("menu.edit.jump"))
+        #expect(item.keyEquivalent == "f")
+        #expect(item.keyEquivalentModifierMask == [.command, .shift])
         // 直前の Find 系とは区切り線で分かれる。
-        let firstIndex = try #require(edit.items.firstIndex(of: jumpItems[0]))
-        #expect(edit.items[firstIndex - 1].isSeparatorItem)
+        let index = try #require(edit.items.firstIndex(of: item))
+        #expect(edit.items[index - 1].isSeparatorItem)
     }
 
     /// `MainMenuFixture` が `NSMenu` を保持すると、その解放は

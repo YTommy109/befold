@@ -46,13 +46,13 @@ struct DocumentSurfaceDispatchTests {
             focusCalls += 1
         }
 
-        func openFind() {
+        func toggleFind() {
             findCalls += 1
         }
 
         func findNext() {}
         func findPrevious() {}
-        func openJump(kind _: DocumentJumpKind) {}
+        func toggleJump(kind _: DocumentJumpKind) {}
         func printDocument(over _: NSWindow?, jobTitle _: String) {
             printCalls += 1
         }
@@ -185,7 +185,7 @@ struct DocumentSurfaceDispatchTests {
     @Test("操作の実装は束を回らない")
     func operationImplementationDoesNotIterateTheBundle() throws {
         let source = try Self.commandControllerSource()
-        for method in ["printDocument", "openFind", "findNext", "findPrevious", "openJump"] {
+        for method in ["printDocument", "toggleFind", "findNext", "findPrevious", "toggleJump"] {
             let body = try #require(Self.methodBody(named: method, in: source), "\(method) が見つからない")
             #expect(
                 !body.contains("surfaces.syncingAll"),
@@ -223,7 +223,7 @@ struct DocumentSurfaceDispatchTests {
         let controller = Self.makeController(web: web, pdf: pdf)
 
         controller.zoomIn()
-        controller.openFind()
+        controller.toggleFind()
         controller.printDocument(over: nil)
 
         // 既定の種別(.mmd)なので宛先は WebView の面だけ。

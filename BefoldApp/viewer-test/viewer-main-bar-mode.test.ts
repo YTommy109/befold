@@ -108,6 +108,68 @@ describe('バーのモード切替スイッチ', () => {
     expect(activeModes(document)).toEqual([]);
   });
 
+  // TASK-485.28: ⌘F / ⇧⌘F は Swift から _mmdToggleBarMode を呼ぶ。開閉の状態は
+  // JS だけが持つので、トグルの判定もここで確かめる。
+  describe('⌘F / ⇧⌘F のトグル', () => {
+    test('閉じていれば開き、同じモードでもう一度呼ぶと閉じる', () => {
+      const { main, document } = loadViewerMain({});
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(outerVisible(document)).toBe(true);
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdFind.isOpen()).toBe(false);
+      expect(outerVisible(document)).toBe(false);
+    });
+
+    test('ジャンプも同じ種類でもう一度呼ぶと閉じる', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdJump.activeMode()).toBe('heading');
+      expect(main._mmdJump.isOpen()).toBe(true);
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdJump.isOpen()).toBe(false);
+      expect(outerVisible(document)).toBe(false);
+    });
+
+    test('別のモードで開いていれば閉じずにそのモードへ切り替える', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';
+      main._mmdToggleBarMode('search');
+
+      main._mmdToggleBarMode('heading');
+      expect(main._mmdFind.isOpen()).toBe(false);
+      expect(main._mmdJump.isOpen()).toBe(true);
+      expect(activeModes(document)).toEqual(['heading']);
+
+      main._mmdToggleBarMode('search');
+      expect(main._mmdJump.isOpen()).toBe(false);
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(activeModes(document)).toEqual(['search']);
+    });
+
+    test('モード切替のボタンは選択中のモードを押しても閉じない', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+
+      clickMode(document, 'search');
+
+      expect(main._mmdFind.isOpen()).toBe(true);
+    });
+
+    test('未知のモード名では何もしない', () => {
+      const { main, document } = loadViewerMain({});
+
+      main._mmdToggleBarMode('unknown');
+
+      expect(outerVisible(document)).toBe(false);
+    });
+  });
+
   // TASK-485.19.3: 非対応モードのセグメントは、Swift 側 canJump(to:) 由来の
   // availableKinds（TASK-485.18 の可用性伝搬を流用）に基づき自動的に隠す。
   describe('モードの可用性に応じたセグメントの表示', () => {
@@ -220,8 +282,7 @@ describe('バーのモード切替スイッチ', () => {
     });
   });
 
-  // TASK-485.19 AC3: 差分表示時の既定モード選択（Swift 側 openBar(kind:) が
-  // ⌘F 相当の非明示オープンでだけ行う）は、バーを開く瞬間にしか効かない。
+  // モードの選択はバーを開く・切り替える瞬間にしか効かない。
   // jump.ts の refresh/invalidate は再描画のたびに呼ばれるが、これらは
   // どちらも activeKind や openBar の状態を変更しない（列を作り直すだけ）ため、
   // ユーザーが手動で切り替えたモードが再描画で黙って引き戻されることはない。

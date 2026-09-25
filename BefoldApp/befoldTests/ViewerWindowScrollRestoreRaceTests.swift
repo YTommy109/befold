@@ -36,8 +36,8 @@ struct ViewerWindowScrollRestoreRaceTests {
         }
 
         func focusSurface() {}
-        func openFind() {}
-        func openJump(kind _: DocumentJumpKind) {}
+        func toggleFind() {}
+        func toggleJump(kind _: DocumentJumpKind) {}
         func applyJumpAvailability(_: Set<DocumentJumpKind>) {}
         func findNext() {}
         func findPrevious() {}

@@ -14205,6 +14205,7 @@
     _mmdSetRenderDocPath: () => _mmdSetRenderDocPath,
     _mmdSetRestoreScroll: () => _mmdSetRestoreScroll,
     _mmdSetTruncated: () => _mmdSetTruncated,
+    _mmdToggleBarMode: () => _mmdToggleBarMode,
     _mmdViewOptions: () => _mmdViewOptions,
     _mmdWheelZoom: () => _mmdWheelZoom,
     _mmdWrapDiagrams: () => _mmdWrapDiagrams,
@@ -15123,6 +15124,17 @@
     } else {
       _mmdOpenJump(mode);
     }
+  }
+  function _mmdToggleBarMode(mode) {
+    var target = mode === "search" ? "search" : jumpMode(mode);
+    if (target === null) {
+      return;
+    }
+    if (currentMode() === target) {
+      closeCurrentBar();
+      return;
+    }
+    openMode(target);
   }
   function _mmdInitBarModeSwitch() {
     var labels = (window._mmdUIStrings || {}).modes || {};

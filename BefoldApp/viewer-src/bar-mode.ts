@@ -1,12 +1,13 @@
 // バー右上のモード切替スイッチ（検索/見出し/変更箇所、TASK-485.19）。
 //
 // 実際の検索・列挙ロジックは持たない。クリックは既存の open 入口
-// （_mmdOpenFind / _mmdOpenJump）へ委譲し、いま開いているモードに応じて
+// （_mmdOpenFind / _mmdOpenJump）へ委譲し、Swift からの ⌘F / ⇧⌘F は
+// _mmdToggleBarMode（開閉のトグル）を通る。いま開いているモードに応じて
 // スイッチの選択状態の見た目を揃えるだけの薄い調整役。外枠（#mmd-bar）の
 // 表示・非表示は bar.ts が一元管理する（このモジュールは選択状態の
 // ハイライトだけを担当する）。
 
-import { currentBar, setOnBarChange } from './bar.js';
+import { closeCurrentBar, currentBar, setOnBarChange } from './bar.js';
 import { _mmdOpenFind } from './find.js';
 import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
@@ -77,6 +78,25 @@ function openMode(mode: BarMode): void {
   }
 }
 
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。⌘F / ⇧⌘F のトグル(TASK-485.28)。
+// mode は 'search' か DocumentJumpKind.rawValue。
+//
+// 同じモードで開いていれば閉じ、閉じていれば開き、別のモードで開いていれば
+// そのモードへ切り替える(閉じない)。開閉の状態は bar.ts だけが持ち、Swift は
+// 写しを持たない——判定をここに置くのはそのため。
+// モード切替スイッチのボタンは openMode を直接呼ぶので、押しても閉じない。
+function _mmdToggleBarMode(mode: string): void {
+  var target: BarMode | null = mode === 'search' ? 'search' : jumpMode(mode);
+  if (target === null) {
+    return;
+  }
+  if (currentMode() === target) {
+    closeCurrentBar();
+    return;
+  }
+  openMode(target);
+}
+
 function _mmdInitBarModeSwitch(): void {
   var labels = (window._mmdUIStrings || {}).modes || {};
   setOnBarChange(updateSwitchAppearance);
@@ -100,4 +120,4 @@ function _mmdInitBarModeSwitch(): void {
   });
 }
 
-export { _mmdInitBarModeSwitch };
+export { _mmdInitBarModeSwitch, _mmdToggleBarMode };

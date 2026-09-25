@@ -11,6 +11,21 @@ import Testing
 @MainActor
 @Suite
 struct PDFFindModelTests {
+    /// ⌘F のトグル(TASK-485.28)。PDF 面では開閉の状態を `PDFFindModel` が持つので、
+    /// web 面(JS の bar.ts)と同じく 2 回目で閉じることを面の入口で確かめる。
+    @Test("PDF 面の ⌘F は 2 回目で検索バーを閉じる")
+    func pdfToggleFindClosesOnSecondPress() {
+        let proxy = PDFViewProxy()
+        let model = PDFFindModel(pdfViewProxy: proxy, caseSensitive: { false })
+        let renderer = PDFDocumentRenderer(pdfViewProxy: proxy, findModel: model)
+
+        renderer.toggleFind()
+        #expect(model.isOpen)
+
+        renderer.toggleFind()
+        #expect(!model.isOpen)
+    }
+
     /// **1 ページに `count` 回 "needle" が出てくる PDF。**
     ///
     /// ページをまたがせない理由: `go(to:)` でページが変わると PDFKit が

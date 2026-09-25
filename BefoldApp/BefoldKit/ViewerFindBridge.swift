@@ -9,9 +9,6 @@ import Foundation
 ///
 /// 逆方向(JS → Swift の `findOptionsChanged`)は `ViewerBridgeMessage` が持つ。
 public enum ViewerFindBridge {
-    /// 検索バーを開く(未オープンなら表示してフォーカス)スクリプト。
-    public static let openFindScript = ViewerBridge.PlainFunction.openFind.callScript
-
     /// 次のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
     public static let findNextScript = ViewerBridge.PlainFunction.findNextIfOpen.callScript
 

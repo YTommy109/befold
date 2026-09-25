@@ -215,7 +215,6 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.zoomInScript == "_mmdZoomIn()")
         #expect(ViewerBridge.zoomOutScript == "_mmdZoomOut()")
         #expect(ViewerBridge.zoomResetScript == "_mmdZoomReset()")
-        #expect(ViewerFindBridge.openFindScript == "_mmdOpenFind()")
         #expect(ViewerFindBridge.findNextScript == "_mmdFindNextIfOpen()")
         #expect(ViewerFindBridge.findPrevScript == "_mmdFindPrevIfOpen()")
         #expect(

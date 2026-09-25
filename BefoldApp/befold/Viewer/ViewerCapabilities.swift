@@ -149,16 +149,10 @@ struct ViewerCapabilities: Equatable {
         }
     }
 
-    /// 統合バー(TASK-485.19)を種類なしで開くとき(⌘F 相当)の既定モード。
-    /// 変更ブロックへジャンプできる(= 差分表示中かつジャンプの能力がある)ときだけ
-    /// 変更ブロックを既定にし、それ以外(検索)は nil で表す。
-    ///
-    /// `showsDiff` 単独ではなく `canJumpToChangeBlock` を経由するのは、
-    /// 「開発中機能のゲートが閉じている」「HTML 直接ロード中」を見落とすと、
-    /// 差分表示中に ⌘F を押しても(変更ブロックジャンプが `canJump(to:)` の guard で
-    /// no-op になり)何も開かなくなるため(条件は 1 箇所、ADR 0002 段 2)。
-    var defaultBarKind: DocumentJumpKind? {
-        canJumpToChangeBlock ? .changeBlock : nil
+    /// いま使えるジャンプの種類。見出し・定義・変更ブロックは排他なので高々 1 つで、
+    /// ⇧⌘F はこれを開く(nil なら検索へ倒す / TASK-485.28)。
+    var availableJumpKind: DocumentJumpKind? {
+        DocumentJumpKind.allCases.first { canJump(to: $0) }
     }
 
     /// そのモードをいま選べるか。モード別のフラグを引き当てるだけの対応表であり、

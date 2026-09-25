@@ -1344,56 +1344,20 @@
         }
       }
     },
-    "menu.edit.jumpToChangeBlock" : {
-      "comment" : "Edit メニュー。差分表示中の変更ブロックを前後移動するバーを開く。",
+    "menu.edit.jump" : {
+      "comment" : "Edit メニュー（⇧⌘F）。表示に応じて見出し・定義・変更箇所のどれかを前後移動するバーを開閉する。使えるものが無ければ検索を開閉する。",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jump to Change…"
+            "value" : "Jump…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "変更箇所へジャンプ…"
-          }
-        }
-      }
-    },
-    "menu.edit.jumpToFunctionDefinition" : {
-      "comment" : "Edit メニュー。ソースコード表示中の関数・型の定義行を前後移動するバーを開く。",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jump to Definition…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "定義へジャンプ…"
-          }
-        }
-      }
-    },
-    "menu.edit.jumpToHeading" : {
-      "comment" : "Edit メニュー。文書内の見出し（h1 / h2 / h3）を前後移動するバーを開く。",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jump to Heading…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "見出しへジャンプ…"
+            "value" : "ジャンプ…"
           }
         }
       }
