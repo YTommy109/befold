@@ -25,7 +25,7 @@ public enum ViewerJumpBridge {
 
     /// いま使える目印の種類を JS へ知らせるスクリプト(TASK-485.18)。
     /// JS 側は開いているジャンプバーの種類がこの一覧から外れていれば閉じる。
-    /// 開くときの guard(`DocumentCommandController.openJump`)と同じ
+    /// 開くときの種類選択(`DocumentCommandController.toggleJump()`)と同じ
     /// `ViewerCapabilities.canJump(to:)` の結果が渡るため、可否の規則は Swift 側の
     /// 1 箇所だけが持つ(JS 側で判定し直さない)。
     /// エンコードに失敗したときは空配列を入れる。ここでの空は「どの種類も使えない」で、

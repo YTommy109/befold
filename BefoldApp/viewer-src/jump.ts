@@ -299,8 +299,8 @@ function _createJumpController(): JumpController {
   //
   // 閉じているときは何もしない（close は冪等だが、releaseBar が他バーの状態を
   // 巻き込まないよう入口で弾く）。「使えるか」を JS 側で判定し直さないのは、
-  // 同じ規則が Swift と JS の 2 箇所で育つのを避けるため。開くときの guard
-  // （WebViewCommandController.openJump）と同じ canJump(to:) の結果がここへ届く。
+  // 同じ規則が Swift と JS の 2 箇所で育つのを避けるため。開くときの種類選択
+  // （DocumentCommandController.toggleJump()）と同じ canJump(to:) の結果がここへ届く。
   function closeUnlessAvailable(kinds: string[]): void {
     if (!isJumpBarOpen() || kinds.includes(activeKind)) {
       return;
@@ -378,7 +378,8 @@ function _mmdInitJump(): void {
   // 届かない（実機で確認）。document 側の resolveJumpNavigationKey が担う。
 }
 
-// _mmdOpenJump は Swift(evaluateJavaScript)から名前で呼ばれる入口。
+// _mmdOpenJump はモード切替（bar-mode.ts の openMode / _mmdToggleBarMode）が使う入口。
+// Swift からは直接呼ばれない（⇧⌘F は _mmdToggleBarMode を通る / TASK-485.28）。
 // next/prev は Swift からは呼ばれず、document の keydown ハンドラ（keyboard.ts）が使う。
 // 検索側（_mmdFindNextIfOpen）と同じくバーが閉じている間は何もしない。
 // 閉じる操作は Esc をバーレジストリ（closeCurrentBar）が拾うため、専用の入口を持たない。

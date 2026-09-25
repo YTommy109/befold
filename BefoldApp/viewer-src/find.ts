@@ -555,8 +555,10 @@ registerBar('find', {
   },
 });
 
-// 以下は Swift(evaluateJavaScript)から名前で呼ばれる入口。ViewerBridge の
-// 各 script 定数と一対一で対応するため、コントローラへの委譲だけを行う。
+// 以下は名前で公開する入口で、コントローラへの委譲だけを行う。Swift が
+// evaluateJavaScript で直接呼ぶのは ViewerBridge.PlainFunction に載る
+// _mmdFindNextIfOpen / _mmdFindPrevIfOpen だけ。⌘F は _mmdToggleBarMode を通り
+// （TASK-485.28）、_mmdOpenFind はそこ（bar-mode.ts の openMode）から使われる。
 function _mmdInitFind(): void {
   _mmdFind.applyHostSettings();
 }

@@ -75,7 +75,7 @@ readNextChunk()
 ### 検索フロー（現行）
 
 ```text
-Cmd+F → _mmdOpenFind()
+Cmd+F → _mmdToggleBarMode("search") → _mmdOpenFind()
   ├─ _mmdIsTruncated == false
   │    └─ _mmdFindRun() → DOM TreeWalker で全文検索
   └─ _mmdIsTruncated == true
@@ -179,7 +179,7 @@ readNextChunk()
 ### 検索フロー（新）
 
 ```text
-Cmd+F → _mmdOpenFind()
+Cmd+F → _mmdToggleBarMode("search") → _mmdOpenFind()
   └─ _mmdFindRun()
        DOM TreeWalker で表示済み範囲のみ検索
        _mmdIsTruncated == true の場合

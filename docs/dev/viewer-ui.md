@@ -199,9 +199,10 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
   ファイル切替・フォルダー一覧⇄文書の切替がすべて通る唯一の再同期点
 - 検索バーは同じ扱いにしない。`canFind` は表示モードに依存しないため失効しない
 
-**コマンド経路（`DocumentRendering.openJump(kind:)` と
-`DocumentCommandController.openJump(kind:)`）は種類を生の String ではなく
-`DocumentJumpKind` で運び、`canJump(to:)` で閉じる**。粗い `canJump` だけで通すと
+**コマンド経路は種類を生の String ではなく `DocumentJumpKind` で運び、
+種類は `canJump(to:)` から決める**。`DocumentCommandController.toggleJump()` は
+`ViewerCapabilities.availableJumpKind` で種類を選び、`DocumentRendering.toggleJump(kind:)`
+へ渡す。粗い `canJump` だけで通すと
 種類別の規則をメニュー検証だけが守る形になり、メニュー以外の入口（キーバインド・
 ツールバー）が同じ穴を継承するため（TASK-485.7）。文字列へ落とすのは JS 境界の
 `WebViewDocumentRenderer` 1 箇所だけ。
