@@ -21,6 +21,9 @@ const activeModes = (document: Document) =>
 const segmentVisible = (document: Document, mode: string) =>
   document.getElementById('mmd-bar-mode-' + mode)!.style.display !== 'none';
 
+const switchRowVisible = (document: Document) =>
+  document.getElementById('mmd-bar-modes')!.style.display !== 'none';
+
 const clickMode = (document: Document, mode: string) => {
   document.getElementById('mmd-bar-mode-' + mode)!.click();
 };
@@ -202,13 +205,31 @@ describe('バーのモード切替スイッチ', () => {
   // TASK-485.19.3: 非対応モードのセグメントは、Swift 側 canJump(to:) 由来の
   // availableKinds（TASK-485.18 の可用性伝搬を流用）に基づき自動的に隠す。
   describe('モードの可用性に応じたセグメントの表示', () => {
-    test('Swift からまだ同期が届く前は見出し/変更箇所を隠し、検索だけ出す', () => {
+    test('Swift からまだ同期が届く前は選べるのが検索だけなので、スイッチの行ごと隠す', () => {
       const { document } = loadViewerMain({});
 
+      expect(switchRowVisible(document)).toBe(false);
       expect(segmentVisible(document, 'search')).toBe(true);
       expect(segmentVisible(document, 'heading')).toBe(false);
       expect(segmentVisible(document, 'changeBlock')).toBe(false);
       expect(segmentVisible(document, 'functionDefinition')).toBe(false);
+    });
+
+    // TASK-485.31: 見出しジャンプが Markdown だけになり(485.26)、mmd・JSON・未対応言語などでは
+    // 選べるのが検索だけになった。1 つだけのセグメントは押しても何も変わらないので出さない。
+    test('選べるモードが検索だけのときはスイッチの行を隠し、ジャンプが届けば出す', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdOpenFind();
+
+      main._mmdApplyJumpAvailability([]);
+      expect(outerVisible(document)).toBe(true);
+      expect(switchRowVisible(document)).toBe(false);
+
+      main._mmdApplyJumpAvailability(['heading']);
+      expect(switchRowVisible(document)).toBe(true);
+
+      main._mmdApplyJumpAvailability([]);
+      expect(switchRowVisible(document)).toBe(false);
     });
 
     test('_mmdApplyJumpAvailability で使える種類だけが表示される', () => {

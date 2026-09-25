@@ -60,13 +60,24 @@ function isModeAvailable(mode: BarMode): boolean {
 // バーの開閉・モード・可用性が変わるたびに呼ばれ、スイッチの選択表示と
 // 非対応セグメントの非表示を揃える（bar.ts の setOnBarChange、jump.ts の
 // setOnAvailabilityChange から呼ばれる。外枠の表示自体は bar.ts が持つ）。
+//
+// 選べるモードが検索だけなら、スイッチの行ごと隠す（TASK-485.31）。ジャンプは
+// 排他で高々 1 種類なので、選択肢は「検索 + どれか 1 つ」か「検索」だけになり、
+// 後者で 1 つだけのセグメントを出しても押して変わるものが無い。
 function updateSwitchAppearance(): void {
   var mode = currentMode();
+  var available = MODES.filter(function (key) {
+    return isModeAvailable(key);
+  });
+  var row = document.getElementById('mmd-bar-modes');
+  if (row) {
+    row.style.display = available.length > 1 ? '' : 'none';
+  }
   MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);
     if (!button) return;
     button.classList.toggle('active', key === mode);
-    button.style.display = isModeAvailable(key) ? '' : 'none';
+    button.style.display = available.includes(key) ? '' : 'none';
   });
 }
 
@@ -105,7 +116,7 @@ function _mmdInitBarModeSwitch(): void {
   setOnBarChange(updateSwitchAppearance);
   setOnAvailabilityChange(updateSwitchAppearance);
   // Swift からの最初の可用性同期が届く前でも、検索は常時使えるためスイッチの
-  // 初期状態(見出し/変更箇所を隠す)を合わせておく。
+  // 初期状態(検索だけ = スイッチの行ごと隠す)を合わせておく。
   updateSwitchAppearance();
   MODES.forEach(function (key) {
     var button = document.getElementById(MODE_BUTTON_IDS[key]);

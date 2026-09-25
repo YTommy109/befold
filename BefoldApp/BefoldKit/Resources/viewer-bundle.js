@@ -15115,11 +15115,18 @@
   }
   function updateSwitchAppearance() {
     var mode = currentMode();
+    var available = MODES.filter(function(key) {
+      return isModeAvailable(key);
+    });
+    var row = document.getElementById("mmd-bar-modes");
+    if (row) {
+      row.style.display = available.length > 1 ? "" : "none";
+    }
     MODES.forEach(function(key) {
       var button = document.getElementById(MODE_BUTTON_IDS[key]);
       if (!button) return;
       button.classList.toggle("active", key === mode);
-      button.style.display = isModeAvailable(key) ? "" : "none";
+      button.style.display = available.includes(key) ? "" : "none";
     });
   }
   function openMode(mode) {
