@@ -20,7 +20,8 @@ ROOT="$(dirname "$COMMON_DIR")"
 # - site/.dev.vars   : wrangler のローカル開発用シークレット。無いと
 #                      /dashboard が 503 を返す（site/README.md 参照）。
 #                      site/.dev.vars.example は git 追跡下なのでリンク不要。
-for name in .claude site/.dev.vars; do
+# - .env             : GITHUB_PAT / TYPESAFE_API_KEY。worktree 間で値を変えない。
+for name in .claude .env site/.dev.vars; do
   SOURCE="$ROOT/$name"
   TARGET="$(pwd)/$name"
   # メイン側に実体が無いものは張らない（壊れたリンクを残すと原因が分かりにくい）
