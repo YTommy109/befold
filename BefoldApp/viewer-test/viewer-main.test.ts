@@ -594,7 +594,7 @@ describe('検索ナビゲーション', () => {
     const { document, main } = openFindOn('x a x b x', 'x');
     main._mmdCloseFind();
 
-    main._mmdFindNextIfOpen();
+    main._mmdBarNextIfOpen();
 
     expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
   });

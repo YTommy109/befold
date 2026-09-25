@@ -215,8 +215,8 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.zoomInScript == "_mmdZoomIn()")
         #expect(ViewerBridge.zoomOutScript == "_mmdZoomOut()")
         #expect(ViewerBridge.zoomResetScript == "_mmdZoomReset()")
-        #expect(ViewerFindBridge.findNextScript == "_mmdFindNextIfOpen()")
-        #expect(ViewerFindBridge.findPrevScript == "_mmdFindPrevIfOpen()")
+        #expect(ViewerFindBridge.findNextScript == "_mmdBarNextIfOpen()")
+        #expect(ViewerFindBridge.findPrevScript == "_mmdBarPrevIfOpen()")
         #expect(
             ViewerBridge.currentScrollPositionScript
                 == "(function() { var el = _mmdScrollTarget(); return el ? el.scrollTop : 0; })()"

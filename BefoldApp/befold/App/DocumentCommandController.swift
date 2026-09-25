@@ -126,13 +126,15 @@ final class DocumentCommandController {
         renderer.toggleFind()
     }
 
+    /// ⌘G。開いているバー(検索かジャンプ)の次へ。どちらへ送るかは viewer 側が決める
+    /// (TASK-485.34)。ジャンプバーも開けるので `canFind` ではなく `canToggleJump` を見る。
     func findNext() {
-        guard capabilities().canFind else { return }
+        guard capabilities().canToggleJump else { return }
         renderer.findNext()
     }
 
     func findPrevious() {
-        guard capabilities().canFind else { return }
+        guard capabilities().canToggleJump else { return }
         renderer.findPrevious()
     }
 

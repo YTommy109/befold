@@ -8,7 +8,7 @@
 // ハイライトだけを担当する）。
 
 import { closeCurrentBar, currentBar, setOnBarChange } from './bar.js';
-import { _mmdOpenFind, isFindInputFocused } from './find.js';
+import { _mmdFind, _mmdOpenFind, isFindInputFocused } from './find.js';
 import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
 type BarMode = 'search' | 'heading' | 'changeBlock' | 'functionDefinition';
@@ -111,6 +111,29 @@ function _mmdToggleBarMode(mode: string): void {
   openMode(target);
 }
 
+// Swift(evaluateJavaScript)から名前で呼ばれる入口。⌘G / ⇧⌘G（TASK-485.34）。
+// 開いているバーの前後移動へ振り分ける。**検索とジャンプのどちらへ送るかの判定は
+// ここだけ**で、Swift は開閉の写しを持たない（_mmdToggleBarMode と同じ理由）。
+// バーが閉じている間は何もしない（フォーカス位置に関わらずグローバルに届くため、
+// 呼び出し側では判定せずここで一元的にガードする）。
+function _mmdBarNextIfOpen(): void {
+  var bar = currentBar();
+  if (bar === 'find') {
+    _mmdFind.next();
+  } else if (bar === 'jump') {
+    _mmdJump.next();
+  }
+}
+
+function _mmdBarPrevIfOpen(): void {
+  var bar = currentBar();
+  if (bar === 'find') {
+    _mmdFind.prev();
+  } else if (bar === 'jump') {
+    _mmdJump.prev();
+  }
+}
+
 function _mmdInitBarModeSwitch(): void {
   var labels = (window._mmdUIStrings || {}).modes || {};
   setOnBarChange(updateSwitchAppearance);
@@ -134,4 +157,4 @@ function _mmdInitBarModeSwitch(): void {
   });
 }
 
-export { _mmdInitBarModeSwitch, _mmdToggleBarMode };
+export { _mmdBarNextIfOpen, _mmdBarPrevIfOpen, _mmdInitBarModeSwitch, _mmdToggleBarMode };

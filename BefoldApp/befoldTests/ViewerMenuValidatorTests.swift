@@ -154,6 +154,36 @@ struct ViewerMenuValidatorTests {
         #expect(renderer.commands == [.toggleJump(kind: .heading)])
     }
 
+    /// ⌘G / ⇧⌘G は開いているバー(検索かジャンプ)の前後移動(TASK-485.34)。
+    /// ⌘F と同じ `canFind` を見ると、ジャンプ可・検索不可の表示でジャンプバーを
+    /// 開いているのに項目がグレーになり、押しても viewer へ届かない。
+    @Test("ジャンプはできるが検索はできない表示でも、次へ・前への項目が有効で押すと届く")
+    func enablesBarStepItemsWhenJumpAvailableWithoutFind() {
+        let capabilities = ViewerCapabilities(
+            isPresentingDocument: true, isRejected: false, isRenderable: true,
+            isBinaryContent: false, showsCodeContent: false, showsDiff: false,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: nil, isDocumentJumpEnabled: true
+        )
+        #expect(!capabilities.canFind)
+        let source = StubSource()
+        source.capabilities = capabilities
+        let renderer = FakeDocumentRenderer()
+        let controller = makeDocumentCommandController(renderer: renderer, capabilities: { capabilities })
+
+        for action in [
+            #selector(ViewerWindowController.findNext(_:)),
+            #selector(ViewerWindowController.findPrevious(_:)),
+        ] {
+            #expect(ViewerMenuValidator.validate(makeItem(action), source: source))
+        }
+        #expect(!ViewerMenuValidator.validate(makeItem(#selector(ViewerWindowController.find(_:))), source: source))
+        controller.findNext()
+        controller.findPrevious()
+        #expect(renderer.commands == [.findNext, .findPrevious])
+    }
+
     @Test("フォルダー一覧の表示中は文書向けのコマンドをすべて無効にする")
     func disablesDocumentCommandsWhilePresentingFolder() {
         let source = StubSource()

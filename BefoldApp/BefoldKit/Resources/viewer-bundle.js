@@ -14153,6 +14153,8 @@
     _mmdApplyJumpAvailability: () => _mmdApplyJumpAvailability,
     _mmdApplyResolvedReferences: () => _mmdApplyResolvedReferences,
     _mmdApplyZoom: () => _mmdApplyZoom,
+    _mmdBarNextIfOpen: () => _mmdBarNextIfOpen,
+    _mmdBarPrevIfOpen: () => _mmdBarPrevIfOpen,
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
@@ -14164,8 +14166,6 @@
     _mmdDocPath: () => _mmdDocPath,
     _mmdDocument: () => _mmdDocument,
     _mmdFind: () => _mmdFind,
-    _mmdFindNextIfOpen: () => _mmdFindNextIfOpen,
-    _mmdFindPrevIfOpen: () => _mmdFindPrevIfOpen,
     _mmdFindRefresh: () => _mmdFindRefresh,
     _mmdFitImage: () => _mmdFitImage,
     _mmdInit: () => _mmdInit,
@@ -14833,14 +14833,6 @@
   function _mmdFindRefresh(resetToFirst) {
     _mmdFind.refresh(resetToFirst);
   }
-  function _mmdFindNextIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.next();
-  }
-  function _mmdFindPrevIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.prev();
-  }
 
   // viewer-src/jump.ts
   var CURRENT_CLASS = "mmd-jump-current";
@@ -15146,6 +15138,22 @@
       return;
     }
     openMode(target);
+  }
+  function _mmdBarNextIfOpen() {
+    var bar = currentBar();
+    if (bar === "find") {
+      _mmdFind.next();
+    } else if (bar === "jump") {
+      _mmdJump.next();
+    }
+  }
+  function _mmdBarPrevIfOpen() {
+    var bar = currentBar();
+    if (bar === "find") {
+      _mmdFind.prev();
+    } else if (bar === "jump") {
+      _mmdJump.prev();
+    }
   }
   function _mmdInitBarModeSwitch() {
     var labels = (window._mmdUIStrings || {}).modes || {};
@@ -16757,7 +16765,16 @@
     // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
     ignoresTruncation: true
   };
-  var FUNCTION_JUMP_LANGUAGES = ["swift", "python", "javascript", "typescript"];
+  var FUNCTION_JUMP_LANGUAGES = [
+    "swift",
+    "python",
+    "javascript",
+    "typescript",
+    "go",
+    "rust",
+    "java",
+    "kotlin"
+  ];
   var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
   var DEFINITION_PATTERNS = {
     // `class func` のように修飾子として現れる語も定義キーワードなので、
@@ -16766,7 +16783,17 @@
     // デコレータは別の行にあるので def / class そのものに錨を下ろす。
     python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
     javascript: JS_DEFINITION,
-    typescript: JS_DEFINITION
+    typescript: JS_DEFINITION,
+    // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
+    go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
+    // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
+    rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
+    // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
+    // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
+    // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
+    // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
+    java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
+    kotlin: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u
   };
   function definitionPattern() {
     if (_mmdDocument.shape() !== "code") {

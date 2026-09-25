@@ -556,9 +556,10 @@ registerBar('find', {
 });
 
 // 以下は名前で公開する入口で、コントローラへの委譲だけを行う。Swift が
-// evaluateJavaScript で直接呼ぶのは ViewerBridge.PlainFunction に載る
-// _mmdFindNextIfOpen / _mmdFindPrevIfOpen だけ。⌘F は _mmdToggleBarMode を通り
+// evaluateJavaScript で直接呼ぶものは無い。⌘F は _mmdToggleBarMode を通り
 // （TASK-485.28）、_mmdOpenFind はそこ（bar-mode.ts の openMode）から使われる。
+// ⌘G / ⇧⌘G は bar-mode.ts の _mmdBarNextIfOpen / _mmdBarPrevIfOpen が
+// 開いているバーを見て _mmdFind.next / prev へ振り分ける（TASK-485.34）。
 function _mmdInitFind(): void {
   _mmdFind.applyHostSettings();
 }
@@ -575,19 +576,6 @@ function _mmdFindRefresh(resetToFirst?: boolean): void {
   _mmdFind.refresh(resetToFirst);
 }
 
-// ⌘G / ⌘Shift+G から呼ばれる。検索バーが閉じている間は何もしない
-// (フォーカス位置に関わらずグローバルショートカットとして配線されるため、
-// 呼び出し側では開閉判定をせずここで一元的にガードする)。
-function _mmdFindNextIfOpen(): void {
-  if (!_mmdFind.isOpen()) return;
-  _mmdFind.next();
-}
-
-function _mmdFindPrevIfOpen(): void {
-  if (!_mmdFind.isOpen()) return;
-  _mmdFind.prev();
-}
-
 export {
   buildFindRegExp,
   _mmdFind,
@@ -595,7 +583,5 @@ export {
   _mmdOpenFind,
   _mmdCloseFind,
   _mmdFindRefresh,
-  _mmdFindNextIfOpen,
-  _mmdFindPrevIfOpen,
   isFindInputFocused,
 };

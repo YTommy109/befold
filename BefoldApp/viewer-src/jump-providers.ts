@@ -231,7 +231,16 @@ var changeBlockJumpProvider: JumpProvider = {
 // この表と Swift の `FunctionJumpLanguages.supported` のずれは
 // `ViewerFunctionJumpLanguageContractTests` が落とす。
 //
-var FUNCTION_JUMP_LANGUAGES = ['swift', 'python', 'javascript', 'typescript'];
+var FUNCTION_JUMP_LANGUAGES = [
+  'swift',
+  'python',
+  'javascript',
+  'typescript',
+  'go',
+  'rust',
+  'java',
+  'kotlin',
+];
 
 // 言語ごとに 1 本へ結合した判定。collect は rebuild のたびに全行を走査するので、
 // 行あたりに走らせる正規表現を増やさない（TASK-485.4 の設計レビュー項目 6）。
@@ -248,6 +257,17 @@ var DEFINITION_PATTERNS: Record<string, RegExp> = {
   python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
   javascript: JS_DEFINITION,
   typescript: JS_DEFINITION,
+  // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
+  go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
+  // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
+  rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
+  // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
+  // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
+  // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
+  // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
+  java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
+  kotlin:
+    /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u,
 };
 
 // いまの文書に使う判定。ソース表示（shape 'code'）でなければ null。

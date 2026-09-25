@@ -380,8 +380,9 @@ function _mmdInitJump(): void {
 
 // _mmdOpenJump はモード切替（bar-mode.ts の openMode / _mmdToggleBarMode）が使う入口。
 // Swift からは直接呼ばれない（⇧⌘F は _mmdToggleBarMode を通る / TASK-485.28）。
-// next/prev は Swift からは呼ばれず、document の keydown ハンドラ（keyboard.ts）が使う。
-// 検索側（_mmdFindNextIfOpen）と同じくバーが閉じている間は何もしない。
+// next/prev は document の keydown ハンドラ（keyboard.ts）の Enter / Shift+Enter が使う。
+// バーが閉じている間は何もしない。⌘G / ⇧⌘G は bar-mode.ts の _mmdBarNextIfOpen が
+// _mmdJump.next / prev を直接呼ぶ（TASK-485.34）。
 // 閉じる操作は Esc をバーレジストリ（closeCurrentBar）が拾うため、専用の入口を持たない。
 function _mmdOpenJump(kind: string): void {
   _mmdJump.open(kind);

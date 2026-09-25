@@ -18,8 +18,10 @@ public enum ViewerBridge {
         case initZoom = "_mmdInitZoom"
         /// スクロール対象要素を返す(currentScrollPositionScript が使う)。
         case scrollTarget = "_mmdScrollTarget"
-        case findNextIfOpen = "_mmdFindNextIfOpen"
-        case findPrevIfOpen = "_mmdFindPrevIfOpen"
+        /// 開いているバー(検索かジャンプ)の前後移動(⌘G / ⇧⌘G / TASK-485.34)。
+        /// どちらへ振り分けるかは JS 側(bar-mode.ts)だけが決める。
+        case barNextIfOpen = "_mmdBarNextIfOpen"
+        case barPrevIfOpen = "_mmdBarPrevIfOpen"
         /// 注入済みの等幅フォント設定を読んで CSS 変数へ反映する(applyCodeFontScript が使う)。
         case initCodeFont = "_mmdInitCodeFont"
         /// 注入済みの数値表示設定を読んで**現在の文書を描き直す**

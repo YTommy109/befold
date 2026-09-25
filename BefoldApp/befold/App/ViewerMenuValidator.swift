@@ -66,7 +66,7 @@ enum ViewerMenuValidator {
         if menuItem.action == #selector(ViewerWindowController.goForward(_:)) {
             return source.canGoForward
         }
-        if let action = menuItem.action, findActions.contains(action) {
+        if menuItem.action == #selector(ViewerWindowController.find(_:)) {
             return capabilities.canFind
         }
         if let enabled = validateDocumentJumpItem(menuItem, capabilities: capabilities) {
@@ -122,16 +122,15 @@ enum ViewerMenuValidator {
         return nil
     }
 
-    /// Edit > ジャンプ… の validate。使える種類が無ければ検索へ倒れるので、
-    /// ジャンプか検索のどちらかができれば有効(TASK-485.28)。実行経路
-    /// (`DocumentCommandController.toggleJump()`)と同じ `canToggleJump` を読む(TASK-485.32)。自分の担当外の項目には nil を返す
-    /// (`validateDisplayModeItem` と同じ形)。
+    /// Edit > ジャンプ… と 次を検索 / 前を検索 の validate。ジャンプは使える種類が無ければ
+    /// 検索へ倒れ(TASK-485.28)、次・前は開いているバー(検索かジャンプ)の前後移動なので
+    /// (TASK-485.34)、どちらもジャンプか検索のどちらかができれば有効。実行経路
+    /// (`DocumentCommandController`)と同じ `canToggleJump` を読む(TASK-485.32)。
+    /// 自分の担当外の項目には nil を返す(`validateDisplayModeItem` と同じ形)。
     private static func validateDocumentJumpItem(
         _ menuItem: NSMenuItem, capabilities: ViewerCapabilities
     ) -> Bool? {
-        guard menuItem.action == #selector(ViewerWindowController.documentJump(_:)) else {
-            return nil
-        }
+        guard let action = menuItem.action, barActions.contains(action) else { return nil }
         return capabilities.canToggleJump
     }
 
@@ -147,9 +146,12 @@ enum ViewerMenuValidator {
         return nil
     }
 
-    /// 検索系(⌘F / ⌘G / ⌘⇧G)。どれも同じ能力を見る。
-    private static let findActions: [Selector] = [
-        #selector(ViewerWindowController.find(_:)),
+    /// 検索とジャンプのどちらかのバーに効く項目(⇧⌘F / ⌘G / ⇧⌘G)。どれも同じ能力を見る。
+    /// ⌘G / ⇧⌘G は開いているバー(検索かジャンプ)の前後移動なので(TASK-485.34)、
+    /// ⌘F と同じ `canFind` を見ると、ジャンプ可・検索不可の表示でジャンプバーを
+    /// 開いているのに項目がグレーになる。
+    private static let barActions: [Selector] = [
+        #selector(ViewerWindowController.documentJump(_:)),
         #selector(ViewerWindowController.findNext(_:)),
         #selector(ViewerWindowController.findPrevious(_:)),
     ]
