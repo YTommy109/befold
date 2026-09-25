@@ -41,8 +41,9 @@ enum ViewerCapabilitiesFactory {
             supportsFind: store.contentState.fileType.supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
-            // supportsDiffDisplay と同じく URL 由来の FileType から取る(切替中の
-            // contentState は旧値を持ちうる。この型の :20-24 のコメントを参照)。
+            // supportsHeadingJump / codeLanguage も supportsDiffDisplay と同じく URL 由来の
+            // FileType から取る(切替中の contentState は旧値を持ちうる。この型の :20-24 のコメントを参照)。
+            supportsHeadingJump: FileType(url: fileURL).supportsHeadingJump,
             codeLanguage: FileType(url: fileURL).codeLanguage,
             // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、
             // メニューの有効判定とコマンドの実行ガードの両方が自動で塞がる

@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldKit
 import Foundation
 import Testing
 
@@ -18,6 +19,7 @@ struct ViewerCapabilitiesTests {
         supportsFind: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
+        supportsHeadingJump: Bool = true,
         codeLanguage: String? = "swift",
         isDocumentJumpEnabled: Bool = true
     ) -> ViewerCapabilities {
@@ -34,6 +36,7 @@ struct ViewerCapabilitiesTests {
             supportsFind: supportsFind,
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
+            supportsHeadingJump: supportsHeadingJump,
             codeLanguage: codeLanguage,
             isDocumentJumpEnabled: isDocumentJumpEnabled
         )
@@ -204,8 +207,8 @@ struct ViewerCapabilitiesTests {
             .canJump(to: .changeBlock))
         #expect(!makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
             .canJump(to: .changeBlock))
-        // 見出しは差分表示かどうかに依らない(条件が種類ごとに分かれていることの確認)。
-        #expect(makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+        // 見出しは逆に差分表示中は不可(差分表示中は変更ブロックだけ / TASK-485.26)。
+        #expect(!makeCapabilities(showsDiff: true, codeLanguage: nil, isDocumentJumpEnabled: true)
             .canJump(to: .heading))
     }
 
@@ -233,17 +236,33 @@ struct ViewerCapabilitiesTests {
             .canJump(to: .changeBlock))
     }
 
-    /// 変更ブロックと定義は排他（前者は差分表示中だけ、後者は差分表示でないときだけ）。
-    /// この排他はバーのモード切替スイッチの見た目にも効いていて、**同時に見える
-    /// セグメントは最大 3 つ**（検索 + 見出し + どちらか一方）に保たれる。
-    /// ここが破れると 4 つ並んでバーが横に広がるため、能力の側で固定しておく。
-    @Test("変更ブロックと定義のジャンプは同時には使えない")
-    func changeBlockAndFunctionDefinitionJumpsAreMutuallyExclusive() {
+    /// 見出し・変更ブロック・定義は排他。バーの選択肢は常に「検索 + どれか 1 つ」の
+    /// 2 つに保つ(差分表示中に見出しや定義は不要)。ここが破れるとセグメントが増える。
+    @Test("見出し・変更ブロック・定義のジャンプはいつもちょうど 1 つだけ使える")
+    func jumpKindsAreMutuallyExclusive() {
         for showsDiff in [true, false] {
-            let capabilities = makeCapabilities(showsDiff: showsDiff, codeLanguage: "swift")
+            for codeLanguage in ["swift", "ruby", nil] as [String?] {
+                let capabilities = makeCapabilities(showsDiff: showsDiff, codeLanguage: codeLanguage)
+                let kinds = DocumentJumpKind.allCases.filter { capabilities.canJump(to: $0) }
 
-            #expect(!(capabilities.canJump(to: .changeBlock) && capabilities.canJump(to: .functionDefinition)))
+                #expect(
+                    kinds.count == 1,
+                    "showsDiff=\(showsDiff) language=\(String(describing: codeLanguage)) → \(kinds)"
+                )
+            }
         }
+        #expect(makeCapabilities(showsDiff: true, codeLanguage: nil).canJump(to: .changeBlock))
+        #expect(makeCapabilities(showsDiff: false, codeLanguage: "swift").canJump(to: .functionDefinition))
+        #expect(makeCapabilities(showsDiff: false, codeLanguage: nil).canJump(to: .heading))
+    }
+
+    @Test("データ表示(CSV/TSV)は差分表示でなければジャンプ種別を持たず検索だけになる")
+    func dataDisplayHasNoJumpKindOutsideDiff() {
+        let data = makeCapabilities(supportsHeadingJump: false, codeLanguage: nil)
+        #expect(DocumentJumpKind.allCases.filter { data.canJump(to: $0) }.isEmpty)
+        #expect(!FileType.csv(delimiter: ",").supportsHeadingJump)
+        #expect(!FileType.csv(delimiter: "\t").supportsHeadingJump)
+        #expect(FileType.markdown.supportsHeadingJump)
     }
 
     @Test("何も提示していない既定値はすべて不可")
@@ -253,6 +272,7 @@ struct ViewerCapabilitiesTests {
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
             supportsDiffDisplay: false, supportsFind: false,
             gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
+            supportsHeadingJump: false,
             codeLanguage: nil, isDocumentJumpEnabled: false
         ))
         #expect(!ViewerCapabilities.none.canPrint)
@@ -272,7 +292,26 @@ extension ViewerCapabilities {
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
+        supportsHeadingJump: true,
         codeLanguage: "swift",
+        isDocumentJumpEnabled: true
+    )
+
+    /// `allEnabledForTesting` から言語だけを外した状態(Markdown 等)。
+    /// 定義ジャンプが落ち、見出しジャンプだけが使える(TASK-485.26 の排他)。
+    static let allEnabledWithoutCodeLanguageForTesting = ViewerCapabilities(
+        isPresentingDocument: true,
+        isRejected: false,
+        isRenderable: true,
+        isBinaryContent: false,
+        showsCodeContent: true,
+        supportsSourceMode: true,
+        supportsDiffDisplay: true,
+        supportsFind: true,
+        gitDiffAvailability: .changed,
+        isDirectHTMLMode: false,
+        supportsHeadingJump: true,
+        codeLanguage: nil,
         isDocumentJumpEnabled: true
     )
 
@@ -290,6 +329,7 @@ extension ViewerCapabilities {
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
+        supportsHeadingJump: true,
         codeLanguage: "swift",
         isDocumentJumpEnabled: true
     )

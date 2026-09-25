@@ -14,7 +14,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
         var isSourceMode = false
@@ -84,7 +85,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
             supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: true, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: true, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 
@@ -107,13 +109,14 @@ struct ViewerMenuValidatorTests {
     @Test("文書内ジャンプは項目のタグが指す種類ごとに判定する")
     func mapsDocumentJumpItemsToTheirKind() {
         let source = StubSource()
-        // 差分表示ではない状態(既定は showsDiff: true なので作り直す)。
+        // 差分表示ではない Markdown 相当の状態(既定は showsDiff: true なので作り直す)。
+        // 言語を渡すと定義ジャンプが見出しを押しのける(TASK-485.26 の排他)ので nil にする。
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: nil, isDocumentJumpEnabled: true
         )
         let jump = #selector(ViewerWindowController.documentJump(_:))
 
@@ -137,7 +140,8 @@ struct ViewerMenuValidatorTests {
                 isPresentingDocument: true, isRejected: false, isRenderable: true,
                 isBinaryContent: false, showsCodeContent: true, showsDiff: false,
                 supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
-                gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: language,
+                gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+                codeLanguage: language,
                 isDocumentJumpEnabled: true
             )
             return stub
@@ -219,7 +223,8 @@ struct ViewerMenuValidatorTests {
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
             supportsDiffDisplay: false, supportsFind: true,
-            gitDiffAvailability: .changed, isDirectHTMLMode: false, codeLanguage: "swift",
+            gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
+            codeLanguage: "swift",
             isDocumentJumpEnabled: true
         )
 

@@ -30,6 +30,11 @@ struct ViewerCapabilities: Equatable {
     /// 目印が何個あるかでは判定しない。判定するのは「いま差分表示か」という事実だけで、
     /// 目印が 0 個であることは viewer 側の 0/0 表示が伝える(`canJump` と同じ立場)。
     let canJumpToChangeBlock: Bool
+    /// 文書内ジャンプのうち「見出し」を選べるか。見出し・定義・変更ブロックは排他で、
+    /// 差分表示中は変更ブロック、定義を選べるソース表示中は定義だけを出す。
+    /// これで統合バーの選択肢は常に「検索 + 3 種のどれか 1 つ」の 2 つになる。
+    /// ただしデータ表示(CSV/TSV)は見出しも定義も持たないので、差分以外では「検索」だけ。
+    let canJumpToHeading: Bool
     /// ズーム(拡大・縮小・等倍)。
     let canZoom: Bool
     /// View メニューのソース表示トグル。種別がソース表示を持つときのみ。
@@ -69,6 +74,9 @@ struct ViewerCapabilities: Equatable {
     ///     `isBinaryContent` とは別の問いで、PDF はバイナリだが検索できる
     ///     (`FileType.supportsFind` の doc / TASK-570)。
     ///   - isDirectHTMLMode: HTML を直接ロードして表示しているか。
+    ///   - supportsHeadingJump: 見出しジャンプを持つ種別か(CSV/TSV は不可)。
+    ///     既定値は持たせない——渡し忘れが静かに「全種別で見出しあり」へ倒れると、
+    ///     データ表示のバーに目印 0 件の見出しが並ぶ。
     ///   - codeLanguage: ソース表示の highlight.js 言語名(コード種別でなければ nil)。
     ///     定義ジャンプの対応言語判定に使う。既定値は持たせない——渡し忘れが
     ///     静かに「全言語で無効」へ倒れると、対応言語でもメニューがグレーのままになる。
@@ -88,6 +96,7 @@ struct ViewerCapabilities: Equatable {
         supportsFind: Bool,
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
+        supportsHeadingJump: Bool,
         codeLanguage: String?,
         isDocumentJumpEnabled: Bool
     ) {
@@ -126,13 +135,14 @@ struct ViewerCapabilities: Equatable {
         // !showsDiff を落とすと差分表示中にメニューが有効のまま 0 件になる。
         canJumpToFunctionDefinition = canJump && showsCodeContent && !showsDiff
             && FunctionJumpLanguages.supports(codeLanguage)
+        canJumpToHeading = canJump && supportsHeadingJump && !showsDiff && !canJumpToFunctionDefinition
     }
 
     /// その種類のジャンプをいま使えるか。`canSelect(_:)` と同じく対応表であり、
     /// 条件そのものは上の init が持つ(ADR 0002 段 2 の「条件は 1 箇所」)。
     func canJump(to kind: DocumentJumpKind) -> Bool {
         switch kind {
-        case .heading: canJump
+        case .heading: canJumpToHeading
         case .changeBlock: canJumpToChangeBlock
         case .functionDefinition: canJumpToFunctionDefinition
         }
@@ -173,6 +183,7 @@ struct ViewerCapabilities: Equatable {
         supportsFind: false,
         gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false,
+        supportsHeadingJump: false,
         codeLanguage: nil,
         isDocumentJumpEnabled: false
     )

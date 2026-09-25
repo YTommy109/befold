@@ -208,6 +208,15 @@ public enum FileType: Sendable, Equatable {
         isRenderable && !isBinaryContent
     }
 
+    /// 文書内ジャンプの「見出し」を持つ種別かどうか。
+    /// データ表示(CSV/TSV)は見出しも定義も持たず、統合バーは検索だけになる。
+    public var supportsHeadingJump: Bool {
+        switch self {
+        case .csv, .image, .pdf: false
+        case .mmd, .markdown, .svg, .html, .code, .xml: true
+        }
+    }
+
     /// ソース表示へ git 差分を重ねられる種別かどうか。
     /// バイナリ(画像・PDF)はそもそもテキストソースを持たないため対象外。
     /// CSV/TSV のソース表示は独自の列構造を持つため viewer 側が差分を描かない

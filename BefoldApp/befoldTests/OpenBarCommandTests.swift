@@ -58,6 +58,7 @@ struct OpenBarCommandTests {
             supportsFind: true,
             gitDiffAvailability: .changed,
             isDirectHTMLMode: false,
+            supportsHeadingJump: true,
             codeLanguage: nil,
             isDocumentJumpEnabled: false
         )
@@ -68,8 +69,10 @@ struct OpenBarCommandTests {
         #expect(renderer.commands == [.openFind])
     }
 
-    @Test("kind を明示したときは、差分表示中でも見出しジャンプを強制する")
-    func openBarWithExplicitHeadingKindIgnoresDiffDefault() {
+    /// 差分表示中は変更ブロックだけを出す(見出し・定義・変更ブロックは排他 / TASK-485.26)。
+    /// kind を明示しても既定モード選択を迂回するだけで、種類ごとの能力の guard は外れない。
+    @Test("kind に見出しを明示しても、差分表示中は届かない")
+    func openBarWithExplicitHeadingKindIsBlockedWhileShowingDiff() {
         let renderer = FakeDocumentRenderer()
         let controller = makeDocumentCommandController(
             renderer: renderer,
@@ -78,7 +81,7 @@ struct OpenBarCommandTests {
 
         controller.openBar(kind: .heading)
 
-        #expect(renderer.commands == [.openJump(kind: .heading)])
+        #expect(renderer.commands.isEmpty)
     }
 
     @Test("kind を明示しても、その種類の能力が無ければ届かない(guard は openJump のまま)")

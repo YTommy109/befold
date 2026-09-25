@@ -31,9 +31,9 @@ struct DocumentJumpCommandTests {
         let renderer = FakeDocumentRenderer()
         let controller = makeDocumentCommandController(renderer: renderer)
 
-        controller.openJump(kind: .heading)
+        controller.openJump(kind: .functionDefinition)
 
-        #expect(renderer.commands == [.openJump(kind: .heading)])
+        #expect(renderer.commands == [.openJump(kind: .functionDefinition)])
     }
 
     @Test("変更ブロックへのジャンプは差分表示でないとき JS へ届かない")
@@ -74,11 +74,11 @@ struct DocumentJumpCommandTests {
 
         controller.syncJumpAvailability()
 
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .changeBlock])])
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.changeBlock])])
     }
 
     /// 差分表示でないときは変更ブロックが落ち、代わりに定義が載る
-    /// （定義は差分表示中は不可なので、この 2 つは同時にはそろわない）。
+    /// （見出し・定義・変更ブロックは排他で、同時には 1 つしか載らない / TASK-485.26）。
     @Test("使える種類の同期は差分表示でなければ変更ブロックを含まない")
     func jumpAvailabilityExcludesChangeBlockWithoutDiff() {
         let renderer = FakeDocumentRenderer()
@@ -86,7 +86,7 @@ struct DocumentJumpCommandTests {
 
         controller.syncJumpAvailability()
 
-        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.heading, .functionDefinition])])
+        #expect(renderer.commands == [.applyJumpAvailability(kinds: [.functionDefinition])])
     }
 
     @Test("何もできない状態では使える種類が空になり、開いているバーは閉じる指示になる")
@@ -103,17 +103,18 @@ struct DocumentJumpCommandTests {
     /// 失効の同期にだけ載り忘れる形（新しい種類のバーだけ閉じない）を防ぐ。
     /// 列挙を書き足す実装に変わると、この比較が落ちる。
     ///
-    /// **1 つの状態では全種類はそろわない。** 変更ブロックは差分表示中だけ、
-    /// 定義は逆に差分表示でないときだけ使えるためで、条件は `ViewerCapabilities` が
-    /// 持つ（TASK-485.4）。そこで差分表示中と非差分表示の和が `allCases` に
-    /// 一致することをもって「全種類が検査対象になっている」ことを表す。
-    /// 新しい種類がどちらの状態でも載らなければ、和に現れず落ちる。
+    /// **1 つの状態では全種類はそろわない。** 見出し・定義・変更ブロックは排他で
+    /// （TASK-485.26）、条件は `ViewerCapabilities` が持つ。そこで差分表示中・
+    /// 対応言語のソース表示・言語なしの 3 状態の和が `allCases` に一致することをもって
+    /// 「全種類が検査対象になっている」ことを表す。
+    /// 新しい種類がどの状態でも載らなければ、和に現れず落ちる。
     @Test("使える種類の同期は DocumentJumpKind の全種類を検査する")
     func jumpAvailabilityConsidersEveryKind() {
         let showingDiff = syncedKinds(for: .allEnabledShowingDiffForTesting)
-        let notShowingDiff = syncedKinds(for: .allEnabledForTesting)
+        let showingCode = syncedKinds(for: .allEnabledForTesting)
+        let withoutLanguage = syncedKinds(for: .allEnabledWithoutCodeLanguageForTesting)
 
-        #expect(showingDiff.union(notShowingDiff) == Set(DocumentJumpKind.allCases))
+        #expect(showingDiff.union(showingCode).union(withoutLanguage) == Set(DocumentJumpKind.allCases))
     }
 
     /// その能力の状態で viewer へ同期される種類の集合。
