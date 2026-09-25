@@ -24,6 +24,10 @@ const segmentVisible = (document: Document, mode: string) =>
 const switchRowVisible = (document: Document) =>
   document.getElementById('mmd-bar-modes')!.style.display !== 'none';
 
+const jumpCount = (document: Document) => document.getElementById('mmd-jump-count')!.textContent;
+
+const findCount = (document: Document) => document.getElementById('mmd-find-count')!.textContent;
+
 const clickMode = (document: Document, mode: string) => {
   document.getElementById('mmd-bar-mode-' + mode)!.click();
 };
@@ -352,6 +356,52 @@ describe('バーのモード切替スイッチ', () => {
       expect(activeModes(document)).toEqual(['search']);
       expect(main._mmdFind.isOpen()).toBe(true);
       expect(main._mmdJump.isOpen()).toBe(false);
+    });
+  });
+
+  // TASK-485.34: ⌘G / ⇧⌘G は Swift から _mmdBarNextIfOpen / _mmdBarPrevIfOpen を呼ぶ。
+  // 検索とジャンプのどちらへ振り分けるかはここだけが決めるので、振り分けを
+  // 取り違えると（たとえば検索だけを見ると）ここが落ちる。
+  describe('⌘G / ⇧⌘G の振り分け', () => {
+    test('ジャンプバーを開いている間は目印を前後に移り、端で巡回する', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>a</h1><h2>b</h2><h2>c</h2>';
+      main._mmdOpenJump('heading');
+      expect(jumpCount(document)).toBe('1/3');
+
+      main._mmdBarPrevIfOpen();
+      expect(jumpCount(document)).toBe('3/3');
+      main._mmdBarNextIfOpen();
+      expect(jumpCount(document)).toBe('1/3');
+      main._mmdBarNextIfOpen();
+      expect(jumpCount(document)).toBe('2/3');
+    });
+
+    test('検索バーを開いている間は検索のマッチを前後に移る', () => {
+      const { main, document, window } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.textContent = 'x a x b x';
+      main._mmdOpenFind();
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
+      input.value = 'x';
+      input.dispatchEvent(new window.Event('input'));
+      expect(findCount(document)).toBe('1/3');
+
+      main._mmdBarNextIfOpen();
+      expect(findCount(document)).toBe('2/3');
+      main._mmdBarPrevIfOpen();
+      main._mmdBarPrevIfOpen();
+      expect(findCount(document)).toBe('3/3');
+    });
+
+    test('バーが閉じている間は何も開かない', () => {
+      const { main, document } = loadViewerMain({});
+      document.getElementById('diagram-wrap')!.innerHTML = '<h1>a</h1><h2>b</h2>';
+
+      main._mmdBarNextIfOpen();
+      main._mmdBarPrevIfOpen();
+
+      expect(main.currentBar()).toBe(null);
+      expect(document.querySelectorAll('.mmd-jump-current, mark.mmd-find-match').length).toBe(0);
     });
   });
 });

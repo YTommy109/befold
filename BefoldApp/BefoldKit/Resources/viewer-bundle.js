@@ -14153,6 +14153,8 @@
     _mmdApplyJumpAvailability: () => _mmdApplyJumpAvailability,
     _mmdApplyResolvedReferences: () => _mmdApplyResolvedReferences,
     _mmdApplyZoom: () => _mmdApplyZoom,
+    _mmdBarNextIfOpen: () => _mmdBarNextIfOpen,
+    _mmdBarPrevIfOpen: () => _mmdBarPrevIfOpen,
     _mmdBuildDiagramControls: () => _mmdBuildDiagramControls,
     _mmdChunkTail: () => _mmdChunkTail,
     _mmdCloseFind: () => _mmdCloseFind,
@@ -14164,8 +14166,6 @@
     _mmdDocPath: () => _mmdDocPath,
     _mmdDocument: () => _mmdDocument,
     _mmdFind: () => _mmdFind,
-    _mmdFindNextIfOpen: () => _mmdFindNextIfOpen,
-    _mmdFindPrevIfOpen: () => _mmdFindPrevIfOpen,
     _mmdFindRefresh: () => _mmdFindRefresh,
     _mmdFitImage: () => _mmdFitImage,
     _mmdInit: () => _mmdInit,
@@ -14833,14 +14833,6 @@
   function _mmdFindRefresh(resetToFirst) {
     _mmdFind.refresh(resetToFirst);
   }
-  function _mmdFindNextIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.next();
-  }
-  function _mmdFindPrevIfOpen() {
-    if (!_mmdFind.isOpen()) return;
-    _mmdFind.prev();
-  }
 
   // viewer-src/jump.ts
   var CURRENT_CLASS = "mmd-jump-current";
@@ -15146,6 +15138,22 @@
       return;
     }
     openMode(target);
+  }
+  function _mmdBarNextIfOpen() {
+    var bar = currentBar();
+    if (bar === "find") {
+      _mmdFind.next();
+    } else if (bar === "jump") {
+      _mmdJump.next();
+    }
+  }
+  function _mmdBarPrevIfOpen() {
+    var bar = currentBar();
+    if (bar === "find") {
+      _mmdFind.prev();
+    } else if (bar === "jump") {
+      _mmdJump.prev();
+    }
   }
   function _mmdInitBarModeSwitch() {
     var labels = (window._mmdUIStrings || {}).modes || {};

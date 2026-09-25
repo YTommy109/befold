@@ -86,7 +86,7 @@ final class PDFDocumentRenderer: DocumentRendering {
     }
 
     /// 次 / 前の一致へ。**バーが閉じている間は何もしない**（web 面の
-    /// `_mmdFindNextIfOpen` と同じ約束。⌘G だけを押しても検索は始まらない）。
+    /// `_mmdBarNextIfOpen` と同じ約束。⌘G だけを押しても検索は始まらない）。
     func findNext() {
         guard findModel.isOpen else { return }
         findModel.moveToNext()

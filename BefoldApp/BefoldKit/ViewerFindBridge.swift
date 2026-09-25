@@ -9,11 +9,13 @@ import Foundation
 ///
 /// 逆方向(JS → Swift の `findOptionsChanged`)は `ViewerBridgeMessage` が持つ。
 public enum ViewerFindBridge {
-    /// 次のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findNextScript = ViewerBridge.PlainFunction.findNextIfOpen.callScript
+    /// 次のマッチ(ジャンプバーを開いていれば次の目印)へ移動するスクリプト。
+    /// バーが閉じている間は JS 側で無視される(TASK-485.34)。
+    public static let findNextScript = ViewerBridge.PlainFunction.barNextIfOpen.callScript
 
-    /// 前のマッチへ移動するスクリプト。検索バーが閉じている間は JS 側で無視される。
-    public static let findPrevScript = ViewerBridge.PlainFunction.findPrevIfOpen.callScript
+    /// 前のマッチ(ジャンプバーを開いていれば前の目印)へ移動するスクリプト。
+    /// バーが閉じている間は JS 側で無視される(TASK-485.34)。
+    public static let findPrevScript = ViewerBridge.PlainFunction.barPrevIfOpen.callScript
 
     /// 検索の3トグルの状態。
     public struct FindOptions: Equatable, Encodable {

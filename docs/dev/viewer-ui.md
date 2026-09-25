@@ -75,6 +75,15 @@ UI 言語に合わせて書き換えない（TASK-630）。
   判定し、PDF 面は `PDFFindModel.isOpen` と窓の first responder
   （`PDFFindOverlay.inputIdentifier` の欄か）で判定する
 - バー上段のモード切替ボタンはトグルではない（選択中のモードを押しても閉じない）
+- **⌘G / ⇧⌘G**（Edit > 次を検索 / 前を検索）: 開いているバーの次・前へ移る。
+  検索バーなら次・前のマッチ、ジャンプバーなら次・前の目印（`Enter` / `Shift+Enter`
+  と同じく端で巡回する / TASK-485.34）。バーが閉じていれば何もしない。
+  どちらへ振り分けるかは web 面の `_mmdBarNextIfOpen` / `_mmdBarPrevIfOpen`
+  （`bar-mode.ts`）だけが `bar.ts` の状態で決める。PDF 面はジャンプを持たないので検索だけ。
+  ジャンプバーも開けるので、項目の有効判定と実行の guard は ⌘F の `canFind` ではなく
+  ⇧⌘F と同じ `ViewerCapabilities.canToggleJump` を読む。項目名は「次を検索 / 前を検索」の
+  まま変えない。ジャンプは検索バーのモード違いとして同じバーに出るため「バーの中で次へ」と
+  読め、表示名を切り替えるには Swift がバーのモードの写しを持つ必要があるため
 
 ### 検索
 
