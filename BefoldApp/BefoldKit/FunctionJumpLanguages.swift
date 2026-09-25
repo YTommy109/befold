@@ -12,7 +12,9 @@ import Foundation
 /// ずれは `ViewerFunctionJumpLanguageContractTests` がバンドルを読んで落とす。
 public enum FunctionJumpLanguages {
     /// 対応する highlight.js 言語名。JS 側の `FUNCTION_JUMP_LANGUAGES` と一致する。
-    public static let supported: Set<String> = ["swift", "python", "javascript", "typescript"]
+    public static let supported: Set<String> = [
+        "swift", "python", "javascript", "typescript", "go", "rust", "java", "kotlin",
+    ]
 
     /// その言語で定義ジャンプを使えるか。`nil`（コード種別でない）は false。
     public static func supports(_ language: String?) -> Bool {

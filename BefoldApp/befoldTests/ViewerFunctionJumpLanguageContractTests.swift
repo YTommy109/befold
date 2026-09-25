@@ -42,7 +42,7 @@ struct ViewerFunctionJumpLanguageContractTests {
     }
 
     /// 対応言語 1 つにつき最低 1 つの拡張子。増やしたら足す。
-    private static let sampleExtensions = ["swift", "py", "js", "ts"]
+    private static let sampleExtensions = ["swift", "py", "js", "ts", "go", "rs", "java", "kt"]
 
     /// `var NAME = ["a", "b"];` 形式の宣言から文字列集合を取り出す。
     private static func jsStringArray(named name: String, in source: String) throws -> Set<String> {

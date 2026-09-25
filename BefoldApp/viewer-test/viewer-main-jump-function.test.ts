@@ -277,6 +277,185 @@ describe('定義ジャンプ: コメント・文字列を定義と誤検出し�
   });
 });
 
+// TASK-485.24。言語ごとに「拾う」と「コメント・文字列の中を拾わない」を 1 組ずつ置く。
+describe('定義ジャンプ: Go / Rust / Java / Kotlin', () => {
+  test('Go の func（レシーバつき）と type を拾い、呼び出しを拾わない', async () => {
+    const { document } = await openDefinitionJump('go', [
+      'package main',
+      'type Point struct {',
+      '    X int',
+      '}',
+      'func (p *Point) Moved() Point {',
+      '    return fmt.Sprintf("%d", p.X)',
+      '}',
+      'func main() {',
+      '    run()',
+      '}',
+    ]);
+
+    expect(markedLines(document)).toEqual([
+      'type Point struct {',
+      'func (p *Point) Moved() Point {',
+      'func main() {',
+    ]);
+  });
+
+  test('Go のブロックコメントと生文字列内の func を拾わない', async () => {
+    const { document } = await openDefinitionJump('go', [
+      '/*',
+      'func inComment() {}',
+      '*/',
+      'var src = `',
+      'func inRawString() {}',
+      '`',
+      'func real() {}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['func real() {}']);
+  });
+
+  test('Rust の fn / struct / enum / trait / impl / mod を修飾子つきで拾う', async () => {
+    const { document } = await openDefinitionJump('rust', [
+      'use std::fmt;',
+      'pub struct Point {',
+      '    x: i32,',
+      '}',
+      'impl<T> Store<T> {',
+      '    pub(crate) async fn load(&self) -> i32 {',
+      '        compute(1)',
+      '    }',
+      '}',
+      'pub trait Shape {}',
+      'enum Kind { A }',
+      'const LIMIT: u32 = 1;',
+      'unsafe extern "C" fn raw() {}',
+      'mod tests {}',
+    ]);
+
+    expect(markedLines(document)).toEqual([
+      'pub struct Point {',
+      'impl<T> Store<T> {',
+      'pub(crate) async fn load(&self) -> i32 {',
+      'pub trait Shape {}',
+      'enum Kind { A }',
+      'unsafe extern "C" fn raw() {}',
+      'mod tests {}',
+    ]);
+  });
+
+  test('Rust のブロックコメントと生文字列内の fn を拾わない', async () => {
+    const { document } = await openDefinitionJump('rust', [
+      '/*',
+      'fn in_comment() {}',
+      '*/',
+      'let src = r#"',
+      'fn in_raw_string() {}',
+      '"#;',
+      'fn real() {}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['fn real() {}']);
+  });
+
+  test('Java の型宣言・メソッド・コンストラクタを拾い、呼び出しと制御構文を拾わない', async () => {
+    const { document } = await openDefinitionJump('java', [
+      'package demo;',
+      'public final class Store<T> {',
+      '    private final List<T> items = new ArrayList<>();',
+      '    Store(List<T> items) {',
+      '        this.items.addAll(items);',
+      '    }',
+      '    @Override public String toString() {',
+      '        return format(items);',
+      '    }',
+      '    public static <U> Map<String, List<U>> group(List<U> xs) throws IOException {',
+      '        String s = describe(xs);',
+      '        if (s.isEmpty()) {',
+      '            throw new IllegalStateException(s);',
+      '        } else if (s.length() > 1) {',
+      '        }',
+      '        for (U x : xs) {',
+      '        }',
+      '        run();',
+      '    }',
+      '    abstract int size();',
+      '}',
+      'interface Shape {}',
+      'enum Kind { A }',
+      'record Pair(int a, int b) {}',
+    ]);
+
+    expect(markedLines(document)).toEqual([
+      'public final class Store<T> {',
+      'Store(List<T> items) {',
+      '@Override public String toString() {',
+      'public static <U> Map<String, List<U>> group(List<U> xs) throws IOException {',
+      'abstract int size();',
+      'interface Shape {}',
+      'enum Kind { A }',
+      'record Pair(int a, int b) {}',
+    ]);
+  });
+
+  test('Java の Javadoc とテキストブロック内のメソッドを拾わない', async () => {
+    const { document } = await openDefinitionJump('java', [
+      '/**',
+      ' * public void documented() {}',
+      ' */',
+      'String sql = """',
+      '    public void inTextBlock() {}',
+      '    """;',
+      'void real() {}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['void real() {}']);
+  });
+
+  test('Kotlin の fun / class / object / typealias を修飾子・注釈つきで拾う', async () => {
+    const { document } = await openDefinitionJump('kotlin', [
+      'package demo',
+      'data class Point(val x: Int)',
+      'sealed interface Shape',
+      'enum class Kind { A }',
+      'class Store {',
+      '    companion object {',
+      '        @JvmStatic fun empty(): Store = Store()',
+      '    }',
+      '    override suspend fun load(url: String) {',
+      '        fetch(url)',
+      '    }',
+      '    private val size = compute()',
+      '}',
+      'typealias Id = String',
+    ]);
+
+    expect(markedLines(document)).toEqual([
+      'data class Point(val x: Int)',
+      'sealed interface Shape',
+      'enum class Kind { A }',
+      'class Store {',
+      'companion object {',
+      '@JvmStatic fun empty(): Store = Store()',
+      'override suspend fun load(url: String) {',
+      'typealias Id = String',
+    ]);
+  });
+
+  test('Kotlin のブロックコメントと複数行文字列内の fun を拾わない', async () => {
+    const { document } = await openDefinitionJump('kotlin', [
+      '/*',
+      'fun inComment() {}',
+      '*/',
+      'val src = """',
+      'fun inRawString() {}',
+      '"""',
+      'fun real() {}',
+    ]);
+
+    expect(markedLines(document)).toEqual(['fun real() {}']);
+  });
+});
+
 describe('定義ジャンプ: 非対応言語と段階読み込み', () => {
   test('非対応言語では目印を 1 つも拾わない', async () => {
     const { document } = await openDefinitionJump('ruby', ['def greet', '  puts "hi"', 'end']);
