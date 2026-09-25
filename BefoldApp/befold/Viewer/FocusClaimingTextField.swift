@@ -30,6 +30,11 @@ struct FocusClaimingTextField: NSViewRepresentable {
     let onSubmit: () -> Void
     /// Esc。
     let onCancel: () -> Void
+    /// 外から first responder を問い合わせるときの目印。
+    var identifier: NSUserInterfaceItemIdentifier?
+    /// 値が変わると描き直され、フォーカスを取り直す(取り直すと `NSTextField` は
+    /// 中身を全選択する)。読まれない値で、変化だけが合図になる。
+    var focusRequest = 0
 
     func makeNSView(context: Context) -> NSTextField {
         let field = NSTextField(string: text)
@@ -40,6 +45,7 @@ struct FocusClaimingTextField: NSViewRepresentable {
         field.alignment = alignment
         field.font = font
         field.placeholderString = placeholder
+        field.identifier = identifier
         field.lineBreakMode = .byClipping
         field.cell?.usesSingleLineMode = true
         return field

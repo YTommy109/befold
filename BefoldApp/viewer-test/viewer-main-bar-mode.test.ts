@@ -123,6 +123,35 @@ describe('バーのモード切替スイッチ', () => {
       expect(outerVisible(document)).toBe(false);
     });
 
+    test('検索欄が開いていても本文にフォーカスがあれば、閉じずに入力欄へ戻して語を全選択する', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
+      input.value = 'needle';
+      input.dispatchEvent(new document.defaultView!.Event('input'));
+      input.blur();
+
+      main._mmdToggleBarMode('search');
+
+      expect(main._mmdFind.isOpen()).toBe(true);
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe('needle'.length);
+    });
+
+    test('閉じて開き直しても検索語が残る', () => {
+      const { main, document } = loadViewerMain({});
+      main._mmdToggleBarMode('search');
+      const input = document.getElementById('mmd-find-input') as HTMLInputElement;
+      input.value = 'needle';
+      input.dispatchEvent(new document.defaultView!.Event('input'));
+
+      main._mmdToggleBarMode('search');
+      main._mmdToggleBarMode('search');
+
+      expect(input.value).toBe('needle');
+    });
+
     test('ジャンプも同じ種類でもう一度呼ぶと閉じる', () => {
       const { main, document } = loadViewerMain({});
       document.getElementById('diagram-wrap')!.innerHTML = '<h1>題</h1>';

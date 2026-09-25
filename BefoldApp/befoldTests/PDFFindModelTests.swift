@@ -11,21 +11,6 @@ import Testing
 @MainActor
 @Suite
 struct PDFFindModelTests {
-    /// ⌘F のトグル(TASK-485.28)。PDF 面では開閉の状態を `PDFFindModel` が持つので、
-    /// web 面(JS の bar.ts)と同じく 2 回目で閉じることを面の入口で確かめる。
-    @Test("PDF 面の ⌘F は 2 回目で検索バーを閉じる")
-    func pdfToggleFindClosesOnSecondPress() {
-        let proxy = PDFViewProxy()
-        let model = PDFFindModel(pdfViewProxy: proxy, caseSensitive: { false })
-        let renderer = PDFDocumentRenderer(pdfViewProxy: proxy, findModel: model)
-
-        renderer.toggleFind()
-        #expect(model.isOpen)
-
-        renderer.toggleFind()
-        #expect(!model.isOpen)
-    }
-
     /// **1 ページに `count` 回 "needle" が出てくる PDF。**
     ///
     /// ページをまたがせない理由: `go(to:)` でページが変わると PDFKit が
@@ -212,9 +197,10 @@ struct PDFFindModelTests {
         #expect(model.matches.isEmpty)
     }
 
-    /// 閉じたら検索語もハイライトも捨てる。残すと、開き直したとき前の結果が出る。
-    @Test("閉じると検索語とヒットを捨てる")
-    func closingClearsState() async {
+    /// 閉じたらハイライトは捨て、検索語は残す（web 面と同じ / TASK-485.29）。
+    /// 開き直すと残した語で探し直す。
+    @Test("閉じるとヒットを捨て、開き直すと残した検索語で探し直す")
+    func closingKeepsQueryAndReopenSearchesAgain() async {
         let fixture = makeFixture(matchCount: 3)
         let model = fixture.model
         let pdfView = fixture.pdfView
@@ -226,9 +212,15 @@ struct PDFFindModelTests {
         model.close()
 
         #expect(!model.isOpen)
-        #expect(model.query.isEmpty)
+        #expect(model.query == "needle")
         #expect(model.matches.isEmpty)
         #expect(pdfView.highlightedSelections == nil)
+
+        model.open()
+        await waitForSearch(model)
+
+        #expect(model.matches.count == 3)
+        model.close()
     }
 
     /// 文書が差し替わったら前の文書のヒットは無効。残すと、別の文書の位置を指す

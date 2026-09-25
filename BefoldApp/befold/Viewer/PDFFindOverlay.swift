@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// PDF の右上に重ねる検索バー（TASK-570）。
@@ -17,6 +18,10 @@ import SwiftUI
 /// 経路を丸ごと置き換えることになるので採らない。**このため web 面のバーとは
 /// トグルの数が違う。** 効かないトグルを無効で並べるより、無い方が誤解が少ない。
 struct PDFFindOverlay: View {
+    /// 検索欄の識別子。⌘F が「入力欄に居るか」を窓の first responder から
+    /// 判定するのに使う(`PDFDocumentRenderer.toggleFind()` / TASK-485.29)。
+    static let inputIdentifier = NSUserInterfaceItemIdentifier("pdf-find-input")
+
     /// 検索の状態。View はこれを読み書きするだけで、面には触らない。
     @Bindable var model: PDFFindModel
     /// 大文字小文字を区別するか。アプリ全体の設定（`FindOptionsPreference`）と共有する。
@@ -69,7 +74,9 @@ struct PDFFindOverlay: View {
                 font: .systemFont(ofSize: 13),
                 // Enter で次へ（web 面の入力欄と同じ）。
                 onSubmit: { model.moveToNext() },
-                onCancel: { model.close() }
+                onCancel: { model.close() },
+                identifier: Self.inputIdentifier,
+                focusRequest: model.focusRequest
             )
             .frame(width: 160)
 

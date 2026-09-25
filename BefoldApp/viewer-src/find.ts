@@ -149,6 +149,13 @@ function isFindBarOpen(): boolean {
   return isBarOpen('find');
 }
 
+// 検索欄にキー入力が届く状態か。activeElement だけでは足りない:
+// サイドバーへ移っても WebView 内の activeElement は入力欄のまま残るため、
+// 文書自体がフォーカスを持つか（hasFocus）も併せて見る（TASK-485.29）。
+function isFindInputFocused(): boolean {
+  return document.hasFocus() && document.activeElement === findInputElement();
+}
+
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
@@ -588,4 +595,5 @@ export {
   _mmdFindRefresh,
   _mmdFindNextIfOpen,
   _mmdFindPrevIfOpen,
+  isFindInputFocused,
 };

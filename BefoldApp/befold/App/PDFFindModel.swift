@@ -84,24 +84,35 @@ final class PDFFindModel {
 
     // MARK: - 開閉
 
+    /// 入力欄へフォーカスを取り直させる合図。`open()` のたびに進み、入力欄は
+    /// 値の変化で描き直されてフォーカスを取りに行く(`FocusClaimingTextField`)。
+    /// 開いたまま本文を読んでいて ⌘F を押したとき、入力欄へ戻すのに使う(TASK-485.29)。
+    private(set) var focusRequest = 0
+
+    /// 開く。既に開いていれば入力欄へフォーカスを戻すだけ。
+    /// **閉じても残した検索語で探し直す**(web 面の `find.ts` の `open()` と同じ)。
     func open() {
+        focusRequest += 1
+        guard !isOpen else { return }
         isOpen = true
+        restartSearch()
     }
 
     /// 閉じるときはハイライトも消す。残すと、バーを閉じた後も黄色が残り続ける。
+    /// **検索語は残す。** web 面と同じく、⌘F で閉じて開き直すと前の語が戻る(TASK-485.29)。
     ///
     /// **閉じたらフォーカスを面へ戻す（TASK-579）。** 入力欄が消えた後の first responder は
     /// 宙に浮き、そのままではスペースや矢印で PDF を送れない。戻し先を「いま読んでいる面」に
     /// 決め打つ理由は `PDFViewProxy.focusSurface()` の doc を参照。
     ///
-    /// **ここはユーザー操作専用。** 呼び出し元は検索バーの × と Esc だけで、文書の
+    /// **ここはユーザー操作専用。** 呼び出し元は検索バーの × と Esc、入力欄に居る
+    /// ときの ⌘F(`PDFDocumentRenderer.toggleFind()`)だけで、文書の
     /// 差し替えは `documentChanged()` を通る（そちらはフォーカスを動かさない）。
     /// 操作していない契機で面へ移すと、サイドバーを矢印で流し読み中にフォーカスを奪う
     /// （TASK-581 で実際に起きた回帰）。
     func close() {
         isOpen = false
         cancelSearch()
-        query = ""
         clearMatches()
         pdfViewProxy.focusSurface()
     }

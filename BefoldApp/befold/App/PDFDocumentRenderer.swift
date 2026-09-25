@@ -67,14 +67,22 @@ final class PDFDocumentRenderer: DocumentRendering {
         pdfViewProxy.focusSurface()
     }
 
-    /// 検索バーのトグル(⌘F、TASK-485.28)。開いていれば閉じる。
-    /// web 面は JS の bar.ts が開閉を持つが、PDF 面では `PDFFindModel` が持つ。
+    /// 検索バーのトグル(⌘F、TASK-485.28)。入力欄に居れば閉じ、それ以外は開く
+    /// (開いていれば入力欄へ戻す / TASK-485.29)。web 面は JS の bar-mode.ts が
+    /// 同じ規則を持つが、PDF 面では開閉を `PDFFindModel` が持つ。
     func toggleFind() {
-        if findModel.isOpen {
+        if findModel.isOpen, isFindInputFocused {
             findModel.close()
         } else {
             findModel.open()
         }
+    }
+
+    /// 窓の first responder が検索欄のフィールドエディタか。フォーカスの写しを
+    /// モデルに持たず、その都度 AppKit に訊く(写しは本文クリックで古くなる)。
+    private var isFindInputFocused: Bool {
+        let editor = pdfViewProxy.pdfView?.window?.firstResponder as? NSTextView
+        return (editor?.delegate as? NSTextField)?.identifier == PDFFindOverlay.inputIdentifier
     }
 
     /// 次 / 前の一致へ。**バーが閉じている間は何もしない**（web 面の

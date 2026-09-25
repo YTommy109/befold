@@ -62,9 +62,15 @@ UI 言語に合わせて書き換えない（TASK-630）。
   使えるジャンプが無い表示では検索をトグルする
 - 閉じていれば開く、**同じモードで開いていれば閉じる**、別のモードで開いていれば
   閉じずにそのモードへ切り替える
+- **検索だけは、閉じるのは入力欄に居るときだけ**（TASK-485.29）。開いていても
+  本文を読んでいる（入力欄にフォーカスが無い）ときの ⌘F は、閉じずに入力欄へ戻して
+  語を全選択する。本文から ⌘F で語を変えに戻る慣習（Safari 等）を保つため。
+  入力欄の無いジャンプは単純なトグル。stable（ジャンプのゲート閉）もこの規則で動く
+- 検索語は閉じても残り、開き直すと前の語で探し直す（web 面・PDF 面とも）
 - 開閉の状態は面の側だけが持ち、Swift は写しを持たない。web 面は JS の
-  `_mmdToggleBarMode`（`bar-mode.ts`）が `bar.ts` の状態で判定し、PDF 面は
-  `PDFFindModel.isOpen` で判定する
+  `_mmdToggleBarMode`（`bar-mode.ts`）が `bar.ts` の状態と `isFindInputFocused` で
+  判定し、PDF 面は `PDFFindModel.isOpen` と窓の first responder
+  （`PDFFindOverlay.inputIdentifier` の欄か）で判定する
 - バー上段のモード切替ボタンはトグルではない（選択中のモードを押しても閉じない）
 
 ### 検索

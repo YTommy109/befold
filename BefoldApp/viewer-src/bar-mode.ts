@@ -8,7 +8,7 @@
 // ハイライトだけを担当する）。
 
 import { closeCurrentBar, currentBar, setOnBarChange } from './bar.js';
-import { _mmdOpenFind } from './find.js';
+import { _mmdOpenFind, isFindInputFocused } from './find.js';
 import { _mmdJump, _mmdOpenJump, jumpAvailableKinds, setOnAvailabilityChange } from './jump.js';
 
 type BarMode = 'search' | 'heading' | 'changeBlock' | 'functionDefinition';
@@ -82,7 +82,10 @@ function openMode(mode: BarMode): void {
 // mode は 'search' か DocumentJumpKind.rawValue。
 //
 // 同じモードで開いていれば閉じ、閉じていれば開き、別のモードで開いていれば
-// そのモードへ切り替える(閉じない)。開閉の状態は bar.ts だけが持ち、Swift は
+// そのモードへ切り替える(閉じない)。ただし検索は、開いていても入力欄に
+// フォーカスが無ければ閉じずに入力欄へ戻して語を全選択する(TASK-485.29)。
+// 本文を読んでから語を変えようと ⌘F を押す慣習(Safari 等)を保つためで、
+// 入力欄の無いジャンプは単純なトグルのまま。開閉の状態は bar.ts だけが持ち、Swift は
 // 写しを持たない——判定をここに置くのはそのため。
 // モード切替スイッチのボタンは openMode を直接呼ぶので、押しても閉じない。
 function _mmdToggleBarMode(mode: string): void {
@@ -90,7 +93,7 @@ function _mmdToggleBarMode(mode: string): void {
   if (target === null) {
     return;
   }
-  if (currentMode() === target) {
+  if (currentMode() === target && (target !== 'search' || isFindInputFocused())) {
     closeCurrentBar();
     return;
   }

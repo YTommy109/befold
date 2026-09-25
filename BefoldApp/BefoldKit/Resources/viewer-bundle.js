@@ -14264,6 +14264,7 @@
     imageFitSize: () => imageFitSize,
     indentColumns: () => indentColumns,
     isBarOpen: () => isBarOpen,
+    isFindInputFocused: () => isFindInputFocused,
     isHostFeatureEnabled: () => isHostFeatureEnabled,
     isLocalPathHref: () => isLocalPathHref,
     isSafeLinkURL: () => isSafeLinkURL,
@@ -14525,6 +14526,9 @@
   }
   function isFindBarOpen() {
     return isBarOpen("find");
+  }
+  function isFindInputFocused() {
+    return document.hasFocus() && document.activeElement === findInputElement();
   }
   function _createFindController() {
     var options = { caseSensitive: false, wholeWord: false, useRegex: false };
@@ -15130,7 +15134,7 @@
     if (target === null) {
       return;
     }
-    if (currentMode() === target) {
+    if (currentMode() === target && (target !== "search" || isFindInputFocused())) {
       closeCurrentBar();
       return;
     }
