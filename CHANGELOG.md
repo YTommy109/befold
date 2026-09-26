@@ -4,6 +4,14 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.21.0
+
+### 新機能
+- 文書内ジャンプを追加しました。cmd+shift+F で、Markdown では見出し、差分表示では変更箇所、ソースコードでは関数・型の定義（Swift / Python / JavaScript / TypeScript / Go / Rust / Java / Kotlin）を順に移動できます。cmd+F で検索を開き、同じショートカットをもう一度押すとバーを閉じます。バーを開いている間は cmd+G / cmd+shift+G で次・前の目印へ移動できます。(#690, #691, #692)
+
+### 修正
+- 日本語ファイル名のファイルで差分表示が機能しない問題を修正しました。(#688)
+
 ## v1.20.0
 
 ### 新機能
