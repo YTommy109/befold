@@ -45,11 +45,7 @@ enum ViewerCapabilitiesFactory {
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             supportsHeadingJump: urlFileType.supportsHeadingJump,
-            codeLanguage: urlFileType.codeLanguage,
-            // 開発中機能のゲートを読むのはここだけ。能力の導出へ畳むことで、
-            // メニューの有効判定とコマンドの実行ガードの両方が自動で塞がる
-            // (露出点を数え上げて回る形にしない / TASK-485.1)。
-            isDocumentJumpEnabled: FeatureGate.isDocumentJumpEnabled
+            codeLanguage: urlFileType.codeLanguage
         )
     }
 }

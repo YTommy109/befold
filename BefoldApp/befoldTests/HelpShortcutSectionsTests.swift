@@ -13,12 +13,12 @@ struct HelpShortcutSectionsTests {
         ]
         defer { MenuShortcutCatalog.snapshot = [] }
 
-        let titles = HelpShortcutSections.all(isDocumentJumpEnabled: true).map(\.title)
+        let titles = HelpShortcutSections.all.map(\.title)
 
         #expect(titles.first == "File")
         #expect(titles.count == 4)
         #expect(titles.dropFirst() == [
-            ViewerShortcutCatalog.section(isDocumentJumpEnabled: true).title,
+            ViewerShortcutCatalog.section.title,
             SidebarShortcutCatalog.section.title,
             QuickOpenShortcutCatalog.section.title,
         ][...])
@@ -27,7 +27,7 @@ struct HelpShortcutSectionsTests {
     @Test("非メニュー由来のセクションは項目を持つ")
     func nonMenuSectionsAreNotEmpty() {
         MenuShortcutCatalog.snapshot = []
-        let sections = HelpShortcutSections.all(isDocumentJumpEnabled: true)
+        let sections = HelpShortcutSections.all
 
         #expect(sections.count == 3)
         for section in sections {

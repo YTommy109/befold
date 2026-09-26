@@ -57,8 +57,8 @@ struct PDFFindOverlay: View {
         // かつてここに `.task { isInputFocused = true }` を置いていたが、この面では
         // `@FocusState` で first responder が移らないため効いていなかった（TASK-579）。
         //
-        // Esc で閉じる。Help の一覧（`ViewerShortcutCatalog.findOnlyItems` の
-        // `shortcuts.viewer.findClose` = 「検索バーを閉じる」）は種別非依存に出るので、
+        // Esc で閉じる。Help の一覧（`ViewerShortcutCatalog.documentJumpItems` の
+        // `shortcuts.viewer.barClose` = バーを閉じる）は種別非依存に出るので、
         // ここを繋がないと PDF でだけ説明と実態が食い違う（TASK-570 の AC #9）。
         // web 面は viewer-src/keyboard.ts の `resolveBarCloseKey` が同じ役割を持つ。
         // **入力欄に居るあいだの Esc は入力欄が受ける**（`onExitCommand` は first

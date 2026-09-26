@@ -20,8 +20,7 @@ struct ViewerCapabilitiesTests {
         gitDiffAvailability: GitDiffAvailability = .changed,
         isDirectHTMLMode: Bool = false,
         supportsHeadingJump: Bool = true,
-        codeLanguage: String? = "swift",
-        isDocumentJumpEnabled: Bool = true
+        codeLanguage: String? = "swift"
     ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: isPresentingDocument,
@@ -37,8 +36,7 @@ struct ViewerCapabilitiesTests {
             gitDiffAvailability: gitDiffAvailability,
             isDirectHTMLMode: isDirectHTMLMode,
             supportsHeadingJump: supportsHeadingJump,
-            codeLanguage: codeLanguage,
-            isDocumentJumpEnabled: isDocumentJumpEnabled
+            codeLanguage: codeLanguage
         )
     }
 
@@ -188,10 +186,12 @@ struct ViewerCapabilitiesTests {
         #expect(makeCapabilities(gitDiffAvailability: .changed).canSelect(.diff))
     }
 
-    @Test("文書内ジャンプはゲートが閉じている間は不可")
-    func deniesJumpWhileGateIsClosed() {
-        #expect(makeCapabilities(isDocumentJumpEnabled: true).canJump)
-        #expect(!makeCapabilities(isDocumentJumpEnabled: false).canJump)
+    /// ゲート撤去(TASK-485.16)後は、文書を提示していれば stable でもジャンプできる。
+    /// バイナリ(画像・PDF)は viewer.html の JS を持たないので不可のまま。
+    @Test("文書内ジャンプはテキストの文書を提示していれば可能で、バイナリでは不可")
+    func allowsJumpOnTextDocuments() {
+        #expect(makeCapabilities().canJump)
+        #expect(!makeCapabilities(isBinaryContent: true).canJump)
     }
 
     @Test("文書内ジャンプは検索と同じく HTML 直接ロード中と非提示中は不可")
@@ -203,12 +203,12 @@ struct ViewerCapabilitiesTests {
 
     @Test("変更ブロックへのジャンプは差分表示を選んでいる間だけ可能")
     func allowsChangeBlockJumpOnlyWhileShowingDiff() {
-        #expect(makeCapabilities(showsDiff: true, isDocumentJumpEnabled: true)
+        #expect(makeCapabilities(showsDiff: true)
             .canJump(to: .changeBlock))
-        #expect(!makeCapabilities(showsDiff: false, isDocumentJumpEnabled: true)
+        #expect(!makeCapabilities(showsDiff: false)
             .canJump(to: .changeBlock))
         // 見出しは逆に差分表示中は不可(差分表示中は変更ブロックだけ / TASK-485.26)。
-        #expect(!makeCapabilities(showsDiff: true, codeLanguage: nil, isDocumentJumpEnabled: true)
+        #expect(!makeCapabilities(showsDiff: true, codeLanguage: nil)
             .canJump(to: .heading))
     }
 
@@ -288,7 +288,7 @@ struct ViewerCapabilitiesTests {
             supportsDiffDisplay: false, supportsFind: false,
             gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
             supportsHeadingJump: false,
-            codeLanguage: nil, isDocumentJumpEnabled: false
+            codeLanguage: nil
         ))
         #expect(!ViewerCapabilities.none.canPrint)
     }
@@ -308,8 +308,7 @@ extension ViewerCapabilities {
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
         supportsHeadingJump: true,
-        codeLanguage: "swift",
-        isDocumentJumpEnabled: true
+        codeLanguage: "swift"
     )
 
     /// `allEnabledForTesting` から言語だけを外した状態(Markdown 等)。
@@ -326,8 +325,7 @@ extension ViewerCapabilities {
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
         supportsHeadingJump: true,
-        codeLanguage: nil,
-        isDocumentJumpEnabled: true
+        codeLanguage: nil
     )
 
     /// `allEnabledForTesting` に差分表示中であることだけを足した状態。
@@ -345,7 +343,6 @@ extension ViewerCapabilities {
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
         supportsHeadingJump: true,
-        codeLanguage: "swift",
-        isDocumentJumpEnabled: true
+        codeLanguage: "swift"
     )
 }

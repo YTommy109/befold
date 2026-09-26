@@ -60,6 +60,11 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘D', ja: 'ブックマークの追加 / 解除', en: 'Add or remove a bookmark' },
   { keys: '⇧⌘D', ja: 'ブックマークの編集', en: 'Edit bookmarks' },
   { keys: '⌘F / ⌘G', ja: 'ページ内検索 / 次を検索', en: 'Find in page / find next' },
+  {
+    keys: '⇧⌘F',
+    ja: '文書内ジャンプ（見出し・定義・変更箇所を前後に移動）',
+    en: 'Jump within the document (step through headings, definitions or changes)',
+  },
   { keys: '⌘0 / ⌘+ / ⌘-', ja: '実寸 / 拡大 / 縮小', en: 'Actual size / zoom in / zoom out' },
   { keys: '⌃⌘H', ja: '隠しファイルの表示', en: 'Show hidden files' },
   { keys: '⌃⌘G', ja: '変更されたファイルのみ表示', en: 'Show changed files only' },

@@ -26,19 +26,15 @@ final class MainMenuFixture {
     /// 呼び出し側で「その delegate が実際に設定されたか」を識別したいケースがあるため、
     /// 生成時に差し替えられるようにしている。
     let recentRepositoriesMenuDelegate: NSMenuDelegate
-    /// 文書内ジャンプ（開発中機能）のゲート。既定は dev ビルド相当の開いた状態。
-    let isDocumentJumpEnabled: Bool
 
     init(
         recentMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
         bookmarksMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
-        recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate(),
-        isDocumentJumpEnabled: Bool = true
+        recentRepositoriesMenuDelegate: NSMenuDelegate = StubMenuDelegate()
     ) {
         self.recentMenuDelegate = recentMenuDelegate
         self.bookmarksMenuDelegate = bookmarksMenuDelegate
         self.recentRepositoriesMenuDelegate = recentRepositoriesMenuDelegate
-        self.isDocumentJumpEnabled = isDocumentJumpEnabled
     }
 
     /// 呼ぶたびにフルメニューを組み立て直す。戻り値を保持するのは呼び出し側の
@@ -61,8 +57,7 @@ final class MainMenuFixture {
                 recent: recentMenuDelegate,
                 bookmarks: bookmarksMenuDelegate,
                 recentRepositories: recentRepositoriesMenuDelegate
-            ),
-            isDocumentJumpEnabled: isDocumentJumpEnabled
+            )
         )
     }
 

@@ -80,8 +80,7 @@ const EXPECTED_MENU_ITEMS: {
     keyEquivalent: '"g"',
     modifiers: ['.command', '.shift'],
   },
-  // 文書内ジャンプ（TASK-485.28）。開発中機能のゲートの内側で構築される項目なので、
-  // 公開の表にはまだ載せない（「表 ⊆ 実装」しか検査しないので載せずに済む。掲載は TASK-485.25）。
+  // 文書内ジャンプ（TASK-485.28）。ゲート撤去（TASK-485.16）後に公開の表へ載せた（TASK-485.25）。
   {
     localizationKey: 'menu.edit.jump',
     keyEquivalent: '"f"',

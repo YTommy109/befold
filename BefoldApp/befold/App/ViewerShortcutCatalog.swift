@@ -24,9 +24,7 @@ enum ViewerShortcutCatalog {
         case pageDown, pageUp
         case lineDown, lineUp
         case halfPageDown, halfPageUp
-        /// Esc: 開いているのが検索バーだけの構成(ゲート閉)での説明。
-        case findClose
-        /// Esc: ジャンプバーも開きうる構成(ゲート開)での説明。
+        /// Esc: 検索バーとジャンプバーのどちらも閉じる。
         case barClose
         case jumpNext, jumpPrev
     }
@@ -42,7 +40,7 @@ enum ViewerShortcutCatalog {
     /// 見出しのローカライズキー。訳の有無は LocalizationTests が検証する。
     static let sectionTitleKey = "shortcuts.section.viewer"
 
-    /// スクロールのキー。ゲートによらず常に載せる。
+    /// スクロールのキー。
     static let scrollItems: [Item] = [
         Item(jsKeys: [" "], shift: false, expects: .pageDown, titleKey: "shortcuts.viewer.pageDown"),
         Item(jsKeys: [" "], shift: true, expects: .pageUp, titleKey: "shortcuts.viewer.pageUp"),
@@ -57,31 +55,21 @@ enum ViewerShortcutCatalog {
         Item(jsKeys: ["ArrowUp", "k"], shift: true, expects: .halfPageUp, titleKey: "shortcuts.viewer.halfPageUp"),
     ]
 
-    /// 文書内ジャンプ(TASK-485)がゲート閉のときの Esc。開けるバーが検索バーしか無いため、
-    /// 説明も「検索バーを閉じる」に閉じる。
-    static let findOnlyItems: [Item] = [
-        Item(jsKeys: ["Escape"], shift: false, expects: .findClose, titleKey: "shortcuts.viewer.findClose"),
-    ]
-
-    /// 文書内ジャンプがゲート開のときに載せる行。Esc は検索バーとジャンプバーの
-    /// どちらも閉じるため、findOnlyItems の 1 行と**入れ替える**(併記しない)。
-    /// ゲート閉のビルドでジャンプのキー操作を告知しないのは TASK-485.8 の判断に揃えたもの。
+    /// バー(検索・文書内ジャンプ / TASK-485)のキー。Esc は検索バーとジャンプバーの
+    /// どちらも閉じる。
     static let documentJumpItems: [Item] = [
         Item(jsKeys: ["Escape"], shift: false, expects: .barClose, titleKey: "shortcuts.viewer.barClose"),
         Item(jsKeys: ["Enter"], shift: false, expects: .jumpNext, titleKey: "shortcuts.viewer.jumpNext"),
         Item(jsKeys: ["Enter"], shift: true, expects: .jumpPrev, titleKey: "shortcuts.viewer.jumpPrev"),
     ]
 
-    /// 実際に一覧へ並べる行。ゲートの値は呼び出し側が渡す(既定値は付けない —— 付けると
-    /// 渡し忘れが黙って通る。TASK-485.8 と同じ理由)。
-    static func items(isDocumentJumpEnabled: Bool) -> [Item] {
-        scrollItems + (isDocumentJumpEnabled ? documentJumpItems : findOnlyItems)
-    }
+    /// 実際に一覧へ並べる行。
+    static let items: [Item] = scrollItems + documentJumpItems
 
-    static func section(isDocumentJumpEnabled: Bool) -> ShortcutSection {
+    static var section: ShortcutSection {
         ShortcutSection(
             title: String(localized: .init(sectionTitleKey), bundle: .l10n),
-            entries: items(isDocumentJumpEnabled: isDocumentJumpEnabled).map { item in
+            entries: items.map { item in
                 ShortcutEntry(
                     title: String(localized: .init(item.titleKey), bundle: .l10n),
                     keys: item.jsKeys.map { ShortcutKey(viewerKey: $0, shift: item.shift) }

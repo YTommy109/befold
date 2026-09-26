@@ -50,7 +50,7 @@ struct ToggleBarCommandTests {
         let renderer = FakeDocumentRenderer()
         // mmd・JSON・未対応言語など: 見出しも定義も持たず、差分表示でもない。
         let controller = makeDocumentCommandController(renderer: renderer, capabilities: {
-            makeCapabilities(showsDiff: false, supportsHeadingJump: false, isDocumentJumpEnabled: true)
+            makeCapabilities(showsDiff: false, supportsHeadingJump: false)
         })
 
         controller.toggleJump()
@@ -59,12 +59,13 @@ struct ToggleBarCommandTests {
     }
 
     /// 旧 openBar の回帰(TASK-485.19.5)の形を引き継ぐ: ジャンプの能力が無い
-    /// (フィーチャーゲート閉・HTML 直接ロード中)ときに無言の no-op にしない。
+    /// ときに無言の no-op にしない。かつてはフィーチャーゲート閉でこの状態を作っていたが、
+    /// ゲート撤去(TASK-485.16)後は検索だけができるバイナリ(PDF)が同じ経路を通る。
     @Test("⇧⌘F は差分表示中でもジャンプの能力が無ければ検索をトグルする")
     func toggleJumpFallsBackToFindWhenJumpDisabled() {
         let renderer = FakeDocumentRenderer()
         let controller = makeDocumentCommandController(renderer: renderer, capabilities: {
-            makeCapabilities(showsDiff: true, supportsHeadingJump: true, isDocumentJumpEnabled: false)
+            makeCapabilities(showsDiff: true, supportsHeadingJump: true, isBinaryContent: true)
         })
 
         controller.toggleJump()
@@ -84,13 +85,13 @@ struct ToggleBarCommandTests {
     }
 
     private func makeCapabilities(
-        showsDiff: Bool, supportsHeadingJump: Bool, isDocumentJumpEnabled: Bool
+        showsDiff: Bool, supportsHeadingJump: Bool, isBinaryContent: Bool = false
     ) -> ViewerCapabilities {
         ViewerCapabilities(
             isPresentingDocument: true,
             isRejected: false,
             isRenderable: true,
-            isBinaryContent: false,
+            isBinaryContent: isBinaryContent,
             showsCodeContent: true,
             showsDiff: showsDiff,
             supportsSourceMode: true,
@@ -99,8 +100,7 @@ struct ToggleBarCommandTests {
             gitDiffAvailability: .changed,
             isDirectHTMLMode: false,
             supportsHeadingJump: supportsHeadingJump,
-            codeLanguage: nil,
-            isDocumentJumpEnabled: isDocumentJumpEnabled
+            codeLanguage: nil
         )
     }
 }
