@@ -373,6 +373,13 @@ Sparkle が担当する。
 > ライフサイクル所有権と Sparkle 結合の背景は
 > [ADR 0001](../adr/0001-keep-appkit-app-lifecycle.md) を参照。
 
+### 開発中機能を stable から隠す
+
+現在、開発中機能のゲートは置いていない（TASK-485.16 で `FeatureGate` を型ごと撤去した）。
+次に必要になったら、`DEBUG` ビルドまたは `AppVersion.isPrerelease(AppVersion.current)`
+（dev タグのビルドは `1.x.y-dev.n` を名乗る）で判定する薄い型を置き直す。
+前例は PR #559（TASK-485 / TASK-510）の `befold/App/FeatureGate.swift` で、git 履歴から戻せる。
+
 ---
 
 ## ファイル関連付け
