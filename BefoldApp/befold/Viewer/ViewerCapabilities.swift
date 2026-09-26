@@ -17,8 +17,7 @@ struct ViewerCapabilities: Equatable {
     /// バイナリ(画像・PDF)も検索対象のテキストを持たないため不可。
     let canFind: Bool
     /// 文書内ジャンプ(目印の前後移動)。検索と同じく viewer.html の JS を要するため
-    /// HTML 直接ロード中とバイナリ(画像・PDF)では不可。開発中機能なので、ゲートが閉じている間も不可
-    /// (`FeatureGate.isDocumentJumpEnabled` を `ViewerCapabilitiesFactory` が渡す)。
+    /// HTML 直接ロード中とバイナリ(画像・PDF)では不可。
     let canJump: Bool
     /// 文書内ジャンプのうち「関数・型の定義」を選べるか(TASK-485.4)。
     /// ソース相当の内容を出していて、かつ対応言語のときだけ意味を持つ。
@@ -79,9 +78,6 @@ struct ViewerCapabilities: Equatable {
     ///   - codeLanguage: ソース表示の highlight.js 言語名(コード種別でなければ nil)。
     ///     定義ジャンプの対応言語判定に使う。既定値は持たせない——渡し忘れが
     ///     静かに「全言語で無効」へ倒れると、対応言語でもメニューがグレーのままになる。
-    ///   - isDocumentJumpEnabled: 文書内ジャンプを露出してよいか(開発中機能のゲート)。
-    ///     既定値は持たせない。渡し忘れが静かに「常に有効」へ倒れると、stable へ
-    ///     開発中の機能が載る形になるため。
     init(
         isPresentingDocument: Bool,
         isRejected: Bool,
@@ -96,8 +92,7 @@ struct ViewerCapabilities: Equatable {
         gitDiffAvailability: GitDiffAvailability,
         isDirectHTMLMode: Bool,
         supportsHeadingJump: Bool,
-        codeLanguage: String?,
-        isDocumentJumpEnabled: Bool
+        codeLanguage: String?
     ) {
         let onDocument = isPresentingDocument && !isRejected
         canPrint = onDocument
@@ -110,7 +105,7 @@ struct ViewerCapabilities: Equatable {
         // 目印が 0 個かどうかでは判定しない。段階読み込み中・描画前・取得失敗の
         // いずれでも同じ 0 個になり、事実ではなくデータの空きで縮退することになる。
         // 目印が無いことは viewer 側の 0/0 表示が伝える。
-        canJump = onDocument && !isDirectHTMLMode && !isBinaryContent && isDocumentJumpEnabled
+        canJump = onDocument && !isDirectHTMLMode && !isBinaryContent
         canZoom = onDocument
         canToggleSourceMode = onDocument && supportsSourceMode
         canSelectPreviewMode = onDocument && isRenderable
@@ -194,7 +189,6 @@ struct ViewerCapabilities: Equatable {
         gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false,
         supportsHeadingJump: false,
-        codeLanguage: nil,
-        isDocumentJumpEnabled: false
+        codeLanguage: nil
     )
 }

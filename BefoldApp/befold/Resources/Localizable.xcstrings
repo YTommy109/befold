@@ -2739,23 +2739,6 @@
         }
       }
     },
-    "shortcuts.viewer.findClose": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close the search bar"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "検索バーを閉じる"
-          }
-        }
-      }
-    },
     "shortcuts.viewer.halfPageDown": {
       "extractionState": "manual",
       "localizations": {

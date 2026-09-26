@@ -22,14 +22,10 @@ struct MainMenuDynamicMenuDelegates {
 /// 理由と、400 行を超えたときの扱いは `docs/dev/rules/product-code.md` の責務分離節にある。
 @MainActor
 enum MainMenuBuilder {
-    /// - Parameter isDocumentJumpEnabled: 文書内ジャンプ項目を構築するか
-    ///   （`FeatureGate.isDocumentJumpEnabled`）。デフォルト引数は付けない——
-    ///   付けると呼び出し側がゲートを渡し忘れても通ってしまう。
     static func build(
         openAction: Selector,
         helpActions: MainMenuHelpActions,
-        dynamicMenuDelegates: MainMenuDynamicMenuDelegates,
-        isDocumentJumpEnabled: Bool
+        dynamicMenuDelegates: MainMenuDynamicMenuDelegates
     ) -> NSMenu {
         let mainMenu = NSMenu()
         mainMenu.addItem(makeAppMenuItem())
@@ -38,7 +34,7 @@ enum MainMenuBuilder {
             recentMenuDelegate: dynamicMenuDelegates.recent,
             recentRepositoriesMenuDelegate: dynamicMenuDelegates.recentRepositories
         ))
-        mainMenu.addItem(makeEditMenuItem(isDocumentJumpEnabled: isDocumentJumpEnabled))
+        mainMenu.addItem(makeEditMenuItem())
         mainMenu.addItem(makeViewMenuItem())
         // ブックマークは View と Window のあいだ(Safari と同じ位置)。File の
         // Open Recent / Recent Repositories は「履歴」で、手で登録するブックマークとは
@@ -127,7 +123,7 @@ enum MainMenuBuilder {
     /// undo/redo・cut/copy/paste/delete/selectAll は NSResponder の標準セレクタに
     /// そのまま委譲し、Find 系だけ WKWebView 内蔵の検索バーを操作する
     /// ViewerWindowController のアクションへつなぐ(標準の Find パネルは使わない)。
-    private static func makeEditMenuItem(isDocumentJumpEnabled: Bool) -> NSMenuItem {
+    private static func makeEditMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.edit.title", bundle: .l10n))
         item.submenu = menu
@@ -161,7 +157,7 @@ enum MainMenuBuilder {
             keyEquivalent: "g",
             modifiers: [.command, .shift]
         )
-        if isDocumentJumpEnabled { addDocumentJumpItems(to: menu) }
+        addDocumentJumpItems(to: menu)
         return item
     }
 

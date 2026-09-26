@@ -1,10 +1,11 @@
 ---
 id: TASK-485.16
 title: 文書内ジャンプのフィーチャーゲートを外して stable に載せる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-08-18 05:42'
-updated_date: '2026-09-25 13:48'
+updated_date: '2026-09-26 06:33'
 labels:
   - feature-gate
 milestone: m-6
@@ -63,9 +64,45 @@ ordinal: 755000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 stable ビルド（プレリリースでないバージョン）で編集メニューのジャンプ項目が表示され、実行できる
-- [ ] #2 isDocumentJumpEnabled の参照がプロダクトコード・テストの両方から消えている（rg で 0 件）
-- [ ] #3 上記「判断が要る点」の 3 点それぞれについて、決めた内容と理由が Implementation Notes に残っている
-- [ ] #4 ゲート OFF を前提にしていたテストが、削除・書き換えのどちらであれ意図を説明するコメント付きで整理されている
-- [ ] #5 ヘルプのショートカット一覧とメニューの乖離検知テストが通る（swift test）
+- [x] #1 stable ビルド（プレリリースでないバージョン）で編集メニューのジャンプ項目が表示され、実行できる
+- [x] #2 isDocumentJumpEnabled の参照がプロダクトコード・テストの両方から消えている（rg で 0 件）
+- [x] #3 上記「判断が要る点」の 3 点それぞれについて、決めた内容と理由が Implementation Notes に残っている
+- [x] #4 ゲート OFF を前提にしていたテストが、削除・書き換えのどちらであれ意図を説明するコメント付きで整理されている
+- [x] #5 ヘルプのショートカット一覧とメニューの乖離検知テストが通る（swift test）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. FeatureGate と isDocumentJumpEnabled の配線をプロダクトコードから撤去
+2. ゲート閉専用の findOnlyItems / Expectation.findClose / shortcuts.viewer.findClose を撤去
+3. ゲート OFF 前提のテストを削除・書き換え（理由をコメントに残す）
+4. docs/dev の現在仕様を更新
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 判断が要る点の決定
+1. FeatureGate は型ごと削除した（FeatureGate.swift / FeatureGateTests.swift）。名前付きプロパティが isDocumentJumpEnabled だけで、撤去後は呼び出し元が 0 になる。次の開発中機能のために空の枠を残すのは推測上の需要で、復元は TASK-510 と同じく git 履歴から 1 ファイル戻すだけで済む（TASK-510 自体がその手順の実績）。
+2. ViewerCapabilities.none の isDocumentJumpEnabled: false は、フラグを消しても canJump は変わらない。.none は isPresentingDocument: false なので onDocument が偽になり、canJump はゲートに関係なく false。何もできない既定値という意図はそのまま保たれる。
+3. ViewerShortcutCatalog.findOnlyItems はゲート閉専用の一覧なので削除した。あわせて Expectation.findClose と Localizable.xcstrings の shortcuts.viewer.findClose も削除した（読み手 0）。items / section は引数なしの static に、HelpShortcutSections.all も static var にした。PDFFindOverlay の Esc のコメントは barClose を指すよう直した（Help の一覧は種別に関係なく出るので、PDF の Esc は「バーを閉じる」の説明と食い違わない）。
+
+## ゲート OFF 前提だったテストの扱い
+- MainMenuBuilderTests の「ゲート閉では項目を構築しない」: 担保する対象ごと無くなったので削除（理由を後継テストの doc コメントに書いた）。ゲート開のテストは名前から「ゲート開」を外して残した。
+- ViewerCapabilitiesTests の「ゲート閉では不可」: 「テキストの文書を提示していれば可、バイナリでは不可」に書き換えた。
+- ToggleBarCommandTests の「ジャンプ能力が無ければ検索へ倒れる」: ゲート閉の代わりにバイナリ（PDF 相当。検索はできるがジャンプはできない）で同じ経路を担保した。
+- ViewerShortcutCatalogTests / viewerShortcutCatalog.test.ts: ゲート閉の系統（findOnly）を削除し、Esc は 1 行で barClose であることを残した。
+- FeatureGateTests: 型ごと削除。
+
+## 検証
+swift test 1988 + 72 件通過（削除したゲート関連分だけ減った）、jest 676 件通過、xcodegen generate 後の xcodebuild build が exit 0、swiftlint は origin/main 比で新規 0（46 件のまま）、oxlint / oxfmt / tsc / markdownlint で指摘なし。rg 'isDocumentJumpEnabled|FeatureGate' はプロダクトコードとテストで 0 件（backlog・スナップショット spec・CHANGELOG の履歴記述は除く）。
+AC #1: バージョンで分岐するコードが無くなり、MainMenuBuilder.build は常にジャンプ項目を構築する（MainMenuBuilderTests『Edit メニューにジャンプ項目が 1 つだけ ⇧⌘F で並ぶ』）。stable 版 .app を実際に起動して確かめてはいない。
+docs: viewer-ui.md（ゲートの節を撤去後の記述へ）と native-app-design.md（ショートカット一覧の行）を更新した。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+文書内ジャンプのフィーチャーゲートを撤去し、stable ビルドでも使えるようにした。FeatureGate は呼び出し元が無くなったため型ごと削除し、ゲート閉専用のショートカット一覧（findOnlyItems / findClose）も削除した。ゲート OFF 前提のテストは、担保対象が消えたものは削除し、残る不変条件（バイナリではジャンプ不可、ジャンプ能力が無ければ検索へ倒れる）は別の入力で担保し直した。
+<!-- SECTION:FINAL_SUMMARY:END -->

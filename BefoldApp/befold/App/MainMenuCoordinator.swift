@@ -67,8 +67,7 @@ final class MainMenuCoordinator {
                 recent: recentDocumentsMenuController,
                 bookmarks: bookmarksMenuController,
                 recentRepositories: recentRepositoriesMenuController
-            ),
-            isDocumentJumpEnabled: FeatureGate.isDocumentJumpEnabled
+            )
         )
         // AppKit は mainMenu に設定した後、Close All や Start Dictation などの項目を
         // 勝手に差し込む。Help のショートカット一覧には自前で定義したものだけを載せたいので、

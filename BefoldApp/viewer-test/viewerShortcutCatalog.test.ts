@@ -22,7 +22,6 @@ const CATALOG_PATH = path.join(__dirname, '../befold/App/ViewerShortcutCatalog.s
 
 // Swift 側 ViewerShortcutCatalogTests の期待値と同じ値。片方だけ増やすと落ちる。
 const EXPECTED_SCROLL_COUNT = 6;
-const EXPECTED_FIND_ONLY_COUNT = 1;
 const EXPECTED_JUMP_COUNT = 3;
 
 // resolveScrollKey の戻り値。バーの開閉・ジャンプは別の関数で判定する。
@@ -49,8 +48,8 @@ function jumpEvent(key: string, shift: boolean) {
 }
 
 // 名前付きの配列リテラル 1 つ分を切り出してから Item を拾う。配列ごとに分けるのは、
-// ゲート閉(findOnlyItems)とゲート開(documentJumpItems)で Esc の行が入れ替わるため。
-// 全体を 1 回でなめると、どちらの構成に属する行かが分からなくなる。
+// スクロール(resolveScrollKey)とバー(resolveBarCloseKey / resolveJumpNavigationKey)で
+// 突き合わせる関数が違うため。
 function parseCatalogArray(source: string, name: string) {
   const arrayPattern = new RegExp(
     `static let ${name}: \\[Item\\] = \\[([\\s\\S]*?)\\n {4}\\]`,
@@ -79,18 +78,15 @@ function parseCatalogArray(source: string, name: string) {
 
 const source = fs.readFileSync(CATALOG_PATH, 'utf8');
 const scrollItems = parseCatalogArray(source, 'scrollItems');
-const findOnlyItems = parseCatalogArray(source, 'findOnlyItems');
 const jumpItems = parseCatalogArray(source, 'documentJumpItems');
 
 describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   test('Swift 側のカタログをパースできる（0 件は失敗）', () => {
     expect({
       scroll: scrollItems === null ? null : scrollItems.length,
-      findOnly: findOnlyItems === null ? null : findOnlyItems.length,
       jump: jumpItems === null ? null : jumpItems.length,
     }).toEqual({
       scroll: EXPECTED_SCROLL_COUNT,
-      findOnly: EXPECTED_FIND_ONLY_COUNT,
       jump: EXPECTED_JUMP_COUNT,
     });
   });
@@ -116,18 +112,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
     expect(actual).toEqual(expected);
   });
 
-  test('ゲート閉の Esc は検索バーを閉じる操作へ解決される', () => {
-    const closed = findOnlyItems!.filter((item) => item.expects === 'findClose');
-    expect(closed.length).toBe(EXPECTED_FIND_ONLY_COUNT);
-
-    expect(
-      closed.flatMap((item) =>
-        item.jsKeys.map((key) => `${key} -> ${resolveBarCloseKey(key, 'find', false, 0)}`),
-      ),
-    ).toEqual(closed.flatMap((item) => item.jsKeys.map((key) => `${key} -> true`)));
-  });
-
-  test('ゲート開の Esc は検索バーとジャンプバーのどちらも閉じる', () => {
+  test('Esc は検索バーとジャンプバーのどちらも閉じる', () => {
     const both = jumpItems!.filter((item) => item.expects === 'barClose');
     expect(both.length).toBe(1);
 
@@ -167,12 +152,11 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   test('期待値の語彙はすべて既知のものである', () => {
     const known = new Set([
       ...Object.keys(SCROLL_EXPECTATIONS),
-      'findClose',
       'barClose',
       'jumpNext',
       'jumpPrev',
     ]);
-    const all = [...scrollItems!, ...findOnlyItems!, ...jumpItems!];
+    const all = [...scrollItems!, ...jumpItems!];
     expect(all.map((item) => item.expects).filter((name) => !known.has(name))).toEqual([]);
   });
 
@@ -227,7 +211,7 @@ describe('ViewerShortcutCatalog と viewer-src/keyboard.ts', () => {
   });
 
   test('バーを閉じる Esc は IME 変換中には効かない', () => {
-    // カタログに載せた findClose / barClose の条件を、閉じない側からも押さえる。
+    // カタログに載せた barClose の条件を、閉じない側からも押さえる。
     expect(resolveBarCloseKey('Escape', null, false, 0)).toBe(false);
     expect(resolveBarCloseKey('Escape', 'find', true, 0)).toBe(false);
     expect(resolveBarCloseKey('Escape', 'find', false, 229)).toBe(false);

@@ -278,22 +278,11 @@ struct MainMenuBuilderTests {
         #expect(installItem.title == fixture.localizedTitle("menu.app.installCLI"))
     }
 
-    /// stable ビルド（ゲート閉）では `canJump` が常に false になるため、項目を構築すると
-    /// 永久にグレーアウトした項目が露出する（TASK-485.8）。区切り線ごと出ないことを見る。
-    @Test("ゲート閉のときは Edit メニューに文書内ジャンプ項目が構築されない")
-    func editMenuOmitsDocumentJumpItemsWhenGateIsClosed() throws {
-        let closedFixture = MainMenuFixture(isDocumentJumpEnabled: false)
-        let edit = try #require(closedFixture.submenu(titledKey: "menu.edit.title"))
-
-        #expect(!edit.items.contains { $0.action == #selector(ViewerWindowController.documentJump(_:)) })
-        #expect(!edit.items.contains { $0.keyEquivalent == "f" && $0.keyEquivalentModifierMask.contains(.shift) })
-        // 末尾に区切り線だけが取り残されていないこと。
-        #expect(edit.items.last?.isSeparatorItem == false)
-    }
-
     /// ジャンプの種類は排他で同時に 1 つしか使えないので、項目も 1 つ(TASK-485.28)。
-    @Test("ゲート開のときは Edit メニューにジャンプ項目が 1 つだけ ⇧⌘F で並ぶ")
-    func editMenuHasSingleDocumentJumpItemWhenGateIsOpen() throws {
+    /// ゲート閉で項目を構築しないことを見ていたテストは、ゲート撤去(TASK-485.16)で
+    /// 担保する対象ごと無くなったため削除した。
+    @Test("Edit メニューにジャンプ項目が 1 つだけ ⇧⌘F で並ぶ")
+    func editMenuHasSingleDocumentJumpItem() throws {
         let edit = try #require(fixture.submenu(titledKey: "menu.edit.title"))
 
         let jumpItems = edit.items.filter { $0.action == #selector(ViewerWindowController.documentJump(_:)) }

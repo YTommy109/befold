@@ -80,8 +80,7 @@ struct FocusTraversalTests {
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
-            codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            codeLanguage: "swift"
         )
         var isSourceMode = false
         var showLineNumbers = false

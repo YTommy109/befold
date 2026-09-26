@@ -15,8 +15,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
-            codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            codeLanguage: "swift"
         )
         var isSourceMode = false
         var showLineNumbers = false
@@ -86,8 +85,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
             supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: true, supportsHeadingJump: true,
-            codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            codeLanguage: "swift"
         )
 
         let findItems = [
@@ -117,7 +115,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: false,
-            codeLanguage: "ruby", isDocumentJumpEnabled: true
+            codeLanguage: "ruby"
         )
         let item = makeItem(#selector(ViewerWindowController.documentJump(_:)))
 
@@ -138,7 +136,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: false, showsCodeContent: false, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
-            codeLanguage: nil, isDocumentJumpEnabled: true
+            codeLanguage: nil
         )
         #expect(!capabilities.canFind)
         let source = StubSource()
@@ -164,7 +162,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: false, showsCodeContent: false, showsDiff: false,
             supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
-            codeLanguage: nil, isDocumentJumpEnabled: true
+            codeLanguage: nil
         )
         #expect(!capabilities.canFind)
         let source = StubSource()
@@ -252,8 +250,7 @@ struct ViewerMenuValidatorTests {
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
             supportsDiffDisplay: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
-            codeLanguage: "swift",
-            isDocumentJumpEnabled: true
+            codeLanguage: "swift"
         )
 
         let selector = #selector(ViewerWindowController.selectDisplayMode(_:))

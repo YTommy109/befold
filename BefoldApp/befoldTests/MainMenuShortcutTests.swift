@@ -67,11 +67,9 @@ struct ViewMenuValidationTests {
             supportsFind: true,
             gitDiffAvailability: .undetermined,
             isDirectHTMLMode: false,
-            // ここは種別ごとのショートカット割り当てを見るだけで、定義ジャンプは
-            // isDocumentJumpEnabled: false で閉じている。言語は問われない。
+            // ここは種別ごとのショートカット割り当てを見るだけで、言語は問われない。
             supportsHeadingJump: true,
-            codeLanguage: nil,
-            isDocumentJumpEnabled: false
+            codeLanguage: nil
         )
         return stub
     }
