@@ -212,7 +212,11 @@ final class SidebarTreePresenter {
             lastReveal = nil
             return
         }
-        let directoryKey = fileListModel.currentDirectory.normalizedPathKey
+        // 適用先は**着地済みの一覧**のディレクトリ。移動中は `currentDirectory` だけが先に
+        // 進み、手元の行と git 状態は移動前のもの。そこで開くと移動前の状態で移動先の
+        // フォルダーを開いてしまうので、移動先の一覧が着地する `applyRows` まで待つ(TASK-639)。
+        let directoryKey = fileListModel.entriesDirectory.normalizedPathKey
+        guard directoryKey == fileListModel.currentDirectory.normalizedPathKey else { return }
         let previous = lastReveal?.directoryKey == directoryKey ? lastReveal : nil
         // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
         guard previous?.status != status else { return }

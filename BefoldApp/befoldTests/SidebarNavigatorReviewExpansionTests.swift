@@ -30,7 +30,8 @@ struct SidebarNavigatorReviewExpansionTests {
         _ name: String,
         layoutMode: SidebarLayoutMode,
         changedFilesOnly: Bool,
-        changedFiles: [String]
+        changedFiles: [String],
+        listingGate: AsyncGate? = nil
     ) -> Fixture {
         let prefix = "SidebarNavigatorReviewExpansionTests-\(name)"
         let base = Self.home.appendingPathComponent(prefix)
@@ -48,7 +49,9 @@ struct SidebarNavigatorReviewExpansionTests {
             selection: nil,
             displayDefaults: preference,
             directoryLister: { directory, _, _ in
-                DirectoryListing(rootChildren: [
+                // `b` への移動だけをテストが解放するまで止める(移動中の経路を再現する)。
+                if directory.lastPathComponent == "b" { await listingGate?.wait() }
+                return DirectoryListing(rootChildren: [
                     FileListEntry(url: directory.appendingPathComponent("a"), kind: .folder),
                     FileListEntry(url: directory.appendingPathComponent("b"), kind: .folder),
                 ])
@@ -165,6 +168,29 @@ struct SidebarNavigatorReviewExpansionTests {
         await settle(fixture.navigator)
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b/c")])
+    }
+
+    @Test("移動中に変更のみを ON にしても、移動先は着地した git 状態だけで開く")
+    func moveInFlightRevealsOnlyFromLandedStatus() async {
+        let gate = AsyncGate()
+        let fixture = makeFixture(
+            "move-in-flight", layoutMode: .tree, changedFilesOnly: false,
+            changedFiles: ["b/c/y.md"], listingGate: gate
+        )
+        defer { withExtendedLifetime(fixture.host) {} }
+        fixture.navigator.refreshFileList()
+        await settle(fixture.navigator)
+        // 移動中に git 状態が変わる: b/c は clean に戻り、b/d に変更が出る。
+        fixture.statuses.update { $0 = [fixture.key("b/d/z.md"): Self.modified] }
+
+        fixture.navigator.navigateToFolder(fixture.base.appendingPathComponent("b"))
+        // 一覧はまだ着地していない(currentDirectory だけが b へ進んでいる)。
+        fixture.navigator.applyDisplayChange(.toggleChangedFilesOnly)
+        await fixture.navigator.pendingGitStatusTask?.value
+        gate.open()
+        await settle(fixture.navigator)
+
+        #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b/d")])
     }
 
     @Test("解除しても展開は残り、ツリーへ戻すと残った展開に和集合で再適用される")
