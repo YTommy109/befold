@@ -59,9 +59,7 @@ struct SidebarNavigatorSyncAfterSwitchTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(sub.normalizedPathKey, at: sub)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
         #expect(navigator.fileListModel.entries.contains { $0.pathKey == child.normalizedPathKey })
 
         navigator.syncAfterSwitch(to: child)

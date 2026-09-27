@@ -94,6 +94,11 @@ final class SidebarListingCoordinator {
         case .toggleHiddenFiles, .toggleLayoutMode, .setSortOrder:
             refreshFileList()
         case .toggleChangedFilesOnly:
+            // 一覧を取り直さない(= applyRows を通らない)ので、レビュー表示への出入りを
+            // ここで拾う(TASK-637)。手元の git 状態で開き、取り直した状態との差分は
+            // `FileListModel.onGitStatusChange` が開く。ツリーへの切り替えはここで拾わない
+            // ——ルートの一覧が届く前に開くと、着地した子リストが古い一覧材料で行を組み直す。
+            tree.revealChangedFolders()
             guard fileListModel.display.showChangedFilesOnly else { return }
             gitStatus.refresh(policy: .always)
         }

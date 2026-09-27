@@ -159,14 +159,13 @@ final class SidebarNavigator {
         listing.performListing(of: directory, onApplied: onApplied)
     }
 
-    /// 発行済みのサイドバー更新(一覧・git 状態・基準ディレクトリ)が反映され終わるまで待つ。
+    /// 発行済みのサイドバー更新(一覧・git 状態・基準ディレクトリ、展開した子リストと
+    /// その着地が予約した行の組み直し / TASK-642)が反映され終わるまで待つ。
     /// **テストが待ち合わせに使う既定の入口はここ**で、個別の `pending*Task` ではない。
     ///
-    /// 1 回の `performListing` は 3 本のタスクを発行し、そのうちどれが git 状態の反映を
-    /// 運ぶかは絞り込み(showChangedFilesOnly)の ON/OFF で変わる(ON なら一覧タスクの中、
-    /// OFF なら git タスク / TASK-293)。3 本すべてを待てばその分岐を呼び出し側が知る必要が
-    /// なくなるため、「どれを待つか」を選ばせない形にしている。未発行・完了済みの窓は
-    /// nil か即時完了で、待っても無害。
+    /// 1 回の `performListing` が発行する 3 本のうち、どれが git 状態の反映を運ぶかは
+    /// 絞り込みの ON/OFF で変わる(ON なら一覧タスクの中、OFF なら git タスク / TASK-293)。
+    /// すべてを待てば呼び出し側はその分岐を知らずに済む。未発行・完了済みの窓は待っても無害。
     ///
     /// **待てるのは「呼んだ時点で発行済み」の仕事だけ**。取り直しがまだ発行されていない
     /// 段階で呼ぶと、その取り直しの前に測ってしまう(前回の完了済みタスクを観測して即座に
@@ -176,6 +175,7 @@ final class SidebarNavigator {
         await pendingListingTask?.value
         await pendingGitStatusTask?.value
         await pendingBaseDirectoryTask?.value
+        await tree.awaitSettled()
     }
 
     /// 直近に発行した一覧取得タスク。**ハンドルを先に掴んでおく競合テスト専用の窓**

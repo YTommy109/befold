@@ -11,9 +11,12 @@ import Foundation
 /// extension が書く形だと Swift の `private`(ファイルスコープ)では守れず、
 /// 「書いてよいのは `applyRows` だけ」が doc コメントの約束にとどまっていた。
 ///
-/// **この型は `fileListModel` の `entries` / `entriesDirectory` だけを書く**
+/// **この型が `fileListModel` へ書く値は `entries` / `entriesDirectory` だけ**
 /// (`setEntries` 経由)。選択・カレントディレクトリ・git 状態は `SidebarNavigator` が書く。
 /// 属性が重ならないので、同じオブジェクトを 2 つの型が書いても関心は混ざらない。
+/// ほかに init で `onGitStatusChange` を繋ぎ(購読者はこの型だけ / TASK-641)、
+/// 行の組み立てとレビュー表示の規則のために `display` / `gitStatus` / `currentDirectory` と
+/// 反映済みの一覧(`entries` / `entriesDirectory` ほか。同値判定とフォルダー行の引き当て)を読む。
 ///
 /// 生成は `SidebarNavigator.init` の内側だけ。注入引数にすると、渡し忘れが
 /// コンパイルエラーにならず静かに別インスタンスになる(TASK-319 と同型)。
@@ -23,7 +26,7 @@ import Foundation
 ///   行が組み直される。TASK-442.3 時点の既存の窓で、ここでは塞いでいない。
 @MainActor
 final class SidebarTreePresenter {
-    /// 行の反映先。`entries` / `entriesDirectory` 以外は書かない。
+    /// 行の反映先。書く値は `entries` / `entriesDirectory` だけ(読み取りと購読の接続は型 doc を参照)。
     private let fileListModel: FileListModel
     /// 展開したフォルダの子リストの取得元。ルートの一覧(`SidebarNavigator.directoryLister`)とは
     /// **別の関数**であることが要点で、あちらは親移動行を別に持つルート一覧の材料を返す。
@@ -49,6 +52,7 @@ final class SidebarTreePresenter {
     ) {
         self.fileListModel = fileListModel
         self.childrenLister = childrenLister
+        fileListModel.onGitStatusChange = { [weak self] in self?.revealChangedFolders() }
     }
 
     // MARK: - Row Assembly
@@ -79,8 +83,13 @@ final class SidebarTreePresenter {
     /// 判定をここに置くのは、`lastListing` の更新と同じ同期区間に収めるため(モデル側へ
     /// 置くと材料だけが進む窓ができる)。`lastListing` は行に出ない差でも更新してよいので、
     /// 上の不変条件は保たれる。
+    ///
+    /// **予約済みの組み直しはここで捨てる**(TASK-655)。ここは最新の材料で組むので、
+    /// 予約が後から走っても同じ行をもう一度組むだけになる(700 行で約 12ms)。
+    /// 同期で組む経路(畳み・ルートの一覧の着地)を個別に手当てせず、ここ 1 箇所で済ませる。
     @discardableResult
     func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
+        dropPendingRebuild()
         lastListing = listing
         let isTree = fileListModel.display.layoutMode == .tree
         // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
@@ -100,10 +109,15 @@ final class SidebarTreePresenter {
             && fileListModel.entriesDirectory == directory
             && fileListModel.didFailListing == listing.didFailEnumeration
             && fileListModel.entries == rows
-        guard !isUnchanged else { return rows }
-        fileListModel.setEntries(
-            rows, for: directory, didFailEnumeration: listing.didFailEnumeration
-        )
+        if !isUnchanged {
+            fileListModel.setEntries(
+                rows, for: directory, didFailEnumeration: listing.didFailEnumeration
+            )
+        }
+        // ルートの一覧が着地した時点 = フォルダー移動・窓を開く・ツリーへの切り替えの
+        // 着地点。`reloadExpandedChildren` はこの一覧の発行前に済んでいるので、ここで
+        // 始めた展開の券はそれに無効化されない。
+        revealChangedFolders()
         return rows
     }
 
@@ -115,6 +129,84 @@ final class SidebarTreePresenter {
     /// (組み立て → 分解 → 再組み立ての往復に戻る / TASK-442.1)。
     private func rebuildRows() {
         applyRows(lastListing, for: fileListModel.entriesDirectory)
+    }
+
+    /// 予約中の組み直し。nil なら予約なし。本体は同期処理だけなので、走り始めた時点で
+    /// nil に戻しても、他の誰かが「走り途中」を観測することはない。
+    ///
+    /// 寿命は `expansion` と同じで、`invalidateExpansion` が取り消して捨てる(TASK-649)。
+    /// 残すと、展開を捨てた後に予約済みの組み直しが走り、`lastReveal` の無い状態で
+    /// レビュー表示の規則を通って、捨てた展開を全件開き直す。
+    /// 同期の組み直し(`applyRows`)も、先に組んで用済みになった予約を捨てる(TASK-655)。
+    private var pendingRebuild: Task<Void, Never>?
+
+    private func dropPendingRebuild() {
+        pendingRebuild?.cancel()
+        pendingRebuild = nil
+    }
+
+    /// 組み直しが予約中か。`pendingRebuild` の寿命をテストが測るための読み取り窓。
+    var hasPendingRebuild: Bool {
+        pendingRebuild != nil
+    }
+
+    /// 子リストの着地ごとの組み直しを、同じ時期に届いたぶんで 1 回へまとめる(TASK-637)。
+    ///
+    /// 組み直しは全行の組み立てで、700 行で 1 回約 12ms(実測)。着地ごとに組み直すと、
+    /// レビュー表示で 400 フォルダーを一度に開いたとき 400 回走り、全行が揃うまで約 3.8 秒
+    /// かかった。まとめると 80ms(`.tmp` の 400 変更フォルダーのリポジトリで実測)。
+    /// 組み直しは次のメインアクター実行へ遅れるが、読むのはその時点の `lastListing` なので
+    /// 古い材料で組むことはない。
+    private func scheduleRebuild() {
+        guard pendingRebuild == nil else { return }
+        pendingRebuild = Task {
+            // 取り消された予約は `pendingRebuild` を触らない。既に次の予約が入っていれば
+            // それを消してしまう。
+            guard !Task.isCancelled else { return }
+            self.pendingRebuild = nil
+            self.rebuildRows()
+        }
+    }
+
+    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)と、その券。待ち合わせ専用。
+    ///
+    /// **無効化済みの取得も着地するまで残る。** 有効かどうかは券を `expansion.isCurrent` に
+    /// 問って読み手(`awaitSettled` / `pendingChildKeys`)が絞る。券を無効にする経路
+    /// (畳み・取り直し・展開の破棄)はここを触らない——経路ごとに掃除を書き足す形は
+    /// 書き忘れで `awaitSettled` がハングした(TASK-644 / TASK-652)。
+    /// 外すのは着地だけで、エントリの券が自分と同じときに限る(後から同じキーで発行された
+    /// 取得を消さないため)。
+    private var childTasks: [String: (token: SidebarExpansion.ExpansionToken, task: Task<Void, Never>)] = [:]
+
+    /// 走行中で、まだ有効な子リスト取得のキー。`awaitSettled` が待つ範囲をテストが測る読み取り窓。
+    var pendingChildKeys: Set<String> {
+        Set(childTasks.values.filter { expansion.isCurrent($0.token) }.map(\.token.key))
+    }
+
+    /// 無効化済みも含めた、保持している取得の数。着地で自分を外すことをテストが測る読み取り窓。
+    var retainedChildTaskCount: Int {
+        childTasks.count
+    }
+
+    /// 発行済みの子リスト取得と、それが予約する行の組み直しが済むまで待つ。
+    /// `SidebarNavigator.awaitSettled()` の一部で、テストの待ち合わせ用(TASK-642)。
+    func awaitSettled() async {
+        // 組み直しがレビュー表示の規則を通って次の展開を始めることがあるので、
+        // どちらも空になるまで回す。
+        // 無効化済みの取得は待たない(ゲートで止めたままならハングする)。
+        // 待ち終えた取得は覚えて飛ばすだけで、`childTasks` からは外さない。外すのは着地だけ。
+        var awaited: Set<Task<Void, Never>> = []
+        while true {
+            let next = childTasks.values.first { !awaited.contains($0.task) && expansion.isCurrent($0.token) }
+            if let task = next?.task {
+                awaited.insert(task)
+                await task.value
+            } else if let rebuild = pendingRebuild {
+                await rebuild.value
+            } else {
+                return
+            }
+        }
     }
 
     // MARK: - Tree Expansion
@@ -156,6 +248,72 @@ final class SidebarTreePresenter {
     /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
+        dropPendingRebuild()
+        lastReveal = nil
+    }
+
+    // MARK: - Review Expansion (TASK-637)
+
+    /// レビュー表示(ツリー × 変更のみ)で最後に規則を適用したときの、表示中ディレクトリ・
+    /// git 状態・候補。**展開を「入る前へ戻す」ための保存ではない**——全件を開くか差分だけを
+    /// 開くかを分け、差分の引き算に前回の候補を使い回すためだけに持つ(TASK-638)。
+    /// 組み合わせを外れたら nil。
+    ///
+    /// 寿命は `expansion` と同じ。前回の候補はそれが開いた展開が残っている間だけ意味を持つので、
+    /// `invalidateExpansion` で展開と一緒に捨てる(残すと、同じ git 状態の着地が「適用済み」と
+    /// 判定され、捨てた展開が開き直らない。TASK-645)。
+    private struct Reveal {
+        let directoryKey: String
+        let status: SidebarGitStatus
+        let targets: Set<String>
+    }
+
+    private var lastReveal: Reveal?
+
+    /// レビュー表示の規則: 変更ファイルの祖先フォルダーを展開集合へ**足す**(閉じない)。
+    ///
+    /// - このディレクトリで未適用(組み合わせに入った・移動した・窓を開いた): 全件を開く。
+    /// - 適用済み: 前回の候補に無かったフォルダーだけを開く。利用者が閉じたフォルダーは
+    ///   前回の候補にも含まれるので、git 状態が更新されても開き直らない。
+    ///
+    /// 呼ぶのは一覧の着地(`applyRows`)・git 状態の変化(`FileListModel.onGitStatusChange`)・
+    /// 表示設定の変更(`SidebarListingCoordinator.applyDisplayChange`)の 3 箇所。
+    func revealChangedFolders() {
+        let display = fileListModel.display
+        let isReviewDisplay = display.layoutMode == .tree && display.showChangedFilesOnly
+        guard isReviewDisplay, let status = fileListModel.gitStatus else {
+            lastReveal = nil
+            return
+        }
+        // 適用先は**着地済みの一覧**のディレクトリ。移動中は `currentDirectory` だけが先に
+        // 進み、手元の行と git 状態は移動前のもの。そこで開くと移動前の状態で移動先の
+        // フォルダーを開いてしまうので、移動先の一覧が着地する `applyRows` まで待つ(TASK-639)。
+        let directoryKey = fileListModel.entriesDirectory.normalizedPathKey
+        guard directoryKey == fileListModel.currentDirectory.normalizedPathKey else { return }
+        // 窓を開いた直後は `entriesDirectory == currentDirectory` で上を通るが、一覧はまだ無い。
+        // ここで展開すると子リストの着地が空の一覧で `setEntries` を走らせ、`hasLoadedEntries`
+        // が先に立つ(`reloadExpandedChildren` と同じ不変条件)。着地した `applyRows` が
+        // もう一度呼ぶので取りこぼさない(TASK-650)。
+        guard fileListModel.hasLoadedEntries else { return }
+        let previous = lastReveal?.directoryKey == directoryKey ? lastReveal : nil
+        // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
+        // 同値の取り直しは `FileListModel.setGitStatus` が代入ごと弾くので、ここの比較は
+        // 同一ストレージの早期 return で O(1) に終わる(TASK-646)。
+        guard previous?.status != status else { return }
+        // ponytail: 未追跡エントリごとに stat 1 回(メインアクター)。数千件の未追跡で
+        // 重ければ GitStatusReader で畳み込みの事実(末尾スラッシュ)を運ぶ。
+        let targets = status.foldersToReveal(under: directoryKey) {
+            DirectoryLister.isDirectory(URL(fileURLWithPath: $0, isDirectory: true))
+        }
+        lastReveal = Reveal(directoryKey: directoryKey, status: status, targets: targets)
+        // 券の URL は一覧の形(利用者が開いたままのパス)から作る。`key` は symlink 解決済みの
+        // 実体パスなので、そのまま URL にすると配下の行が手動展開・ルート行と別形になり、
+        // 相対パスの前方一致も外れる(TASK-651)。`targets` はすべて `directoryKey + "/"` 配下。
+        let directory = fileListModel.entriesDirectory
+        for key in targets.subtracting(previous?.targets ?? []) {
+            let relative = String(key.dropFirst(directoryKey.count + 1))
+            expandFolder(key, at: directory.appendingPathComponent(relative, isDirectory: true))
+        }
     }
 
     // MARK: - Layout Snapshot (TASK-481)
@@ -196,10 +354,17 @@ final class SidebarTreePresenter {
         // 温存中の子リストを取り直しても描画されず、不可視のサブツリーへ列挙が飛ぶ
         // だけなので何もしない。鮮度はツリーへ戻ったあとの取り直しで追いつく(TASK-481)。
         guard fileListModel.display.layoutMode == .tree else { return }
-        for token in expansion.invalidateChildren() {
+        // epoch が進み、走行中の取得はすべて無効になる。取り直すキーは下で入れ直す。
+        let tokens = expansion.invalidateChildren()
+        for token in tokens {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
-            guard fileListModel.folderEntryURL(forKey: token.key) != nil else { continue }
+            // **`.loading` のキーは行が無くても必ず取り直す。** 走行中の初回取得はいま
+            // epoch で捨てたので、再発行しなければ答えが永久に届かない。行が無いのは
+            // 消えたからとは限らず、親の子リストの着地待ち(入れ子の一括展開)でもある。
+            // 飛ばしてよいのは答えを持っている(古い子を出し続けられる)キーだけ(TASK-643)。
+            let awaitingFirstAnswer = expansion.children[token.key] == .loading
+            guard awaitingFirstAnswer || fileListModel.folderEntryURL(forKey: token.key) != nil else { continue }
             loadChildren(for: token)
         }
     }
@@ -209,10 +374,15 @@ final class SidebarTreePresenter {
     private func loadChildren(for token: SidebarExpansion.ExpansionToken) {
         let sortOrder = fileListModel.display.sortOrder
         let showHiddenFiles = fileListModel.display.showHiddenFiles
-        Task {
+        let task = Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
-            self.expansion.apply(children, for: token)
-            self.rebuildRows()
+            // 受け付けられるかに関わらず自分のエントリは外す(無効化済みの取得の片付けもここだけ)。
+            if self.childTasks[token.key]?.token == token { self.childTasks[token.key] = nil }
+            // 拒否された着地は展開の材料を変えないので組み直さない。券を無効にした側
+            // (畳み・取り直し・展開の破棄)が行の面倒を見ている(TASK-649)。
+            guard self.expansion.apply(children, for: token) else { return }
+            self.scheduleRebuild()
         }
+        childTasks[token.key] = (token, task)
     }
 }

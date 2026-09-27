@@ -60,4 +60,13 @@ struct GitFileStatus: Equatable, Sendable {
     var isClean: Bool {
         indexChange == nil && worktreeChange == nil && !isUntracked && branchChange == nil
     }
+
+    /// 作業ツリーに実体が無い(= 一覧に行を持たない)状態か。
+    ///
+    /// 3 つの辺のうち**最も新しい辺**(worktree > index > branch)が削除なら実体は無い。
+    /// index で削除して作業ツリーに新規で残る形(`git rm --cached`)は、`GitStatusReader` が
+    /// 未追跡として返すので `isUntracked` で先に除く。
+    var isDeleted: Bool {
+        !isUntracked && (worktreeChange ?? indexChange ?? branchChange) == .deleted
+    }
 }

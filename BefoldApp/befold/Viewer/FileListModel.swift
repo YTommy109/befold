@@ -215,8 +215,16 @@ final class FileListModel {
     /// いない、のいずれか。**空の値と nil を区別すること**が要点で、変更が 1 つも無い
     /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
-    /// 書き込みは applyGitStatus(_:for:sequence:) だけを通す。
-    private(set) var gitStatus: SidebarGitStatus?
+    /// 書き込みは setGitStatus(_:) だけを通す(同値なら書かない)。
+    private(set) var gitStatus: SidebarGitStatus? {
+        didSet { onGitStatusChange?() }
+    }
+
+    /// git 状態が変わったときに呼ばれる(TASK-637)。反映と昇格の両方を didSet 1 箇所で拾う。
+    /// 購読者は `SidebarTreePresenter` だけ。上書きは release でも precondition で止める(TASK-641 / 647)。
+    @ObservationIgnored var onGitStatusChange: (() -> Void)? {
+        willSet { precondition(onGitStatusChange == nil, "購読者は SidebarTreePresenter だけ。上書きすると展開が止まる") }
+    }
 
     /// 反映の可否(発行順序 + ディレクトリ対付け)の判定だけを持つ調停器(ADR 0003)。
     ///
@@ -251,7 +259,11 @@ final class FileListModel {
     /// git 状態を観測対象へ書く唯一の実装。**変わったときだけ書く**(TASK-532)。
     /// キー化のたびの取り直しは同じ結果を返すのが普通で、素通しで代入するとバッジが
     /// 変わっていなくてもサイドバーの再評価が走る。`SidebarGitStatus` は Equatable。
+    ///
+    /// 同値なら**代入もしない**。辞書のストレージが入れ替わると、適用済み記録との比較が
+    /// 同一ストレージの早期 return に乗らず全量比較になる(TASK-646)。
     private func setGitStatus(_ newStatus: SidebarGitStatus?) {
+        guard newStatus != gitStatus else { return }
         gitStatus = newStatus
     }
 
@@ -267,7 +279,7 @@ final class FileListModel {
         if case let .apply(promoted) = gitStatusGate.promote(
             entriesDirectoryKey: entriesDirectory.normalizedPathKey
         ) {
-            gitStatus = promoted
+            setGitStatus(promoted)
         }
     }
 
