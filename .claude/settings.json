@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) if ! grep -qF \"$(basename \"$f\")\" BefoldApp/befold.xcodeproj/project.pbxproj; then cd BefoldApp && xcodegen generate 2>&1 | tail -1; fi;; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) d=\"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\"; if ! grep -qF \"$(basename \"$f\")\" \"$d/befold.xcodeproj/project.pbxproj\"; then cd \"$d\" && xcodegen generate 2>&1 | tail -1; fi;; esac",
             "statusMessage": "xcodegen generate (新規 Swift ファイル検出)"
           }
         ]
@@ -85,8 +85,14 @@
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *viewer-src/*.js|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { [ -d node_modules ] || { echo 'node_modules 未インストールのため jest をスキップ: cd BefoldApp && npm ci' >&2; exit 0; }; out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *BefoldApp/viewer-src/*.ts|*BefoldApp/viewer-test/*.ts|*viewer.html) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { [ -d node_modules ] || { echo 'node_modules 未インストールのため jest をスキップ: cd BefoldApp && npm ci' >&2; exit 0; }; out=$(npx jest --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "jest (viewer)",
+            "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *site/src/*.ts|*site/src/*.tsx|*site/test/*.ts) cd \"${CLAUDE_PROJECT_DIR:-.}/site\" && { [ -d node_modules ] || { echo 'node_modules 未インストールのため vitest をスキップ: cd site && npm ci' >&2; exit 0; }; out=$(npx vitest run --silent 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
+            "statusMessage": "vitest (site)",
             "timeout": 120
           },
           {
