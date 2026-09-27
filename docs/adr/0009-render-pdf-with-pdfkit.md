@@ -12,8 +12,8 @@
 ### これまでの描き方（TASK-564.1 着手前）
 
 PDF は他の種別と同じく viewer.html の中で描いていた。読み込みは
-`ContentLoader.load` が Data を base64 文字列にし、`ViewerLoadPipeline.load` が
-`FileType.isBinaryContent` で分岐してその経路へ流す。viewer 側は
+`ContentLoader.load` が Data を base64 文字列にする。`ViewerLoadPipeline.load` が
+`FileType.isBinaryContent` で分岐し、その経路へ流す。viewer 側は
 `renderers.ts` の `_renderPdf` が base64 をバイト列へ戻して `Blob` を作り、
 その blob URL を `<iframe>` の `src` に入れる。実際に描くのは WebKit 内蔵の
 PDF プラグインで、befold からは中が見えない。
@@ -21,9 +21,9 @@ PDF プラグインで、befold からは中が見えない。
 この構造には、TASK-564 が並べた 4 つの機能（1 ページのフィット表示、
 ページ単位のスクロール、表示位置の記憶、90 度単位の回転）のどれも載らない。
 `<iframe>` の中の描画は同一オリジンではなく、ページ・倍率・スクロール位置に
-触る API が無い。倍率でさえ CSS zoom が効かず、`zoom.ts` は
-`pdf-body` クラスを見て「iframe 自体の width/height を倍率で変える」という
-特例で代用していた（幅フィット描画なので幅を広げると拡大されるという間接的な効果）。
+触る API が無い。倍率でさえ CSS zoom が効かない。`zoom.ts` は
+`pdf-body` クラスを見て、iframe 自体の width/height を倍率で変える特例として
+代用していた。幅フィット描画のため、幅を広げると拡大される間接的な効果である。
 
 ### プラグインから何が触れるか（実測 / 2026-08-30 時点）
 
@@ -53,22 +53,26 @@ PDF を `loadFileURL` で読ませ、JavaScript から見えるものを数え�
 
 ## Decision
 
+### PDFKit を採り、pdf.js を採らなかった理由
+
 **PDFKit の `PDFView` で描く。** viewer.html 側の PDF 専用コードは撤去する。
 
 pdf.js を採らなかった理由は 2 つある。
 
-- **同梱物が増える。** viewer のバンドルは既に 816KB（`viewer-bundle.js`）で、
+- **同梱物が増える。** viewer のバンドルは既に 816KB（`viewer-bundle.js`）ある。
   mermaid・markdown-it・highlight.js・DOMPurify を抱えている。pdf.js は
   本体に加えてワーカーとフォントを持ち、`check-third-party-licenses` と
   `check-vendored-deps` の監査対象がもう 1 つ増える。macOS が同じ品質の
   描画エンジンを標準で持っているのに、同じものを 2 つ抱えることになる。
 - **CSP を緩める必要がある。** pdf.js はワーカーを起動し、フォントと画像を
   自前で組み立てる。viewer.html の CSP は `default-src 'none'` から始めて
-  必要なものだけを開けており、`worker-src` と `blob:` を足すのは
-  この方針を逆に進めることになる。今回はむしろ `frame-src blob:` を
+  必要なものだけを開けている。`worker-src` と `blob:` を足すのは、
+  この方針に反する。今回はむしろ `frame-src blob:` を
   **削れた**（PDF のためだけに開けていた唯一の穴だった）。
 
-**代償は、描画面が 2 枚になること。** WKWebView と `PDFView` が同じ窓に並び、
+### 二枚の描画面の扱いを 1 箇所に閉じる
+
+PDFKit を採ると、描画面が 2 枚になる。WKWebView と `PDFView` が同じ窓に並び、
 どちらを見せるか・どちらへ命令を届けるかの判断が生まれる。この判断が
 メニュー・ツールバー・コマンドへ散ると ADR 0002 段 2 の「条件は 1 箇所」が
 崩れるため、次の形に閉じた。
@@ -79,14 +83,15 @@ pdf.js を採らなかった理由は 2 つある。
 - **`DocumentRendering`（ADR 0002 段 4 の port）を 2 群に分けた**（TASK-564.6）。
   ユーザー操作（ズーム・印刷・検索・ジャンプ・スクロール位置）は 1 枚へ振り分け、
   追随（フォント・CSV 数値表示・ジャンプ可否・リネーム）は全部へ配る。
-  追随を振り分けると、PDF を見ている間の設定変更が WebView へ入らない形と、
+  追随を振り分けないと、PDF を見ている間の設定変更が WebView へ入らない形と、
   対応形式が変わるリネームで旧側の面が追随しない形（TASK-401 / TASK-393）が戻る。
-- **振り分けの真実の源は `ViewerContentState.fileType`。**
-  提示予定の URL（`ViewerStore.pendingURL`）から導くと、`openFile` の入口で
-  URL だけが先に進むため、切替直後に「画面には旧ファイルが出ているのに
+- **振り分けの真実の源は `ViewerContentState.fileType`。** 提示予定の URL（`ViewerStore.pendingURL`）から導くと、
+  `openFile` の入口で URL だけが先に進む。そのため切替直後に「画面には旧ファイルが出ているのに
   命令は新しい面へ飛ぶ」区間ができ、命令が無言で捨てられる。
 - **面は破棄・再生成しない。** 種別が変わっても両方を階層に残し、重ね順で
   出し分ける（差し替えると白フラッシュと stale な初期倍率が出る / TASK-266）。
+
+### 読み込み経路と、PDF として開けないデータの扱い
 
 読み込み経路も分けた。**PDF だけ `Data` のまま運ぶ**（`ViewerLoadPipeline.Outcome`
 の `.binary`）。`PDFView` は `Data` を直接受けられ、base64 は約 1.33 倍に膨らむ。
@@ -95,60 +100,81 @@ pdf.js を採らなかった理由は 2 つある。
 同じファイルが種別によって違う扱いを受けないようにした。
 
 **PDF として開けないデータは `RejectReason.damagedDocument` で拒否する。**
-読み込み自体は成功しているため、これを見ないと `rejectReason` が nil のまま
+読み込み自体は成功している。これを見ないと `rejectReason` が nil のままで、
 `PDFView` が黙って空白を出す（バナーも出ない）。判定は `PDFDataProbe` に置き、
 表示側が `PDFDocument` を作る条件と 1 つの事実を共有する。
 
 ## Consequences
 
-- **PDF ではジャンプができなくなる。** `<iframe>` の頃も viewer の検索・ジャンプは
-  PDF の中身に届いておらず、`canFind` / `canJump` が true のまま何も起きない状態
-  だった。これは ADR 0002 が排した「押せるのに反応が無い」形なので、両方に
-  `!isBinaryContent` を足して塞いだ（画像でも同じく dead だった穴が同時に閉じる）。
+### 検索・ジャンプ・キーボードショートカット
 
-  **このうち検索は TASK-570 で開いた。** PDFKit の `beginFindString` で実体を入れ、
-  可否は `!isBinaryContent` ではなく `FileType.supportsFind`（画像 false / PDF true）
-  で決めるようにした。読み込み方法で判定したままだと、PDF を開けた瞬間に画像まで
-  一緒に開いてしまうため。ジャンプは見出し構造の抽出という別の問題を含むので
-  塞いだままで、`canJump` は `!isBinaryContent` のまま。
-- **キーボードスクロールの 6 件（Space / Shift+Space / j / k / Shift+↓ / Shift+↑）が
-  PDF では効かない。** これらは `viewer-src/keyboard.ts` にしか入口が無い。
-  Help の一覧（`ViewerShortcutCatalog`）は種別非依存なので、PDF では説明と
-  実態が食い違う。`PDFView` が標準で処理するキーの実測と合わせて別タスクで扱う。
-- **描画の速さについて、言えることと言えないこと。** 231 ページの PDF で最初の
-  1 フレームまでを測ると PDFKit 7〜8ms・WebKit 内蔵プラグイン 49〜122ms だった
-  （2026-08-30）。ただしこの比較は厳密ではない——WebKit 側は `takeSnapshot`
-  （プロセス間通信を含む）、PDFKit 側は `cacheDisplay`（直接描画）で測り方が違う。
-  **「WebKit は GPU 合成で速い」は検証していない。** macOS の WebKit が PDF 表示に
-  内部で PDFKit を使う構成（`PDFPlugin` が `PDFLayerController` を使う）は一般に
-  知られているが、ここでは確かめていない。もしそうなら違いは「WebKit 対 PDFKit」では
-  なく「レイヤベースの描画経路 対 `PDFView` の `drawRect` 描画」である。描画経路が
-  遅さの本体だと分かった場合は、`PDFPage.draw` で自前にタイルレイヤーへ描く案が
-  残っている（規模は大きい）。判断は実測が出てから行う（TASK-569）。
-- **ページ単位のスクロールは後に撤回した。** 当初は `.singlePage` にして
-  ホイールをページ送りへ振り替えていた（TASK-564.2）。「2 ページの端が同時に
-  見える位置で止まらない」ことを構造で守れるのが理由だったが、その代償として
-  スクロールでページが瞬時に切り替わり、滑らかに読めなかった。体感を優先して
-  この不変条件を捨て、`.singlePageContinuous` へ改めた（TASK-567）。スナップや
-  遷移アニメーションのような代わりの仕掛けは足していない。連続スクロールでは
-  `scaleFactorForSizeToFit` が幅基準になるため、`autoScales` に任せると倍率 1.0 が
-  「ページの幅が収まる」に変わってしまう（`scaleFactorForSizeToFit` を override しても
-  自動追従はその値を読まない / 実測）。倍率 1.0 の意味を「ページ全体が収まる」の
-  ままにするため、`autoScales` を使わず `ZoomingPDFView` が倍率を覚えて
-  `layout` で入れ直す。
-- **ピンチは自前で受ける。** `PDFView` の内側の `PDFScrollView` は
-  `allowsMagnification` が既定で true で、ピンチを消費して `PDFView` の
-  サブクラスへ渡さない。その状態では `autoScales` がフィットへ戻すため、
-  拡大は一瞬効くだけ、縮小は無視される。`ZoomingPDFView` がレイアウトのたびに
-  この設定を切り、倍率の入口を `applyZoom` へ一本化している（TASK-568）。
-- **ズームの意味を面ごとに合わせる必要がある。** `PDFView.scaleFactor` は絶対倍率
-  なので、倍率 1.0 が「ページ幅がビューに収まる状態」になるよう
-  `scaleFactorForSizeToFit` を基準に掛け直している。これをしないと、同じ 1.0 が
-  WebView 側では等倍・PDF 側ではページの一部という別の意味になる。
-- **QuickLook 拡張は影響を受けない。** `FileType.quickLookSupportedExtensions` が
-  `isBinaryContent` を除くため、PDF はもともと対象外
-  （`QuickLookInfoPlistTests` が担保）。
-- viewer 側からは `_renderPdf` / `_createPdfBlobHolder` / `_mmdPdfBlob` /
-  `shape === 'pdf'` 分岐 / `pdf-body` の CSS / `zoom.ts` の特例 /
-  `encoding.ts` の `base64ToBytes` / CSP の `frame-src blob:` が消えた。
-  復活していないことは `ViewerBridgeContractTests` が走査で固定する。
+PDF ではジャンプができなくなる。`<iframe>` の頃も viewer の検索・ジャンプは
+PDF の中身に届いておらず、`canFind` / `canJump` が true のまま何も起きない状態
+だった。これは ADR 0002 が排した「押せるのに反応が無い」形なので、両方に
+`!isBinaryContent` を足して塞いだ（画像でも同じく dead だった穴が同時に閉じる）。
+
+このうち検索は TASK-570 で開いた。PDFKit の `beginFindString` で実体を入れた。
+可否は `!isBinaryContent` ではなく `FileType.supportsFind`（画像 false / PDF true）
+で決めるようにした。読み込み方法で判定したままだと、PDF を開けた瞬間に画像まで
+一緒に開いてしまうため。ジャンプは見出し構造の抽出という別の問題を含むので
+塞いだままで、`canJump` は `!isBinaryContent` のまま。
+
+キーボードスクロールの 6 件（Space / Shift+Space / j / k / Shift+↓ / Shift+↑）が
+PDF では効かない。これらは `viewer-src/keyboard.ts` にしか入口が無い。
+Help の一覧（`ViewerShortcutCatalog`）は種別非依存なので、PDF では説明と
+実態が食い違う。`PDFView` が標準で処理するキーの実測と合わせて別タスクで扱う。
+
+### 描画速度の実測と未解決の論点
+
+231 ページの PDF で最初の 1 フレームまでを測ると PDFKit 7〜8ms・WebKit 内蔵プラグイン
+49〜122ms だった（2026-08-30）。ただし測り方が違い、厳密な比較にならない。
+WebKit 側を `takeSnapshot`（プロセス間通信を含む）で、PDFKit 側を `cacheDisplay`（直接描画）で測った。
+
+**「WebKit は GPU 合成で速い」は検証していない**。
+macOS の WebKit が PDF 表示の内部で PDFKit を使うこと（`PDFPlugin` が `PDFLayerController` を使う）は一般に知られている。
+ただし、ここでは確かめていない。もしそうなら違いは「WebKit 対 PDFKit」では
+なく「レイヤベースの描画経路 対 `PDFView` の `drawRect` 描画」である。描画経路が
+遅さの本体だと分かった場合は、`PDFPage.draw` で自前にタイルレイヤーへ描く案が
+残っている（規模は大きい）。判断は実測が出てから行う（TASK-569）。
+
+### PDFView 固有の挙動への対応
+
+ページ単位のスクロールは後に撤回した。当初は `.singlePage` にして
+ホイールをページ送りへ振り替えていた（TASK-564.2）。「2 ページの端が同時に
+見える位置で止まらない」ことを構造で守れるのが理由だったが、その代償として
+スクロールでページが瞬時に切り替わり、滑らかに読めなかった。体感を優先して
+この不変条件を捨て、`.singlePageContinuous` へ改めた（TASK-567）。スナップや
+遷移アニメーションのような代わりの仕掛けは足していない。連続スクロールでは
+`scaleFactorForSizeToFit` が幅基準になる。`autoScales` に任せると、倍率 1.0 が
+「ページの幅が収まる」に変わってしまう。`scaleFactorForSizeToFit` を override
+しても、自動追従はその値を読まない（実測）。倍率 1.0 の意味を「ページ全体が収まる」の
+ままにするため、`autoScales` を使わず `ZoomingPDFView` が倍率を覚えて
+`layout` で入れ直す。
+
+ピンチは自前で受ける。`PDFView` の内側の `PDFScrollView` は
+`allowsMagnification` が既定で true で、ピンチを消費して `PDFView` の
+サブクラスへ渡さない。その状態では `autoScales` がフィットへ戻すため、
+拡大は一瞬効くだけ、縮小は無視される。`ZoomingPDFView` がレイアウトのたびに
+この設定を切り、倍率の入口を `applyZoom` へ一本化している（TASK-568）。
+
+ズームの意味は面ごとに合わせる必要がある。`PDFView.scaleFactor` は絶対倍率
+なので、倍率 1.0 が「ページ幅がビューに収まる状態」になるよう
+`scaleFactorForSizeToFit` を基準に掛け直している。これをしないと、同じ 1.0 が
+WebView 側で等倍・PDF 側ではページの一部という別の意味になる。
+
+### 影響を受けない範囲と撤去したコード
+
+QuickLook 拡張は影響を受けない。`FileType.quickLookSupportedExtensions` が
+`isBinaryContent` を除く。したがって PDF はもともと対象外で、
+`QuickLookInfoPlistTests` が担保する。
+
+viewer 側からは次のコードが消えた。
+
+- `_renderPdf` / `_createPdfBlobHolder` / `_mmdPdfBlob`
+- `shape === 'pdf'` 分岐
+- `pdf-body` の CSS
+- `zoom.ts` の特例
+- `encoding.ts` の `base64ToBytes`
+- CSP の `frame-src blob:`
+
+復活していないことは `ViewerBridgeContractTests` が走査で固定する。

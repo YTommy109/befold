@@ -23,12 +23,13 @@
 `viewer-main.js` は全行が 2 スペースインデントされているが、それを包む関数は存在しない
 （`grep -nE "^[^ \t]" viewer-main.js` が 0 件）。インデントは見た目だけで、すべての識別子は
 真のグローバルである。この形は、コミット `bf50bfa`「fix: postMessage ブリッジをゲートし CSP から
-unsafe-inline を削除する」で `viewer.html` のインライン `<script>` から外部ファイルへ切り出した
-ときのインデントがそのまま残ったもの。
+unsafe-inline を削除する」で生まれた。このコミットで `viewer.html` のインライン `<script>` を
+外部ファイルへ切り出し、そのときのインデントがそのまま残った。
 
 ファイル間の依存は共有グローバルスコープ経由で解決している。`viewer-main.js` は `viewer.js` が
-宣言した識別子を裸の名前で参照する（`viewer-main.js` の `ZOOM_DEFAULT` / `parseStoredZoom` /
-`mermaidTheme` / `highlightCode` / `sanitizeRenderedHtml` / `renderShape` ほか）。
+宣言した識別子を裸の名前で参照する。
+例は `ZOOM_DEFAULT` / `parseStoredZoom` / `mermaidTheme` である。
+`highlightCode` / `sanitizeRenderedHtml` / `renderShape` ほかも同じ形で参照する。
 この解決を成立させているのは `viewer.html` のスクリプト記述順だけであり、依存関係は言語機能で表現されていない。
 
 両ファイルの末尾には jest 用の CommonJS エクスポート境界だけが置かれている
@@ -37,7 +38,7 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 ### 分割軸が責務ではない
 
 `viewer.js` の冒頭コメントは「テスト可能な純粋ロジック」で、分割軸が**責務ではなくテスト可能性**で
-引かれている。その結果、同じ関心の 2 つの枝が離れた場所に置かれ、実際に乖離した
+引かれている。その結果、同じ関心の 2 つの枝が離れた場所に置かれ、乖離した
 （TASK-414: `appendChunk` と `render` の表示モード判定、`_renderSource` の注釈呼び出し漏れ）。
 
 変更履歴でも、この 2 ファイルは他の大きいファイルより修正の比率が高い。
@@ -49,11 +50,11 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 | `ViewerStore.swift` | 47 | 18 | 38% |
 | `ViewerWindowManager.swift` | 67 | 19 | 28% |
 
-### 制約 1: `file://` ではネイティブ ES モジュールが使えない
+### file:// ではネイティブ ES モジュールが使えない
 
 `BefoldRenderKit/ViewerWebViewFactory.swift` の `ViewerWebViewFactory.makeWebView` は viewer.html を
-`webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)` で読み込む。WebKit は
-`file://` の各 URL を不透明オリジンとして扱うため、`<script type="module">` は CORS で
+読み込む。読み込みには `webView.loadFileURL(htmlURL, allowingReadAccessTo: resourceDir)` を使う。
+WebKit は `file://` の各 URL を不透明オリジンとして扱うため、`<script type="module">` は CORS で
 遮断される。回避には `allowFileAccessFromFileURLs` 相当の非公開プリファレンス緩和が要る。
 
 これは `viewer.html` の `Content-Security-Policy` meta と、それを検証しているテストに正面から反する。
@@ -62,13 +63,13 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; frame-src blob:; connect-src 'none'; base-uri 'none'">
 ```
 
-`befoldTests/ViewerBridgeContractTests.swift` の `cspScriptSrcHasNoUnsafeInline` は、CSP の `script-src` に
-`'unsafe-inline'` が無いことと、HTML にインライン `<script>` が無いことをテストしている。
+`befoldTests/ViewerBridgeContractTests.swift` の `cspScriptSrcHasNoUnsafeInline` は 2 点をテストしている。
+CSP の `script-src` に `'unsafe-inline'` が無いことと、HTML にインライン `<script>` が無いことである。
 
 つまり「モジュール境界が欲しいがネイティブ ESM は使えない」という制約が、単一の巨大な
 クラシックスクリプトを生んでいる構造的な原因である。
 
-### 制約 2: ビルド成果物を生成するフックが無い
+### ビルド成果物を生成するフックが無い
 
 - `BefoldApp/Package.swift` の `BefoldKit` ターゲットの `resources:` はリソースを**個別に列挙**している。
   SPM のビルド時点でファイルが存在している必要がある。
@@ -78,19 +79,19 @@ unsafe-inline を削除する」で `viewer.html` のインライン `<script>` 
   `npm ci` を挟めない（**未検証の前提**。`swift build` 中にプラグインから `npm --version` を
   実行して確認できる）。
 
-### 制約 3: macOS の CI ジョブに Node が無い
+### CI（macOS ジョブ）に Node が無い
 
 `.github/workflows/ci.yml` の `build-and-test`（macos-26）と `thread-sanitizer`（macos-26）に
 `setup-node` は無い。Node があるのは js-test ジョブ（ubuntu-latest、`npm ci`、`npx jest`）だけ。
 
 ### 既存の前例
 
-`site/` は既に TypeScript + vitest + esbuild（wrangler 経由）で動いており、リポジトリに
+`site/` は既に TypeScript + vitest + esbuild（wrangler 経由）で動いている。リポジトリに
 TS ツールチェーンの前例がある（`site/package.json`、`site/vitest.config.ts`）。
 
 `BefoldApp/package.json` の devDependencies には、同梱ベンダーライブラリと同じバージョンが
-既にピン留めされている（dompurify 3.4.12 / github-markdown-css 5.9.0 / highlight.js 11.11.1 /
-markdown-it 14.2.0）。mermaid だけは記録が無い。
+既にピン留めされている。対象は dompurify 3.4.12 / github-markdown-css 5.9.0 / highlight.js 11.11.1 /
+markdown-it 14.2.0 の 4 件。mermaid だけは記録が無い。
 
 ## Decision
 
@@ -106,12 +107,12 @@ viewer の JS を **esbuild で単一の IIFE バンドルへまとめ、その�
 
 ### 成果物をコミットし、一致を CI で検証する
 
-制約 2 と 3 より、`.app` のビルド経路に npm を挟むことはできない。成果物をリポジトリに置き、
-`.github/workflows/ci.yml` の js-test ジョブ（Node がある側）で「コミットされた成果物が
-ソースからの再ビルド結果と一致するか」を検証してズレを落とす。
+「ビルド成果物を生成するフックが無い」「CI（macOS ジョブ）に Node が無い」より、`.app` のビルド経路に
+npm を挟むことはできない。成果物はリポジトリに置く。`.github/workflows/ci.yml` の js-test ジョブ
+（Node がある側）で、コミットされた成果物がソースからの再ビルド結果と一致するかを検証し、ズレを落とす。
 
-これは既存の `swift package plugin ... swiftformat -- --lint`（生成物を持ち、ズレを CI で落とす）
-と同じ形であり、`project.pbxproj` を xcodegen の生成物として扱う既存の運用とも整合する。
+これは既存の `swift package plugin ... swiftformat -- --lint` と同じ形である。生成物を持ち、
+ズレを CI で落とす点が共通する。`project.pbxproj` を xcodegen の生成物として扱う既存の運用とも整合する。
 
 ### mermaid はバンドルに含めない
 
@@ -128,15 +129,13 @@ viewer の JS を **esbuild で単一の IIFE バンドルへまとめ、その�
 
 バンドル基盤が入った後、`allowJs` でファイル単位に移行する。ただし **ESM 化の段階から型検査
 （または同等の未定義参照検出）を有効にする**。裸のグローバル参照を import へ置き換える作業で
-付け忘れた識別子は、バンドル時にエラーにならず実行時に初めて落ちるためである。この移行の
+付け忘れた識別子は、バンドルの時点では検出できず、実行時に初めて落ちるためである。この移行の
 いちばん危険な部分を無検証にしない。
 
 ### 責務分割はモジュール境界を得てから行う
 
-TASK-420（viewer-main.js を責務ごとに分割）は、その受け入れ条件 #3 が
-「viewer.html からの読み込み順が壊れず」であるとおり、暗黙の読み込み順契約を保ったままの分割を
-前提にしている。これはバンドル導入後にやり直しになるため、TASK-420 は本 ADR に基づく
-サブタスクへ統合し、二度手間を避ける。
+読み込み順の暗黙契約を保ったまま viewer-main.js を責務ごとに分割すると、バンドル導入後に
+モジュール境界へ合わせて分割し直すことになり、二度手間になる。責務分割はバンドル導入後に行う。
 
 ## Consequences
 
@@ -144,7 +143,7 @@ TASK-420（viewer-main.js を責務ごとに分割）は、その受け入れ条
 
 - 依存が `import` で明示され、`viewer.html` の記述順という暗黙の契約が消える。
 - 分割軸を「テスト可能性」から「責務」へ引き直せる。TASK-414 で起きた乖離の再発経路が減る。
-- 未定義参照が機械検出できる。現状はグローバル名前空間の衝突も取りこぼしも静かに通る。
+- 未定義参照が機械検出できる。現状はグローバル名前空間の衝突や取りこぼしが静かに通る。
 - 行数の肥大化に対して分割が自然な操作になり、TASK-428 のラチェットを JS へ広げる意味が出る。
 - 手動ベンダリングを npm 依存へ移す道が開く（`package.json` に既に 4 つがピン留め済み）。
 
@@ -160,7 +159,7 @@ TASK-420（viewer-main.js を責務ごとに分割）は、その受け入れ条
   `viewer.html` を読み込み、`window.eval` で `viewer.js` → `viewer-main.js` の順に評価して
   グローバル共有を再現している。ESM 化でこのハーネスは成立しなくなるため書き換えが要る。
 - **`ViewerBridgeContractTests` の向き先変更。** このテストは JS を文字列として読んで
-  Swift ↔ JS の契約を検証しており、`viewer.html` / `viewer.js` / `viewer-main.js` への
+  Swift ↔ JS の契約を検証している。`viewer.html` / `viewer.js` / `viewer-main.js` への
   リテラル参照が 11 箇所ある。バンドル後は成果物を見るよう向け直す。実際に配布される物を
   検証する形になるため、方向としては改善である。
 - **`Package.swift` のリソース列挙の更新。** `BefoldKit` のリソースを個別に列挙しているため、
@@ -174,9 +173,9 @@ TASK-420（viewer-main.js を責務ごとに分割）は、その受け入れ条
 CSP 設計に反する。
 
 **成果物をコミットせず CI と各開発者のビルド時に生成する。** macOS の CI ジョブへ Node の
-セットアップが必要になるうえ、SPM のリソース解決がビルド開始時点でファイルの存在を要求する。
-プラグインのサンドボックス制約（制約 2）を踏まえると、SPM のビルド内で生成する手段が無い。
+セットアップが必要になる。加えて、SPM のリソース解決がビルド開始時点でファイルの存在を要求する。
+プラグインのサンドボックス制約（「ビルド成果物を生成するフックが無い」）を踏まえると、SPM のビルド内で生成する手段が無い。
 
-**素の JS のまま責務分割を続ける（TASK-420 の当初方針）。** 分割はできるが、依存解決が
-`viewer.html` の読み込み順という暗黙の契約に載ったままになる。ファイル数が増えるぶん、
+**素の JS のまま責務分割を続ける（TASK-420 の当初方針）。** 分割はできるが、依存解決は
+`viewer.html` の読み込み順という暗黙の契約に載ったままとなる。ファイル数が増えるぶん、
 順序の制約はむしろ壊れやすくなる。

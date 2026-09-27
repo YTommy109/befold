@@ -3,7 +3,7 @@
 - ステータス: Accepted
 - 日付: 2026-08-14
 - backlog decision: decision-7
-- 関連タスク: TASK-476（サブタスク 476.1〜476.6）
+- 関連タスク: TASK-476
 - 更新: [ADR 0011](./0011-legacy-distribution-shutdown-conditions.md) が決定 1 の
   「停止時期は定めない」を停止条件で置き換えた（supersede ではない。他の決定は有効）
 
@@ -16,11 +16,12 @@
 以下の Context は決定を下した時点の調査結果であり、決定の実装（TASK-476）で
 変わった箇所がある。現在の実装は下の Decision と `site/src/lib/hosts.ts` を見ること。
 
-配布サイトは Cloudflare Worker 1 本で、本番 `befold` と staging `befold-staging` の
-どちらも `workers_dev = true` のみで公開している（`site/wrangler.toml:9,51`）。
+配布サイトは Cloudflare Worker 1 本である。本番 `befold` と staging `befold-staging` の
+どちらも `workers_dev = true` のみで公開している（`site/wrangler.toml`）。
 `routes` / `route` / `custom_domain` の記述は同ファイルに 1 件も無い。
 
-独自ドメインを使わない理由は設定ファイル自身に書かれている（`site/wrangler.toml:6-8`）。
+独自ドメインを使わない理由は、設定ファイル自身のコメントに書かれている
+（`site/wrangler.toml`）。
 
 ```text
 # 独自ドメインは使わず、Cloudflare が用意する *.workers.dev で公開する。
@@ -33,7 +34,8 @@ DNS 管理を Cloudflare へ集約したため、この前提を見直せる状�
 ### 移行を難しくしている制約
 
 **出荷済みアプリの更新経路は後から変更できない。** Sparkle のフィード URL は
-アプリバイナリに焼き込まれている（`BefoldApp/befold/Updates/UpdateChannel.swift`）。
+アプリバイナリに焼き込まれている。焼き込み先は
+`BefoldApp/befold/Updates/UpdateChannel.swift` である。
 
 | チャンネル | フィード URL |
 |---|---|
@@ -41,8 +43,9 @@ DNS 管理を Cloudflare へ集約したため、この前提を見直せる状�
 | develop | `https://befold.tommy109.workers.dev/appcast-develop.xml` |
 
 さらに、**過去に配信済みの appcast に埋まっている enclosure URL も変更できない**。
-リリースワークフローが `https://befold.tommy109.workers.dev/dl/<tag>/` を prefix として
-appcast を生成しているため（`.github/workflows/release.yml`）、既に配布された
+リリースワークフローは `.github/workflows/release.yml` にある。そこは
+`https://befold.tommy109.workers.dev/dl/<tag>/` を prefix にする。その prefix で
+appcast を生成するため、既に配布された
 appcast.xml の各エントリは旧ホストの `/dl/` を指している。
 
 したがって `/appcast.xml`・`/appcast-develop.xml`・`/dl/*` の 3 経路は、
@@ -50,18 +53,19 @@ appcast.xml の各エントリは旧ホストの `/dl/` を指している。
 
 ### 移行の難しさを下げている事実
 
-- `/dl/` と `/appcast*.xml` は R2 を正として読み、無ければ GitHub Releases へ落ちる
+- `/dl/` と `/appcast*.xml` は R2 を正として読む。無ければ GitHub Releases へ落ちる
   （`site/src/routes/public.tsx`、`site/src/lib/dist.ts`、
   `site/src/lib/github.ts`）。**どちらの経路もホスト名に依存しない**ため、
   同一 Worker が応答する限り旧ホストでも新ドメインでも同じ内容を返せる。
 - サイト側の絶対 URL は原則リクエスト origin 由来で、ホスト名のハードコードは
   **ダウンロード先の定数 1 箇所だけ**（`site/src/views/shared.tsx`。当時の名前は
-  `DOWNLOAD_URL`。決定 6 のとおり相対パス化して現在は `DOWNLOAD_PATH`）。canonical・og:url・
-  og:image・JSON-LD・sitemap・robots.txt はすべて `new URL(c.req.url).origin` から組む
-  （`site/src/routes/public.tsx`、`site/src/views/landing.tsx`、
+  `DOWNLOAD_URL`。決定 6 のとおり相対パス化して現在は `DOWNLOAD_PATH`）。canonical・
+  og:url・og:image・JSON-LD・sitemap・robots.txt はすべて `new URL(c.req.url).origin`
+  から組む（`site/src/routes/public.tsx`、`site/src/views/landing.tsx`、
   `site/src/views/features.tsx`）。
 - Cookie・CORS・CSP にホスト名は現れない。クライアント状態は `localStorage` のみ
-  （`site/src/views/shared.tsx` の `CLEANUP_SCRIPT`）。ホスト追加でセッションが壊れる箇所は無い。
+  （`site/src/views/shared.tsx` の `CLEANUP_SCRIPT`）。ホスト追加でセッションが
+  壊れる箇所は無い。
 
 ### 移行で壊れる箇所
 
@@ -71,22 +75,22 @@ appcast.xml の各エントリは旧ホストの `/dl/` を指している。
   そのまま渡す（`site/src/events.ts`）。このままホストが 2 つになると、
   旧ホスト → 新ドメインの遷移が「外部参照元」として D1 に記録される。
 - **appcast のキャッシュキーがリクエスト URL 全体。** `site/src/routes/public.tsx` は
-  `new URL(c.req.url).toString()` をキーにするため、ホストごとに独立したキャッシュになる。
-  内容は同一なので不整合は起きないが、キャッシュ効率は 2 分割される。
-- **ダッシュボード保護の前提コメントが古い。** `site/src/routes/dashboard.tsx` と
-  `site/wrangler.toml:7` は「workers.dev には Access を設定できない」と書いているが、
-  現在の Cloudflare ドキュメント（Workers の workers.dev ページ「Manage access to
-  `workers.dev`」節）は workers.dev URL へ Access を有効化する手順を明記している。
-  **この前提は現時点で誤り**である。
+  `new URL(c.req.url).toString()` をキーにするため、ホストごとに独立したキャッシュに
+  なる。内容は同一なので不整合は起きないが、キャッシュ効率は 2 分割される。
+- **ダッシュボード保護の前提コメントが古い。** `site/wrangler.toml` と
+  `site/src/routes/dashboard.tsx` は「workers.dev には Access を設定できない」と
+  書いているが、現在の Cloudflare ドキュメント（Workers の workers.dev ページ
+  「Manage access to `workers.dev`」節）は workers.dev URL へ Access を有効化する
+  手順を明記している。**この前提は現時点で誤り**である。
 
 ### 前提の裏付け
 
 | 前提 | 裏付け |
 |---|---|
-| `/dl/`・appcast がホスト非依存 | コード参照（上記 file:line） |
+| `/dl/`・appcast がホスト非依存 | コード参照（上記の該当ファイル） |
 | 絶対 URL のハードコードは 1 箇所 | 実測（`rg -n 'workers\.dev\|tommy109'` の全ヒットを用途別に分類） |
-| Custom Domain と workers.dev は併存できる | ドキュメント参照（Cloudflare「workers.dev」: `routes` を書くと `workers_dev` は次回デプロイで `false` と推論される。明示指定で回避する） |
-| Access はパス単位で保護できる | ドキュメント参照（Cloudflare「Access application paths」。ワイルドカードは親パスを含まない） |
+| Custom Domain と workers.dev は併存できる | ドキュメント参照（Cloudflare「workers.dev」文書。詳細は決定 1） |
+| Access はパス単位で保護できる | ドキュメント参照（Cloudflare「Access application paths」） |
 | workers.dev にも Access をかけられる | ドキュメント参照（同「Manage access to `workers.dev`」） |
 | 移行後の実際の DNS 疎通・Access 動作 | **未確認**。TASK-476.2 / 476.6 で実測する |
 
@@ -96,12 +100,12 @@ appcast.xml の各エントリは旧ホストの `/dl/` を指している。
 
 ### 1. workers.dev ホストは恒久的に維持する（パスの選別はしない）
 
-`workers_dev = true` を本番・staging とも明示的に書き続け、
-Custom Domain を追加した後も削除しない。`routes` を書いた時点で `workers_dev` が
-`false` と推論される仕様があるため、**明示指定は必須**である。
+`workers_dev = true` を本番・staging とも明示的に書き続け、Custom Domain を
+追加した後も削除しない。`routes` を書いた時点で `workers_dev` が `false` と
+推論される仕様があるため、**明示指定は必須**である。
 
 維持するのは**全パス**とし、「appcast と `/dl/` だけ維持する」形は取らない。
-同一 Worker が両ホストに応答するので、パスを選別しないほうが分岐がゼロで済む。
+同一 Worker が両ホストに応答するため、パスは選別せず、分岐をゼロにする。
 選別は「維持すべきパスの列挙」を保守し続ける義務を生み、列挙漏れの形で破れる。
 
 停止時期は定めない。停止できる条件は「旧ホストの appcast を叩くクライアントが
@@ -114,8 +118,8 @@ Custom Domain を追加した後も削除しない。`routes` を書いた時点
 上の指摘は解消されておらず、切り捨てるバージョン範囲を明示したうえで判断として
 引き受ける形になっている。
 
-観測手段は TASK-488.3 で用意した。`events.host` に応答したホストを記録し、
-ダッシュボードの「配布ホストと旧経路」でホスト別の件数を人間とロボットに分けて出す
+観測手段は TASK-488.3 で用意した。`events.host` に応答したホストを記録する。
+ダッシュボードの「配布ホストと旧経路」では、ホスト別の件数を人間とロボットに分けて出す
 （0 件のホストも行として残すので、「まだ 0」と「計測していない」を取り違えない）。
 旧ホストの HTML ページは決定 2 の 301 で送り出すため `visit` にならず、
 `legacy_redirect` として別に数える。詳細は `site/README.md`。
@@ -132,17 +136,18 @@ Custom Domain を追加した後も削除しない。`routes` を書いた時点
 `/download` はリダイレクトしない。LP 由来のダウンロード計測（`source:'lp'`、
 `site/src/routes/public.tsx`）が 301 を挟むことで別ホストの計測へ散るのを避ける。
 
-**この列挙は TASK-496 以降、`site/src/lib/pages.ts` の `SITE_PAGES` から導出する。**
-LP を言語ごとの URL（`/en`・`/en/features`）に分けたことで同じ列挙を必要とする
-場所が 5 つ（ルート登録・この 301・sitemap・hreflang・`og:locale`）になり、
-書き写す形では決定 2 が要求する「列挙漏れが安全側に倒れる」性質より先に、
-列挙そのものが割れるため。`SITE_PAGES` に機械向けの経路（appcast・`/dl/`・
-`/download`）を載せないことが、この導出が決定 2 を守り続ける条件になる。
+LP を言語ごとの URL（`/en`・`/en/features`）に分けた。これにより、列挙を
+必要とする場所が 5 つ（ルート登録・この 301・sitemap・hreflang・`og:locale`）に
+なった。書き写す形では、決定 2 が要求する「列挙漏れが安全側に倒れる」性質より
+先に列挙そのものが割れる。そのため、この列挙は `site/src/lib/pages.ts` の
+`SITE_PAGES` から導出する。**この導出は TASK-496 以降のものである。**
+`SITE_PAGES` に機械向けの経路（appcast・`/dl/`・`/download`）を載せないことが、
+この導出が決定 2 を守り続ける条件になる。
 
 ### 3. アプリ側の appcast URL とリリースの enclosure prefix は新ドメインへ切り替える
 
-`UpdateChannel.feedURLString` と `.github/workflows/release.yml` の
-`download_url_prefix` を `https://befold.degino.com/` 基準へ変更する。
+`UpdateChannel.feedURLString` を `https://befold.degino.com/` 基準へ変更する。
+`.github/workflows/release.yml` の `download_url_prefix` も同じ基準へ変更する。
 
 切り替えの効果は**切り替え後のバージョンを入れたユーザーにのみ**及ぶ。既存ユーザーの
 アクセスは旧ホストへ永続的に残る。それでも切り替える理由は可搬性である。独自ドメインは
@@ -155,17 +160,17 @@ DNS で向き先を差し替えられるが、`*.workers.dev` は Cloudflare ア
 `staging.befold.degino.com` を staging Worker の Custom Domain とする
 （workers.dev も 1 と同じ理由で残す）。
 
-staging の存在意義は「本番にしか存在しない条件を本番の前に踏むこと」であり、
-その理由は設定ファイルに明記されている（`site/wrangler.toml:35-48`）。Custom Domain と
-Access という**本番でだけ効く経路**を staging が持たないと、その意義が本番移行の
-当日だけ空白になる。
+staging の存在意義は「本番にしか存在しない条件を本番の前に踏むこと」である。
+その理由は設定ファイルに明記されている（`site/wrangler.toml` の staging 設定の
+コメント）。Custom Domain と Access という**本番でだけ効く経路**を staging が
+持たないと、その意義が本番移行の当日だけ空白になる。
 
 ### 5. ダッシュボードは Cloudflare Access へ移し、旧ホストでは 404 にする
 
 - 新ドメインの `/dashboard` と `/dashboard/*` を Access の self-hosted アプリケーションで
   保護する。ワイルドカードは親パスを含まないため、**2 本の指定が必要**。
 - Worker 側は Access の JWT（`Cf-Access-Jwt-Assertion`）を検証する。Access を張っても
-  Worker が素通しでは、経路を迂回された場合に無防備になる。
+  Worker が素通しでは、経路を迂回されると無防備になる。
 - **旧ホストの `/dashboard` は 404 を返す。** workers.dev にも Access はかけられるが、
   保護面を 2 つ持つと片方だけ設定が抜ける形で破れる。ダッシュボードは新ドメイン専用とし、
   保護面を 1 つに畳む。
@@ -183,26 +188,25 @@ Access という**本番でだけ効く経路**を staging が持たないと、
 ホスト名リテラルがコード中に散ると、次にホストが増えたときに片側だけ直る。
 
 **ダウンロード先の定数（`site/src/views/shared.tsx`）は相対パス `/download` にする。**
-（実装では `DOWNLOAD_URL` を `DOWNLOAD_PATH` に改名した。）
-当初この節は「正規オリジンの定数から組む」と書いていたが、これは誤りだったので
-訂正する。使用箇所は 5 つで、4 つは `<a href>`（`site/src/views/landing.tsx`、
-`site/src/views/features.tsx`）、1 つは JSON-LD の `downloadUrl`
-（`site/src/views/landing.tsx`）。`<a href="/download">` はブラウザが表示中の文書の
-オリジンに対して解決するため、相対パスにするだけで「開いたホストの `/download`」に
-なる。正規オリジンの定数から組むと、staging の LP のダウンロードボタンが本番を指し、
-staging で download 経路と `source:'lp'` の計測を確かめられなくなる。これは
-staging の存在意義（`site/wrangler.toml:35-48`）と衝突する。
+実装では `DOWNLOAD_URL` を `DOWNLOAD_PATH` に改名した。使用箇所は 5 つある。
+4 つは `<a href>`（`site/src/views/landing.tsx`、`site/src/views/features.tsx`）である。
+残り 1 つは JSON-LD の `downloadUrl`（`site/src/views/landing.tsx`）である。
+`<a href="/download">` はブラウザが表示中の文書のオリジンに対して解決するため、
+相対パスにするだけで「開いたホストの `/download`」になる。正規オリジンの定数から
+組むと、staging の LP のダウンロードボタンが本番を指し、staging で download 経路と
+`source:'lp'` の計測を確かめられなくなる。これは staging の存在意義
+（`site/wrangler.toml` の staging 設定のコメント）と衝突するため採らない。
 
-この節の理由は「ホスト名リテラルを散らさない」ことであり、相対パスはリテラルを
-1 つも残さないのでその理由をより強く満たす。ホスト判定の分岐を新設する案は
-採らない（述語を増やさずに同じ結果が得られる）。絶対 URL が要る JSON-LD だけは、
-canonical・og:url・sitemap と同じくリクエスト origin から組む。
+理由は「ホスト名リテラルを散らさない」ことで、相対パスはリテラルを 1 つも残さない
+ためこの理由を最も強く満たす。ホスト判定の分岐を新設する案も採らない（述語を増やさず
+同じ結果が得られる）。絶対 URL が要る JSON-LD だけは、canonical・og:url・sitemap と
+同じくリクエスト origin から組む。
 
 ## Consequences
 
 ### 得るもの
 
-- 配布 URL がアカウント名を含まない形（`befold.degino.com`）になり、将来の移設で
+- 配布 URL がアカウント名を含まない形（`befold.degino.com`）になり、将来の移設が
   DNS の向き先変更だけで済む。
 - ダッシュボードが Access の認証（SSO・多要素・デバイス条件）で保護され、
   共有パスワードの管理が不要になる。
@@ -232,12 +236,17 @@ canonical・og:url・sitemap と同じくリクエスト origin から組む。
 
 決定は文章だけでは守られないため、次を実装側に用意する。
 
-| 決定 | 担保 |
-|---|---|
-| 1（旧ホスト維持） | `site/wrangler.toml` に `workers_dev = true` が残ることを検査する。`routes` を足したデプロイで消えるのが既定挙動のため、設定の存在をテストで固定する |
-| 2（肯定列挙のリダイレクト） | 旧ホストの `/appcast.xml`・`/appcast-develop.xml`・`/dl/<tag>/<file>` が 200 を返す（301 ではない）ことのテスト |
-| 5（保護面は 1 つ） | 旧ホストの `/dashboard` が 404 を返すテスト。Access JWT 未提示で新ドメインの `/dashboard` が通らないことの実測 |
-| 6（自己ホスト集合） | `resolveReferrer` の引数型を集合にする（単一文字列を渡せない形にし、呼び出し側がリクエストホストを渡す旧実装へ戻れないようにする）。新旧ホスト間の遷移が `null` になるテスト |
+- **決定 1（旧ホスト維持）**: `site/wrangler.toml` に `workers_dev = true` が残ることを
+  検査する。`routes` を足したデプロイで消えるのが既定挙動のため、設定の存在を
+  テストで固定する。
+- **決定 2（肯定列挙のリダイレクト）**: 旧ホストの `/appcast.xml`・
+  `/appcast-develop.xml`・`/dl/<tag>/<file>` が 200 を返す（301 ではない）ことの
+  テスト。
+- **決定 5（保護面は 1 つ）**: 旧ホストの `/dashboard` が 404 を返すテスト。
+  Access JWT 未提示で新ドメインの `/dashboard` が通らないことの実測。
+- **決定 6（自己ホスト集合）**: `resolveReferrer` の引数型を集合にする（単一文字列を
+  渡せない形にし、呼び出し側がリクエストホストを渡す旧実装へ戻れないようにする）。
+  新旧ホスト間の遷移が `null` になるテスト。
 
 ## 未確定事項
 

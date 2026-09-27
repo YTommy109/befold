@@ -14,8 +14,8 @@
 1. **暗黙の無効化が消えた**: フォルダー一覧の表示中に印刷・検索・ズームが効かなかったのは、
    `WKWebView` が破棄されて `WebViewProxy.webView`（weak）が nil になるためだった。
    TASK-266 で WebView を常駐させた瞬間にこの「偶然の no-op」が消え、見えていない文書に操作が届くようになった。
-2. **初期値が生成順に依存していた**: `ViewerRenderer.makeWebView` が atDocumentStart のユーザースクリプトに
-   倍率を焼き込むため、`makeNSView` が `store.openFile` より前に走るようになった途端、
+2. **初期値が生成順に依存していた**: `ViewerRenderer.makeWebView` が atDocumentStart の
+   ユーザースクリプトへ倍率を焼き込む。`makeNSView` が `store.openFile` より先に走り始めた途端、
    ウィンドウを開いた最初のファイルの保存倍率が失われた（TASK-270）。
 3. **フォーカスとアクセシビリティが生存期間で決まっていた**: WebView が破棄されることで AppKit が
    ファーストレスポンダを付け替えていた。常駐させると、不可視の文書にキー入力と VoiceOver が届く（TASK-271）。
@@ -26,34 +26,49 @@
 
 同じ概念の真実の源が複数ある。
 
-| 概念 | 箇所数 | 実体 |
-|---|---|---|
-| いま表示している対象 | 5 | `ViewerStore.currentURL` / `ViewerStore.filePath` / `FileListModel.selection` / `window.representedURL` / `PreviewTargetResolver` の導出結果 |
-| 倍率 | 4 | `ZoomStore`（永続） / `WKWebView.pageZoom`（直接 HTML 時） / viewer.js 内部変数 / `ViewerRenderer.initialPageZoom`・`pendingPageZoom` |
-| ソース表示モード | 3 | `ViewerStore.isSourceMode`（実行時） / `SourceModeStore`（永続） / ツールバーの `selectedSegment` |
+| 概念 | 箇所数 |
+|---|---|
+| いま表示している対象 | 5 |
+| 倍率 | 4 |
+| ソース表示モード | 3 |
+| 直接 HTML モード | 2 |
+
+実体は次のとおり。
+
+- **いま表示している対象**: `ViewerStore.currentURL` / `ViewerStore.filePath` /
+  `FileListModel.selection` / `window.representedURL` / `PreviewTargetResolver` の導出結果
+- **倍率**: `ZoomStore`（永続） / `WKWebView.pageZoom`（直接 HTML 時） / viewer.js 内部変数 /
+  `ViewerRenderer.initialPageZoom`・`pendingPageZoom`
+- **ソース表示モード**: `ViewerStore.isSourceMode`（実行時） / `SourceModeStore`（永続） /
+  ツールバーの `selectedSegment`
+- **直接 HTML モード**: `ViewerRenderer.isDirectHTMLMode` / `WebViewProxy.isDirectHTMLMode`
 
 > 補記（TASK-356）: 表示モードは `ViewerStore.displayMode`（`ViewerDisplayMode` の 1 値）と
 > 保存値の 1 ストア（当時は `DisplayModeStore`、現在は `WindowPresentationMemory`）に
 > 集約し、ツールバーの選択位置はそこから導出する形へ整理した。
 > 差分の ON/OFF を別の Bool で持たないため、「レンダリング表示なのに差分だけ ON」という
 > 不整合は状態として作れない。
-| 直接 HTML モード | 2 | `ViewerRenderer.isDirectHTMLMode` / `WebViewProxy.isDirectHTMLMode` |
 
-実行可否の判断も分散している。`ViewerWindowController.validateMenuItem` と
-`DocumentCommandController` の各メソッドが同じ条件を二重に書いており、さらに
-**`validateMenuItem` を通らないコマンド経路が 4 本ある**（ツールバーの view ベース項目、
-オーバーフロー（»）メニュー、サイドバーの `onKeyPress`、ツールバーのフィルタ／ソート／隠しファイル）。
+実行可否の判断も分散している。同じ条件を `ViewerWindowController.validateMenuItem` と
+`DocumentCommandController` の双方に書いている。さらに
+**`validateMenuItem` を通らないコマンド経路が 4 本ある**。対象は次のとおり。
+
+- ツールバーの view ベース項目
+- オーバーフロー（»）メニュー
+- サイドバーの `onKeyPress`
+- ツールバーのフィルタ／ソート／隠しファイル
+
 TASK-266 で追加した `canOperateOnVisibleDocument` は validate 側にしか無いため、この 4 本は素通りする。
 
-「まだ分からない」を表す値が無いことによる実害も確認した。`PreviewTargetResolver.resolve` は
-選択が一覧に無い場合に `.folder(currentDirectory)` を返す。ウィンドウ生成直後は `entries` が空なので、
+「まだ分からない」を表す値が無いことによる実害も確認した。`PreviewTargetResolver.resolve` は、
+選択が一覧に無ければ `.folder(currentDirectory)` を返す。ウィンドウ生成直後は `entries` が空なので、
 一覧が届くまで「フォルダーを提示している」と判定され、印刷・検索・ズームがメニュー上で無効になる。
 ネットワークボリューム上では体感できる長さになる。
 
 テストの空白も同じ根に由来する。ウィンドウ系テストは `makeContentView: placeholderViewerContent`
-（`AnyView(Color.clear)`）を注入するため `webViewProxy.webView` は常に nil であり、
-`DocumentCommandController.evaluate` の `guard let webView else { return }` によって、
-JS 契約のズレも呼び出し順の変更も「no-op が正常」として通過する。
+（`AnyView(Color.clear)`）を注入する。そのため `webViewProxy.webView` は常に nil である。
+`DocumentCommandController.evaluate` の `guard let webView else { return }` は、
+これを早期 return させる。JS 契約のズレも呼び出し順の変更も、この no-op に隠れて通過する。
 
 ### 外部の定石（調査結果）
 
@@ -73,22 +88,22 @@ JS 契約のズレも呼び出し順の変更も「no-op が正常」として�
   （[Embrace](https://embrace.io/blog/wkwebview-memory-leaks/)）。
   可視でない間は仕事を止め、可視化時に 1 回だけ適用するのが Apple のガイドライン
   （[Work When Visible](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/power_efficiency_guidelines_osx/WorkWhenVisible.html)）。
-- 「不可能な状態を表現できなくする」型設計（bool の束を enum に畳む）が、
-  能力を参照の nil 判定から導出することを構造的に防ぐ
+- 「不可能な状態を表現できなくする」型設計（bool の束を enum に畳む）がある。
+  能力を参照の nil 判定から導出させない
   （[Make Impossible States Impossible](https://kentcdodds.com/blog/make-impossible-states-impossible)）。
 
 ## Decision
 
-**「いま何を提示しているか」を 1 つの値（enum）で持ち、「いま何ができるか」をそこから導出する層を設ける。**
+**「いま何を提示しているか」を 1 つの値（enum）で持つ。** 「いま何ができるか」はそこから導出する層を設ける。
 ビューの生存期間・weak 参照の nil・`makeNSView` の呼ばれ方に、状態・能力・初期値を委ねない。
 
 具体的には次の 4 点を規約とする。
 
-1. **提示状態は 1 つの値**: 表示対象は `ViewerSession`（仮称。実装では `PreviewTarget`）の enum で表し、
+1. **提示状態は 1 つの値**: 表示対象は `ViewerSession`（仮称。実装では `PreviewTarget`）の enum で表す。
    「まだ分からない（一覧取得前）」を独立した case として持つ。
    `FileListModel.selection` や `window.representedURL` はその投影であり、独立した真実にしない。
 2. **能力は状態から導出する**: `canPrint` / `canFind` / `canZoom` / `canToggleSource` などを
-   提示状態から導出する 1 つの関数に集約し、`validateMenuItem`・ツールバー・コマンド実行の
+   提示状態から導出する 1 つの関数に集約する。`validateMenuItem`・ツールバー・コマンド実行の
    すべてがそこだけを見る。WebView 参照の nil 判定を能力の根拠にしない。
    `validateMenuItem` を通らない経路（ツールバー・オーバーフロー・`onKeyPress`）も同じ関数を通す。
 3. **representable は投影に徹する**: `makeNSView` は器を作るだけとし、倍率・フォント等の設定は
@@ -97,23 +112,23 @@ JS 契約のズレも呼び出し順の変更も「no-op が正常」として�
    その adapter とする。WebView の寿命（作り直す／使い回す／プールする）と可視時の抑止は、
    状態の設計と切り離してこの内側で選ぶ。
 
-**フレームワーク（TCA 等）は導入しない。** 上記 1〜4 はライブラリ無しで実現でき、
+**フレームワーク（TCA 等）は導入しない。** 上記 1〜4 はライブラリ無しで実現できる。
 1 人開発の規模では学習・移行コストが恩恵を上回ると判断する
 （[Point-Free FAQ](https://www.pointfree.co/blog/posts/141-composable-architecture-frequently-asked-questions) 自身が
 「素の SwiftUI で始めて必要になったら移行してよい」としている）。
 ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持し、本 ADR はその内側の状態設計だけを扱う。
 
-## 表示モードの遷移仕様
+### 表示モードの遷移仕様
 
 <!-- derived-from #decision -->
 
 規約 2（能力は状態から導出する）を表示モード `ViewerDisplayMode` に適用した結果の仕様。
 `feat/preview_mode` のレビュー指摘 10 件中 4 件（TASK-368〜371）は、
-「モード × ファイル種別 × 入口」ごとの期待挙動が明文化されておらず、
-遷移・永続化・no-op がコードの成り行きで決まっていたことに起因した。
+「モード × ファイル種別 × 入口」ごとの期待挙動が明文化されていなかった。
+遷移・永続化・no-op がコードの成り行きで決まっていたことに起因する。
 以降の変更はこの節を基準に突き合わせる。
 
-### 用語
+#### 用語
 
 - **保存値** = `ViewerStore.displayMode`（`WindowPresentationMemory` が窓の生存期間だけ
   記憶する値。TASK-565 で永続化をやめた）
@@ -122,10 +137,10 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
   `.code` ファイルは「保存値 `.rendered` / 実表示 `.source`」という状態を常に取る。
 
 **判定はすべて実表示に対して行う。** 保存値と実表示の食い違いを無視して保存値だけで
-遷移を決めると、`.code` で「既にソース表示なのに rendered→source の完全遷移が走る」
+決めると、`.code` で「既にソース表示なのに rendered→source の遷移が走る」
 （TASK-368）。
 
-### 選択可能なモード（ファイル種別 × 能力）
+#### 選択可能なモード（ファイル種別 × 能力）
 
 能力は `ViewerCapabilities` が状態から導出する。いずれも `onDocument`
 （文書を提示中かつ拒否されていない）を前提とする。
@@ -138,11 +153,11 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
 | `.image` / `.pdf` | ○ | ×（バイナリ） | × | × |
 
 `.diff` の列は `canSelectDiffMode`（`onDocument && !isBinaryContent && supportsDiffDisplay`）
-であって、フィーチャーゲートを含まない。**ゲートは能力ではなく入口（メニュー項目・
+である。フィーチャーゲートを含まない。**ゲートは能力ではなく入口（メニュー項目・
 セグメント）を消すことで効かせる。** 能力側にゲートを混ぜると、能力の意味が
 「この文書に対して成立するか」から「いま押せるか」へずれる。
 
-### 遷移表
+#### 遷移表
 
 各入口が「どのモードへ遷移するか」「保存値へ書くか」。
 
@@ -159,9 +174,12 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
 | ファイル切替 | 切替先の保存値を降格規則に通した値 | しない | |
 | リネーム | **いま表示中のモード**を降格規則に通した値 | しない | 保存値ではない（TASK-369） |
 
-**降格規則**（`ViewerDisplayMode.supported(for:)` の 1 箇所に置く）:
-`.rendered` はそのまま、`.source` は `supportsSourceMode` でなければ `.rendered`、
-`.diff` は差分対応かつゲート ON でなければ `.source`（`.code` 以外）または `.rendered`。
+**降格規則**（`ViewerDisplayMode.supported(for:)` の 1 箇所に置く）は次のとおり。
+
+- `.rendered` はそのまま
+- `.source` は `supportsSourceMode` でなければ `.rendered`
+- `.diff` は差分対応かつゲート ON でなければ `.source`（`.code` 以外）または `.rendered`
+
 **降格しても保存値は書き換えない。** 対応する種別のファイルへ戻れば元のモードが復帰する。
 
 リネームで保存値を再適用すると、永続化されていないライブなモード
@@ -173,9 +191,9 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
 記憶し、戻るときに使う。これが無いと `.diff` → cmd+U → cmd+U で `.source` に落ち、
 保存値の `.diff` も上書きで失われる（TASK-370）。記憶はソース系モードへ入る
 すべての経路で破棄する。記憶自体はウィンドウごとのライブな状態であり、
-永続化も同期もしない。
+永続化はせず、同期もしない。
 
-### 永続化規則
+#### 永続化規則
 
 **保存値へ書くのは明示的なユーザーのモード選択だけ**（`setDisplayMode` の 1 経路）。
 次はいずれも書かない。
@@ -186,7 +204,7 @@ ADR 0001 の決定（AppKit がライフサイクルを所有する）は維持�
   パース段階でエラーにするため、対象の文書が無いまま保存値へ届く経路は存在しない）
 - no-op と判定された選択（次項）
 
-### no-op 規則
+#### no-op 規則
 
 `setDisplayMode` は次のいずれかで、副作用を一切起こさず早期 return する。
 スクロール位置の退避・永続化・差分の再取得をまとめて行わない。
@@ -199,15 +217,14 @@ CLI `--source`）はすべて no-op になる。`.code` は既に実表示が `.
 遷移を走らせるとスクロール位置が別のキーへ退避されて先頭へ飛び、
 意味のない `.source` が保存値に書かれる（TASK-368）。
 
-### 複数ウィンドウでの扱い
+#### 複数ウィンドウでの扱い
 
-**同一ファイルを開いている 2 つのウィンドウは、それぞれ別の表示モードを示してよい。**
+**同一ファイルを開く 2 つのウィンドウは、それぞれ別の表示モードを示してよい。**
 表示モードは次節「状態の所在」の**文書の状態**にあたり、窓が生きている間は
 その窓のライブ値が有効で、窓間の同期は行わない。
 
 TASK-371 では逆に「すべての窓が同じ表示モードを示す」を不変条件として同期を実装したが、
 TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「トリップワイヤの評価」節に記す。
-**実装（`mirrorDisplayMode` とデリゲート通知の撤去）は TASK-388 で完了している。**
 
 適用の細部:
 
@@ -218,7 +235,7 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
   「次にその文書を提示し始めるときの既定値」であって、開いている窓へ後から効く値ではない。
   この粒度のまま、読み直しの契機を絞ることで 2 窓の競合が消える。
 
-## 状態の所在（アプリの好み / 文書の状態 / 窓の状態）
+### 状態の所在（アプリの好み / 文書の状態 / 窓の状態）
 
 <!-- derived-from #複数ウィンドウでの扱い -->
 
@@ -227,7 +244,7 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 **新しい状態を足すとき・既存の状態の持ち方を変えるときは、まずこの 3 分類の
 どれに当たるかを決める。**
 
-### 分類を決める問い
+#### 分類を決める問い
 
 順に問う。最初に当たったところで決める。
 
@@ -253,15 +270,27 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 （**2 分類のどちらにも収まらない状態が現れたとき**）の発火にあたる。
 決定（規約 1〜4）は変えず、分類だけを 3 つに引き直す。
 
-### 3 分類
+#### 3 分類
 
-| 分類 | 判定 | 持ち方 | 例 |
-|---|---|---|---|
-| **文書の状態** | その文書をどう読んでいるかの現在値。窓ごとに違ってよい | **窓が生きている間はその窓のライブ値**が有効。ファイル単位の保存値は「次にその文書を提示し始めるときの既定値」で、提示の開始時にだけ読む。窓間の同期はしない。**保存値の寿命は状態ごとに違う**——内容に依存しない意図（倍率）は `UserDefaults` へ永続化し、内容・ウィンドウ幅・倍率に依存して意味を失う値（スクロール位置・表示モード）は窓の生存期間だけ記憶する（TASK-565） | ズーム倍率（`ZoomStore`／永続）、表示モードとスクロール位置（`WindowPresentationMemory`／窓の生存期間だけ）、行番号表示（`ViewerStore.showLineNumbers` + アプリ全体の既定値）、cmd+U の戻り先、戻る/進む履歴 |
-| **窓の状態** | その窓で何をどう眺めているかの現在値。文書には紐づかないが、窓ごとに違ってよい | **窓が生きている間はその窓のライブ値**が有効。アプリ全体の保存値は「次に開く窓の初期値」で、窓の生成時にだけ読む。窓間の同期はしない | サイドバーの表示形式（`layoutMode`）・不可視ファイル表示（`showHiddenFiles`）・変更ファイルのみ表示（`showChangedFilesOnly`）・並び順（`sortOrder`）（`SidebarDisplayPreference`） |
-| **アプリの好み** | どのファイルをどの窓で見ているかに依らない設定。窓ごとに違うと「なぜこの窓だけ違うのか」を説明できない | アプリ全体で 1 インスタンスを生成して全ウィンドウへ注入し、変更は即座に全窓へ反映する | 差分レイアウト（`DiffDisplayPreference`）、検索オプション（`FindOptionsPreference`）、コードフォント（`CodeFontPreference`） |
+| 分類 | 判定 |
+|---|---|
+| **文書の状態** | その文書をどう読んでいるかの現在値。窓ごとに違ってよい |
+| **窓の状態** | その窓で何をどう眺めているかの現在値。文書には紐づかないが、窓ごとに違ってよい |
+| **アプリの好み** | どのファイルをどの窓で見ているかに依らない設定。窓ごとに違うと「なぜこの窓だけ違うのか」を説明できない |
 
-### 文書の状態の規則
+いずれも「窓が生きている間はその窓のライブ値が有効で、窓間の同期はしない」までは共通する。
+差は保存値の扱い（ファイル単位か、次に開く窓の初期値のみか、全窓で 1 インスタンスか）にある。
+持ち方の詳細と具体例は次の各節に記す。
+
+#### 文書の状態の規則
+
+ズーム倍率（`ZoomStore`）・表示モードとスクロール位置（`WindowPresentationMemory`）は
+この分類にあたる。行番号表示（`ViewerStore.showLineNumbers` + アプリ全体の既定値）・
+cmd+U の戻り先・戻る/進む履歴も同じ分類である。
+
+**保存値の寿命は状態ごとに違う**（TASK-565）。内容に依存しない意図（倍率）は
+`UserDefaults` へ永続化する。内容・ウィンドウ幅・倍率に依存して意味を失う値
+（スクロール位置・表示モード）は、窓の生存期間だけ記憶する。
 
 1. **保存値を読むのは、窓がその文書を提示し始めるときだけ**（オープン・ファイル切替・
    モード切替の 3 契機）。生きている窓が保存値を読み直すと、他窓の操作が後から効いてしまう。
@@ -270,11 +299,16 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
    ここでは読まずライブ値を引き継ぐ（TASK-369。読み直すとリネーム前の保存値へ
    巻き戻る）。モード切替はスクロール位置のキーが `(パス, モード)` 粒度である以上、
    切替先モードのキーからの読み込みが必要なので契機に含める。
+   この 3 契機の読み込みは `ViewerWindowController.beginPresentingDocument`
+   （オープン・ファイル切替）と `setDisplayMode`（モード切替）の 2 メソッドに閉じ、
+   2 メソッドは `ViewerDocumentPresenter` にあり internal なので、`private` による構造的な担保は無い。
+   代わりに `ViewerWindowPresentationEntryPointTests` が呼び出し元の個数をソース走査で固定しており、
+   提示開始の契機を増やす変更はこの規則を先に更新しない限りテストが落ちる。
 2. **保存値へ書くのは明示的なユーザー操作だけ。** 後勝ちでよい。保存値の意味は
    「最後にその文書をどう読んでいたか」であり、次に開くときの出発点にすぎない。
 3. **窓を閉じるとライブ値は消える。** 窓ごとの値を永続化はしない。
 4. **窓間の同期はしない。** 同じファイルを 2 窓で別々の倍率・位置・モードで読むのは
-   食い違いではなく正常な使い方である。
+   食い違いではなく正常な使い方である。同期を戻すと `ViewerWindowStateIndependenceTests` が落ちる。
 
 **引き受けた妥協**: アプリを終了して再起動すると、同じファイルを開いていた複数の窓は
 同じ値（ファイル単位の保存値）で復元される。窓ごとの復元には窓の識別子が要るが、
@@ -287,7 +321,7 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
 永続化をやめたため、再起動後はどの窓も初期状態（先頭・レンダリング表示）から始まり、
 「複数窓が同じ値へ収束する」という現象自体が起きない。
 
-### 窓の状態の規則
+#### 窓の状態の規則
 
 サイドバーの表示設定 4 値（`layoutMode` / `showHiddenFiles` / `showChangedFilesOnly` /
 `sortOrder`）がこの分類にあたる。ユーザーが ⌃⌘T などで表示形式を切り替えたとき、
@@ -301,8 +335,8 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
    「次に窓を開くときの既定値」= `FileListEntry.swift` の doc コメント）。
    残る 3 値もこれに揃える。
 2. **永続化された app-global の値は、新規ウィンドウの初期値としてのみ使う。**
-   既存キー（`SidebarLayoutMode` / `ShowHiddenFiles` / `ShowChangedFilesOnly` /
-   `SidebarSortOrder`）はそのまま残すが、意味は
+   既存キーはそのまま残す（`SidebarLayoutMode` / `ShowHiddenFiles` /
+   `ShowChangedFilesOnly` / `SidebarSortOrder`）。意味だけが
    「全ウィンドウの現在値」から「次に開く窓の初期値」へ変わる。
    読むのは窓の生成時の 1 回だけで、生きている窓は読み直さない
    （読み直すと他窓の操作が後から効く。これは「文書の状態の規則 1」と同じ理由）。
@@ -320,35 +354,17 @@ TASK-382 の再検討でこの決定を差し替えた。経緯と根拠は「�
    アイコンボタン、CLI の `--hidden-files` / `--no-hidden-files` は、
    いずれも対象の窓 1 つを解決してからその窓の値を変える。
 
-### アプリの好みの規則
+#### アプリの好みの規則
+
+差分レイアウト（`DiffDisplayPreference`）・検索オプション（`FindOptionsPreference`）・
+コードフォント（`CodeFontPreference`）がこの分類にあたる。
 
 - **「アプリ全体で 1 インスタンス」は、既定値のないイニシャライザで構造的に守る。**
-  既定値があると渡し忘れがコンパイルエラーにならず、静かに窓ごとの別インスタンスへ落ちる
+  既定値があると渡し忘れがコンパイルエラーにならない。結果、静かに窓ごとの別インスタンスへ落ちる
   （実際に 2 窓でトグルが同期しない不具合になった = TASK-319）。
   `DiffDisplayPreference` がこの形。
 - 変更は全窓へ即座に反映する（`refreshAllToolbars` / `refreshAllSidebars` /
   `applyCodeFontToAllWindows`）。ここは「同期」ではなく、1 つの値を全員が見ている状態。
-
-### 実装状況（2026-08-29 時点）
-
-`ViewerStore.showLineNumbers`・ズーム倍率・スクロール位置・表示モードのいずれも
-この節の形になっている（TASK-388 で完了）。このうちスクロール位置と表示モードは
-TASK-565 で永続化をやめ、窓が所有する `WindowPresentationMemory`（`UserDefaults` を
-型の依存として持たない）へ移した。読み書きの契機と粒度は変えていない。保存値を読む入口は
-`ViewerWindowController.beginPresentingDocument`（オープン・ファイル切替）と
-`setDisplayMode`（モード切替）に閉じ、表示モードの窓間同期（`mirrorDisplayMode` と
-デリゲート通知）は撤去済み。`ViewerWindowStateIndependenceTests` が、同期を戻すと
-落ちるトリップワイヤになっている。
-
-この 2 つの入口は `ViewerDocumentPresenter` にある（TASK-411 で本体ファイルから拡張へ移し、
-TASK-441 で独立型へ出した）。分割前は同一ファイル内の `private` が「他から呼べないこと」を
-担保していたが、型を分けた時点で internal になり構造的な担保が消えたため、
-`ViewerWindowPresentationEntryPointTests` が**呼び出し元の個数をソース走査で固定**している。
-
-サイドバー表示 4 値の「窓の状態」への移行は TASK-480 で行う。移行後は
-`GlobalDisplayBroadcaster` が `SidebarDisplayPreference` を保持しないことと、
-2 窓のうち一方だけを変更しても他方が変わらないことをテストで固定する。
-提示開始の契機を増やす変更は、この節を先に更新しない限りテストが落ちる。
 
 ## Consequences
 
@@ -367,7 +383,7 @@ TASK-441 で独立型へ出した）。分割前は同一ファイル内の `pri
 - 既存の「真実の源を 1 つにする」規律（例: `ViewerWindowController.fileURL` は `store.currentURL` へ委譲）は
   そのまま維持する。本 ADR はそれを「提示状態」と「能力」という、まだ型を持っていなかった 2 つの概念へ広げるもの。
 - パフォーマンス改善（WebView を使い回す等）は段 4 の内側の選択となり、
-  UI の構造を変えずに試せるようになる。TASK-266 で行った「ビュー階層で寿命を制御する」やり方は、
+  UI の構造を保ったまま試せるようになる。TASK-266 で行った「ビュー階層で寿命を制御する」やり方は、
   段 4 到達後に port の内側の実装へ移す。
 - この決定を再検討するトリップワイヤ:
   1. 段 1〜3 を終えても同種の回帰（提示していない対象への書き込み）が再発する
@@ -382,16 +398,30 @@ TASK-441 で独立型へ出した）。分割前は同一ファイル内の `pri
 発火したため、3 本すべての現状を評価し決定を再検討した。**結論は「本 ADR の決定は維持する。
 ただし発火の原因となった『窓間で提示状態を同期する』という要件自体を取り下げる。」**
 
-| # | 判定 | 根拠 |
-|---|---|---|
-| 1 | 前提未成立（段 1・3 が未完のため、まだ問える段階にない） | 段 1: `PreviewTarget` に `.undetermined` が入り起動直後の誤無効化は解消したが、対象の格納は `ViewerStore.currentURL` / `filePath` と `FileListModel.selection` の 2 系統が残り、`window.representedURL` は手動同期。段 3: 初期値（倍率・フォント・検索オプション）が `makeNSView` → atDocumentStart のユーザースクリプトに残っている |
-| 2 | 未発火 | 表示モードの遷移は `setDisplayMode` / `mirrorDisplayMode` / `applyDisplayMode` / `supportedDisplayMode` / `effectiveDisplayMode` の 5 つに閉じ、降格規則は `ViewerDisplayMode.supported(for:)` の 1 箇所。上記「表示モードの遷移仕様」の表で全入口を書き下せている |
-| 3 | **発火済み** | `ViewerWindowController.setDisplayMode` 完了時のデリゲート通知 → `ViewerWindowManager.mirrorDisplayMode` → パスキー引き、という窓間同期の経路が実装された |
+| # | 判定 |
+|---|---|
+| 1 | 前提未成立（段 1・3 が未完のため、まだ問える段階にない） |
+| 2 | 未発火 |
+| 3 | **発火済み** |
+
+根拠は次のとおり。
+
+- **1**: 段 1 は `PreviewTarget` に `.undetermined` が入り、起動直後の誤無効化を解消した。
+  ただし対象の格納は `ViewerStore.currentURL` / `filePath` と `FileListModel.selection` の
+  2 系統が残る。`window.representedURL` は手動同期のままである。段 3 は初期値
+  （倍率・フォント・検索オプション）が `makeNSView` → atDocumentStart の
+  ユーザースクリプトに残っている。
+- **2**: 表示モードの遷移は次の 5 メソッドに閉じる: `setDisplayMode` / `mirrorDisplayMode` /
+  `applyDisplayMode` / `supportedDisplayMode` / `effectiveDisplayMode`。
+  降格規則は `ViewerDisplayMode.supported(for:)` の 1 箇所である。
+  上記「表示モードの遷移仕様」の表で全入口を書き下せている。
+- **3**: `ViewerWindowController.setDisplayMode` 完了時のデリゲート通知 →
+  `ViewerWindowManager.mirrorDisplayMode` → パスキー引き、という窓間同期の経路が実装された。
 
 段 2・4・5 は実装済み（`ViewerCapabilities` / `DocumentRendering` port と WKWebView adapter /
 可視性による更新抑止）。段 2 が名指しした「`validateMenuItem` を通らない 4 経路」は、
-オーバーフローメニューの実行側自前ガードとツールバーの `capabilities` 参照で解消したか、
-文書の能力を必要としない経路（サイドバーのナビゲーション、一覧のスコープ設定）として
+オーバーフローメニューの実行側自前ガードとツールバーの `capabilities` 参照で解消した。
+残りは文書の能力を必要としない経路（サイドバーのナビゲーション、一覧のスコープ設定）として
 対象外になった。
 
 **要件を取り下げた理由**: 再検討の過程で、窓間で揃えるべき状態とそうでない状態の線引きが
@@ -407,8 +437,8 @@ TASK-371 が採用した「同一ファイルの全窓は同じ表示モード�
 まとめて不要になる。
 
 **本 ADR の決定（規約 1〜4）はこの変更の影響を受けない。** 提示状態を 1 つの値で持ち
-能力をそこから導出するという設計は、その値が窓ごとであっても全窓共有であっても成立する。
-リデューサ的な枠組み（トリップワイヤ 2）を必要とする分岐の増加も観測されていない。
+能力をそこから導出するという設計は、窓ごとの値・全窓共有の値のどちらでも成立する。
+リデューサ的な枠組み（トリップワイヤ 2）を必要とする分岐の増加も見られない。
 したがってフレームワークは引き続き導入しない。
 
 **取り下げの帰結**: TASK-371 で実装した `mirrorDisplayMode` とデリゲート通知は
@@ -419,13 +449,13 @@ TASK-388 で撤去済み。ADR 側の記述（この節と「複数ウィンド�
 
 1. （変更なし）段 1〜3 を終えても同種の回帰が再発する
 2. （変更なし）状態遷移の分岐が手書きで追えない規模になる
-3. 差し替え。**窓ごとの状態を永続化するために窓の識別子が必要になったとき**
+3. 差し替え。**窓ごとの状態を永続化するのに窓の識別子が要るとき**
    （「状態の所在」節で引き受けた妥協——アプリ再起動時に同一ファイルの複数窓が
    同じ値へ収束すること——を許容できなくなったとき）、または
-   **2 分類のどちらにも収まらない状態が現れたとき**
+   **2 分類のどちらにも収まらない状態が現れたとき**。
 
-**3 の後段は 2026-08-14（TASK-480）に発火した。** サイドバーの表示設定 4 値が
-「ファイルには紐づかないが窓ごとに違ってよい」状態であり、当時の 2 分類の
+**3 の後段は 2026-08-14（TASK-480）に発火した。** サイドバーの表示設定 4 値は
+「ファイルには紐づかないが窓ごとに違ってよい」状態である。当時の 2 分類の
 どちらにも収まっていなかった。対処として分類へ**窓の状態**を足し、決定
 （規約 1〜4）は維持した。再発火の条件は「3 分類のどれにも収まらない状態が
 現れたとき」へ引き直す。

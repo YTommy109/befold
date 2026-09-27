@@ -8,21 +8,21 @@
 
 ## Context
 
-befold の git 連携（サイドバーのステータスバッジ、差分表示、Quick Open の追跡ファイル索引、
-worktree 一覧）は、すべて外部 git バイナリの実行で実装されている。
-`GitCommandRunner.run` が `/usr/bin/git` を `Process` で起動し、その出力を Swift 側で
-パースする形である（`BefoldApp/befold/App/` にあった `GitCommandRunner`。本 ADR の
-移行完了に伴い TASK-435.5 で撤去済み）。
+### 外部 git バイナリ実行方式と検討漏れ
 
-### この方式は比較検討を経ていない
+befold の git 連携（サイドバーのステータスバッジ、差分表示、Quick Open の追跡ファイル索引、
+worktree 一覧）は、すべて外部 git バイナリの実行で実装されていた。
+`GitCommandRunner.run` が `/usr/bin/git` を `Process` で起動し、その出力を Swift 側で
+パースする形であった。`GitCommandRunner` は `BefoldApp/befold/App/` にあった。
 
 libgit2 / SwiftGit2 / ObjectiveGit といった語は、本リポジトリの docs・backlog・git 履歴の
 いずれにも 1 件も存在しない。導入コミット `358063c`（2026-07-25）にも方式選択の理由の
-記述はなく、事前の計画文書 `docs/superpowers/plans/2026-07-24-clickable-path-resolution.md`
-の時点で既に Process 前提として書かれている。つまり**ライブラリ方式との比較そのものが
-行われていない**。本 ADR はその欠落を埋め、あわせて移行方針を記録する。
+記述はない。事前の計画文書
+`docs/superpowers/plans/2026-07-24-clickable-path-resolution.md`
+の時点で、既に Process 前提として書かれていた。つまり**ライブラリ方式との比較そのものが
+行われていなかった**。本 ADR はその欠落を埋め、あわせて移行方針を記録する。
 
-### 現状の呼び出し全量（すべて読み取り専用）
+### 呼び出し範囲（すべて読み取り専用）
 
 用途を担う関数はファイル・名前ともに移行後もそのまま残っており、中身だけが
 libgit2 呼び出しへ置き換わった。
@@ -43,20 +43,21 @@ libgit2 呼び出しへ置き換わった。
 | 管理外/コミット無しの切り分け | `rev-parse --git-dir` | `GitDiffReader.swift` | `tree(in:revision:)` |
 | 未追跡判定 | `ls-files --error-unmatch -z -- <path>` | `GitDiffReader.swift` | `isTracked(_:in:)` |
 
-commit / add / checkout / fetch は一つも使っていない
-（`GitCommandRunner` の doc コメントに「befold は読み取り専用ビューア」と明記）。
+commit / add / checkout / fetch は一つも使っていない。
+`GitCommandRunner` のドキュメントコメントには
+「befold は読み取り専用ビューア」と明記されていた。
 
-### 現方式のコスト
+### 現方式の運用コスト
 
-`GitCommandRunner`（300 行）の大半は、外部プロセス方式ゆえに必要になった手当てである。
+`GitCommandRunner`（300 行）の大半は、外部プロセス方式ゆえに必要だった手当てである。
 
 - `core.fsmonitor=` / `core.hooksPath=/dev/null` による任意コマンド実行の遮断
 - 環境変数の非継承と `PATH` 固定（TASK-148）
 - タイムアウト時のプロセスグループごとの kill と fd 回収（TASK-155）
-- `DispatchSemaphore` によるブロック待ち（TASK-226 が未解決のまま残っている）
+- `DispatchSemaphore` によるブロック待ち
 
 さらに、依存先はユーザー環境の Xcode Command Line Tools の git であり、
-そのバージョン差・未インストール・`~/.gitconfig` の内容がアプリの挙動に影響しうる。
+そのバージョン差・未インストール・`~/.gitconfig` の内容がアプリの挙動に影響し得た。
 
 ### Mac App Store 配布での決定的な制約
 
@@ -67,6 +68,8 @@ commit / add / checkout / fetch は一つも使っていない
 
 ## Decision
 
+### バインディングの評価順
+
 git 連携をライブラリ実装へ移行する。バインディングは次の順で評価する。
 
 1. **SwiftGitX**（2025-12 / v0.4.0 / tools-version 6.0 / libgit2 1.9.2 pin）
@@ -76,8 +79,10 @@ git 連携をライブラリ実装へ移行する。バインディングは次�
    — SwiftGitX で必要な API が塞げない場合の本命。SwiftGitX は libgit2 の薄いラッパ
    であるため、後から直接方式へ降りるコストは小さい。
 
-**SwiftGit2 は採用しない。** 最新リリースが 0.6.0（2019-05）、2026 年のコミット 0 件、
-master に `Package.swift` が無く SPM 非対応、approve 済み・CI green の SPM 化 PR #208 が
+### SwiftGit2 は採用しない
+
+最新リリースは 0.6.0（2019-05）で、2026 年のコミットは 0 件である。
+master に `Package.swift` が無く SPM 非対応で、approve 済み・CI green の SPM 化 PR #208 が
 2 年放置されている。Swift 6 strict concurrency を全ターゲットで有効にしている本
 プロジェクトの維持コストに見合わない。pure-Swift の git 実装は存在しない。
 
@@ -87,16 +92,22 @@ master に `Package.swift` が無く SPM 非対応、approve 済み・CI green �
 信頼できる」という見立てが挙がったが、事実は逆である。
 
 - **jujutsu は libgit2 を捨てた側**である。v0.26.0（2025-02-05）で push/fetch を外部 git
-  プロセスへ移し、v0.27.0（2025-03-05）でそれを既定化、**v0.30.0（2025-06-04）で libgit2
-  コードパスを削除**した。現在の git バックエンドは gitoxide（`gix`）。移行理由（issue
-  #5548）は SSH 非対応、パッケージング制約（"libgit2 only supports one version at a
-  time"）、リモート操作の性能、および「jj has outgrown its need to depend on libgit2」。
-- **libgit2 の upstream 追従は実際に遅い。** sparse-checkout は実装 PR #5833 が 2021 年
-  から未マージのまま issue は 12.3 年 open、reftable は main にマージ済みだが v1.9.6
-  時点で未リリース、partial clone は未対応でリポジトリを開くことすらできない、SHA-256 は
-  実験ビルド限定で正式対応は未リリースの v2.0。libgit2 自身も README で "As libgit2 is
-  purely a consumer of the Git system, we have to adjust to changes made upstream" と
-  遅れを認めている。
+  プロセスへ移した。v0.27.0（2025-03-05）でそれを既定化し、**v0.30.0（2025-06-04）で
+  libgit2 コードパスを削除**した。現在の git バックエンドは gitoxide（`gix`）である。
+  移行理由（issue #5548）は次の4点である。
+  - SSH 非対応
+  - パッケージング制約（`libgit2 only supports one version at a time`）
+  - リモート操作の性能
+  - `jj has outgrown its need to depend on libgit2`
+- **libgit2 の upstream 追従は実際に遅い。** 例を挙げる。
+  - sparse-checkout: 実装 PR #5833 が 2021 年から未マージのままで、issue は 12.3 年 open。
+  - reftable: main にマージ済みだが v1.9.6 時点で未リリース。
+  - partial clone: 未対応で、リポジトリを開くことすらできない。
+  - SHA-256: 実験ビルド限定で、正式対応は未リリースの v2.0。
+
+  libgit2 自身も README で
+  `As libgit2 is purely a consumer of the Git system, we have to adjust to
+  changes made upstream` と遅れを認めている。
 - **メンテナ体制は単独依存**。直近 12 か月のコミットの 66% が単一メンテナ。2025 年の
   リリースは実質 2 本。
 - **業界の方向は逆**で、GitKraken は「libgit2 が git の機能追加ペースに追いつけない」
@@ -108,15 +119,18 @@ master に `Package.swift` が無く SPM 非対応、approve 済み・CI green �
 - gitoxide は Rust であり、Swift から使うには FFI 層の自作が必要で libgit2 より重い。
 - 同梱 git バイナリ方式（GitKraken の移行先）は、MAS では子プロセスが PowerBox
   アクセスを継承しないため選べない。
-- 未対応機能のうち sparse-checkout / bundle URI / SHA-256 / LFS、および GitKraken が
-  挙げた LFS・SSH・書き込み操作は、いずれも読み取り専用ビューアの機能に無関係。
+- 未対応機能のうち sparse-checkout / bundle URI / SHA-256 / LFS は、読み取り専用
+  ビューアの機能に無関係。
+- GitKraken が挙げた LFS・SSH・書き込み操作も同様に無関係。
 - macOS ネイティブアプリでの前例（GitFinder, GitUp, Xit, Xcode 内蔵）は libgit2 側にある。
 
-befold に実際に当たるのは **partial clone と reftable の 2 つだけ**であり、これは
+befold で実際に当たるのは **partial clone と reftable の 2 つだけ**であり、これは
 下記のフォールバック方針で扱う。
 
-配布形態は **SPM のソースターゲット**とする（`ibrahimcetin/libgit2` を exact 1.9.2 で
-依存に加え、libgit2 の C ソースを SPM ターゲットとしてビルドする）。
+### 配布形態: SPM ソースターゲット
+
+配布形態は **SPM のソースターゲット**とする。`ibrahimcetin/libgit2` を exact 1.9.2 で
+依存に加え、libgit2 の C ソースを SPM ターゲットとしてビルドする。
 
 <!-- derived-from #consequences -->
 
@@ -128,20 +142,23 @@ befold に実際に当たるのは **partial clone と reftable の 2 つだけ*
 > Xcode の SPM 統合は C ターゲットへ依存パッケージのヘッダ検索パスを自動では通さないため、
 > `project.yml` の `CGitShim` ターゲットへ `HEADER_SEARCH_PATHS` を明示する必要がある。
 
-brew + `.systemLibrary` は dylib パスと
-サンドボックスで破綻する。ライセンス（GPLv2 with linking exception）は
-"the compiled version" に unlimited permission を与えており、静的リンク・
-クローズドソース・MAS 配布のいずれも可能。制約が残るのは libgit2 自体を改変した場合と
-ソース vendoring の場合のみ。macOS では `USE_SSH=OFF` / HTTPS を SecureTransport に
-することで外部依存をシステム zlib だけに絞れる（読み取り専用の befold にはリモート
-通信が不要なため成立する）。
+brew + `.systemLibrary` は dylib パスとサンドボックスで破綻する。
+
+ライセンス（GPLv2 with linking exception）は `the compiled version` に
+unlimited permission を与えている。そのため静的リンク・クローズドソース・
+MAS 配布のいずれも可能である。制約が残るのは、libgit2 自体を改変した場合と
+ソース vendoring の場合のみである。
+
+macOS では `USE_SSH=OFF` / HTTPS を SecureTransport にすることで、外部依存を
+システム zlib だけに絞れる。読み取り専用の befold にはリモート通信が不要な
+ため、この構成が成立する。
 
 ## Consequences
 
 ### 得られるもの
 
 - `GitCommandRunner` の外部プロセス起因の手当て（上記 4 項目）が丸ごと不要になる。
-  TASK-226（async 化）も、subprocess 待ちが消えることで前提から見直せる。
+  非同期化の検討も、subprocess 待ちが消えることで前提から見直せる。
 - ユーザー環境の git バージョンへの依存が切れる。
   起動時に `GIT_OPT_SET_SEARCH_PATH` で config の検索パスを無効化する。
 
@@ -163,34 +180,31 @@ brew + `.systemLibrary` は dylib パスと
   > 実行しないため、その動機は消える。
   > この判断は `GitLibraryTests.disablesOnlySystemConfigSearchPath` と
   > `GitLibraryTests.keepsUserConfigSearchPathsEnabled` が守る。
-- MAS 配布の最大の障害が外れる（残る障害はサンドボックスと CLI。TASK-397 を参照）。
+- MAS 配布の最大の障害が外れる。
 
 ### 失うもの・引き受けるコスト
 
-- **`git status --porcelain=v2` 相当のヘッダは 5 つの別 API から自前構築が必要**になり、
-  porcelain 出力のパーサは書き直しになる（実装後は `GitStatusReader.swift` の
+- **`git status --porcelain=v2` 相当のヘッダは 5 つの別 API から自前構築が必要**になる。
+  porcelain 出力のパーサは書き直しになる。実装後は `GitStatusReader.swift` の
   `status(forRepositoryAt:)` と `collectWorkingTree(...)` が libgit2 の status API から
-  直接組み立てる形になり、テキストのパースそのものが無くなった）。
+  直接組み立てる形になり、テキストのパースそのものが無くなった。
 - **submodule status は status API に出ない**（現状の `.gitmodules` 読みは
   `git_submodule_foreach` でむしろ素直になるが、境界検出のロジックは要再設計）。
 - **`diff.algorithm` / textconv / 外部 diff driver は config ごと無視**される。
   word-diff も無い。現状これらを使う機能はないが、ユーザーの設定が反映されなくなる。
-  （追記: 語単位の差分表示は TASK-528 で入れたが、libgit2 には寄せず
-  `viewer-src/diff-words.ts` が行テキストから求める形にした。本項の結論は変わらない）
-- **partial clone と reftable 形式のリポジトリは開けない**。今後 git の既定が変わると効く
-  （reftable 対応は 2026-08 に libgit2 の main へマージされたが、**未リリース**。
-  本 ADR が固定している 1.9.2 には入っていない）
-  （下記フォールバック方針で扱う）。
+  （TASK-528 で語単位の差分表示を実装したが、libgit2 の diff 機能ではなく
+  `viewer-src/diff-words.ts` が行テキストから求める形にしたため、本項の結論は変わらない）
+- **partial clone と reftable 形式のリポジトリは開けない**。今後 git の既定が変わると効く。
+  reftable 対応は 2026-08 に libgit2 の main へマージされたが、**未リリース**である。
+  本 ADR が固定している 1.9.2 には入っていない（下記フォールバック方針で扱う）。
 - per-worktree config/refs を扱うには **libgit2 v1.8 以上**が必要。
-- ~~直接方式を採る場合、**XCFramework のビルドと更新を自前で回す**ことになる。~~
-  → SPM ソースターゲットへ変更したため解消（上記の追記を参照）。
 
 ### 影響を受けない箇所
 
 差分の生テキストは Swift 側で構造化せず、`BefoldApp/viewer-src/diff-html.ts` の
 `parseUnifiedDiff` が JS 側でパースしている。libgit2 の `git_diff_to_buf` は unified diff
-テキストを出力できるため、**JS 側は無改修で済む見込み**（`-U1000000` 相当が
-`git_diff_options.context_lines` で表現できることの確認が前提）。
+テキストを出力できるため、**JS 側は無改修で済む見込み**である。前提として、
+`-U1000000` 相当が `git_diff_options.context_lines` で表現できることの確認が要る。
 
 > **2026-08-11 追記（実装後）**: 見込みどおり JS 側は無改修。`GitDiffReader.swift` の
 > `diff(in:relativePath:base:)` が `git_diff_options.context_lines` に全文分の値を入れ、
@@ -199,13 +213,15 @@ brew + `.systemLibrary` は dylib パスと
 
 ## Fallback
 
-libgit2 がリポジトリを開けない場合（partial clone、reftable、将来の未知の拡張、
-`extensions.*` の unsupported 判定全般）、**befold は git 機能だけを静かに落とし、
+### 静かな縮退方針と既存経路への合流
+
+libgit2 がリポジトリを開けない場合がある（partial clone、reftable、将来の未知の拡張、
+`extensions.*` の unsupported 判定全般）。その場合、**befold は git 機能だけを静かに落とし、
 通常のビューアとして動作を継続する**。エラーダイアログは出さない。
 
 この縮退は新設ではなく、既存の経路へ合流させる。現状 `GitCommandRunner` は結果を
 `.output` / `.rejected`（実行できたが非 0）/ `.unavailable`（起動不能・タイムアウト）の
-3 値に落としており、呼び出し側は `.unavailable` を「git が使えない環境」として既に
+3 値に落としている。呼び出し側は `.unavailable` を「git が使えない環境」として既に
 処理している。libgit2 でリポジトリを開けなかった場合はこの `.unavailable` 相当へ
 写像する。したがって表示側の分岐は増えない。
 
@@ -217,32 +233,35 @@ libgit2 がリポジトリを開けない場合（partial clone、reftable、将
   （`DirectoryFileScanner` による既存経路がある）
 
 **この方針は「破れたら落ちるもの」で担保する。** 開けないリポジトリを模したフィクスチャ
-（`extensions.partialclone` を設定した `.git/config` 等）を用意し、それを開いたときに
+（`extensions.partialclone` を設定した `.git/config` 等）を用意する。それを開いたときに、
 クラッシュせず・ダイアログを出さず・ビューアとしては通常どおり動くことをテストする。
 実装時に確認しやすいよう `.unavailable` 相当へ写像する箇所は 1 関数に集約する。
+
+### ユーザーへの伝え方
 
 なお、この方針は「git 機能が使えないことをユーザーに一切伝えない」という意味ではない。
 何も伝えないと、操作はできるのに結果が出ない——押しても何も起きないように見える状態が
 残る。**伝え方は TASK-438 で次のとおり確定した**（モーダルでの中断は引き続き取らない）。
 
-- **伝えるのはサイドバーヘッダーの基準ディレクトリ表示 1 箇所だけ。** バナーも注記行も
+- **伝えるのはサイドバーヘッダーの基準ディレクトリ表示 1 箇所だけ。** バナーや注記行は
   足さない。理由は「伝えていない」ことより「誤って伝えている」ことのほうが問題だから。
-  `BaseDirectoryIndicator` はアイコンとツールチップを「git ルートか否か」の二値で決めて
-  おり、扱えないリポジトリは folder アイコン + 「通常フォルダ」になっていた。これは静かな
-  縮退ではなく事実と異なる表示なので、種別を 3 値（git ルート / 通常フォルダ /
-  git リポジトリだが扱えない）にして区別する（TASK-438.1）
+  `BaseDirectoryIndicator` はアイコンとツールチップを「git ルートか否か」の二値で決めていた。
+  扱えないリポジトリは folder アイコン + 「通常フォルダ」になっていた。これは静かな縮退では
+  なく、事実と異なる表示である。そのため種別を 3 値（git ルート / 通常フォルダ /
+  git リポジトリだが扱えない）にして区別する。
 - **失敗理由の種別は出さない。** `GitLibrary.OpenFailure` は partial clone・reftable・
-  未知の `extensions.*` を `.unusable` の 1 値へ意図的に畳んでいる（libgit2 のエラー
-  メッセージは版で変わりうるため見ない）。理由別の文言は型が持っていない情報を騙ることに
-  なる
-- **`.git` の読み取り権限が無い場合は「git 管理外」と区別できない。** `git_repository_open`
-  が `GIT_ENOTFOUND` を返し `.notARepository` へ落ちるため（下記 2026-08-11 追記の 2 点目）、
-  分ける手段が無い。この 1 ケースだけは通常フォルダと同じ表示になる
+  未知の `extensions.*` を区別しない。これらを `.unusable` の 1 値へ意図的に畳んでいる。
+  libgit2 のエラーメッセージは版で変わりうるため見ない。理由別の文言は、型が持っていない
+  情報を騙ることになる。
+- **`.git` の読み取り権限が無い場合は「git 管理外」と区別できない。**
+  `git_repository_open` が `GIT_ENOTFOUND` を返し `.notARepository` へ落ちるため
+  （下記 2026-08-11 追記の 2 点目）、分ける手段が無い。この 1 ケースだけは
+  通常フォルダと同じ表示になる。
 - **差分表示モードの選択不可は実装で担保する。** 上の縮退リストは当初未実装のままだった
   （モードは選べて、取得結果が nil に畳まれ黙って通常のソース表示へ戻っていた）。
   可否は `ViewerCapabilities.canSelectDiffMode` の 1 箇所で git 側の事実
   （`GitDiffAvailability`）を見る形にした。可用性が未解決の間は選べるままにし、
-  確定した否定でだけ落とす（TASK-438.2）
+  確定した否定でだけ落とす。
 
 ### 実装前に潰すべき未確認事項
 
