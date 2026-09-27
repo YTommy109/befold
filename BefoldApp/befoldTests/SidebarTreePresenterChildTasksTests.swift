@@ -3,7 +3,8 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// `SidebarTreePresenter.childTasks` は走行中の有効な取得だけを持つ(TASK-644)。
+/// `SidebarTreePresenter.childTasks` の待ち合わせは有効な取得だけを待ち(TASK-644)、
+/// 無効化済みの取得は着地で自分を片付ける(TASK-652)。
 @Suite
 @MainActor
 struct SidebarTreePresenterChildTasksTests {
@@ -116,12 +117,17 @@ struct SidebarTreePresenterChildTasksTests {
 
         presenter.invalidateExpansion()
         gate.open()
-        // 捨てた取得は `childTasks` に無いので awaitSettled では待てない。返った後、
-        // 組み直しが予約されるなら観測できるまで譲る。
+        // 捨てた取得は awaitSettled の待ち対象に無い。返った後、組み直しが予約されるなら
+        // 観測できるまで譲る。
         for _ in 0 ..< 10000 where returned.get() == 0 || !presenter.hasPendingRebuild {
             await Task.yield()
         }
         try #require(returned.get() == 1)
+        // 無効化の経路は `childTasks` を触らないので、残っていれば着地で片付けたはず。
+        for _ in 0 ..< 10000 where presenter.retainedChildTaskCount > 0 {
+            await Task.yield()
+        }
+        #expect(presenter.retainedChildTaskCount == 0)
 
         #expect(!presenter.hasPendingRebuild)
         await presenter.awaitSettled()

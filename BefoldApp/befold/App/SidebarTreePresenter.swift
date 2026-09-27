@@ -157,23 +157,24 @@ final class SidebarTreePresenter {
         }
     }
 
-    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)。待ち合わせ専用。
+    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)と、その券。待ち合わせ専用。
     ///
-    /// **走行中の、まだ有効な取得だけを持つ**(TASK-644)。外す経路は 2 つで、どちらも
-    /// 券の寿命(`SidebarExpansion` の世代・epoch)に合わせている。
-    /// - 着地: `expansion.apply` が受け付けたら自分のエントリを外す。受け付けた券は
-    ///   そのキーの最新なので、エントリは必ず自分。
-    /// - 無効化: 券を無効にした側が同じ範囲で外す。取り直し(`loadChildren` が上書き・
-    ///   `reloadExpandedChildren` が epoch ごと空に)、畳み(`collapseFolder` が
-    ///   `collapse` の捨てたキーを外す)、展開の破棄(`invalidateExpansion`)。
-    ///
-    /// 無効化済みの取得を残すと、ゲートで止めたままの古い取得を `awaitSettled` が待って
-    /// ハングし、完了済みの Task は展開中ずっと保持される。
-    private var childTasks: [String: Task<Void, Never>] = [:]
+    /// **無効化済みの取得も着地するまで残る。** 有効かどうかは券を `expansion.isCurrent` に
+    /// 問って読み手(`awaitSettled` / `pendingChildKeys`)が絞る。券を無効にする経路
+    /// (畳み・取り直し・展開の破棄)はここを触らない——経路ごとに掃除を書き足す形は
+    /// 書き忘れで `awaitSettled` がハングした(TASK-644 / TASK-652)。
+    /// 外すのは着地だけで、エントリの券が自分と同じときに限る(後から同じキーで発行された
+    /// 取得を消さないため)。
+    private var childTasks: [String: (token: SidebarExpansion.ExpansionToken, task: Task<Void, Never>)] = [:]
 
-    /// 走行中の子リスト取得のキー。`childTasks` の不変条件をテストが測るための読み取り窓。
+    /// 走行中で、まだ有効な子リスト取得のキー。`awaitSettled` が待つ範囲をテストが測る読み取り窓。
     var pendingChildKeys: Set<String> {
-        Set(childTasks.keys)
+        Set(childTasks.values.filter { expansion.isCurrent($0.token) }.map(\.token.key))
+    }
+
+    /// 無効化済みも含めた、保持している取得の数。着地で自分を外すことをテストが測る読み取り窓。
+    var retainedChildTaskCount: Int {
+        childTasks.count
     }
 
     /// 発行済みの子リスト取得と、それが予約する行の組み直しが済むまで待つ。
@@ -181,11 +182,12 @@ final class SidebarTreePresenter {
     func awaitSettled() async {
         // 組み直しがレビュー表示の規則を通って次の展開を始めることがあるので、
         // どちらも空になるまで回す。
-        // 待ち終えた取得は覚えて飛ばすだけで、`childTasks` からは外さない。外すのは
-        // 着地と無効化の経路だけで、ここが外すと不変条件の破れを覆い隠す。
+        // 無効化済みの取得は待たない(ゲートで止めたままならハングする)。
+        // 待ち終えた取得は覚えて飛ばすだけで、`childTasks` からは外さない。外すのは着地だけ。
         var awaited: Set<Task<Void, Never>> = []
         while true {
-            if let task = childTasks.values.first(where: { !awaited.contains($0) }) {
+            let next = childTasks.values.first { !awaited.contains($0.task) && expansion.isCurrent($0.token) }
+            if let task = next?.task {
                 awaited.insert(task)
                 await task.value
             } else if let rebuild = pendingRebuild {
@@ -207,9 +209,7 @@ final class SidebarTreePresenter {
 
     /// フォルダを畳む。配下の展開も一緒に捨てる(SidebarExpansion.collapse を参照)。
     func collapseFolder(_ key: String) {
-        for dropped in expansion.collapse(key) {
-            childTasks[dropped] = nil
-        }
+        expansion.collapse(key)
         rebuildRows()
     }
 
@@ -237,7 +237,6 @@ final class SidebarTreePresenter {
     /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
-        childTasks.removeAll()
         pendingRebuild?.cancel()
         pendingRebuild = nil
         lastReveal = nil
@@ -345,9 +344,8 @@ final class SidebarTreePresenter {
         // 温存中の子リストを取り直しても描画されず、不可視のサブツリーへ列挙が飛ぶ
         // だけなので何もしない。鮮度はツリーへ戻ったあとの取り直しで追いつく(TASK-481)。
         guard fileListModel.display.layoutMode == .tree else { return }
+        // epoch が進み、走行中の取得はすべて無効になる。取り直すキーは下で入れ直す。
         let tokens = expansion.invalidateChildren()
-        // epoch が進み、走行中の取得はすべて無効になった。取り直すキーは下で入れ直す。
-        childTasks.removeAll()
         for token in tokens {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
@@ -366,13 +364,15 @@ final class SidebarTreePresenter {
     private func loadChildren(for token: SidebarExpansion.ExpansionToken) {
         let sortOrder = fileListModel.display.sortOrder
         let showHiddenFiles = fileListModel.display.showHiddenFiles
-        childTasks[token.key] = Task {
+        let task = Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
+            // 受け付けられるかに関わらず自分のエントリは外す(無効化済みの取得の片付けもここだけ)。
+            if self.childTasks[token.key]?.token == token { self.childTasks[token.key] = nil }
             // 拒否された着地は展開の材料を変えないので組み直さない。券を無効にした側
             // (畳み・取り直し・展開の破棄)が行の面倒を見ている(TASK-649)。
             guard self.expansion.apply(children, for: token) else { return }
-            self.childTasks[token.key] = nil
             self.scheduleRebuild()
         }
+        childTasks[token.key] = (token, task)
     }
 }

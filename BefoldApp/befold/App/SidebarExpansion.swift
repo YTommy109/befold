@@ -143,19 +143,13 @@ final class SidebarExpansion {
     /// 残す設計にすると、畳んでいる間に走行中だった配下の列挙が着地して子リストを書き、
     /// 再展開したときに古い内容がそのまま復活する(しかも再列挙されない)。
     /// 捨てる側に倒し、再展開は必ず取り直しにする。
-    ///
-    /// - Returns: 捨てたキー(`key` 自身と配下)。走行中の取得を同じ範囲で手放すために
-    ///   返す(`SidebarTreePresenter.collapseFolder`)。接頭辞の規則を呼び出し側へ複製させない。
-    @discardableResult
-    func collapse(_ key: String) -> [String] {
-        let targets = expandedKeys.filter { Self.isKey($0, within: key) }
-        for target in targets {
+    func collapse(_ key: String) {
+        for target in expandedKeys.filter({ Self.isKey($0, within: key) }) {
             generations[target, default: 0] += 1
             expandedKeys.remove(target)
             children[target] = nil
             urls[target] = nil
         }
-        return Array(targets)
     }
 
     /// 走行中の列挙をすべて無効化し、展開状態を捨てる。
@@ -215,9 +209,15 @@ final class SidebarExpansion {
     /// - Returns: 受け付けたか。true なら、この券がそのキーの最新(後続の券は発行されていない)。
     @discardableResult
     func apply(_ entries: [FileListEntry]?, for token: ExpansionToken) -> Bool {
-        guard generations[token.key] == token.generation, epoch == token.epoch else { return false }
+        guard isCurrent(token) else { return false }
         children[token.key] = entries.map(Children.loaded) ?? .failed
         return true
+    }
+
+    /// 券がまだ有効か(後続の券の発行・畳み・取り直し・展開の破棄が挟まっていないか)。
+    /// `apply` の受け付け判定そのもので、走行中の取得を待つかどうかもこれで決める(TASK-652)。
+    func isCurrent(_ token: ExpansionToken) -> Bool {
+        generations[token.key] == token.generation && epoch == token.epoch
     }
 
     /// 展開の列挙 1 回を識別する券。発行時点のフォルダ世代と全体世代を持ち、
@@ -230,7 +230,8 @@ final class SidebarExpansion {
     /// 運ぶので、その間にフォルダがリネーム・削除されていれば列挙は失敗し
     /// `.failed` が着地する。その key はルート再列挙後どの行にも一致しないため、
     /// `material.failed` に入っても行を持たず描画されない。
-    struct ExpansionToken: Sendable {
+    /// `(generation, epoch)` は発行ごとに一意(`invalidateAll` で世代が戻っても epoch が進む)。
+    struct ExpansionToken: Sendable, Equatable {
         let key: String
         let url: URL
         fileprivate let generation: Int
