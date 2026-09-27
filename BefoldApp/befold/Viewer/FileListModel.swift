@@ -216,7 +216,18 @@ final class FileListModel {
     /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
     /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
     /// 書き込みは applyGitStatus(_:for:sequence:) だけを通す。
-    private(set) var gitStatus: SidebarGitStatus?
+    private(set) var gitStatus: SidebarGitStatus? {
+        didSet {
+            guard gitStatus != oldValue else { return }
+            onGitStatusChange?(oldValue)
+        }
+    }
+
+    /// git 状態が変わったときに、**変わる前の値**を渡して呼ばれる(TASK-637)。
+    /// 反映(`applyGitStatus`)と一覧の到着時の昇格の両方がここを通るため、
+    /// 書き込み点ごとに通知を置かずに didSet 1 箇所で拾う。購読者は
+    /// `SidebarTreePresenter` の 1 者(init で繋ぐ)。スロットは 1 つなので上書きしないこと。
+    @ObservationIgnored var onGitStatusChange: ((SidebarGitStatus?) -> Void)?
 
     /// 反映の可否(発行順序 + ディレクトリ対付け)の判定だけを持つ調停器(ADR 0003)。
     ///

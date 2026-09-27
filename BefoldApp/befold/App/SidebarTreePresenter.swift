@@ -49,6 +49,9 @@ final class SidebarTreePresenter {
     ) {
         self.fileListModel = fileListModel
         self.childrenLister = childrenLister
+        fileListModel.onGitStatusChange = { [weak self] previous in
+            self?.revealChangedFolders(since: previous)
+        }
     }
 
     // MARK: - Row Assembly
@@ -100,10 +103,15 @@ final class SidebarTreePresenter {
             && fileListModel.entriesDirectory == directory
             && fileListModel.didFailListing == listing.didFailEnumeration
             && fileListModel.entries == rows
-        guard !isUnchanged else { return rows }
-        fileListModel.setEntries(
-            rows, for: directory, didFailEnumeration: listing.didFailEnumeration
-        )
+        if !isUnchanged {
+            fileListModel.setEntries(
+                rows, for: directory, didFailEnumeration: listing.didFailEnumeration
+            )
+        }
+        // ルートの一覧が着地した時点 = フォルダー移動・窓を開く・ツリーへの切り替えの
+        // 着地点。`reloadExpandedChildren` はこの一覧の発行前に済んでいるので、ここで
+        // 始めた展開の券はそれに無効化されない。
+        revealChangedFolders(since: fileListModel.gitStatus)
         return rows
     }
 
@@ -115,6 +123,24 @@ final class SidebarTreePresenter {
     /// (組み立て → 分解 → 再組み立ての往復に戻る / TASK-442.1)。
     private func rebuildRows() {
         applyRows(lastListing, for: fileListModel.entriesDirectory)
+    }
+
+    /// 子リストの着地ごとの組み直しを、同じ時期に届いたぶんで 1 回へまとめる(TASK-637)。
+    ///
+    /// 組み直しは全行の組み立てで、700 行で 1 回約 12ms(実測)。着地ごとに組み直すと、
+    /// レビュー表示で 400 フォルダーを一度に開いたとき 400 回走り、全行が揃うまで約 3.8 秒
+    /// かかった。まとめると 80ms(`.tmp` の 400 変更フォルダーのリポジトリで実測)。
+    /// 組み直しは次のメインアクター実行へ遅れるが、読むのはその時点の `lastListing` なので
+    /// 古い材料で組むことはない。
+    private var isRebuildScheduled = false
+
+    private func scheduleRebuild() {
+        guard !isRebuildScheduled else { return }
+        isRebuildScheduled = true
+        Task {
+            self.isRebuildScheduled = false
+            self.rebuildRows()
+        }
     }
 
     // MARK: - Tree Expansion
@@ -156,6 +182,50 @@ final class SidebarTreePresenter {
     /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
+    }
+
+    // MARK: - Review Expansion (TASK-637)
+
+    /// レビュー表示(ツリー × 変更のみ)で、変更ファイルの祖先フォルダーを全件適用済みの
+    /// 表示中ディレクトリ。**展開を「入る前へ戻す」ための保存ではない**——全件を開くか、
+    /// git 状態の差分だけを開くかを分けるためだけに持つ。組み合わせを外れたら nil。
+    private var revealedDirectoryKey: String?
+
+    /// レビュー表示の規則: 変更ファイルの祖先フォルダーを展開集合へ**足す**(閉じない)。
+    ///
+    /// - このディレクトリで未適用(組み合わせに入った・移動した・窓を開いた): 全件を開く。
+    /// - 適用済み: `previous` に無かったフォルダーだけを開く。利用者が閉じたフォルダーは
+    ///   `previous` にも含まれるので、git 状態が更新されても開き直らない。
+    ///
+    /// 呼ぶのは一覧の着地(`applyRows`)・git 状態の変化(`FileListModel.onGitStatusChange`)・
+    /// 表示設定の変更(`SidebarListingCoordinator.applyDisplayChange`)の 3 箇所。
+    func revealChangedFolders(since previous: SidebarGitStatus?) {
+        let display = fileListModel.display
+        guard display.layoutMode == .tree, display.showChangedFilesOnly,
+              let status = fileListModel.gitStatus
+        else {
+            revealedDirectoryKey = nil
+            return
+        }
+        let directoryKey = fileListModel.currentDirectory.normalizedPathKey
+        let isRevealed = revealedDirectoryKey == directoryKey
+        // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
+        guard !isRevealed || previous != status else { return }
+        revealedDirectoryKey = directoryKey
+        // ponytail: 未追跡エントリごとに stat 1 回(メインアクター)。数千件の未追跡で
+        // 重ければ GitStatusReader で畳み込みの事実(末尾スラッシュ)を運ぶ。
+        let isDirectory = { (key: String) in
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: key, isDirectory: &isDirectory)
+                && isDirectory.boolValue
+        }
+        var targets = status.foldersToReveal(under: directoryKey, isDirectory: isDirectory)
+        if isRevealed, let previous {
+            targets.subtract(previous.foldersToReveal(under: directoryKey, isDirectory: isDirectory))
+        }
+        for key in targets {
+            expandFolder(key, at: URL(fileURLWithPath: key, isDirectory: true))
+        }
     }
 
     // MARK: - Layout Snapshot (TASK-481)
@@ -212,7 +282,7 @@ final class SidebarTreePresenter {
         Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
             self.expansion.apply(children, for: token)
-            self.rebuildRows()
+            self.scheduleRebuild()
         }
     }
 }
