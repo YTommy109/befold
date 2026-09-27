@@ -27,8 +27,6 @@
 
 - `.claude/skills/review-swift-code/SKILL.md`: `product-code.md` + `comments.md` を読む
 - `.claude/skills/review-swift-tests/SKILL.md`: `testing.md` + `comments.md` を読む
-- `.claude/commands/quality-loop.md`: 全ラウンドで `product-code.md` + `testing.md` +
-  `comments.md` + `workflow.md`（4 ファイル）を読む
 
 ## 歴史的参照について
 
