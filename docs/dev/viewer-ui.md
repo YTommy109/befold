@@ -369,7 +369,7 @@ JS 側は Swift のカタログをパースする jest テストで検出する�
 - **規則**: 表示中ディレクトリ配下の変更ファイルについて、その祖先フォルダーを展開集合へ
   **足す**。既に開いているフォルダーは閉じない（和集合）。対象の算出は
   `SidebarGitStatus.foldersToReveal(under:isDirectory:)`、適用は
-  `SidebarTreePresenter.revealChangedFolders(since:)` が持つ
+  `SidebarTreePresenter.revealChangedFolders()` が持つ
 - **契機**: 組み合わせに入ったとき（ON にする順序は問わない）、レビュー表示中のフォルダー移動、
   窓を開いたとき、git 状態の更新。git 状態の更新では、更新前の状態に無かったフォルダーだけを
   開く。そのため、利用者が閉じたフォルダーは開き直らない

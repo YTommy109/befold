@@ -98,7 +98,7 @@ final class SidebarListingCoordinator {
             // ここで拾う(TASK-637)。手元の git 状態で開き、取り直した状態との差分は
             // `FileListModel.onGitStatusChange` が開く。ツリーへの切り替えはここで拾わない
             // ——ルートの一覧が届く前に開くと、着地した子リストが古い一覧材料で行を組み直す。
-            tree.revealChangedFolders(since: fileListModel.gitStatus)
+            tree.revealChangedFolders()
             guard fileListModel.display.showChangedFilesOnly else { return }
             gitStatus.refresh(policy: .always)
         }

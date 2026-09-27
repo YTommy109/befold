@@ -49,9 +49,7 @@ final class SidebarTreePresenter {
     ) {
         self.fileListModel = fileListModel
         self.childrenLister = childrenLister
-        fileListModel.onGitStatusChange = { [weak self] previous in
-            self?.revealChangedFolders(since: previous)
-        }
+        fileListModel.onGitStatusChange = { [weak self] in self?.revealChangedFolders() }
     }
 
     // MARK: - Row Assembly
@@ -111,7 +109,7 @@ final class SidebarTreePresenter {
         // ルートの一覧が着地した時点 = フォルダー移動・窓を開く・ツリーへの切り替えの
         // 着地点。`reloadExpandedChildren` はこの一覧の発行前に済んでいるので、ここで
         // 始めた展開の券はそれに無効化されない。
-        revealChangedFolders(since: fileListModel.gitStatus)
+        revealChangedFolders()
         return rows
     }
 
@@ -186,44 +184,45 @@ final class SidebarTreePresenter {
 
     // MARK: - Review Expansion (TASK-637)
 
-    /// レビュー表示(ツリー × 変更のみ)で、変更ファイルの祖先フォルダーを全件適用済みの
-    /// 表示中ディレクトリ。**展開を「入る前へ戻す」ための保存ではない**——全件を開くか、
-    /// git 状態の差分だけを開くかを分けるためだけに持つ。組み合わせを外れたら nil。
-    private var revealedDirectoryKey: String?
+    /// レビュー表示(ツリー × 変更のみ)で最後に規則を適用したときの、表示中ディレクトリ・
+    /// git 状態・候補。**展開を「入る前へ戻す」ための保存ではない**——全件を開くか差分だけを
+    /// 開くかを分け、差分の引き算に前回の候補を使い回すためだけに持つ(TASK-638)。
+    /// 組み合わせを外れたら nil。
+    private struct Reveal {
+        let directoryKey: String
+        let status: SidebarGitStatus
+        let targets: Set<String>
+    }
+
+    private var lastReveal: Reveal?
 
     /// レビュー表示の規則: 変更ファイルの祖先フォルダーを展開集合へ**足す**(閉じない)。
     ///
     /// - このディレクトリで未適用(組み合わせに入った・移動した・窓を開いた): 全件を開く。
-    /// - 適用済み: `previous` に無かったフォルダーだけを開く。利用者が閉じたフォルダーは
-    ///   `previous` にも含まれるので、git 状態が更新されても開き直らない。
+    /// - 適用済み: 前回の候補に無かったフォルダーだけを開く。利用者が閉じたフォルダーは
+    ///   前回の候補にも含まれるので、git 状態が更新されても開き直らない。
     ///
     /// 呼ぶのは一覧の着地(`applyRows`)・git 状態の変化(`FileListModel.onGitStatusChange`)・
     /// 表示設定の変更(`SidebarListingCoordinator.applyDisplayChange`)の 3 箇所。
-    func revealChangedFolders(since previous: SidebarGitStatus?) {
+    func revealChangedFolders() {
         let display = fileListModel.display
         guard display.layoutMode == .tree, display.showChangedFilesOnly,
               let status = fileListModel.gitStatus
         else {
-            revealedDirectoryKey = nil
+            lastReveal = nil
             return
         }
         let directoryKey = fileListModel.currentDirectory.normalizedPathKey
-        let isRevealed = revealedDirectoryKey == directoryKey
+        let previous = lastReveal?.directoryKey == directoryKey ? lastReveal : nil
         // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
-        guard !isRevealed || previous != status else { return }
-        revealedDirectoryKey = directoryKey
+        guard previous?.status != status else { return }
         // ponytail: 未追跡エントリごとに stat 1 回(メインアクター)。数千件の未追跡で
         // 重ければ GitStatusReader で畳み込みの事実(末尾スラッシュ)を運ぶ。
-        let isDirectory = { (key: String) in
-            var isDirectory: ObjCBool = false
-            return FileManager.default.fileExists(atPath: key, isDirectory: &isDirectory)
-                && isDirectory.boolValue
+        let targets = status.foldersToReveal(under: directoryKey) {
+            DirectoryLister.isDirectory(URL(fileURLWithPath: $0, isDirectory: true))
         }
-        var targets = status.foldersToReveal(under: directoryKey, isDirectory: isDirectory)
-        if isRevealed, let previous {
-            targets.subtract(previous.foldersToReveal(under: directoryKey, isDirectory: isDirectory))
-        }
-        for key in targets {
+        lastReveal = Reveal(directoryKey: directoryKey, status: status, targets: targets)
+        for key in targets.subtracting(previous?.targets ?? []) {
             expandFolder(key, at: URL(fileURLWithPath: key, isDirectory: true))
         }
     }
