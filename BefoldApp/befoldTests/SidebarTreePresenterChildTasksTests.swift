@@ -53,4 +53,79 @@ struct SidebarTreePresenterChildTasksTests {
 
         #expect(presenter.pendingChildKeys.isEmpty)
     }
+
+    /// レビュー表示(ツリー × 変更のみ)で `a` の変更を持つ presenter。`a` の子リスト取得は
+    /// `gate` が開くまで止まる。`issued` は取得の発行回数、`returned` は返った回数。
+    private func makeReviewPresenter(
+        gate: AsyncGate, issued: LockedBox<Int>, returned: LockedBox<Int>
+    ) -> SidebarTreePresenter {
+        let model = FileListModel(currentDirectory: base, entries: [], selection: nil)
+        let presenter = SidebarTreePresenter(fileListModel: model, childrenLister: { _, _, _ in
+            issued.update { $0 += 1 }
+            await gate.wait()
+            returned.update { $0 += 1 }
+            return []
+        })
+        if model.display.layoutMode != .tree { model.display.apply(.toggleLayoutMode) }
+        model.display.apply(.toggleChangedFilesOnly)
+        let folder = base.appendingPathComponent("a")
+        let changed = folder.appendingPathComponent("x.md").normalizedPathKey
+        model.applyGitStatus(
+            SidebarGitStatus(
+                repositoryRootKey: base.normalizedPathKey,
+                statuses: [changed: GitFileStatus(indexChange: nil, worktreeChange: .modified)]
+            ),
+            for: base, sequence: 1
+        )
+        presenter.applyRows(DirectoryListing(rootChildren: [FileListEntry(url: folder, kind: .folder)]), for: base)
+        return presenter
+    }
+
+    @Test("子リストの着地で予約された組み直しは、展開を捨てると走らず、捨てた展開を開き直さない")
+    func invalidateDropsScheduledRebuild() async throws {
+        let gate = AsyncGate()
+        let issued = LockedBox(0)
+        let presenter = makeReviewPresenter(gate: gate, issued: issued, returned: LockedBox(0))
+        try #require(presenter.expandedKeys == [base.appendingPathComponent("a").normalizedPathKey])
+        gate.open()
+        // 予約を観測できた時点では、まだ走っていない(走り始めに nil へ戻す)。
+        for _ in 0 ..< 10000 where !presenter.hasPendingRebuild {
+            await Task.yield()
+        }
+        try #require(presenter.hasPendingRebuild)
+
+        presenter.invalidateExpansion()
+
+        #expect(!presenter.hasPendingRebuild)
+        await presenter.awaitSettled()
+        #expect(issued.get() == 1)
+        #expect(presenter.expandedKeys.isEmpty)
+    }
+
+    @Test("展開を捨てた後に古い子リストが着地しても、組み直しを予約せず開き直さない")
+    func staleLandingAfterInvalidateSchedulesNothing() async throws {
+        let gate = AsyncGate()
+        let issued = LockedBox(0)
+        let returned = LockedBox(0)
+        let presenter = makeReviewPresenter(gate: gate, issued: issued, returned: returned)
+        // 取得が走り出してから捨てる。
+        for _ in 0 ..< 10000 where issued.get() == 0 {
+            await Task.yield()
+        }
+        try #require(issued.get() == 1)
+
+        presenter.invalidateExpansion()
+        gate.open()
+        // 捨てた取得は `childTasks` に無いので awaitSettled では待てない。返った後、
+        // 組み直しが予約されるなら観測できるまで譲る。
+        for _ in 0 ..< 10000 where returned.get() == 0 || !presenter.hasPendingRebuild {
+            await Task.yield()
+        }
+        try #require(returned.get() == 1)
+
+        #expect(!presenter.hasPendingRebuild)
+        await presenter.awaitSettled()
+        #expect(issued.get() == 1)
+        #expect(presenter.expandedKeys.isEmpty)
+    }
 }

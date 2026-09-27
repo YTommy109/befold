@@ -128,7 +128,16 @@ final class SidebarTreePresenter {
 
     /// 予約中の組み直し。nil なら予約なし。本体は同期処理だけなので、走り始めた時点で
     /// nil に戻しても、他の誰かが「走り途中」を観測することはない。
+    ///
+    /// 寿命は `expansion` と同じで、`invalidateExpansion` が取り消して捨てる(TASK-649)。
+    /// 残すと、展開を捨てた後に予約済みの組み直しが走り、`lastReveal` の無い状態で
+    /// レビュー表示の規則を通って、捨てた展開を全件開き直す。
     private var pendingRebuild: Task<Void, Never>?
+
+    /// 組み直しが予約中か。`pendingRebuild` の寿命をテストが測るための読み取り窓。
+    var hasPendingRebuild: Bool {
+        pendingRebuild != nil
+    }
 
     /// 子リストの着地ごとの組み直しを、同じ時期に届いたぶんで 1 回へまとめる(TASK-637)。
     ///
@@ -140,6 +149,9 @@ final class SidebarTreePresenter {
     private func scheduleRebuild() {
         guard pendingRebuild == nil else { return }
         pendingRebuild = Task {
+            // 取り消された予約は `pendingRebuild` を触らない。既に次の予約が入っていれば
+            // それを消してしまう。
+            guard !Task.isCancelled else { return }
             self.pendingRebuild = nil
             self.rebuildRows()
         }
@@ -226,6 +238,8 @@ final class SidebarTreePresenter {
     func invalidateExpansion() {
         expansion.invalidateAll()
         childTasks.removeAll()
+        pendingRebuild?.cancel()
+        pendingRebuild = nil
         lastReveal = nil
     }
 
@@ -344,9 +358,10 @@ final class SidebarTreePresenter {
         let showHiddenFiles = fileListModel.display.showHiddenFiles
         childTasks[token.key] = Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
-            if self.expansion.apply(children, for: token) {
-                self.childTasks[token.key] = nil
-            }
+            // 拒否された着地は展開の材料を変えないので組み直さない。券を無効にした側
+            // (畳み・取り直し・展開の破棄)が行の面倒を見ている(TASK-649)。
+            guard self.expansion.apply(children, for: token) else { return }
+            self.childTasks[token.key] = nil
             self.scheduleRebuild()
         }
     }
