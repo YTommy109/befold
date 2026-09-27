@@ -38,6 +38,10 @@
           {
             "type": "command",
             "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&' '\\n\\n\\n' | grep -qE '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(npx|pnpm|yarn|bunx)?[[:space:]]*wrangler[[:space:]].*d1[[:space:]]+execute' && ! printf '%s' \"$c\" | grep -q 'analytics-query.sh'; then echo 'BLOCK: 解析用 D1 への直接クエリは禁止です（書き込みが通るため）。読み取りは scripts/analytics-query.sh \"SELECT ...\" を使ってください。マイグレーション適用は d1 migrations apply / npm run migrate:remote 側で行います' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&(' '\\n\\n\\n\\n' | grep -qE '^[[:space:]]*(rtk[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash([[:space:])]|$)' && ! printf '%s' \"$c\" | grep -qE 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash[[:space:]]+(list|show)'; then echo 'BLOCK: git stash は worktree 間で共有されるため、別セッションの stash を pop する事故が起きます（.claude/CLAUDE.md の swiftlint 節）。退避はスクラッチパッドへコピー、main 側の取得は git archive origin/main | tar -x -C <スクラッチパッド> を使ってください' >&2; exit 2; fi"
           }
         ]
       },
@@ -79,9 +83,7 @@
           },
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
-            "statusMessage": "swift test (unit)",
-            "timeout": 120
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.swift) mkdir -p \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build\" && touch \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build/.claude-swift-dirty\";; esac"
           },
           {
             "type": "command",
@@ -109,6 +111,18 @@
             "type": "command",
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *project.yml) cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(xcodegen generate 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "xcodegen generate (project.yml 変更検出)"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "m=\"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build/.claude-swift-dirty\"; [ -f \"$m\" ] || exit 0; rm -f \"$m\"; cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; }",
+            "statusMessage": "swift test (unit、このターンで Swift を編集した場合のみ)",
+            "timeout": 300
           }
         ]
       }
