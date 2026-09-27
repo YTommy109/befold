@@ -1,5 +1,5 @@
 ---
-name: L10n Check
+name: l10n-check
 description: Localizable.xcstrings の en/ja 翻訳漏れ・整合性をチェックする
 ---
 

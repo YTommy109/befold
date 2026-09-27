@@ -1,5 +1,5 @@
 ---
-name: Changelog
+name: changelog
 description: stable リリースのリリースノートを CHANGELOG.md に追記する
 ---
 

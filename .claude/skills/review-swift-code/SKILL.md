@@ -1,5 +1,5 @@
 ---
-name: Review Swift Code
+name: review-swift-code
 description: プロダクトコードを coding_rule.md（分割後）に基づいてレビューする
 ---
 
@@ -135,3 +135,5 @@ Swift プロダクトコードをレビューする（`docs/dev/coding_rule.md` 
 - 問題: <N> 件（重大: <N>, 軽微: <N>）
 - 規約準拠度: <高/中/低>
 ```
+
+引数: $ARGUMENTS

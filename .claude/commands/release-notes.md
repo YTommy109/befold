@@ -138,5 +138,5 @@ GitHub のリリース body は 1 本しか持てないため、README のよう
 （`.github/workflows/release.yml` の `generate_appcast` はリリースノートを
 渡していない）。読者は GitHub と配布サイト経由の人間だけである。
 
-`CHANGELOG.md` は日本語のみで維持する（`.claude/skills/changelog.md` を参照）。
+`CHANGELOG.md` は日本語のみで維持する（`.claude/skills/changelog/SKILL.md` を参照）。
 リリースノートから**日本語セクションだけ**を取り出して追記する。
