@@ -126,6 +126,10 @@ final class SidebarTreePresenter {
         applyRows(lastListing, for: fileListModel.entriesDirectory)
     }
 
+    /// 予約中の組み直し。nil なら予約なし。本体は同期処理だけなので、走り始めた時点で
+    /// nil に戻しても、他の誰かが「走り途中」を観測することはない。
+    private var pendingRebuild: Task<Void, Never>?
+
     /// 子リストの着地ごとの組み直しを、同じ時期に届いたぶんで 1 回へまとめる(TASK-637)。
     ///
     /// 組み直しは全行の組み立てで、700 行で 1 回約 12ms(実測)。着地ごとに組み直すと、
@@ -133,11 +137,6 @@ final class SidebarTreePresenter {
     /// かかった。まとめると 80ms(`.tmp` の 400 変更フォルダーのリポジトリで実測)。
     /// 組み直しは次のメインアクター実行へ遅れるが、読むのはその時点の `lastListing` なので
     /// 古い材料で組むことはない。
-    ///
-    /// 予約中の組み直し。nil なら予約なし。本体は同期処理だけなので、走り始めた時点で
-    /// nil に戻しても、他の誰かが「走り途中」を観測することはない。
-    private var pendingRebuild: Task<Void, Never>?
-
     private func scheduleRebuild() {
         guard pendingRebuild == nil else { return }
         pendingRebuild = Task {
@@ -258,9 +257,8 @@ final class SidebarTreePresenter {
     /// 表示設定の変更(`SidebarListingCoordinator.applyDisplayChange`)の 3 箇所。
     func revealChangedFolders() {
         let display = fileListModel.display
-        guard display.layoutMode == .tree, display.showChangedFilesOnly,
-              let status = fileListModel.gitStatus
-        else {
+        let isReviewDisplay = display.layoutMode == .tree && display.showChangedFilesOnly
+        guard isReviewDisplay, let status = fileListModel.gitStatus else {
             lastReveal = nil
             return
         }
