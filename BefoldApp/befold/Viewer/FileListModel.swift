@@ -220,10 +220,8 @@ final class FileListModel {
         didSet { onGitStatusChange?() }
     }
 
-    /// git 状態が変わったときに呼ばれる(TASK-637)。反映(`applyGitStatus`)と一覧の到着時の
-    /// 昇格の両方がここを通るため、書き込み点ごとに通知を置かずに didSet 1 箇所で拾う。
-    /// 購読者は `SidebarTreePresenter` の 1 者(init で繋ぐ)。2 回目の代入は precondition で止める
-    /// (TASK-641)。release を含む全構成で働く(assert は -O で消え、出荷ビルドで黙って展開が止まるため。TASK-647)。
+    /// git 状態が変わったときに呼ばれる(TASK-637)。反映と昇格の両方を didSet 1 箇所で拾う。
+    /// 購読者は `SidebarTreePresenter` だけ。上書きは release でも precondition で止める(TASK-641 / 647)。
     @ObservationIgnored var onGitStatusChange: (() -> Void)? {
         willSet { precondition(onGitStatusChange == nil, "購読者は SidebarTreePresenter だけ。上書きすると展開が止まる") }
     }
@@ -262,9 +260,8 @@ final class FileListModel {
     /// キー化のたびの取り直しは同じ結果を返すのが普通で、素通しで代入するとバッジが
     /// 変わっていなくてもサイドバーの再評価が走る。`SidebarGitStatus` は Equatable。
     ///
-    /// 同値なら**代入もしない**。代入すると中身は同じでも辞書のストレージが入れ替わり、
-    /// 以前の値を持つ側(`SidebarTreePresenter` の適用済み記録)との比較が、同一ストレージの
-    /// 早期 return に乗らず全量比較になる(実測 5,000 件で 1 回 約 0.25ms。TASK-646)。
+    /// 同値なら**代入もしない**。辞書のストレージが入れ替わると、適用済み記録との比較が
+    /// 同一ストレージの早期 return に乗らず全量比較になる(TASK-646)。
     private func setGitStatus(_ newStatus: SidebarGitStatus?) {
         guard newStatus != gitStatus else { return }
         gitStatus = newStatus
