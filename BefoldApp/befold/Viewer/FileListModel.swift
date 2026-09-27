@@ -225,8 +225,10 @@ final class FileListModel {
 
     /// git 状態が変わったときに呼ばれる(TASK-637)。反映(`applyGitStatus`)と一覧の到着時の
     /// 昇格の両方がここを通るため、書き込み点ごとに通知を置かずに didSet 1 箇所で拾う。
-    /// 購読者は `SidebarTreePresenter` の 1 者(init で繋ぐ)。スロットは 1 つなので上書きしないこと。
-    @ObservationIgnored var onGitStatusChange: (() -> Void)?
+    /// 購読者は `SidebarTreePresenter` の 1 者(init で繋ぐ)。2 回目の代入は assert で止める(TASK-641)。
+    @ObservationIgnored var onGitStatusChange: (() -> Void)? {
+        willSet { assert(onGitStatusChange == nil, "購読者は SidebarTreePresenter だけ。上書きすると展開が止まる") }
+    }
 
     /// 反映の可否(発行順序 + ディレクトリ対付け)の判定だけを持つ調停器(ADR 0003)。
     ///

@@ -11,9 +11,12 @@ import Foundation
 /// extension が書く形だと Swift の `private`(ファイルスコープ)では守れず、
 /// 「書いてよいのは `applyRows` だけ」が doc コメントの約束にとどまっていた。
 ///
-/// **この型は `fileListModel` の `entries` / `entriesDirectory` だけを書く**
+/// **この型が `fileListModel` へ書く値は `entries` / `entriesDirectory` だけ**
 /// (`setEntries` 経由)。選択・カレントディレクトリ・git 状態は `SidebarNavigator` が書く。
 /// 属性が重ならないので、同じオブジェクトを 2 つの型が書いても関心は混ざらない。
+/// ほかに init で `onGitStatusChange` を繋ぎ(購読者はこの型だけ / TASK-641)、
+/// 行の組み立てとレビュー表示の規則のために `display` / `gitStatus` / `currentDirectory` と
+/// 反映済みの一覧(`entries` / `entriesDirectory` ほか。同値判定とフォルダー行の引き当て)を読む。
 ///
 /// 生成は `SidebarNavigator.init` の内側だけ。注入引数にすると、渡し忘れが
 /// コンパイルエラーにならず静かに別インスタンスになる(TASK-319 と同型)。
@@ -23,7 +26,7 @@ import Foundation
 ///   行が組み直される。TASK-442.3 時点の既存の窓で、ここでは塞いでいない。
 @MainActor
 final class SidebarTreePresenter {
-    /// 行の反映先。`entries` / `entriesDirectory` 以外は書かない。
+    /// 行の反映先。書く値は `entries` / `entriesDirectory` だけ(読み取りと購読の接続は型 doc を参照)。
     private let fileListModel: FileListModel
     /// 展開したフォルダの子リストの取得元。ルートの一覧(`SidebarNavigator.directoryLister`)とは
     /// **別の関数**であることが要点で、あちらは親移動行を別に持つルート一覧の材料を返す。

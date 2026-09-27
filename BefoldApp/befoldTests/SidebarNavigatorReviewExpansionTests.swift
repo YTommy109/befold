@@ -233,4 +233,24 @@ struct SidebarNavigatorReviewExpansionTests {
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a"), fixture.key("b")])
     }
+
+    /// 購読者は presenter の 1 者(TASK-641)。組み立て側などから上書きすると presenter の
+    /// クロージャが黙って外れ、git 更新時の展開が止まる。上書きは assert で止まること。
+    @Test("presenter が繋いだ onGitStatusChange を上書きすると実行時に止まる")
+    func overwritingGitStatusSubscriberTraps() async {
+        await #expect(processExitsWith: .failure) {
+            await MainActor.run {
+                let navigator = SidebarNavigator(
+                    currentDirectory: URL(fileURLWithPath: "/tmp", isDirectory: true),
+                    entries: [], selection: nil,
+                    displayDefaults: SidebarDisplayDefaults(
+                        defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorReviewExpansionTests-trap")
+                    ),
+                    directoryLister: { _, _, _ in .empty },
+                    git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
+                )
+                navigator.fileListModel.onGitStatusChange = {}
+            }
+        }
+    }
 }
