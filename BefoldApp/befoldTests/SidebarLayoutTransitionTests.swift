@@ -83,10 +83,11 @@ struct SidebarLayoutTransitionTests {
         return (navigator, host)
     }
 
-    private func drainChildLoads(_ navigator: SidebarNavigator) async {
-        await navigator.awaitSettled()
-        for _ in 0 ..< 10 {
-            await Task.yield()
+    /// スクロール要求は次のランループへ遅らせてある(`SidebarTableFocuser`)。
+    /// `awaitSettled()` はタスクしか待たないので、先に積まれたその要求をここで流す。
+    private func drainMainQueue() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { continuation.resume() }
         }
     }
 
@@ -95,7 +96,7 @@ struct SidebarLayoutTransitionTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(fixture.sub.normalizedPathKey, at: fixture.sub)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         #expect(navigator.expandedFolderKeys.contains(fixture.sub.normalizedPathKey))
     }
 
@@ -113,11 +114,11 @@ struct SidebarLayoutTransitionTests {
         let savedKeys = navigator.expandedFolderKeys
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         #expect(navigator.fileListModel.display.layoutMode == .drillDown)
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(navigator.expandedFolderKeys == savedKeys)
@@ -143,11 +144,11 @@ struct SidebarLayoutTransitionTests {
         defer { withExtendedLifetime(host) {} }
         await expandSub(navigator, fixture)
         navigator.expandFolder(fixture.inner.normalizedPathKey, at: fixture.inner)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         navigator.fileListModel.selection = fixture.deepFile
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.display.layoutMode == .drillDown)
         #expect(
@@ -172,7 +173,7 @@ struct SidebarLayoutTransitionTests {
         navigator.fileListModel.selection = nil
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(
             navigator.fileListModel.currentDirectory.normalizedPathKey
@@ -194,15 +195,15 @@ struct SidebarLayoutTransitionTests {
         await navigator.awaitSettled()
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         navigator.navigateToFolder(fixture.inner)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         navigator.fileListModel.selection = fixture.deepFile
         let spy = SpyTableView()
         navigator.fileListModel.tableFocuser.tableView = spy
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(
@@ -219,6 +220,7 @@ struct SidebarLayoutTransitionTests {
                 == fixture.deepFile.normalizedPathKey
         )
         // 選択行を可視にするスクロールが要求されている。
+        await drainMainQueue()
         let deepRow = navigator.fileListModel.entries.firstIndex {
             $0.url.normalizedPathKey == fixture.deepFile.normalizedPathKey
         }
@@ -239,12 +241,12 @@ struct SidebarLayoutTransitionTests {
         await expandSub(navigator, fixture)
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         navigator.navigateToFolder(fixture.outside)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.display.layoutMode == .tree)
         #expect(
@@ -269,9 +271,9 @@ struct SidebarLayoutTransitionTests {
         let savedKeys = navigator.expandedFolderKeys
 
         navigator.applyDisplayChange(.toggleLayoutMode)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
         navigator.navigateToFolder(fixture.sub)
-        await drainChildLoads(navigator)
+        await navigator.awaitSettled()
 
         #expect(navigator.expandedFolderKeys == savedKeys)
     }

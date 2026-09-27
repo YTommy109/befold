@@ -71,10 +71,8 @@ struct SidebarNavigatorExpansionTests {
         navigator.expandFolder(dirB.normalizedPathKey, at: dirB)
         await Task.yield()
         await gateA.open()
-        // 2 つの列挙タスクが着地して行を組み直すまで譲る。
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        // 2 つの列挙タスクが着地して行を組み直すまで待つ。
+        await navigator.awaitSettled()
 
         let names = navigator.fileListModel.entries.map(\.url.lastPathComponent)
         #expect(names.contains("a1.mmd"))
@@ -107,9 +105,7 @@ struct SidebarNavigatorExpansionTests {
         navigator.navigateToFolder(other)
         await navigator.awaitSettled()
         await gate.open()
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
 
         #expect(navigator.expandedFolderKeys.isEmpty)
         #expect(!navigator.fileListModel.entries.map(\.url.lastPathComponent).contains("stale.mmd"))
@@ -130,16 +126,11 @@ struct SidebarNavigatorExpansionTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
         navigator.fileListModel.selection = nested
 
         navigator.refreshFileList()
         await navigator.awaitSettled()
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
 
         #expect(navigator.fileListModel.selection?.normalizedPathKey == nested.normalizedPathKey)
     }
@@ -162,9 +153,7 @@ struct SidebarNavigatorExpansionTests {
         await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
 
         #expect(await counter.count == 1)
     }
@@ -204,9 +193,7 @@ struct SidebarNavigatorExpansionTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
         #expect(await counter.count == 1)
 
         // フォルダが消える。1 回目の取り直しは、まだ古い一覧に行があるため従来どおり走る
@@ -215,9 +202,6 @@ struct SidebarNavigatorExpansionTests {
         for _ in 0 ..< 3 {
             navigator.refreshFileList()
             await navigator.awaitSettled()
-            for _ in 0 ..< 10 {
-                await Task.yield()
-            }
         }
         #expect(await counter.count == 2, "一覧に無いフォルダへ列挙が飛び続けている")
 
@@ -225,9 +209,6 @@ struct SidebarNavigatorExpansionTests {
         rootEntries.set([FileListEntry(url: dirA, kind: .folder)])
         navigator.refreshFileList()
         await navigator.awaitSettled()
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
 
         #expect(navigator.fileListModel.entries.map(\.url).contains(child))
         #expect(await counter.count == 2, "保持していた子リストを捨てて取り直している")
@@ -248,9 +229,7 @@ struct SidebarNavigatorExpansionTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
 
         let row = navigator.fileListModel.entries.first {
             $0.pathKey == dirA.normalizedPathKey

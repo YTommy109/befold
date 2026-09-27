@@ -95,9 +95,7 @@ struct SidebarPostSwitchSyncTests {
         navigator.refreshFileList()
         await navigator.awaitSettled()
         navigator.expandFolder(fixture.sub.normalizedPathKey, at: fixture.sub)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
         #expect(navigator.expandedFolderKeys.contains(fixture.sub.normalizedPathKey))
     }
 
@@ -105,9 +103,7 @@ struct SidebarPostSwitchSyncTests {
     private func expandSubAndInner(_ navigator: SidebarNavigator, _ fixture: Fixture) async {
         await expandSub(navigator, fixture)
         navigator.expandFolder(fixture.inner.normalizedPathKey, at: fixture.inner)
-        for _ in 0 ..< 10 {
-            await Task.yield()
-        }
+        await navigator.awaitSettled()
         #expect(navigator.expandedFolderKeys.contains(fixture.inner.normalizedPathKey))
     }
 

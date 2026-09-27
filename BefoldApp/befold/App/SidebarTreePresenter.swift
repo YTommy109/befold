@@ -130,14 +130,38 @@ final class SidebarTreePresenter {
     /// かかった。まとめると 80ms(`.tmp` の 400 変更フォルダーのリポジトリで実測)。
     /// 組み直しは次のメインアクター実行へ遅れるが、読むのはその時点の `lastListing` なので
     /// 古い材料で組むことはない。
-    private var isRebuildScheduled = false
+    ///
+    /// 予約中の組み直し。nil なら予約なし。本体は同期処理だけなので、走り始めた時点で
+    /// nil に戻しても、他の誰かが「走り途中」を観測することはない。
+    private var pendingRebuild: Task<Void, Never>?
 
     private func scheduleRebuild() {
-        guard !isRebuildScheduled else { return }
-        isRebuildScheduled = true
-        Task {
-            self.isRebuildScheduled = false
+        guard pendingRebuild == nil else { return }
+        pendingRebuild = Task {
+            self.pendingRebuild = nil
             self.rebuildRows()
+        }
+    }
+
+    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)。待ち合わせ専用で、
+    /// 取り直しで上書きし、畳む・展開を捨てるときに外す。無効化済みの取得を待たないため
+    /// (待つと、ゲートで止めたままの古い取得にテストが引っかかる)。
+    private var childTasks: [String: Task<Void, Never>] = [:]
+
+    /// 発行済みの子リスト取得と、それが予約する行の組み直しが済むまで待つ。
+    /// `SidebarNavigator.awaitSettled()` の一部で、テストの待ち合わせ用(TASK-642)。
+    func awaitSettled() async {
+        // 組み直しがレビュー表示の規則を通って次の展開を始めることがあるので、
+        // どちらも空になるまで回す。
+        while true {
+            if let (key, task) = childTasks.first {
+                await task.value
+                if childTasks[key] == task { childTasks[key] = nil }
+            } else if let rebuild = pendingRebuild {
+                await rebuild.value
+            } else {
+                return
+            }
         }
     }
 
@@ -153,6 +177,7 @@ final class SidebarTreePresenter {
     /// フォルダを畳む。配下の展開も一緒に捨てる(SidebarExpansion.collapse を参照)。
     func collapseFolder(_ key: String) {
         expansion.collapse(key)
+        childTasks[key] = nil
         rebuildRows()
     }
 
@@ -180,6 +205,7 @@ final class SidebarTreePresenter {
     /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
+        childTasks.removeAll()
     }
 
     // MARK: - Review Expansion (TASK-637)
@@ -282,7 +308,7 @@ final class SidebarTreePresenter {
     private func loadChildren(for token: SidebarExpansion.ExpansionToken) {
         let sortOrder = fileListModel.display.sortOrder
         let showHiddenFiles = fileListModel.display.showHiddenFiles
-        Task {
+        childTasks[token.key] = Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
             self.expansion.apply(children, for: token)
             self.scheduleRebuild()

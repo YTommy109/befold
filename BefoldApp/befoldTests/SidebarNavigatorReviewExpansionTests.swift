@@ -76,7 +76,6 @@ struct SidebarNavigatorReviewExpansionTests {
 
     private func settle(_ navigator: SidebarNavigator) async {
         await navigator.awaitSettled()
-        await navigator.awaitSettled()
     }
 
     @Test(
