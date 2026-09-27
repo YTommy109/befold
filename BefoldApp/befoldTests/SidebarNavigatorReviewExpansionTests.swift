@@ -31,7 +31,8 @@ struct SidebarNavigatorReviewExpansionTests {
         layoutMode: SidebarLayoutMode,
         changedFilesOnly: Bool,
         changedFiles: [String],
-        listingGate: AsyncGate? = nil
+        listingGate: AsyncGate? = nil,
+        gatedFolder: String = "b"
     ) -> Fixture {
         let prefix = "SidebarNavigatorReviewExpansionTests-\(name)"
         let base = Self.home.appendingPathComponent(prefix)
@@ -40,6 +41,7 @@ struct SidebarNavigatorReviewExpansionTests {
             $0.layoutMode = layoutMode
             $0.showChangedFilesOnly = changedFilesOnly
         }
+        let gated = gatedFolder.isEmpty ? base : base.appendingPathComponent(gatedFolder)
         let statuses = LockedBox(Dictionary(uniqueKeysWithValues: changedFiles.map {
             (base.appendingPathComponent($0).normalizedPathKey, Self.modified)
         }))
@@ -49,8 +51,9 @@ struct SidebarNavigatorReviewExpansionTests {
             selection: nil,
             displayDefaults: preference,
             directoryLister: { directory, _, _ in
-                // `b` への移動だけをテストが解放するまで止める(移動中の経路を再現する)。
-                if directory.lastPathComponent == "b" { await listingGate?.wait() }
+                // `gatedFolder`(既定は `b`、空ならルート)の列挙だけをテストが解放するまで
+                // 止める(移動中・一覧の着地前の経路を再現する)。
+                if directory.normalizedPathKey == gated.normalizedPathKey { await listingGate?.wait() }
                 return DirectoryListing(rootChildren: [
                     FileListEntry(url: directory.appendingPathComponent("a"), kind: .folder),
                     FileListEntry(url: directory.appendingPathComponent("b"), kind: .folder),
@@ -207,6 +210,28 @@ struct SidebarNavigatorReviewExpansionTests {
         await settle(fixture.navigator)
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b/d")])
+    }
+
+    @Test("ルートの一覧の着地前に git 状態と変更のみ ON が揃っても展開せず、着地で開く")
+    func revealWaitsForRootListing() async {
+        let gate = AsyncGate()
+        let fixture = makeFixture(
+            "before-listing", layoutMode: .tree, changedFilesOnly: false,
+            changedFiles: ["a/x.md"], listingGate: gate, gatedFolder: ""
+        )
+        defer { withExtendedLifetime(fixture.host) {} }
+        fixture.navigator.refreshFileList()
+        fixture.navigator.applyDisplayChange(.toggleChangedFilesOnly)
+        await fixture.navigator.pendingGitStatusTask?.value
+        #expect(fixture.navigator.fileListModel.gitStatus != nil)
+
+        // 展開を始めると子リストの着地が空の一覧で `setEntries` を走らせる(TASK-650)。
+        #expect(fixture.navigator.expandedFolderKeys.isEmpty)
+        #expect(!fixture.navigator.fileListModel.hasLoadedEntries)
+
+        gate.open()
+        await settle(fixture.navigator)
+        #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
     }
 
     @Test("解除しても展開は残り、ツリーへ戻すと残った展開に和集合で再適用される")

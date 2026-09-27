@@ -3,9 +3,11 @@ id: TASK-650
 title: >-
   revealChangedFolders が一覧の着地前に展開を始め、子リストの着地で空の一覧に setEntries が走って
   hasLoadedEntries が先に立つ
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-27 08:37'
+updated_date: '2026-09-27 08:49'
 labels: []
 dependencies: []
 references:
@@ -41,6 +43,21 @@ ordinal: 850000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ルートの一覧が着地する前に git 状態と変更のみ ON が適用されても、`hasLoadedEntries` が false のまま（`setEntries` が走らない）テストがある
-- [ ] #2 一覧が着地した時点でレビュー表示の展開が従来どおり開かれる（既存テストが通る）
+- [x] #1 ルートの一覧が着地する前に git 状態と変更のみ ON が適用されても、`hasLoadedEntries` が false のまま（`setEntries` が走らない）テストがある
+- [x] #2 一覧が着地した時点でレビュー表示の展開が従来どおり開かれる（既存テストが通る）
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+方針: revealChangedFolders に guard fileListModel.hasLoadedEntries を追加。単純化の検討: 新しい状態は足さず既存の hasLoadedEntries を使う。着地時は applyRows 末尾が再度 reveal するので取りこぼし経路は増えない。
+検証: 新テスト revealWaitsForRootListing（ルート一覧を AsyncGate で止め、git 状態着地＋変更のみ ON の後に expandedFolderKeys が空・hasLoadedEntries が false、解放後に a が開く）。修正前は expandedFolderKeys.isEmpty で失敗することを実測。swift test 全体 2010+72 件 pass、swiftformat lint 0 件、swiftlint は変更 2 ファイルで 0 件。
+テスト fixture の listingGate を gatedFolder 引数（既定 b、空ならルート）で対象を選べるようにした。
+viewer-ui.md のレビュー表示「契機」に一覧着地前は開かない旨を追記。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+revealChangedFolders が一覧の着地前に展開を始め、子リストの着地で空の一覧に setEntries が走る問題を、hasLoadedEntries ガード 1 行で塞いだ。着地前の適用を再現するテストを追加し、既存のレビュー展開テストはすべて通過。
+<!-- SECTION:FINAL_SUMMARY:END -->

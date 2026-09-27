@@ -281,6 +281,11 @@ final class SidebarTreePresenter {
         // フォルダーを開いてしまうので、移動先の一覧が着地する `applyRows` まで待つ(TASK-639)。
         let directoryKey = fileListModel.entriesDirectory.normalizedPathKey
         guard directoryKey == fileListModel.currentDirectory.normalizedPathKey else { return }
+        // 窓を開いた直後は `entriesDirectory == currentDirectory` で上を通るが、一覧はまだ無い。
+        // ここで展開すると子リストの着地が空の一覧で `setEntries` を走らせ、`hasLoadedEntries`
+        // が先に立つ(`reloadExpandedChildren` と同じ不変条件)。着地した `applyRows` が
+        // もう一度呼ぶので取りこぼさない(TASK-650)。
+        guard fileListModel.hasLoadedEntries else { return }
         let previous = lastReveal?.directoryKey == directoryKey ? lastReveal : nil
         // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
         // 同値の取り直しは `FileListModel.setGitStatus` が代入ごと弾くので、ここの比較は
