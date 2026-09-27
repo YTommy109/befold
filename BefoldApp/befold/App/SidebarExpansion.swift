@@ -143,13 +143,19 @@ final class SidebarExpansion {
     /// 残す設計にすると、畳んでいる間に走行中だった配下の列挙が着地して子リストを書き、
     /// 再展開したときに古い内容がそのまま復活する(しかも再列挙されない)。
     /// 捨てる側に倒し、再展開は必ず取り直しにする。
-    func collapse(_ key: String) {
-        for target in expandedKeys.filter({ Self.isKey($0, within: key) }) {
+    ///
+    /// - Returns: 捨てたキー(`key` 自身と配下)。走行中の取得を同じ範囲で手放すために
+    ///   返す(`SidebarTreePresenter.collapseFolder`)。接頭辞の規則を呼び出し側へ複製させない。
+    @discardableResult
+    func collapse(_ key: String) -> [String] {
+        let targets = expandedKeys.filter { Self.isKey($0, within: key) }
+        for target in targets {
             generations[target, default: 0] += 1
             expandedKeys.remove(target)
             children[target] = nil
             urls[target] = nil
         }
+        return Array(targets)
     }
 
     /// 走行中の列挙をすべて無効化し、展開状態を捨てる。
@@ -205,9 +211,13 @@ final class SidebarExpansion {
     ///
     /// `entries` が nil なら列挙失敗として `.failed` を着地させる。失敗を別の入口に
     /// 分けないのは、世代・epoch のガードを 2 箇所へ複製しないため。
-    func apply(_ entries: [FileListEntry]?, for token: ExpansionToken) {
-        guard generations[token.key] == token.generation, epoch == token.epoch else { return }
+    ///
+    /// - Returns: 受け付けたか。true なら、この券がそのキーの最新(後続の券は発行されていない)。
+    @discardableResult
+    func apply(_ entries: [FileListEntry]?, for token: ExpansionToken) -> Bool {
+        guard generations[token.key] == token.generation, epoch == token.epoch else { return false }
         children[token.key] = entries.map(Children.loaded) ?? .failed
+        return true
     }
 
     /// 展開の列挙 1 回を識別する券。発行時点のフォルダ世代と全体世代を持ち、

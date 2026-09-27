@@ -146,20 +146,37 @@ final class SidebarTreePresenter {
         }
     }
 
-    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)。待ち合わせ専用で、
-    /// 取り直しで上書きし、畳む・展開を捨てるときに外す。無効化済みの取得を待たないため
-    /// (待つと、ゲートで止めたままの古い取得にテストが引っかかる)。
+    /// 走行中の子リスト取得(フォルダーの pathKey ごとに最新の 1 本)。待ち合わせ専用。
+    ///
+    /// **走行中の、まだ有効な取得だけを持つ**(TASK-644)。外す経路は 2 つで、どちらも
+    /// 券の寿命(`SidebarExpansion` の世代・epoch)に合わせている。
+    /// - 着地: `expansion.apply` が受け付けたら自分のエントリを外す。受け付けた券は
+    ///   そのキーの最新なので、エントリは必ず自分。
+    /// - 無効化: 券を無効にした側が同じ範囲で外す。取り直し(`loadChildren` が上書き・
+    ///   `reloadExpandedChildren` が epoch ごと空に)、畳み(`collapseFolder` が
+    ///   `collapse` の捨てたキーを外す)、展開の破棄(`invalidateExpansion`)。
+    ///
+    /// 無効化済みの取得を残すと、ゲートで止めたままの古い取得を `awaitSettled` が待って
+    /// ハングし、完了済みの Task は展開中ずっと保持される。
     private var childTasks: [String: Task<Void, Never>] = [:]
+
+    /// 走行中の子リスト取得のキー。`childTasks` の不変条件をテストが測るための読み取り窓。
+    var pendingChildKeys: Set<String> {
+        Set(childTasks.keys)
+    }
 
     /// 発行済みの子リスト取得と、それが予約する行の組み直しが済むまで待つ。
     /// `SidebarNavigator.awaitSettled()` の一部で、テストの待ち合わせ用(TASK-642)。
     func awaitSettled() async {
         // 組み直しがレビュー表示の規則を通って次の展開を始めることがあるので、
         // どちらも空になるまで回す。
+        // 待ち終えた取得は覚えて飛ばすだけで、`childTasks` からは外さない。外すのは
+        // 着地と無効化の経路だけで、ここが外すと不変条件の破れを覆い隠す。
+        var awaited: Set<Task<Void, Never>> = []
         while true {
-            if let (key, task) = childTasks.first {
+            if let task = childTasks.values.first(where: { !awaited.contains($0) }) {
+                awaited.insert(task)
                 await task.value
-                if childTasks[key] == task { childTasks[key] = nil }
             } else if let rebuild = pendingRebuild {
                 await rebuild.value
             } else {
@@ -179,8 +196,9 @@ final class SidebarTreePresenter {
 
     /// フォルダを畳む。配下の展開も一緒に捨てる(SidebarExpansion.collapse を参照)。
     func collapseFolder(_ key: String) {
-        expansion.collapse(key)
-        childTasks[key] = nil
+        for dropped in expansion.collapse(key) {
+            childTasks[dropped] = nil
+        }
         rebuildRows()
     }
 
@@ -298,7 +316,10 @@ final class SidebarTreePresenter {
         // 温存中の子リストを取り直しても描画されず、不可視のサブツリーへ列挙が飛ぶ
         // だけなので何もしない。鮮度はツリーへ戻ったあとの取り直しで追いつく(TASK-481)。
         guard fileListModel.display.layoutMode == .tree else { return }
-        for token in expansion.invalidateChildren() {
+        let tokens = expansion.invalidateChildren()
+        // epoch が進み、走行中の取得はすべて無効になった。取り直すキーは下で入れ直す。
+        childTasks.removeAll()
+        for token in tokens {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
             // **`.loading` のキーは行が無くても必ず取り直す。** 走行中の初回取得はいま
@@ -318,7 +339,9 @@ final class SidebarTreePresenter {
         let showHiddenFiles = fileListModel.display.showHiddenFiles
         childTasks[token.key] = Task {
             let children = await self.childrenLister(token.url, sortOrder, showHiddenFiles)
-            self.expansion.apply(children, for: token)
+            if self.expansion.apply(children, for: token) {
+                self.childTasks[token.key] = nil
+            }
             self.scheduleRebuild()
         }
     }
