@@ -297,8 +297,13 @@ final class SidebarTreePresenter {
             DirectoryLister.isDirectory(URL(fileURLWithPath: $0, isDirectory: true))
         }
         lastReveal = Reveal(directoryKey: directoryKey, status: status, targets: targets)
+        // 券の URL は一覧の形(利用者が開いたままのパス)から作る。`key` は symlink 解決済みの
+        // 実体パスなので、そのまま URL にすると配下の行が手動展開・ルート行と別形になり、
+        // 相対パスの前方一致も外れる(TASK-651)。`targets` はすべて `directoryKey + "/"` 配下。
+        let directory = fileListModel.entriesDirectory
         for key in targets.subtracting(previous?.targets ?? []) {
-            expandFolder(key, at: URL(fileURLWithPath: key, isDirectory: true))
+            let relative = String(key.dropFirst(directoryKey.count + 1))
+            expandFolder(key, at: directory.appendingPathComponent(relative, isDirectory: true))
         }
     }
 

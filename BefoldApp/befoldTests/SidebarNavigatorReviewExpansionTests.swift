@@ -11,11 +11,12 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorReviewExpansionTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    static let home = FileManager.default.homeDirectoryForCurrentUser
     private nonisolated static let modified = GitFileStatus(indexChange: nil, worktreeChange: .modified)
 
     /// テストごとの窓と、差し替え可能な git 状態。
-    private struct Fixture {
+    /// `home` / `Fixture` / `makeFixture` / `settle` は `+PathForm` の extension からも使うため internal。
+    struct Fixture {
         let navigator: SidebarNavigator
         let host: SidebarNavigatorStubHost
         let base: URL
@@ -26,16 +27,17 @@ struct SidebarNavigatorReviewExpansionTests {
         }
     }
 
-    private func makeFixture(
+    func makeFixture(
         _ name: String,
         layoutMode: SidebarLayoutMode,
         changedFilesOnly: Bool,
         changedFiles: [String],
         listingGate: AsyncGate? = nil,
-        gatedFolder: String = "b"
+        gatedFolder: String = "b",
+        base givenBase: URL? = nil
     ) -> Fixture {
         let prefix = "SidebarNavigatorReviewExpansionTests-\(name)"
-        let base = Self.home.appendingPathComponent(prefix)
+        let base = givenBase ?? Self.home.appendingPathComponent(prefix)
         let preference = SidebarDisplayDefaults(defaults: makeIsolatedDefaults(prefix: prefix))
         preference.record {
             $0.layoutMode = layoutMode
@@ -60,7 +62,10 @@ struct SidebarNavigatorReviewExpansionTests {
                 ])
             },
             // `gone` はディスクに無いフォルダーの代役。列挙失敗(nil)を返す。
-            childrenLister: { url, _, _ in url.lastPathComponent == "gone" ? nil : [] },
+            // それ以外は `x.md` を 1 件返す(配下の行の URL の形を見るため)。
+            childrenLister: { url, _, _ in
+                url.lastPathComponent == "gone" ? nil : [.init(url: url.appendingPathComponent("x.md"), kind: .file)]
+            },
             git: SidebarGitReadingStub(
                 repositoryRoot: { _ in base },
                 statuses: { _, _ in
@@ -77,7 +82,7 @@ struct SidebarNavigatorReviewExpansionTests {
         return Fixture(navigator: navigator, host: host, base: base, statuses: statuses)
     }
 
-    private func settle(_ navigator: SidebarNavigator) async {
+    func settle(_ navigator: SidebarNavigator) async {
         await navigator.awaitSettled()
     }
 
