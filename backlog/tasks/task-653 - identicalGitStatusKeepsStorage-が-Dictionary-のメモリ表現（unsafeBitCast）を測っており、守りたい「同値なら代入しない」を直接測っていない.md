@@ -3,9 +3,10 @@ id: TASK-653
 title: >-
   identicalGitStatusKeepsStorage が Dictionary
   のメモリ表現（unsafeBitCast）を測っており、守りたい「同値なら代入しない」を直接測っていない
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 08:37'
+updated_date: '2026-09-27 09:40'
 labels: []
 dependencies: []
 references:
@@ -34,5 +35,24 @@ ordinal: 853000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `identicalGitStatusKeepsStorage` が `unsafeBitCast` を使わず、`onGitStatusChange` の呼び出し回数で同値の非代入を測っている
+- [x] #1 `identicalGitStatusKeepsStorage` が `unsafeBitCast` を使わず、`onGitStatusChange` の呼び出し回数で同値の非代入を測っている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+テストで onGitStatusChange を繋ぎ、同値の 2 回目の applyGitStatus 後も呼び出し回数が 1 のままであることを測る。unsafeBitCast は撤去。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+- 検証: SidebarIdenticalListingTests 8 件 pass。setGitStatus の同値ガードを外す変異で assignments == 1 の期待が落ちることを確認。swiftlint 0 件。
+- 仕様文書: テストのみの変更で更新不要。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+identicalGitStatusKeepsStorage を、辞書のメモリ表現（unsafeBitCast）ではなく onGitStatusChange の呼び出し回数で同値の非代入を測る形に書き換えた。同値ガードを外す変異で落ちることを確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

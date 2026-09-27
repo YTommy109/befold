@@ -180,11 +180,14 @@ struct SidebarIdenticalListingTests {
 
     /// 同値の取り直しでは**代入しない**(TASK-646)。代入すると辞書のストレージが入れ替わり、
     /// `SidebarTreePresenter.revealChangedFolders` の「適用済みと同じか」の比較が同一ストレージの
-    /// 早期 return に乗らず、`applyRows` のたびに全量比較になる。値の比較では測れないので、
-    /// 辞書の参照(Darwin の Dictionary は 1 語のストレージ参照)で同一性を見る。
+    /// 早期 return に乗らず、`applyRows` のたびに全量比較になる。
+    /// 代入の有無は `gitStatus` の didSet が呼ぶ `onGitStatusChange` の回数で測る
+    /// (辞書のメモリ表現には依存しない / TASK-653)。
     @Test("同じ git 状態を別に作り直して反映しても、保持している値は差し替わらない")
-    func identicalGitStatusKeepsStorage() throws {
+    func identicalGitStatusKeepsStorage() {
         let model = makeModel()
+        var assignments = 0
+        model.onGitStatusChange = { assignments += 1 }
         let key = directory.appendingPathComponent("a.md").normalizedPathKey
         func make() -> SidebarGitStatus {
             SidebarGitStatus(
@@ -193,13 +196,11 @@ struct SidebarIdenticalListingTests {
             )
         }
         model.applyGitStatus(make(), for: directory, sequence: 1)
-        let before = try #require(model.gitStatus).files
+        #expect(assignments == 1)
 
         model.applyGitStatus(make(), for: directory, sequence: 2)
-        let after = try #require(model.gitStatus).files
 
-        let isSameStorage = unsafeBitCast(before, to: AnyObject.self) === unsafeBitCast(after, to: AnyObject.self)
-        #expect(isSameStorage)
+        #expect(assignments == 1)
     }
 
     /// AC#3 の計測。Cmd+クリックで新規タブを開くと、同一ディレクトリの列挙は
