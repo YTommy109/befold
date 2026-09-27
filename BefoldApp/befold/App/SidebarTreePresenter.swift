@@ -83,8 +83,13 @@ final class SidebarTreePresenter {
     /// 判定をここに置くのは、`lastListing` の更新と同じ同期区間に収めるため(モデル側へ
     /// 置くと材料だけが進む窓ができる)。`lastListing` は行に出ない差でも更新してよいので、
     /// 上の不変条件は保たれる。
+    ///
+    /// **予約済みの組み直しはここで捨てる**(TASK-655)。ここは最新の材料で組むので、
+    /// 予約が後から走っても同じ行をもう一度組むだけになる(700 行で約 12ms)。
+    /// 同期で組む経路(畳み・ルートの一覧の着地)を個別に手当てせず、ここ 1 箇所で済ませる。
     @discardableResult
     func applyRows(_ listing: DirectoryListing, for directory: URL) -> [FileListEntry] {
+        dropPendingRebuild()
         lastListing = listing
         let isTree = fileListModel.display.layoutMode == .tree
         // ドリルダウン表示では展開の材料を渡さない。展開状態が残っていても
@@ -132,7 +137,13 @@ final class SidebarTreePresenter {
     /// 寿命は `expansion` と同じで、`invalidateExpansion` が取り消して捨てる(TASK-649)。
     /// 残すと、展開を捨てた後に予約済みの組み直しが走り、`lastReveal` の無い状態で
     /// レビュー表示の規則を通って、捨てた展開を全件開き直す。
+    /// 同期の組み直し(`applyRows`)も、先に組んで用済みになった予約を捨てる(TASK-655)。
     private var pendingRebuild: Task<Void, Never>?
+
+    private func dropPendingRebuild() {
+        pendingRebuild?.cancel()
+        pendingRebuild = nil
+    }
 
     /// 組み直しが予約中か。`pendingRebuild` の寿命をテストが測るための読み取り窓。
     var hasPendingRebuild: Bool {
@@ -237,8 +248,7 @@ final class SidebarTreePresenter {
     /// ツリー表示へ戻るときに呼ぶ。
     func invalidateExpansion() {
         expansion.invalidateAll()
-        pendingRebuild?.cancel()
-        pendingRebuild = nil
+        dropPendingRebuild()
         lastReveal = nil
     }
 

@@ -55,6 +55,29 @@ struct SidebarTreePresenterChildTasksTests {
         #expect(presenter.pendingChildKeys.isEmpty)
     }
 
+    @Test("組み直しの予約中に畳むと、同期の組み直しが予約を捨て、組み直しは 1 回で済む")
+    func collapseDropsScheduledRebuild() async throws {
+        let presenter = makePresenter()
+        let key = base.appendingPathComponent("a").normalizedPathKey
+        // 着地(予約)と予約の実行はどちらもメインアクターの別ジョブで、間に譲りが挟まる
+        // 保証は無い。予約が観測より先に走ったら、畳んでやり直す。
+        var observed = false
+        for _ in 0 ..< 50 where !observed {
+            expand(presenter, "a")
+            for _ in 0 ..< 10000 where presenter.pendingChildKeys.contains(key) {
+                await Task.yield()
+            }
+            observed = presenter.hasPendingRebuild
+            if !observed { presenter.collapseFolder(key) }
+        }
+        try #require(observed)
+
+        presenter.collapseFolder(key)
+
+        // 畳みが同期で組み直した。予約が残っていれば、同じ材料でもう 1 回組む。
+        #expect(!presenter.hasPendingRebuild)
+    }
+
     /// レビュー表示(ツリー × 変更のみ)で `a` の変更を持つ presenter。`a` の子リスト取得は
     /// `gate` が開くまで止まる。`issued` は取得の発行回数、`returned` は返った回数。
     private func makeReviewPresenter(
