@@ -230,7 +230,7 @@ describe('定義ジャンプ: コメント・文字列を定義と誤検出し�
   });
 
   // メソッド短縮記法と行の形が同じもの。**分かれ目は名前の位置の予約語だけ**なので、
-  // 予約語を 1 つ落とすとそのまま誤検出になる（ADR 0011 / TASK-485.23）。
+  // 予約語を 1 つ落とすとそのまま誤検出になる（backlog decision-12 / TASK-485.23）。
   test('制御構文を定義として拾わない（メソッド短縮記法と行の形が同じ）', async () => {
     const { document } = await openDefinitionJump('typescript', [
       'function real(kind: string) {',

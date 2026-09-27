@@ -153,7 +153,7 @@ stable ビルドを含むすべてのビルドで使える（開発中機能の�
   変更ブロックは全数そろっている（差分の表は `setDiff` で渡った全文から組み、
   `appendChunk` は追記をスキップする）
 
-### 定義（TASK-485.4 / ADR 0009）
+### 定義（TASK-485.4 / backlog decision-12）
 
 ソースコード表示で関数・型の定義行を拾う。対応言語は swift / python / javascript /
 typescript / go / rust / java / kotlin の 8 つで（TASK-485.24）、**非対応言語ではメニュー項目が押す前からグレーアウトする**。

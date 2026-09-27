@@ -24,3 +24,7 @@ docs/dev/development.md|latest.json
 #    そう分けない理由として名指ししている。どちらも現存しない。
 docs/dev/rules/product-code.md|viewer.js
 docs/dev/rules/product-code.md|viewer-main.js
+
+# 1. FeatureGate を撤去したあと、再導入するときの前例として名指ししている。
+#    撤去済みで現存せず、「git 履歴から戻せる」と書くための引用。
+docs/dev/native-app-design.md|befold/App/FeatureGate.swift
