@@ -118,7 +118,7 @@ DMG のビルドと添付は GitHub Actions（release.yml）が自動で行う�
 
 ### 4. CHANGELOG.md への追記（stable リリースのみ）
 
-**stable リリースの場合のみ**、`.claude/skills/changelog.md` スキルの手順に
+**stable リリースの場合のみ**、`.claude/skills/changelog/SKILL.md` スキルの手順に
 従い、生成したリリースノートの**日本語セクションだけ**を `CHANGELOG.md` に
 追記し（`CHANGELOG.md` は日本語のみで維持する）、
 `git add CHANGELOG.md && ALLOW_MAIN_COMMIT=1 git commit -m "docs: CHANGELOG.md に <タグ> を追記する"`

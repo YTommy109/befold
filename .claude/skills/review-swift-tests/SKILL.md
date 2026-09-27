@@ -1,5 +1,5 @@
 ---
-name: Review Swift Tests
+name: review-swift-tests
 description: テストコードを coding_rule.md（分割後）に基づいてレビューする
 ---
 
@@ -134,3 +134,5 @@ Swift テストコードをレビューする（`docs/dev/coding_rule.md` は分
 - 不足しているテストケース: <具体的なリスト>
 - 規約準拠度: <高/中/低>
 ```
+
+引数: $ARGUMENTS

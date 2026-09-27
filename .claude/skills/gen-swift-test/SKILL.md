@@ -1,5 +1,5 @@
 ---
-name: Generate Swift Test
+name: gen-swift-test
 description: 変更・新規の Swift ファイルに対する Swift Testing テストの不足を検出し、ドラフトを生成する
 ---
 
@@ -46,3 +46,5 @@ description: 変更・新規の Swift ファイルに対する Swift Testing テ
 ### ドラフト
 （Swift Testing コードブロック）
 ```
+
+引数: $ARGUMENTS

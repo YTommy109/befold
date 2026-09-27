@@ -14,7 +14,7 @@
     // Claude Code が読み込む指示ファイル群（手書き管理）
     ".claude/agents/*.md",
     ".claude/commands/*.md",
-    ".claude/skills/*.md",
+    ".claude/skills/**/*.md",
     "site/**/*.md"
   ],
   "ignores": [
@@ -22,13 +22,15 @@
     "backlog/**",
     // superpowers スキルが生成する plans/specs（成果物であり手書き文書ではない）
     "docs/superpowers/**",
-    // リリース自動化（.claude/skills/changelog.md）が生成する
+    // リリース自動化（.claude/skills/changelog/SKILL.md）が生成する
     "CHANGELOG.md",
     // 依存パッケージ同梱の Markdown。site/node_modules のようにネストした
     // 位置にもあるため、先頭の "**/" でどの階層でも除外する
     // （"node_modules/**" だけではリポジトリ直下しか一致しない）。
     "**/node_modules/**",
-    ".claude/worktrees/**"
+    ".claude/worktrees/**",
+    // 外部から取り込んだスキル（手書き管理ではないので整形しない）
+    ".claude/skills/gh-stack/**"
   ],
   "config": {
     "default": true,
