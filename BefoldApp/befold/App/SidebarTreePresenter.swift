@@ -227,6 +227,7 @@ final class SidebarTreePresenter {
     func invalidateExpansion() {
         expansion.invalidateAll()
         childTasks.removeAll()
+        lastReveal = nil
     }
 
     // MARK: - Review Expansion (TASK-637)
@@ -235,6 +236,10 @@ final class SidebarTreePresenter {
     /// git 状態・候補。**展開を「入る前へ戻す」ための保存ではない**——全件を開くか差分だけを
     /// 開くかを分け、差分の引き算に前回の候補を使い回すためだけに持つ(TASK-638)。
     /// 組み合わせを外れたら nil。
+    ///
+    /// 寿命は `expansion` と同じ。前回の候補はそれが開いた展開が残っている間だけ意味を持つので、
+    /// `invalidateExpansion` で展開と一緒に捨てる(残すと、同じ git 状態の着地が「適用済み」と
+    /// 判定され、捨てた展開が開き直らない。TASK-645)。
     private struct Reveal {
         let directoryKey: String
         let status: SidebarGitStatus

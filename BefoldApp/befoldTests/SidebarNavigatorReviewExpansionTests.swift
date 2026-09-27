@@ -169,6 +169,23 @@ struct SidebarNavigatorReviewExpansionTests {
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b/c")])
     }
 
+    @Test("展開を捨てた後に同じ git 状態で一覧が着地しても、変更フォルダーが再び開く")
+    func discardedExpansionIsRevealedAgainWithSameStatus() async {
+        let fixture = makeFixture(
+            "discard", layoutMode: .tree, changedFilesOnly: true, changedFiles: ["a/x.md"]
+        )
+        defer { withExtendedLifetime(fixture.host) {} }
+        fixture.navigator.refreshFileList()
+        await settle(fixture.navigator)
+        #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
+
+        // 同じディレクトリへの移動は展開を捨てる(git 状態は変わらない)。
+        fixture.navigator.navigateToFolder(fixture.base)
+        await settle(fixture.navigator)
+
+        #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
+    }
+
     @Test("移動中に変更のみを ON にしても、移動先は着地した git 状態だけで開く")
     func moveInFlightRevealsOnlyFromLandedStatus() async {
         let gate = AsyncGate()
