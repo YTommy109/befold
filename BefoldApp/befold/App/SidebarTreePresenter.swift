@@ -271,6 +271,8 @@ final class SidebarTreePresenter {
         guard directoryKey == fileListModel.currentDirectory.normalizedPathKey else { return }
         let previous = lastReveal?.directoryKey == directoryKey ? lastReveal : nil
         // フォーカス復帰のたびに通る経路。状態が同じなら候補を数えもしない。
+        // 同値の取り直しは `FileListModel.setGitStatus` が代入ごと弾くので、ここの比較は
+        // 同一ストレージの早期 return で O(1) に終わる(TASK-646)。
         guard previous?.status != status else { return }
         // ponytail: 未追跡エントリごとに stat 1 回(メインアクター)。数千件の未追跡で
         // 重ければ GitStatusReader で畳み込みの事実(末尾スラッシュ)を運ぶ。

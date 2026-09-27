@@ -158,8 +158,8 @@ struct SidebarIdenticalListingTests {
         #expect(model.hasLoadedEntries)
     }
 
-    /// git 状態は Equatable なので、同値の再代入は Swift の Observation 自身が抑止する
-    /// (専用のガードは要らない)。**その前提が変わったら気づけるように**ここで固定する。
+    /// 同値の git 状態は書き込み点(`setGitStatus`)で弾く。観測が汚れないことはここで、
+    /// 代入そのものが起きないことは `identicalGitStatusKeepsStorage` で固定する。
     @Test("同じ git 状態を新しい発行順序で反映しても、観測は汚れない")
     func identicalGitStatusDoesNotInvalidate() {
         let model = makeModel()
@@ -176,6 +176,30 @@ struct SidebarIdenticalListingTests {
         }
 
         #expect(!dirtied)
+    }
+
+    /// 同値の取り直しでは**代入しない**(TASK-646)。代入すると辞書のストレージが入れ替わり、
+    /// `SidebarTreePresenter.revealChangedFolders` の「適用済みと同じか」の比較が同一ストレージの
+    /// 早期 return に乗らず、`applyRows` のたびに全量比較になる。値の比較では測れないので、
+    /// 辞書の参照(Darwin の Dictionary は 1 語のストレージ参照)で同一性を見る。
+    @Test("同じ git 状態を別に作り直して反映しても、保持している値は差し替わらない")
+    func identicalGitStatusKeepsStorage() throws {
+        let model = makeModel()
+        let key = directory.appendingPathComponent("a.md").normalizedPathKey
+        func make() -> SidebarGitStatus {
+            SidebarGitStatus(
+                repositoryRootKey: directory.normalizedPathKey,
+                statuses: [key: GitFileStatus(indexChange: nil, worktreeChange: .modified)]
+            )
+        }
+        model.applyGitStatus(make(), for: directory, sequence: 1)
+        let before = try #require(model.gitStatus).files
+
+        model.applyGitStatus(make(), for: directory, sequence: 2)
+        let after = try #require(model.gitStatus).files
+
+        let isSameStorage = unsafeBitCast(before, to: AnyObject.self) === unsafeBitCast(after, to: AnyObject.self)
+        #expect(isSameStorage)
     }
 
     /// AC#3 の計測。Cmd+クリックで新規タブを開くと、同一ディレクトリの列挙は
