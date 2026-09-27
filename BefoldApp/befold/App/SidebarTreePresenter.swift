@@ -301,7 +301,12 @@ final class SidebarTreePresenter {
         for token in expansion.invalidateChildren() {
             // 判定に使うのは 1 つ前の完了した一覧(この関数はルートの列挙を発行する前に
             // 呼ばれる)。列挙先の URL は従来どおり券が運ぶ——ここで引き当て直さない。
-            guard fileListModel.folderEntryURL(forKey: token.key) != nil else { continue }
+            // **`.loading` のキーは行が無くても必ず取り直す。** 走行中の初回取得はいま
+            // epoch で捨てたので、再発行しなければ答えが永久に届かない。行が無いのは
+            // 消えたからとは限らず、親の子リストの着地待ち(入れ子の一括展開)でもある。
+            // 飛ばしてよいのは答えを持っている(古い子を出し続けられる)キーだけ(TASK-643)。
+            let awaitingFirstAnswer = expansion.children[token.key] == .loading
+            guard awaitingFirstAnswer || fileListModel.folderEntryURL(forKey: token.key) != nil else { continue }
             loadChildren(for: token)
         }
     }

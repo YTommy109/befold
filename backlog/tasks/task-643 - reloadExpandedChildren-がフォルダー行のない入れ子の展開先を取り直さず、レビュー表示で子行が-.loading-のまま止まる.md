@@ -1,9 +1,10 @@
 ---
 id: TASK-643
 title: reloadExpandedChildren がフォルダー行のない入れ子の展開先を取り直さず、レビュー表示で子行が .loading のまま止まる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-27 07:23'
+updated_date: '2026-09-27 07:31'
 labels: []
 dependencies: []
 references:
@@ -34,6 +35,26 @@ TASK-451 の判定（消えたフォルダーへ飛ばさない）と、まだ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `a` と `a/deep` を同時に展開し、`a` の子リストが着地する前に `reloadExpandedChildren` を挟んでも、両方の子リストが着地して行に出るテストがある（子リスト取得をゲートで止めて再現する）
-- [ ] #2 TASK-451 の振る舞い（Finder 側で消えたフォルダーの展開キーへ列挙が飛ばない）を守るテストが引き続き通る
+- [x] #1 `a` と `a/deep` を同時に展開し、`a` の子リストが着地する前に `reloadExpandedChildren` を挟んでも、両方の子リストが着地して行に出るテストがある（子リスト取得をゲートで止めて再現する）
+- [x] #2 TASK-451 の振る舞い（Finder 側で消えたフォルダーの展開キーへ列挙が飛ばない）を守るテストが引き続き通る
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+reloadExpandedChildren のスキップ条件を「一覧に行が無い」から「一覧に行が無く、かつ答え(.loaded/.failed)を持っている」へ狭める。新しい状態は足さず、既存の children[key] == .loading で「親の着地待ち」を判別する。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+単純化の検討: 候補に挙がっていた「親キーが展開中なら取り直す」は、消えたフォルダーの親も展開中なら TASK-451 の防止が崩れる。「スキップしたキーを親着地時に再発行」は保留券という新しい状態が要る。既存の children[key] == .loading(= 初回取得が走行中で、今 epoch で捨てた)だけを再発行条件に足せば状態も経路も増えない。.loaded/.failed のキーは古い答えを出し続けられるので飛ばしても止まらない。消えたフォルダーの初回取得中に取り直しが来た場合は 1 回だけ列挙が飛んで .failed が着地し、以後は飛ばされる(上限あり)。
+検証: 新規テスト reloadReissuesNestedExpansionAwaitingParent は修正を外すと失敗(entries に leaf が無い)、入れると成功。TASK-451 の reloadSkipsFoldersMissingFromListing は通過。swift test 全体 2003 + 72 件成功。swiftformat 差分なし・変更 2 ファイルの swiftlint 0 件。
+設計文書: native-app-design.md 等は reloadExpandedChildren のスキップ条件に言及していないため更新不要。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+SidebarTreePresenter.reloadExpandedChildren が、子リストの初回取得中(.loading)のキーを一覧に行が無くても取り直すようにした。入れ子の一括展開で深い側が .loading のまま止まる問題を解消。ゲートで再現するテストを追加(修正なしで失敗を確認)、TASK-451 のテストと全テスト通過。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -214,6 +214,41 @@ struct SidebarNavigatorExpansionTests {
         #expect(await counter.count == 2, "保持していた子リストを捨てて取り直している")
     }
 
+    /// レビュー表示は `a` と `a/deep` を同時に展開する。`a/deep` の行は `a` の子が着地するまで
+    /// 一覧に無いため、その間の取り直しで「一覧に無い」として飛ばすと、epoch で捨てた初回取得が
+    /// 再発行されず `a/deep` が `.loading` のまま止まる(TASK-643)。
+    @Test("入れ子を同時に展開した直後に取り直しても、深い側の子リストが着地する")
+    func reloadReissuesNestedExpansionAwaitingParent() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorExpansionTests-nested")
+        let dirA = base.appendingPathComponent("a", isDirectory: true)
+        let deep = dirA.appendingPathComponent("deep", isDirectory: true)
+        let leaf = deep.appendingPathComponent("leaf.md")
+        // 初回の子リスト取得を両方とも足止めし、その間に取り直しを挟む。
+        let gate = AsyncGate()
+        let (navigator, host) = makeNavigator(
+            currentDirectory: base, rootEntries: [FileListEntry(url: dirA, kind: .folder)]
+        ) { url, _, _ in
+            await gate.wait()
+            if url.normalizedPathKey == dirA.normalizedPathKey {
+                return [FileListEntry(url: deep, kind: .folder)]
+            }
+            return [FileListEntry(url: leaf, kind: .file)]
+        }
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshFileList()
+        await navigator.awaitSettled()
+        navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
+        navigator.expandFolder(deep.normalizedPathKey, at: deep)
+        await Task.yield()
+
+        navigator.refreshFileList()
+        await gate.open()
+        await navigator.awaitSettled()
+
+        #expect(navigator.fileListModel.entries.map(\.url).contains(leaf))
+    }
+
     /// `SidebarExpansion.material.failed` が `SidebarRowBuilder` まで配線されているか。
     /// 状態と表示のどちらを正しく作っても、この 1 本の配線が抜けると失敗は
     /// 「畳んでいる」ように見え、→ キーも無反応になる(TASK-404)。
