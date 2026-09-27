@@ -252,7 +252,7 @@ struct SidebarNavigatorReviewExpansionTests {
     }
 
     /// 購読者は presenter の 1 者(TASK-641)。組み立て側などから上書きすると presenter の
-    /// クロージャが黙って外れ、git 更新時の展開が止まる。上書きは assert で止まること。
+    /// クロージャが黙って外れ、git 更新時の展開が止まる。上書きは precondition で止まること(release 構成でも。TASK-647)。
     @Test("presenter が繋いだ onGitStatusChange を上書きすると実行時に止まる")
     func overwritingGitStatusSubscriberTraps() async {
         await #expect(processExitsWith: .failure) {
