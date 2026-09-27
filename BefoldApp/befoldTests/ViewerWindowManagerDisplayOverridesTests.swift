@@ -81,7 +81,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(controller.fileListModel.display.sortOrder == originalSortOrder)
     }
 
-    /// ADR 0002 の規則「記憶へ書くのは明示的なユーザーのモード選択だけ」。
+    /// ADR 0002「保存値の書き込み規則」の「保存値へ書くのは明示的なユーザーのモード選択だけ」。
     /// CLI の上書きはこの起動限りで、新規ウィンドウ・既存ウィンドウのどちらでも記憶を触らない。
     @Test("CLI の表示モード上書きは既存ウィンドウでも記憶を書き換えない")
     func openViewerOnOpenWindowDoesNotRecordDisplayMode() throws {
