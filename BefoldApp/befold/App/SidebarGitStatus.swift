@@ -140,24 +140,27 @@ struct SidebarGitStatus: Equatable, Sendable {
     /// レビュー表示(ツリー × 変更のみ)で展開するフォルダーの pathKey(TASK-637)。
     ///
     /// 対象は `directoryKey` の**厳密な配下**のうち次の 2 種。
-    /// - 変更ファイルの祖先フォルダー。`folders` のキーのうち `files` に無いもの
-    ///   (`GitFolderStatus.aggregate` は変更ファイル自身のキーも集約に入れるため、
-    ///   `folders` のキーをそのままフォルダーとは読めない)。
+    /// - 作業ツリーに実体のある変更ファイルの祖先フォルダー。削除(`GitFileStatus.isDeleted`)は
+    ///   行を持たないので契機にしない。`folders` を起点にすると削除しか無いフォルダーまで
+    ///   候補に入り、消えたパスのキーが展開集合に残る(TASK-640)。
     /// - 丸ごと新しい未追跡フォルダー。git からは末尾スラッシュ付きの 1 エントリで届くが、
     ///   pathKey の時点でスラッシュが落ちてファイルと区別できないため、実ディレクトリかを
-    ///   `isDirectory` に問う。配下のサブフォルダーは `folders` に現れないので 1 段だけ開く。
+    ///   `isDirectory` に問う。配下は git が列挙しないので 1 段だけ開く。
     ///
     /// 親リポジトリが答えを持たない境界(サブモジュール・ネストしたリポジトリ)と
     /// その配下は開かない(TASK-403)。
     func foldersToReveal(under directoryKey: String, isDirectory: (String) -> Bool) -> Set<String> {
         let prefix = directoryKey + "/"
-        return Set(folders.keys.filter { key in
-            guard key.hasPrefix(prefix), !indeterminateRoots.contains(key),
-                  !isIndeterminate(at: key)
-            else { return false }
-            guard let file = files[key] else { return true }
-            return file.isUntracked && isDirectory(key)
-        })
+        var result = Set<String>()
+        for (key, file) in files where key.hasPrefix(prefix) && !file.isClean && !file.isDeleted {
+            if file.isUntracked, isDirectory(key) { result.insert(key) }
+            var current = key
+            while let parent = Self.ancestor(of: current), parent != directoryKey {
+                result.insert(parent)
+                current = parent
+            }
+        }
+        return result.filter { !indeterminateRoots.contains($0) && !isIndeterminate(at: $0) }
     }
 
     private static func ancestor(of pathKey: String) -> String? {

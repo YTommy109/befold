@@ -46,6 +46,23 @@ struct SidebarGitStatusRevealTests {
         #expect(result == ["\(root)/newdir"])
     }
 
+    @Test("削除しかないフォルダーは返さない（実体のある変更が同居するフォルダーは返す）")
+    func excludesDeletionOnlyFolders() {
+        let sidebar = status([
+            "\(root)/gone/staged.md": GitFileStatus(indexChange: .deleted),
+            "\(root)/gone/unstaged.md": GitFileStatus(worktreeChange: .deleted),
+            "\(root)/gone/branch.md": GitFileStatus(branchChange: .deleted),
+            "\(root)/kept/removed.md": GitFileStatus(indexChange: .deleted),
+            "\(root)/kept/edited.md": modified,
+            // `git rm --cached` の形。index は削除でも作業ツリーには実体がある。
+            "\(root)/recreated/new.md": GitFileStatus(indexChange: .deleted, isUntracked: true),
+        ])
+
+        let result = sidebar.foldersToReveal(under: root) { _ in false }
+
+        #expect(result == ["\(root)/kept", "\(root)/recreated"])
+    }
+
     @Test("サブモジュール・ネストしたリポジトリの境界とその配下は返さない")
     func excludesIndeterminateRoots() {
         let sidebar = status(

@@ -53,7 +53,8 @@ struct SidebarNavigatorReviewExpansionTests {
                     FileListEntry(url: directory.appendingPathComponent("b"), kind: .folder),
                 ])
             },
-            childrenLister: { _, _, _ in [] },
+            // `gone` はディスクに無いフォルダーの代役。列挙失敗(nil)を返す。
+            childrenLister: { url, _, _ in url.lastPathComponent == "gone" ? nil : [] },
             git: SidebarGitReadingStub(
                 repositoryRoot: { _ in base },
                 statuses: { _, _ in
@@ -134,6 +135,21 @@ struct SidebarNavigatorReviewExpansionTests {
         await settle(fixture.navigator)
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b")])
+    }
+
+    @Test("削除しかないフォルダーは展開されず、消えたパスのキーが展開集合に残らない")
+    func deletionOnlyFolderIsNotRevealed() async {
+        let fixture = makeFixture(
+            "deleted", layoutMode: .tree, changedFilesOnly: true, changedFiles: ["a/x.md"]
+        )
+        defer { withExtendedLifetime(fixture.host) {} }
+        fixture.statuses.update { $0[fixture.key("gone/y.md")] = GitFileStatus(indexChange: .deleted) }
+
+        fixture.navigator.refreshFileList()
+        await settle(fixture.navigator)
+
+        #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
+        #expect(fixture.navigator.expandedFolderURLs[fixture.key("gone")] == nil)
     }
 
     @Test("レビュー表示中に別のフォルダーへ移動すると、移動先で同じ規則が適用される")
