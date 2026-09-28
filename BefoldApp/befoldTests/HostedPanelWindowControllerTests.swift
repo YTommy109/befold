@@ -209,11 +209,14 @@ struct HostedPanelWindowControllerTests {
         #expect(frame.maxY == left.maxY)
     }
 
-    @Test("保存値が無い初回は中央に開く")
-    func rememberCentersWithoutSavedFrame() throws {
+    /// 初回の中央寄せは表示前(init)に行う。設定窓の構成は中身の固有サイズで窓幅が決まるので、
+    /// 表示で大きさが変わって中央からずれないことも併せて確かめる(TASK-660)。
+    @Test("保存値が無い初回は中央に開く", arguments: [false, true])
+    func rememberCentersWithoutSavedFrame(settingsLayout: Bool) throws {
         let name = Self.uniqueAutosaveName()
         defer { Self.removeSavedFrame(name) }
-        let controller = makeResizable(placement: .remember(autosaveName: name))
+        let placement = HostedPanelPlacement.remember(autosaveName: name)
+        let controller = settingsLayout ? makeController(placement: placement) : makeResizable(placement: placement)
         controller.showAndActivate()
         let window = try #require(controller.window)
         defer { window.close() }
@@ -237,6 +240,22 @@ struct HostedPanelWindowControllerTests {
         defer { window.close() }
 
         #expect(window.frame == centered)
+    }
+
+    /// 中央へ置くのは閉じていた窓を開くときの位置で、表示中の窓の前面化では動かさない(TASK-660)。
+    @Test("centered は表示中の窓を前面化しても動かさない")
+    func centeredKeepsPositionWhenActivatingVisibleWindow() throws {
+        let controller = makeResizable(placement: .centered)
+        controller.showAndActivate()
+        let window = try #require(controller.window)
+        defer { window.close() }
+        let moved = try Self.moveAwayFromCenter(window, resize: false)
+        controller.isFrontmost = { false }
+
+        controller.toggle()
+
+        #expect(window.isVisible)
+        #expect(window.frame == moved)
     }
 
     @Test("途中で落ちた回の保存値は、次のテストの開始時に掃除される")

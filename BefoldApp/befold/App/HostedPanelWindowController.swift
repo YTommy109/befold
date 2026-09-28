@@ -10,8 +10,6 @@ import SwiftUI
 final class HostedPanelWindowController: NSWindowController {
     /// 最前面判定のシーム。既定は実ウィンドウの isKeyWindow だが、テストから注入できるようにする。
     var isFrontmost: () -> Bool = { false }
-    /// 次の表示で中央へ置くか。`.centered` は毎回、`.remember` は保存値が無いときの初回だけ。
-    private var centersOnNextShow = true
 
     /// - Parameters:
     ///   - resizable: リサイズ可否。About と設定は固定サイズ、Help 配下は可変。
@@ -36,7 +34,8 @@ final class HostedPanelWindowController: NSWindowController {
         isFrontmost = { [weak window] in window?.isKeyWindow ?? false }
         if case let .remember(name) = placement {
             // リサイズ不可の窓では AppKit が保存値の左上だけを戻し、サイズは中身のまま保つ(TASK-657 で実測)。
-            centersOnNextShow = !window.setFrameUsingName(name)
+            // 保存値が無い初回はここで中央へ置く。以後はユーザーが置いた位置を保つので、表示時には動かさない。
+            if !window.setFrameUsingName(name) { window.center() }
             // 同じ保存名の窓が生きていると AppKit は登録を拒否し、この窓の枠は黙って保存されなくなる。
             // 起きるのは保存名の重複かコントローラーの作り直しで、どちらも作り方の誤りなので開発時に止める
             // (TASK-659)。呼び出しを assert の中に書くと release で登録ごと消えるので、先に束縛する。
@@ -46,9 +45,9 @@ final class HostedPanelWindowController: NSWindowController {
     }
 
     func showAndActivate() {
-        if centersOnNextShow { window?.center() }
-        // 保存名を持つ窓は、以後ユーザーが置いた位置を保つ。
-        centersOnNextShow = window?.frameAutosaveName.isEmpty ?? true
+        // 中央へ置くのは保存名を持たない窓(`.centered`)を閉じた状態から開くときだけ。
+        // 表示中の窓の前面化では動かさない(TASK-660)。
+        if let window, window.frameAutosaveName.isEmpty, !window.isVisible { window.center() }
         showWindow(nil)
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
@@ -67,7 +66,7 @@ final class HostedPanelWindowController: NSWindowController {
 /// パネルを開く位置の方針(TASK-656)。
 /// 読むだけのパネルは毎回中央、操作するパネルはユーザーが置いた場所を覚える。
 enum HostedPanelPlacement: Equatable {
-    /// 開くたびに画面中央へ置く。
+    /// 閉じていた窓を開くたびに画面中央へ置く。表示中の窓の前面化では動かさない。
     case centered
     /// 最後の枠を覚える(frame autosave)。リサイズ可能な窓は位置とサイズ、
     /// リサイズ不可の窓は位置だけが戻る(サイズは中身に従う)。
