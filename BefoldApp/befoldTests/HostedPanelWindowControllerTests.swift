@@ -122,6 +122,14 @@ struct HostedPanelWindowControllerTests {
         UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(name)")
     }
 
+    /// 閉じた窓に保存名を手放させ、前回の起動が終わった状態を模す。close だけでは名前は
+    /// 登録されたままで、同じ名前で作る次の窓は登録を拒否されて assert で落ちる(TASK-659)。
+    /// 保存済みの枠は UserDefaults に残る(名前を外しても消えないことを実測済み)。
+    private static func closeAsIfQuit(_ window: NSWindow) {
+        window.close()
+        window.setFrameAutosaveName("")
+    }
+
     /// 表示直後(中央)の窓を可視領域の左上寄りへ動かし、AppKit が実際に採った枠を返す。
     /// `resize` なら少し大きくもする。動かした先が中央と区別できることを前提として確かめる。
     private static func moveAwayFromCenter(_ window: NSWindow, resize: Bool) throws -> NSRect {
@@ -153,7 +161,7 @@ struct HostedPanelWindowControllerTests {
         first.showAndActivate()
         let window = try #require(first.window)
         let left = try Self.moveAwayFromCenter(window, resize: true)
-        window.close()
+        Self.closeAsIfQuit(window)
 
         let second = makeResizable(placement: .remember(autosaveName: name))
         second.showAndActivate()
@@ -189,7 +197,7 @@ struct HostedPanelWindowControllerTests {
         let window = try #require(first.window)
         let fittedSize = window.frame.size
         let left = try Self.moveAwayFromCenter(window, resize: false)
-        window.close()
+        Self.closeAsIfQuit(window)
 
         let second = makeController(placement: .remember(autosaveName: name))
         second.showAndActivate()
@@ -251,5 +259,15 @@ struct HostedPanelWindowControllerTests {
         for panel in readOnly {
             #expect(panel.placement == .centered, "\(panel)")
         }
+    }
+
+    /// 同じ保存名を 2 つのパネルが持つと、後から開いた方は登録を拒否されて位置が保存されない(TASK-659)。
+    @Test("枠を覚えるパネルの保存名はパネルごとに一意")
+    func autosaveNamesAreUniqueAcrossPanels() {
+        let names = HostedPanel.allCases.compactMap { panel -> String? in
+            guard case let .remember(name) = panel.placement else { return nil }
+            return name
+        }
+        #expect(Set(names).count == names.count, "\(names)")
     }
 }

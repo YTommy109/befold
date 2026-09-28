@@ -37,7 +37,11 @@ final class HostedPanelWindowController: NSWindowController {
         if case let .remember(name) = placement {
             // リサイズ不可の窓では AppKit が保存値の左上だけを戻し、サイズは中身のまま保つ(TASK-657 で実測)。
             centersOnNextShow = !window.setFrameUsingName(name)
-            window.setFrameAutosaveName(name)
+            // 同じ保存名の窓が生きていると AppKit は登録を拒否し、この窓の枠は黙って保存されなくなる。
+            // 起きるのは保存名の重複かコントローラーの作り直しで、どちらも作り方の誤りなので開発時に止める
+            // (TASK-659)。呼び出しを assert の中に書くと release で登録ごと消えるので、先に束縛する。
+            let registered = window.setFrameAutosaveName(name)
+            assert(registered, "保存名 \(name) は別の窓が使用中で、この窓の位置は保存されない")
         }
     }
 
@@ -73,7 +77,7 @@ enum HostedPanelPlacement: Equatable {
 /// AppDelegate が単一インスタンスで保持するパネルの種類。
 /// 「保持スロット」と「生成方法」をこのキーで対応づけ、ウィンドウごとの
 /// `controller ?? Make(); store; toggle()` の繰り返しをなくす。
-enum HostedPanel: Hashable {
+enum HostedPanel: Hashable, CaseIterable {
     case about
     case settings
     /// ブックマークの管理(別名・削除・フォルダー)。文書の窓ではないので `ViewerWindowKind` には乗せない。
