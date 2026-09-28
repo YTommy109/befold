@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-28 05:53'
-updated_date: '2026-09-28 06:05'
+updated_date: '2026-09-28 06:30'
 labels:
   - bug
   - ui
@@ -62,6 +62,8 @@ ordinal: 856000
 検証: swift test 全件成功（2017 + 72 件）。HostedPanelWindowControllerTests に位置の 6 件を追加。showAndActivate を旧来の無条件 center() へ戻すと 3 件が落ちることを確認済み（ミューテーション確認）。xcodebuild build も成功（main で FeatureGate.swift が消えていたため xcodegen generate で .xcodeproj を再生成）。
 AC1/AC6 は実機の ⌘⇧D では確かめていない。インストール済みの befold（同じバンドル ID com.degino.befold）が起動中で、Debug ビルドを並べて起動すると衝突し、利用者の defaults に枠の値を書き込むため。代わりに、枠の復元をコントローラーの単体テストで、パネルとの対応を HostedPanel.placement のテストで担保した。frame autosave のキーは standard defaults の 'NSWindow Frame BookmarkManagerWindow' / 'NSWindow Frame SettingsWindow'。
 単純化: パネルごとの方針を Presenter の各ビルダーに散らさず HostedPanel.placement へ集約した。読むだけのパネル 5 つは makeSimplePanel に畳み、makeController の function_body_length 超過も解消した。
+
+実装後レビュー（/code-review high）の指摘を TASK-657〜660 に起票した。AC6（設定窓は最後の位置で開く）は、根拠にしたテストがリサイズ可能な窓で試しており設定窓の経路を覆っていないため、実質未検証（TASK-657 の AC1 で確かめ直す）。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
