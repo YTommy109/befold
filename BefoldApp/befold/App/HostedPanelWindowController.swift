@@ -10,9 +10,8 @@ import SwiftUI
 final class HostedPanelWindowController: NSWindowController {
     /// 最前面判定のシーム。既定は実ウィンドウの isKeyWindow だが、テストから注入できるようにする。
     var isFrontmost: () -> Bool = { false }
-    /// 次の表示で中央へ置くか。`.centered` は毎回、記憶する方針は保存値が無いときの初回だけ。
+    /// 次の表示で中央へ置くか。`.centered` は毎回、`.remember` は保存値が無いときの初回だけ。
     private var centersOnNextShow = true
-    private var placement: HostedPanelPlacement = .centered
 
     /// - Parameters:
     ///   - resizable: リサイズ可否。About と設定は固定サイズ、Help 配下は可変。
@@ -35,29 +34,17 @@ final class HostedPanelWindowController: NSWindowController {
         if let minSize { window.minSize = minSize }
         self.init(window: window)
         isFrontmost = { [weak window] in window?.isKeyWindow ?? false }
-        self.placement = placement
-        if let name = placement.autosaveName {
-            centersOnNextShow = !Self.restoreFrame(of: window, named: name, keepsSize: placement.keepsSize)
+        if case let .remember(name) = placement {
+            // リサイズ不可の窓では AppKit が保存値の左上だけを戻し、サイズは中身のまま保つ(TASK-657 で実測)。
+            centersOnNextShow = !window.setFrameUsingName(name)
             window.setFrameAutosaveName(name)
         }
     }
 
-    /// 保存済みの枠を復元する。`keepsSize` が false なら位置(左上)だけを採り、サイズは生成時のまま。
-    /// - Returns: 保存値があって復元したか。
-    private static func restoreFrame(of window: NSWindow, named name: String, keepsSize: Bool) -> Bool {
-        let initialSize = window.frame.size
-        guard window.setFrameUsingName(name) else { return false }
-        if !keepsSize {
-            let restored = window.frame
-            let origin = NSPoint(x: restored.minX, y: restored.maxY - initialSize.height)
-            window.setFrame(NSRect(origin: origin, size: initialSize), display: false)
-        }
-        return true
-    }
-
     func showAndActivate() {
         if centersOnNextShow { window?.center() }
-        if placement.autosaveName != nil { centersOnNextShow = false }
+        // 保存名を持つ窓は、以後ユーザーが置いた位置を保つ。
+        centersOnNextShow = window?.frameAutosaveName.isEmpty ?? true
         showWindow(nil)
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
@@ -78,22 +65,9 @@ final class HostedPanelWindowController: NSWindowController {
 enum HostedPanelPlacement: Equatable {
     /// 開くたびに画面中央へ置く。
     case centered
-    /// 最後の位置とサイズを覚える(frame autosave)。
-    case rememberFrame(autosaveName: String)
-    /// 最後の位置だけを覚え、サイズは中身に合わせる。
-    case rememberPosition(autosaveName: String)
-
-    var autosaveName: String? {
-        switch self {
-        case .centered: nil
-        case let .rememberFrame(name), let .rememberPosition(name): name
-        }
-    }
-
-    var keepsSize: Bool {
-        if case .rememberFrame = self { return true }
-        return false
-    }
+    /// 最後の枠を覚える(frame autosave)。リサイズ可能な窓は位置とサイズ、
+    /// リサイズ不可の窓は位置だけが戻る(サイズは中身に従う)。
+    case remember(autosaveName: String)
 }
 
 /// AppDelegate が単一インスタンスで保持するパネルの種類。
@@ -116,10 +90,10 @@ extension HostedPanel {
     var placement: HostedPanelPlacement {
         switch self {
         case .bookmarks:
-            .rememberFrame(autosaveName: "BookmarkManagerWindow")
+            .remember(autosaveName: "BookmarkManagerWindow")
         case .settings:
-            // 固定サイズで中身に合わせて縮むので、覚えるのは位置だけ。
-            .rememberPosition(autosaveName: "SettingsWindow")
+            // リサイズ不可なので、戻るのは位置だけ(サイズは中身に合わせる)。
+            .remember(autosaveName: "SettingsWindow")
         case .about, .featureOverview, .keyboardShortcuts, .aiIntegration, .ossLicenses:
             .centered
         }

@@ -37,7 +37,7 @@ final class HostedPanelPresenter {
 
     /// 設定パネル。変更の反映先が全ウィンドウなので、他のパネルと違って
     /// `windowManager` への配線を持つ。
-    private func makeSettingsController() -> HostedPanelWindowController {
+    private func makeSettingsController(placement: HostedPanelPlacement) -> HostedPanelWindowController {
         let view = SettingsView(
             preference: stores.codeFontPreference,
             onChange: { [weak windowManager] in windowManager?.display.applyCodeFontToAllWindows() },
@@ -50,14 +50,14 @@ final class HostedPanelPresenter {
             rootView: view,
             title: String(localized: "settings.windowTitle", bundle: .l10n),
             resizable: false,
-            placement: HostedPanel.settings.placement
+            placement: placement
         )
     }
 
     /// Bookmark Editor。ストアはアプリ全体で 1 個の `stores.bookmarkStore` を渡し、
     /// 開く経路は `openHandler`(`DocumentOpener`)へつなぐ。削除は窓のブックマークボタンにも
     /// 効くので、設定パネルと同じく全ウィンドウへの再同期を配線する。
-    private func makeBookmarksController() -> HostedPanelWindowController {
+    private func makeBookmarksController(placement: HostedPanelPlacement) -> HostedPanelWindowController {
         let model = BookmarkManagerModel(
             store: stores.bookmarkStore,
             open: openHandler,
@@ -67,7 +67,7 @@ final class HostedPanelPresenter {
             rootView: BookmarkManagerView(model: model),
             title: String(localized: "bookmarks.manager.windowTitle", bundle: .l10n),
             resizable: true,
-            placement: HostedPanel.bookmarks.placement,
+            placement: placement,
             contentSize: NSSize(width: 520, height: 420),
             minSize: NSSize(width: 400, height: 300)
         )
@@ -75,49 +75,47 @@ final class HostedPanelPresenter {
 
     /// パネルごとの差分(中身のビュー・タイトル・サイズ・リサイズ可否)はここだけに置く。
     /// 依存の配線を持つ 2 つ(設定・ブックマーク)は専用のビルダーへ出してある。
+    /// 位置の方針はここで 1 回だけ引いて渡す(ビルダーが別のパネルの方針を引く書き方をさせない)。
     private func makeController(_ panel: HostedPanel) -> HostedPanelWindowController {
-        switch panel {
+        let placement = panel.placement
+        return switch panel {
         case .settings:
-            makeSettingsController()
+            makeSettingsController(placement: placement)
         case .bookmarks:
-            makeBookmarksController()
+            makeBookmarksController(placement: placement)
         case .about:
-            makeSimplePanel(
-                .about,
-                AboutView(),
+            HostedPanelWindowController(
+                rootView: AboutView(),
                 title: String(localized: "about.windowTitle", bundle: .l10n),
+                resizable: false,
+                placement: placement,
                 contentSize: NSSize(width: 480, height: 340),
-                minSize: NSSize(width: 360, height: 260),
-                resizable: false
+                minSize: NSSize(width: 360, height: 260)
             )
         case .featureOverview:
-            makeSimplePanel(
-                .featureOverview,
-                FeatureOverviewView(),
+            makeHelpPanel(
+                FeatureOverviewView(), placement,
                 title: String(localized: "featureOverview.windowTitle", bundle: .l10n),
                 contentSize: NSSize(width: 480, height: 420),
                 minSize: NSSize(width: 400, height: 320)
             )
         case .keyboardShortcuts:
-            makeSimplePanel(
-                .keyboardShortcuts,
-                KeyboardShortcutsView(),
+            makeHelpPanel(
+                KeyboardShortcutsView(), placement,
                 title: String(localized: "keyboardShortcuts.windowTitle", bundle: .l10n),
                 contentSize: NSSize(width: 480, height: 520),
                 minSize: NSSize(width: 400, height: 320)
             )
         case .aiIntegration:
-            makeSimplePanel(
-                .aiIntegration,
-                AIIntegrationView(),
+            makeHelpPanel(
+                AIIntegrationView(), placement,
                 title: String(localized: "aiIntegration.windowTitle", bundle: .l10n),
                 contentSize: NSSize(width: 520, height: 560),
                 minSize: NSSize(width: 440, height: 320)
             )
         case .ossLicenses:
-            makeSimplePanel(
-                .ossLicenses,
-                OSSLicensesView(),
+            makeHelpPanel(
+                OSSLicensesView(), placement,
                 title: String(localized: "ossLicenses.windowTitle", bundle: .l10n),
                 contentSize: NSSize(width: 560, height: 560),
                 minSize: NSSize(width: 420, height: 320)
@@ -125,20 +123,20 @@ final class HostedPanelPresenter {
         }
     }
 
-    /// 中身と寸法だけが違うパネル(About・Help 配下)の共通ビルダー。位置の方針は `HostedPanel.placement`。
-    private func makeSimplePanel(
-        _ panel: HostedPanel,
+    /// Help 配下のパネルの共通ビルダー。Help 配下は読み物なのでどれもリサイズ可能
+    /// (固定サイズの About は `makeController` で直接作る)。
+    private func makeHelpPanel(
         _ rootView: some View,
+        _ placement: HostedPanelPlacement,
         title: String,
         contentSize: NSSize,
-        minSize: NSSize,
-        resizable: Bool = true
+        minSize: NSSize
     ) -> HostedPanelWindowController {
         HostedPanelWindowController(
             rootView: rootView,
             title: title,
-            resizable: resizable,
-            placement: panel.placement,
+            resizable: true,
+            placement: placement,
             contentSize: contentSize,
             minSize: minSize
         )
