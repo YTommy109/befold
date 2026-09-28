@@ -55,13 +55,12 @@ scripts/check-type-group-size.sh --check
 ### 3. 整形・テスト・lint・ビルド
 
 ```bash
-cd BefoldApp
 # 整形は機械に決めさせる（swiftformat と swiftlint が衝突する箇所を手で往復しない）
-swift package plugin --allow-writing-to-package-directory swiftformat
-swift test --skip Integration --skip FileWatcherTests
+(cd BefoldApp && swift package plugin --allow-writing-to-package-directory swiftformat)
+(cd BefoldApp && swift test --skip Integration --skip FileWatcherTests)
 # 新規ファイルを追加した場合のみ
-xcodegen generate
-xcodebuild build -scheme befold -destination 'platform=macOS'
+(cd BefoldApp && xcodegen generate)
+(cd BefoldApp && xcodebuild build -scheme befold -destination 'platform=macOS')
 ```
 
 swiftlint は絶対数では判定できないため、`/swiftlint-baseline` の手順で
@@ -88,7 +87,7 @@ backlog task edit $ARGUMENTS --final-summary "..." -s Done
 現在の仕様ではない（各ファイル冒頭にその旨を明記してある）。実装が終わった時点で、
 **現在の仕様の単一の情報源である `docs/dev/native-app-design.md` と、その索引から辿る文書を更新する。**
 ファイル種別ごとの扱い・表示幅は `docs/dev/file-type-display.md`、ビューアの操作 UI（ズーム・検索・ジャンプ・表示モード・サイドバー）は `docs/dev/viewer-ui.md` が持つ（TASK-634 で分割）。
-これを飛ばすと、設計文書が 65 件並んでいるのに「今どうなっているか」はコードを
+これを飛ばすと、設計文書が増えるほど「今どうなっているか」はコードを
 読むまで分からない状態が積み上がる。
 
 次のいずれかに当てはまるタスクでは更新が必要。

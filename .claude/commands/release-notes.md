@@ -26,7 +26,7 @@ git log {前回タグ}..{最新タグ} --pretty=format:"%s" --no-merges
 
 ### dev（pre-release）の場合
 
-これまで通り、Conventional Commits のプレフィックスで全コミットをグループ化して
+Conventional Commits のプレフィックスで全コミットをグループ化して
 Markdown 形式で出力する:
 
 ```markdown

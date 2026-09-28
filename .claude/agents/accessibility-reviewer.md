@@ -16,8 +16,8 @@ tools: Read, Grep, Glob, Bash
   アクセシビリティ（生成された SVG/HTML 側）は対象外とし、
   ネイティブ UI 部分（ツールバー・サイドバー・検索バー・メニュー）を対象にする。
 - 既存コードには `accessibilityLabel` / `accessibilityDescription` の
-  利用例がある（例: `FileListView.swift`, `HistoryNavigationButton.swift`,
-  `ViewerWindowController.swift`）。これを基準に一貫性を評価する。
+  利用例がある（例: `HistoryButtonView.swift`, `GitStatusBadge.swift`,
+  `ViewerToolbarController+ToolbarDelegate.swift`）。これを基準に一貫性を評価する。
 
 ## レビュー対象
 

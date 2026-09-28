@@ -37,7 +37,7 @@ macOS 向けのドキュメント・ダイアグラムビューアアプリ。
 - ファイル変更は `FileWatcher → ViewerStore → ViewerRenderer(evaluateJavaScript)` の
   同一プロセス内伝搬で反映する。
 - CLI 起動は `befold-cli → BefoldCLI → befold.app` で伝搬する。
-- 自動アップデートは Sparkle 2（`AppDelegate` が `SPUStandardUpdaterController` を保持）。
+- 自動アップデートは Sparkle 2（`AppDelegate` が保持する `AppUpdaterController` が `SPUStandardUpdaterController` を持つ）。
 
 ## 技術スタック
 
@@ -159,7 +159,7 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
   - **編集ごとの PostToolUse フックは一部ターゲットしか lint しない**（`befold` /
     `befoldTests` が含まれず、コミット時の全ターゲット実行で初めて落ちる）。
     コミット前に上記コマンドを 1 回流し、`-- --lint` でゼロ件を確認してから commit する
-- swiftlint は警告の絶対数では判定できない（main 時点で 80 件ほどある）。
+- swiftlint は警告の絶対数では判定できない（main 時点でも既存の警告が数十件ある）。
   変更前後で一覧を取り、**main とのベースライン差分がゼロ**であることを確認する
   - **手順は `/swiftlint-baseline` にまとめてある。まずこれを使う。**
     以下はその中身の説明であって、手で組み直すための手順書ではない
@@ -171,8 +171,6 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
     **必ず `BefoldApp/` を CWD にする。** swiftlint は CWD 配下を走査するため、
     リポジトリルートで実行すると `.build` の生成物まで数えて実測 15,910 件になる
     （正しくは 54 件）。件数が 2 桁違うので気づけるが、気づかなければ差分ゼロの判定が壊れる
-  - 比較時は行番号がずれただけの差分を除くため、`sed -E 's/:[0-9]+:[0-9]+:/:/'` で
-    正規化してから diff する
   - **ベースライン（main 側）を取るのに `git stash` を使わない。** stash は worktree 間で
     共有されるため、作業ツリーが clean だと `git stash push -u` が何も退避せず、続く
     `git stash pop` が**別のセッション・別プロジェクトの stash** を取り出して
@@ -181,7 +179,7 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
 - **機能を足すと既存ファイルが `file_length` / `type_body_length` /
   `cyclomatic_complexity` を超えることがある。** 閾値を緩めるのではなく、
   `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+FolderNavigation`、
-  `MainMenuBuilder+ViewMenu`、`FileListModel+TreeRows` / `+Lookup` / `+Snapshot`。
+  `MainMenuBuilder+ViewMenu`、`FileListModel+Snapshot`。
   テストは `DirectoryListerAppendingOpenFileTests` が同じ理由で分かれている）
   - **Swift の `private` はファイルスコープ**なので、分割した extension からは
     参照できない。移すメソッド本体だけでなく、**それが触る stored property・
@@ -347,12 +345,12 @@ app-global キーの読み手が消えたまま残った。結果、旧状態で
 | 設計スナップショット | `docs/superpowers/specs/*-design.md` | 書かれた時点の意図と検討経緯。追記も修正もしない | 起票・設計時に 1 回書くだけ |
 | 不可逆な設計判断 | `backlog/decisions/`（ADR） | 他の選択肢を潰した判断とその理由 | 判断を下した時点 |
 
-**スナップショット層を「現在の仕様」として読まない。** 65 件が日付順に並んでいるが、
+**スナップショット層を「現在の仕様」として読まない。** spec は日付順に並んでいるが、
 どれも当時の設計であり、実装と食い違っていることがある。着手前に spec の記述を
 コードで裏取りする（メモリ `verify-spec-premises-before-starting` の実例がある）。
 
 新しく `docs/superpowers/specs/*-design.md` を作ったら、H1（と `derived-from` 等の
-ディレクティブ）の直後に次のバナーを置く。既存 65 件はすべて付与済み。
+ディレクティブ）の直後に次のバナーを置く。既存の spec はすべて付与済み。
 
 ```markdown
 > **これは YYYY-MM-DD 時点の設計スナップショットです。**

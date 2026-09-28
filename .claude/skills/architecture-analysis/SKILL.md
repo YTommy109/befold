@@ -66,11 +66,3 @@ dagayn tool architecture_analysis_tool --arg mode='"community"' --arg community_
 dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/spec.md::contract-section"'
 ```
-
-## Token Efficiency Rules
-
-- ALWAYS start with `get_minimal_context_tool(task="<your task>")`.
-- Use `architecture_analysis_tool(mode="overview", detail_level="minimal")`
-  before any architecture drill-down mode.
-- Target: answer architecture questions in <=5 tool calls unless a concrete
-  source verification step requires more.

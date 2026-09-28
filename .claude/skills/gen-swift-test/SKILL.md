@@ -23,7 +23,7 @@ description: 変更・新規の Swift ファイルに対する Swift Testing テ
    dagayn が使えない場合は `befoldTests/` 配下でファイル名 + `Tests.swift` の命名規則を grep する。
 3. テストが存在しない、またはテストが対象ファイルの公開 API のサブセットしかカバーしていない場合、
    不足しているケースを列挙する。
-4. 既存テストファイルのスタイル（`TestSupport.swift` のヘルパー、`@Test("日本語の説明")` の
+4. 既存テストファイルのスタイル（`BefoldTestSupport` の共有ヘルパー（`TempDir` / `makeIsolatedDefaults(prefix:)` / `LockedBox` / `testTimeLimit()`）、`@Test("日本語の説明")` の
    表示名規約、`@MainActor` テストの書き方）に合わせてドラフトを生成する。
    - テスト関数名は英語 camelCase（SwiftLint の `identifier_name` 制約）
    - 日本語の説明が必要な場合は `@Test("...")` の表示名に付ける

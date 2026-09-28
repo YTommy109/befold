@@ -5,23 +5,23 @@
 1. **ビルド**
 
    ```bash
-   cd BefoldApp && swift build
+   (cd BefoldApp && swift build)
    ```
 
 2. **Swift テスト**
 
    ```bash
-   cd BefoldApp && swift test
+   (cd BefoldApp && swift test)
    ```
 
 3. **JS テスト・lint・バンドル整合**（viewer-src/ / viewer.html 用）
 
    ```bash
-   cd BefoldApp && [ -d node_modules ] || npm ci
-   cd BefoldApp && npx jest
-   cd BefoldApp && npm run lint:viewer
-   cd BefoldApp && npm run typecheck:viewer
-   cd BefoldApp && npm run check:viewer-bundle
+   (cd BefoldApp && { [ -d node_modules ] || npm ci; })
+   (cd BefoldApp && npx jest)
+   (cd BefoldApp && npm run lint)
+   (cd BefoldApp && npm run typecheck:viewer)
+   (cd BefoldApp && npm run check:viewer-bundle)
    ```
 
    `node_modules` が無い環境では先に `npm ci` が必要（`npx jest` の都度取得を避ける）。

@@ -1,16 +1,16 @@
 <!-- dagayn MCP tools -->
 ## MCP Tools: dagayn
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-dagayn MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+This project has a dagayn knowledge graph. Use it for structural questions
+file scanning cannot answer: callers and dependents, test coverage,
+doc-to-code edges, and impact or architecture review. Use Grep/Glob/Read for
+exact symbol definitions, literal strings, and whenever the graph is stale;
+confirm a graph-derived impact list with grep before calling it complete.
 
-### When to use graph tools FIRST
+### When to use graph tools
 
 - **Any new task**: `get_minimal_context_tool` for graph freshness, risk, and next-tool hints
-- **Exploring code**: `semantic_search_nodes_tool` or `query_graph_tool` instead of Grep
+- **Exploring code**: `semantic_search_nodes_tool` or `query_graph_tool` for structure; Grep for exact names and literals
 - **Understanding impact**: `review_tool(mode="impact")` instead of manually tracing imports
 - **Code review**: `review_tool(mode="changes")` first; use its `analysis_summary` before
   calling drill-down tools
@@ -18,9 +18,6 @@ scanning cannot.
 - **Architecture questions**: `architecture_analysis_tool(mode="overview")`
   first; use `architecture_health` and the Architecture Analysis skill before
   choosing a drill-down mode
-
-Fall back to Grep/Glob/Read **only** when the graph result is missing, stale,
-ambiguous, or lacks the exact source text needed for the task.
 
 ### Tool surface
 
@@ -37,7 +34,7 @@ advanced/maintenance tools.
 | `review_tool` | Primary change review and review drill-down dispatcher |
 | `flow_tool` | Execution-flow lists and step-by-step flow paths |
 | `architecture_analysis_tool` | Primary architecture review and drill-down dispatcher |
-| `refactor_tool` | Planning renames, finding dead code, and evidence-ranked refactor suggestions |
+| `refactor_tool` | Planning renames and evidence-ranked refactor suggestions (`mode="dead_code"` is not usable on this Swift codebase — see `.claude/CLAUDE.md`) |
 | `query_graph_tool` | Tracing callers, callees, imports, tests, dependencies |
 | `semantic_search_nodes_tool` | Finding functions/classes by name or keyword |
 

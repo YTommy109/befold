@@ -81,7 +81,7 @@ without restarting the agent:
 dagayn tool list_graph_stats_tool
 dagayn tool query_graph_tool --arg pattern='"file_summary"' --arg target='"docs/dev/coding_rule.md"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/dev/coding_rule.md::render-pipeline"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/BefoldRenderKit/ViewerRenderer+ContentUpdate.swift::ViewerRenderer.updateContent"'
 dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/dev/coding_rule.md"]' --arg detail_level='"minimal"'
 ```
 
@@ -89,4 +89,4 @@ dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/dev/co
 
 - For ad-hoc graph exploration *outside* the per-stage calls listed above, start with `get_minimal_context_tool(task="<your task>")` first.
 - Always pass `detail_level="minimal"` unless you've established that minimal is missing what you need.
-- Hard ceiling for one full read end-to-end: ≤ 12 tool calls, ≤ 2,000 tokens of graph-tool output. If you're approaching it (typically: a doc with many code spans), drop to a depth-0 read and report the budget squeeze to the user.
+- Keep the pre-read proportional to the question: if the doc has many code spans, prefer a depth-0 read and tell the user which dependencies you skipped.

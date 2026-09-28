@@ -1,6 +1,6 @@
 ---
 name: backlog-hygiene-reviewer
-description: befold の CLAUDE.md で定めた Issue Tracking の使い分け・コミット粒度・ordinal 運用ルールに、直前の作業が沿っているかをレビューする。PR 作成前や作業の区切りで使う。
+description: befold の CLAUDE.md で定めた Issue Tracking の使い分け・コミット粒度・backlog タスクの運用ルール（priority と依存・タスクファイルのコミット）に、直前の作業が沿っているかをレビューする。PR 作成前や作業の区切りで使う。
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -11,11 +11,15 @@ tools: Read, Grep, Glob, Bash
 
 - **Issue Tracking の使い分け**: ユーザー向けのバグ・要望は GitHub Issues、
   実装都合・CI・リファクタ等の内部タスクは backlog.md で管理する。
+  ただし利用者が実質的に作者のみの現状で、外部に見せるより手元で回すほうが早いものは
+  backlog.md でよい。公開済み機能で外部の利用者が遭遇しうるものは GitHub Issues。
 - **コミット粒度**: 直前のコミットと論理的に同じ作業（同じ機能・バグ修正・
   リファクタリング）かつ未 push なら `--amend` でまとめる。別の機能・レビュー後
   修正・push 済みコミットへの追加は新規コミットにする。
-- **タスク作成時のボード表示順**: backlog board は ordinal 順。HIGH タスクが
-  MEDIUM/LOW より上に来るよう `backlog task edit --ordinal` で調整する。
+- **backlog の着手順**: ordinal は表示順に効かないので使わない。重要度は priority で、
+  「A を先に片付けないと B が二度手間になる」形の順序は `backlog task edit B --dep A` で表す。
+- **タスクファイルのコミット**: `backlog/tasks/*.md` の起票・更新・完了はその場でコミットする。
+  実装を伴うものは実装と同じ PR に載せ、起票のみのコミットは実装コミットと分ける。
 
 ## 手順
 
@@ -30,9 +34,10 @@ tools: Read, Grep, Glob, Bash
    `git log --oneline` と各コミットの diff から判定する。ただし push 済みの
    コミットへの amend は既に禁止行為なので、push 済みかどうかを
    `git log origin/HEAD..HEAD` で必ず確認してから指摘する。
-4. 今回のセッションで新規作成した backlog タスクがあれば、その priority と
-   ordinal が既存タスクとの相対順序（HIGH が MEDIUM/LOW より上）に
-   一致しているか `backlog board` で確認する。
+4. 今回のセッションで新規作成・更新した backlog タスクがあれば、priority が重要度に
+   見合っているか、着手順の制約が `--dep` で表されているか（ordinal で表そうとして
+   いないか）を確認する。`git status` で `backlog/tasks/*.md` が未コミットで残って
+   いないか、起票のみの変更が実装コミットに同居していないかも見る。
 
 ## 出力
 
