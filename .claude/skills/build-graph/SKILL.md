@@ -1,14 +1,14 @@
 ---
 name: build-graph
-description: Build or update the code review knowledge graph. Run this first to initialize, or let hooks keep it updated automatically.
+description: Build or update the dagayn knowledge graph when it is missing, inconsistent after a large refactor or branch switch, or missing new files from queries. Hooks normally keep it current.
 argument-hint: "[full]"
 ---
 
 # Build Graph
 
 Build or incrementally update the persistent code knowledge graph for this
-befold repository (a single macOS Swift 6 / AppKit + SwiftUI app under
-`BefoldApp/befold/`).
+befold repository (the Swift targets under `BefoldApp/` listed in
+`.claude/CLAUDE.md`, plus TypeScript in `BefoldApp/viewer-src/` and `site/`).
 
 > **通常は不要。** このリポジトリではグラフは編集/コミット時の hook で自動更新
 > される。手動の `dagayn build` / `dagayn update` が要るのは、大規模なリファクタ
@@ -22,7 +22,7 @@ befold repository (a single macOS Swift 6 / AppKit + SwiftUI app under
 SessionStart 表示でも埋め込みは空になる。
 
 - Treat `semantic_search_nodes_tool` as keyword/FTS search, not vector semantic search.
-- Prefer exact symbols (ViewerStore, FileWatcher, UpdateChecker), file names,
+- Prefer exact symbols (ViewerStore, FileWatcher, UpdateChannel), file names,
   graph relationships, and one targeted `rg` for literals.
 - Do not rebuild embeddings unless the user explicitly asks. 埋め込み構築は任意の
   高度・高コスト操作である（後述の CLI Fallback を参照）。
@@ -39,7 +39,7 @@ SessionStart 表示でも埋め込みは空になる。
    - If the graph has never been built, proceed with a full build.
    - If the graph exists, proceed with an incremental update.
 
-2. **Build the graph** via the CLI (the build/update tool is not exposed over MCP):
+2. **Build the graph.** Over MCP, `ensure_graph_tool()` bootstraps an empty graph and refreshes one built at another commit (`force=true` forces an incremental refresh). Via the CLI:
    - For first-time graph setup (full rebuild): `dagayn build`
    - For routine incremental updates: `dagayn update`
    - Do not run embedding-enabled rebuilds as a routine verification step.
@@ -50,7 +50,7 @@ SessionStart 表示でも埋め込みは空になる。
 3. **Verify** by running `dagayn status` again and report the results:
    - Number of files parsed
    - Number of nodes and edges created
-   - Languages detected (expect Swift, plus HTML/CSS/JS in `Resources/`)
+   - Languages detected
    - Any errors encountered
 
 ## When to Use
@@ -71,8 +71,9 @@ SessionStart 表示でも埋め込みは空になる。
 
 ## CLI Fallback
 
-The stats/build/update tools are not exposed by the default `dagayn serve`
-profile, so drive them through the CLI without restarting the agent:
+The stats tool and full rebuilds are not available on the default `dagayn serve`
+profile (`ensure_graph_tool` covers bootstrap and incremental refresh), so drive
+them through the CLI without restarting the agent:
 
 ```bash
 dagayn status                 # graph freshness / node & edge counts

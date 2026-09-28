@@ -40,7 +40,7 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 - **`@MainActor`**: `ViewerStore` など MainActor 隔離が必要なテストにはスイートレベルで `@MainActor` を付ける
 - **`@Test(arguments:)`**: 同じアサーション構造で入力だけが異なるテストはパラメタライズする（pytest の `@pytest.mark.parametrize` に相当）
 - **`confirmation`**: 非同期コールバックのテストには `confirmation { confirm in ... }` を使う
-- **`.timeLimit`**: 非同期テストには `@Test(.timeLimit(.minutes(1)))` でタイムアウトを設定する
+- **`.timeLimit`**: 非同期テストには `@Test(testTimeLimit())`（`BefoldTestSupport`）でタイムアウトを設定する。`.timeLimit(.minutes(1))` の直書きは `.swiftlint.yml` の `hardcoded_time_limit` が error にする
 
 ## テスト関数の命名規約
 
@@ -138,7 +138,7 @@ func detectsFileModification() async throws {
 `confirmation` + `Task.sleep` で非同期イベントの発火を検証する:
 
 ```swift
-@Test(.timeLimit(.minutes(1)))
+@Test(testTimeLimit())
 func detectsFileModification() async throws {
     await confirmation { confirm in
         let watcher = FileWatcher(path: file) {

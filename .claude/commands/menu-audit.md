@@ -13,18 +13,20 @@
 ### 1. ビルドして起動する
 
 ```bash
-cd BefoldApp && xcodegen generate && xcodebuild build -scheme befold -destination 'platform=macOS' 2>&1 | tee /tmp/xcb.log | rg "BUILD (SUCCEEDED|FAILED)"
+(cd BefoldApp && xcodegen generate && xcodebuild build -scheme befold -configuration Debug -derivedDataPath .build/xcode -quiet)
 ```
 
-**起動するバンドルのパスは必ずビルドログから取る。** `find` で探すと別ワークツリーの
-DerivedData を引き、`open -a` は同一バンドル ID の `/Applications/befold.app` へ
-吸われる（どちらも古いメニューを観測して誤った結論を出す）。
+**起動するバンドルは `/run` と同じ `-derivedDataPath` 配下のパスを直接指定する。** `find` で
+探すと別ワークツリーや `~/Library/Developer/Xcode/DerivedData` のバンドルを引き、`open -a` は
+同一バンドル ID の `/Applications/befold.app` へ吸われる（どちらも古いメニューを観測して
+誤った結論を出す）。
 
 ```bash
-APP=$(rg -o "/Users/[^ ]*Build/Products/Debug/befold\.app" /tmp/xcb.log | head -1)
+ROOT=$(git rev-parse --show-toplevel)
+APP="$ROOT/BefoldApp/.build/xcode/Build/Products/Debug/befold.app"
 pkill -x befold; sleep 1
-mkdir -p .tmp && printf '# menu-audit\n\n本文\n' > .tmp/menu-audit.md
-open -a "$APP" "$(git rev-parse --show-toplevel)/.tmp/menu-audit.md"; sleep 6
+mkdir -p "$ROOT/.tmp" && printf '# menu-audit\n\n本文\n' > "$ROOT/.tmp/menu-audit.md"
+open -a "$APP" "$ROOT/.tmp/menu-audit.md"; sleep 6
 # 起動したのが意図したバンドルかを確認する
 ps -eo pid,args | rg "befold.app/Contents/MacOS/befold" | rg -v rg
 ```
@@ -84,7 +86,7 @@ EOF
 ### 4. 片付ける
 
 ```bash
-pkill -x befold; rm -f .tmp/menu-audit.md
+pkill -x befold; rm -f "$(git rev-parse --show-toplevel)/.tmp/menu-audit.md"
 ```
 
 ## 報告

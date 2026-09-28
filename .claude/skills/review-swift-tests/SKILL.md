@@ -60,7 +60,7 @@ Swift テストコードをレビューする（`docs/dev/coding_rule.md` は分
       （ファイル読込は `InMemoryFileReader`、watcher は `FileWatching` モックで置き換える）
 - [ ] 実ネットワークに到達するテストがないか（`URLProtocol` スタブかモック Fetcher を使う）
 
-#### 共有テストヘルパー（TestSupport.swift）
+#### 共有テストヘルパー（BefoldTestSupport）
 
 判定基準: これらの関心はヘルパー経由で満たされていれば合格。
 テストファイル内に同等処理を自作していたら違反（重複）として指摘する。
@@ -78,7 +78,7 @@ Swift テストコードをレビューする（`docs/dev/coding_rule.md` は分
 #### 非同期テスト
 
 - [ ] コールバックテストに `confirmation { confirm in ... }` を使っているか
-- [ ] `@Test(.timeLimit(.minutes(1)))` でタイムアウトが設定されているか
+- [ ] 非同期テストの打ち切りを `@Test(testTimeLimit())` / `@Suite(testTimeLimit())` で設定しているか（`.timeLimit(.minutes(1))` の直書きは `.swiftlint.yml` の `hardcoded_time_limit` が error にする）
 - [ ] `nonisolated(unsafe)` はテストコード内のミュータブル変数のみに使われているか
 
 #### コメント

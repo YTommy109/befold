@@ -32,13 +32,11 @@
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.48.0 -->
-<CRITICAL_INSTRUCTION>
-
 ## Backlog.md Workflow
 
 This project uses Backlog.md for task and project management.
 
-**For every user request in this project, run `backlog instructions overview` before answering or taking action.**
+**When a request involves Backlog tasks (finding, creating, planning, updating, or completing them), run `backlog instructions overview` first.**
 
 Use the overview to decide whether to search, read, create, or update Backlog tasks.
 
@@ -52,5 +50,4 @@ Use `backlog <command> --help` before running unfamiliar commands. Help shows op
 
 Do not edit Backlog task, draft, document, decision, or milestone markdown files directly. Use the `backlog` CLI so metadata, relationships, and history stay consistent.
 
-</CRITICAL_INSTRUCTION>
 <!-- BACKLOG.MD GUIDELINES END -->

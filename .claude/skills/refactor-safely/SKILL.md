@@ -13,13 +13,17 @@ Use the knowledge graph to plan and execute refactoring with confidence.
    risk, and suggested next tools.
 2. Use `refactor_tool` with mode="suggest" for evidence-ranked remove, move,
    split, and document candidates.
-3. Use `refactor_tool` with mode="dead_code" only when the suggested remove
-   candidates need a deeper dead-code drill-down.
+3. Do not use `refactor_tool` with mode="dead_code" here: Swift protocol-conformance
+   methods have no static callers, so nearly every result is a false positive
+   (`.claude/CLAUDE.md`, 知識グラフ（dagayn）の Swift での限界). To judge dead code,
+   count token occurrences with `rg` and inspect only symbols declared once.
 4. For renames, use `refactor_tool` with mode="rename" to preview all affected
    locations (e.g. renaming `ViewerStore` or `FileWatcher`).
-5. To apply a previewed refactor, use the CLI runner (the apply tool is not
-   exposed over MCP): `dagayn tool apply_refactor_tool --arg dry_run=true`
-   first, then re-run with the refactor_id once the diff is acceptable.
+5. A rename preview's `refactor_id` belongs to the `dagayn serve` MCP session that
+   created it and expires after 10 minutes; `apply_refactor_tool` exists only on the
+   advanced surface (`dagayn serve --tools all`), and a separate `dagayn tool` CLI
+   process cannot apply it. On the default surface, apply the previewed edit list with
+   ordinary edits, then confirm with `rg` that no occurrence was missed.
 6. Before renaming, moving, or deleting public code, follow documentation bridge
    edges when present: `query_graph_tool(pattern="docs_for", target="<path::symbol>", detail_level="minimal")`
    for specs/runbooks/issue notes attached to code, and
@@ -74,18 +78,16 @@ role-aware refactoring profile, not a verdict that the function is bad.
 ## CLI Fallback
 
 Prefer the exposed MCP tools for planning: `refactor_tool(mode="suggest")` and
-`refactor_tool(mode="rename")` are the main path. Some refactor tools
-(`apply_refactor_tool`, `find_large_functions_tool`) are **not** exposed by the
-default `dagayn serve` profile, so run those through the CLI runner without
-restarting the agent:
+`refactor_tool(mode="rename")` are the main path. `find_large_functions_tool`
+is **not** exposed by the default `dagayn serve` profile, so run it through the
+CLI runner without restarting the agent:
 
 ```bash
 # planning (also available directly as MCP refactor_tool)
 dagayn tool refactor_tool --arg mode='"suggest"' --arg limit=10
 dagayn tool refactor_tool --arg mode='"rename"' --arg old_name='"ViewerStore"' --arg new_name='"ViewerModel"'
 
-# apply / large-function scan (not exposed over MCP)
-dagayn tool apply_refactor_tool --arg refactor_id='"refactor_123"' --arg dry_run=true
+# large-function scan (not exposed over MCP)
 dagayn tool find_large_functions_tool
 
 # documentation bridge edges
@@ -98,6 +100,4 @@ guessing.
 
 ## Token Efficiency Rules
 
-- ALWAYS start with `get_minimal_context_tool(task="<your task>")` before any other graph tool.
 - Use `detail_level="minimal"` on all calls. Only escalate to "standard" when minimal is insufficient.
-- Target: complete any review/debug/refactor task in ≤5 tool calls and ≤800 total output tokens.

@@ -89,9 +89,10 @@ Swift プロダクトコードをレビューする（`docs/dev/coding_rule.md` 
 #### 依存注入・定数の単一情報源
 
 - [ ] 外部依存（ファイル読込・ネットワーク・ファイル監視・タイマー）は既存プロトコル
-      （`FileReading` / `ReleaseFetching` / `UpdateDownloading` / `FileWatching`）と同じ方針で
+      （`FileReading` / `FileWatching`）と同じ方針で
       イニシャライザ注入されているか。新しい外部依存を具象直参照で増やしていないか
-- [ ] 注入はデフォルト引数付きで、既存呼び出し元を変更せずに済む形か
+- [ ] デフォルト引数は「差し替え可能で状態を共有しない」依存（`FileReading` 等）に限っているか。
+      単一の共有インスタンスが不変条件の依存（`ZoomStore` 等）はデフォルトなしの必須パラメータか
 - [ ] メソッド内部で依存を直接 `new` していないか（注入済みプロパティ/ファクトリを使う）
 - [ ] 対応拡張子は `FileType.allExtensions` を参照しているか（拡張子リストの再定義は違反）
 - [ ] 正規化パスキー・rename 移行は `URL.normalizedPathKey` / `PathKeyedDictionary` を

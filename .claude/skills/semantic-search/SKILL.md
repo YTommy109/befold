@@ -1,13 +1,14 @@
 ---
 name: semantic-search
-description: Configure, build, and verify dagayn embeddings and hybrid semantic search without losing FTS fallback behavior.
+description: Search befold's code graph by symbol or keyword with dagayn (FTS by default), and only when the user asks, build and verify embeddings for hybrid semantic search.
 argument-hint: "[query]"
 ---
 
 # Semantic Search
 
-Use this when searching befold's code (Swift under `BefoldApp/befold/`, plus
-`Resources/` web assets) by symbol, keyword, or concept.
+Use this when searching befold's code (Swift targets under `BefoldApp/`, the
+TypeScript viewer in `BefoldApp/viewer-src/`, and bundled web assets) by
+symbol, keyword, or concept.
 
 <!-- dagayn skill embedding context -->
 ## Installed Search Mode
@@ -16,8 +17,8 @@ Use this when searching befold's code (Swift under `BefoldApp/befold/`, plus
 埋め込みは構築されていない（SessionStart 表示でも空）。
 
 - Treat `semantic_search_nodes_tool` as keyword/FTS search, not vector semantic search.
-- Prefer exact symbols (ViewerStore, ViewerBridge, FileWatcher, UpdateChecker,
-  ReleaseFetcher), file names, graph relationships, and one targeted `rg` for literals.
+- Prefer exact symbols (ViewerStore, ViewerBridge, FileWatcher, UpdateChannel),
+  file names, graph relationships, and one targeted `rg` for literals.
 - Do not rebuild embeddings unless the user explicitly asks. 埋め込み構築は任意の
   高度・高コスト操作であり、既定の FTS 経路には不要である。
 <!-- /dagayn skill embedding context -->

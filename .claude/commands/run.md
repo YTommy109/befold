@@ -8,8 +8,8 @@
 `-derivedDataPath` を固定し、worktree ごとに成果物の場所がずれないようにする。
 
 ```bash
-cd BefoldApp && xcodegen generate && \
-  xcodebuild build -scheme befold -configuration Debug -derivedDataPath .build/xcode -quiet
+(cd BefoldApp && xcodegen generate && \
+  xcodebuild build -scheme befold -configuration Debug -derivedDataPath .build/xcode -quiet)
 ```
 
 ビルドに失敗した場合はエラーを報告して終了する。

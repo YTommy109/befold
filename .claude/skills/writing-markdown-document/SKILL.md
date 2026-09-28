@@ -36,7 +36,7 @@ dagayn's Markdown parser extracts edges from these constructs. Use them delibera
 |-----------|--------|----------------|
 | **Heading** | `## Section Title` | `CONTAINS` (file → section, section → subsection) |
 | **Dependency directive** (HTML comment, case-insensitive) | `<!-- constrained-by ./other.md#Section -->` | `DEPENDS_ON` always; **plus** `IMPORTS_FROM` when the target is a different file |
-| **Documentation directive** (`dagayn:` HTML comment) | `<!-- dagayn: implemented-by BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent -->` | `CROSS_ARTIFACT` from the enclosing Markdown section to a code/doc/artifact target |
+| **Documentation directive** (`dagayn:` HTML comment) | `<!-- dagayn: implemented-by BefoldApp/BefoldRenderKit/ViewerRenderer+ContentUpdate.swift::ViewerRenderer.updateContent -->` | `CROSS_ARTIFACT` from the enclosing Markdown section to a code/doc/artifact target |
 | **Inline link, no anchor** | `[text](./other.md)` | `IMPORTS_FROM` only |
 | **Inline link, with anchor** | `[text](./other.md#Section)` | `IMPORTS_FROM` (file→file) **and** `REFERENCES` (section→section) |
 | **Reference-style link** | `[label]: ./other.md#Section` | Same as inline links — same regex path |
@@ -81,7 +81,7 @@ Direction rule: the source should be the artifact that owns the assertion.
 
 | Authoring site | Preferred syntax | Stored role | Use when |
 |----------------|------------------|-------------|----------|
-| Markdown contract/spec section | `<!-- dagayn: implemented-by BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent -->` | `implemented_by` | The doc section defines intent and code realizes it. |
+| Markdown contract/spec section | `<!-- dagayn: implemented-by BefoldApp/BefoldRenderKit/ViewerRenderer+ContentUpdate.swift::ViewerRenderer.updateContent -->` | `implemented_by` | The doc section defines intent and code realizes it. |
 | Markdown explanation/problem section | `<!-- dagayn: discusses-artifact BefoldApp/befold/FileWatching/FileWatcher.swift::FileWatcher -->` or `<!-- dagayn: raises-issue-for BefoldApp/befold/FileWatching/FileWatcher.swift::FileWatcher -->` | `discusses_artifact`, `raises_issue_for` | The doc owns the discussion, audit note, or issue statement about code. |
 | Code line comment | `// dagayn: implements docs/dev/coding_rule.md#Render Pipeline` | `implements_contract` | The implementation is the stable place to declare conformance to a doc section. |
 | Code line comment | `// dagayn: explained-by docs/dev/coding_rule.md#File Watching` | `explained_by` | The implementation points to rationale, behavior notes, or background. |
@@ -92,7 +92,7 @@ Supported directive kinds are `implemented-by`, `implements`, `explained-by`, `h
 
 Target rules:
 
-- Markdown → code point: prefer a concrete graph node target in `path::symbol` form, e.g. `BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent`. Verify the exact node exists before writing the directive. A bare symbol target is allowed but starts LOW/0.2 as `<unresolved:Symbol>` until postprocessing finds exactly one non-Markdown node with that `name`.
+- Markdown → code point: prefer a concrete graph node target in `path::symbol` form, e.g. `BefoldApp/BefoldRenderKit/ViewerRenderer+ContentUpdate.swift::ViewerRenderer.updateContent`. Verify the exact node exists before writing the directive. A bare symbol target is allowed but starts LOW/0.2 as `<unresolved:Symbol>` until postprocessing finds exactly one non-Markdown node with that `name`.
 - Code → Markdown section: always include a Markdown path plus `#Heading`, e.g. `docs/dev/coding_rule.md#Render Pipeline` or `../docs/dev/coding_rule.md#Render Pipeline`. The parser slugifies the heading and stores the target as `docs/dev/coding_rule.md::render-pipeline`.
 - In `dagayn:` directives, `./` and `../` paths are resolved relative to the source file; other file paths are treated as repo-root-relative and normalized.
 - `#Local Heading` is valid for Markdown-authored same-document targets. Do not use a bare `#Heading` in code comments; from code it would target the code file, not a Markdown document.
@@ -170,7 +170,7 @@ through the CLI without restarting the agent:
 dagayn tool build_or_update_graph_tool --arg local_embedding='"none"'
 dagayn tool query_graph_tool --arg pattern='"file_summary"' --arg target='"docs/design.md"'
 dagayn tool query_graph_tool --arg pattern='"implementations_of"' --arg target='"docs/design.md::contract-section"'
-dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/befold/Viewer/ViewerStore.swift::ViewerStore.updateContent"'
+dagayn tool query_graph_tool --arg pattern='"docs_for"' --arg target='"BefoldApp/BefoldRenderKit/ViewerRenderer+ContentUpdate.swift::ViewerRenderer.updateContent"'
 dagayn tool review_tool --arg mode='"impact"' --arg 'changed_files=["docs/design.md"]' --arg detail_level='"minimal"'
 dagayn tool semantic_search_nodes_tool --arg query='"ViewerStore"' --arg detail_level='"minimal"'
 ```
@@ -181,4 +181,4 @@ These bound the *graph-tool* spend; they don't apply to drafting prose or to the
 
 - Before any *exploratory* graph call (i.e., not one of the per-stage targeted calls listed above), run `get_minimal_context_tool(task="<your task>")`.
 - Use `detail_level="minimal"` on every call unless minimal omits something you specifically need.
-- Hard ceiling for one full document end-to-end (Stages 0–4): ≤ 30 tool calls and ≤ 5,000 output tokens of graph-tool output across the session. If you're approaching it, stop and ask the user whether to continue.
+- Keep graph verification proportional to the document; if checks balloon (many ambiguous symbols or repeated slug failures), say so to the user rather than looping.

@@ -17,7 +17,7 @@ tools: Read, Grep, Glob, Bash
 ## 行数の機械判定との役割分担
 
 行数そのものは `scripts/check-type-group-size.sh` が型グループ（`Foo.swift` + 同ディレクトリの
-`Foo+*.swift` の合算）単位でラチェット判定しており、CI がブロックします。**あなたが見るのは
+`Foo+*.swift` の合算）単位で閾値判定しており（400 行。恒久例外は `scripts/type-group-exceptions.txt`）、CI がブロックします。**あなたが見るのは
 行数では捕まらない責務の混在です。**
 
 行数上限の回避と責務分離の違いは実例で判断できます。TASK-411 の原文 —

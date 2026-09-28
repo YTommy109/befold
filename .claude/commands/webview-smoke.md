@@ -11,13 +11,17 @@
 swift scripts/webview-smoke.swift
 ```
 
-検証項目:
+検証項目（正は `scripts/webview-smoke.swift` の各 check 関数）:
 
 1. CSP 下で viewer-bundle.js がロードされ、公開関数がグローバルへ載る
 2. `.mmd` が mermaid で SVG 描画される（遅延ロードが働く）
-3. `.md` が markdown-it + DOMPurify で描画される
+3. `.md` が markdown-it + DOMPurify で描画される（data: URI 画像、非 ASCII を含む長い文書を含む）
 4. ソース表示が highlight.js でハイライトされる
-5. 外部画像による情報流出が CSP(`img-src`) でブロックされる
+5. 法令標準 XML が内蔵スタイルシートで XSLT 変換される
+6. 外部画像が取得されず代替表示へ置き換わる（遮断は viewer 側の `replaceRemoteImages()` と
+   ネイティブ側の `RemoteLoadBlocker`。file:// 読み込みでは CSP の `img-src` は効かない）
+7. Markdown 内の data: iframe が DOMPurify または CSP でブロックされる
+8. 印刷・PDF 保存で全文が出る
 
 markdown-it / highlight.js / DOMPurify はバンドル同梱でグローバルに出ないため、
 「読み込めたか」ではなく**描画結果**で確認している（TASK-432.5）。
