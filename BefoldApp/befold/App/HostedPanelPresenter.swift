@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// 単一インスタンスのパネルウィンドウ(About・設定・Help 配下)の生成と開閉。
 ///
@@ -48,7 +49,8 @@ final class HostedPanelPresenter {
         return HostedPanelWindowController(
             rootView: view,
             title: String(localized: "settings.windowTitle", bundle: .l10n),
-            resizable: false
+            resizable: false,
+            placement: HostedPanel.settings.placement
         )
     }
 
@@ -65,6 +67,7 @@ final class HostedPanelPresenter {
             rootView: BookmarkManagerView(model: model),
             title: String(localized: "bookmarks.manager.windowTitle", bundle: .l10n),
             resizable: true,
+            placement: HostedPanel.bookmarks.placement,
             contentSize: NSSize(width: 520, height: 420),
             minSize: NSSize(width: 400, height: 300)
         )
@@ -79,45 +82,65 @@ final class HostedPanelPresenter {
         case .bookmarks:
             makeBookmarksController()
         case .about:
-            HostedPanelWindowController(
-                rootView: AboutView(),
+            makeSimplePanel(
+                .about,
+                AboutView(),
                 title: String(localized: "about.windowTitle", bundle: .l10n),
-                resizable: false,
                 contentSize: NSSize(width: 480, height: 340),
-                minSize: NSSize(width: 360, height: 260)
+                minSize: NSSize(width: 360, height: 260),
+                resizable: false
             )
         case .featureOverview:
-            HostedPanelWindowController(
-                rootView: FeatureOverviewView(),
+            makeSimplePanel(
+                .featureOverview,
+                FeatureOverviewView(),
                 title: String(localized: "featureOverview.windowTitle", bundle: .l10n),
-                resizable: true,
                 contentSize: NSSize(width: 480, height: 420),
                 minSize: NSSize(width: 400, height: 320)
             )
         case .keyboardShortcuts:
-            HostedPanelWindowController(
-                rootView: KeyboardShortcutsView(),
+            makeSimplePanel(
+                .keyboardShortcuts,
+                KeyboardShortcutsView(),
                 title: String(localized: "keyboardShortcuts.windowTitle", bundle: .l10n),
-                resizable: true,
                 contentSize: NSSize(width: 480, height: 520),
                 minSize: NSSize(width: 400, height: 320)
             )
         case .aiIntegration:
-            HostedPanelWindowController(
-                rootView: AIIntegrationView(),
+            makeSimplePanel(
+                .aiIntegration,
+                AIIntegrationView(),
                 title: String(localized: "aiIntegration.windowTitle", bundle: .l10n),
-                resizable: true,
                 contentSize: NSSize(width: 520, height: 560),
                 minSize: NSSize(width: 440, height: 320)
             )
         case .ossLicenses:
-            HostedPanelWindowController(
-                rootView: OSSLicensesView(),
+            makeSimplePanel(
+                .ossLicenses,
+                OSSLicensesView(),
                 title: String(localized: "ossLicenses.windowTitle", bundle: .l10n),
-                resizable: true,
                 contentSize: NSSize(width: 560, height: 560),
                 minSize: NSSize(width: 420, height: 320)
             )
         }
+    }
+
+    /// 中身と寸法だけが違うパネル(About・Help 配下)の共通ビルダー。位置の方針は `HostedPanel.placement`。
+    private func makeSimplePanel(
+        _ panel: HostedPanel,
+        _ rootView: some View,
+        title: String,
+        contentSize: NSSize,
+        minSize: NSSize,
+        resizable: Bool = true
+    ) -> HostedPanelWindowController {
+        HostedPanelWindowController(
+            rootView: rootView,
+            title: title,
+            resizable: resizable,
+            placement: panel.placement,
+            contentSize: contentSize,
+            minSize: minSize
+        )
     }
 }

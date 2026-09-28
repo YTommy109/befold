@@ -131,7 +131,8 @@ struct SettingsViewSnapshotTests {
                 onNumberChange: {}
             ),
             title: "Settings",
-            resizable: false
+            resizable: false,
+            placement: .centered
         )
         controller.showAndActivate()
         defer { controller.window?.close() }

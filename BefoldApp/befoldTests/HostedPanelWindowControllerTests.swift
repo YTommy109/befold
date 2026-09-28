@@ -20,7 +20,8 @@ struct HostedPanelWindowControllerTests {
                 onNumberChange: {}
             ),
             title: "Settings",
-            resizable: false
+            resizable: false,
+            placement: .centered
         )
     }
 
@@ -86,6 +87,7 @@ struct HostedPanelWindowControllerTests {
             rootView: FeatureOverviewView(),
             title: "Feature Overview",
             resizable: true,
+            placement: .centered,
             contentSize: NSSize(width: 480, height: 420),
             minSize: NSSize(width: 400, height: 320)
         )
@@ -93,5 +95,123 @@ struct HostedPanelWindowControllerTests {
         #expect(controller.window?.styleMask.contains(.resizable) == true)
         #expect(controller.window?.minSize == NSSize(width: 400, height: 320))
         controller.window?.close()
+    }
+
+    // MARK: - 開く位置(TASK-656)
+
+    /// frame autosave は standard の UserDefaults に書かれるため、テストごとに一意な名前を使い後始末する。
+    private static func uniqueAutosaveName() -> String {
+        "HostedPanelWindowControllerTests-\(UUID().uuidString)"
+    }
+
+    private static func removeSavedFrame(_ name: String) {
+        UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(name)")
+    }
+
+    private func makeResizable(placement: HostedPanelPlacement) -> HostedPanelWindowController {
+        HostedPanelWindowController(
+            rootView: FeatureOverviewView(),
+            title: "Placement",
+            resizable: true,
+            placement: placement,
+            contentSize: NSSize(width: 480, height: 420),
+            minSize: NSSize(width: 400, height: 320)
+        )
+    }
+
+    /// 中央以外であることが確実に分かる位置へ動かして閉じ、同名で作り直した窓の枠を返す。
+    private func reopenedFrame(after moved: NSRect, placement: HostedPanelPlacement) -> NSRect? {
+        let first = makeResizable(placement: placement)
+        first.showAndActivate()
+        first.window?.setFrame(moved, display: false)
+        first.window?.close()
+
+        let second = makeResizable(placement: placement)
+        second.showAndActivate()
+        defer { second.window?.close() }
+        return second.window?.frame
+    }
+
+    @Test("rememberFrame は最後の位置とサイズで開き直す")
+    func rememberFrameRestoresPositionAndSize() {
+        let name = Self.uniqueAutosaveName()
+        defer { Self.removeSavedFrame(name) }
+        let moved = NSRect(x: 40, y: 60, width: 610, height: 450)
+
+        let frame = reopenedFrame(after: moved, placement: .rememberFrame(autosaveName: name))
+
+        #expect(frame == moved)
+    }
+
+    @Test("同じ起動中に閉じて開き直しても中央へ戻さない")
+    func rememberFrameKeepsPositionAcrossToggleInSession() {
+        let name = Self.uniqueAutosaveName()
+        defer { Self.removeSavedFrame(name) }
+        let controller = makeResizable(placement: .rememberFrame(autosaveName: name))
+        controller.showAndActivate()
+        let moved = NSRect(x: 40, y: 60, width: 610, height: 450)
+        controller.window?.setFrame(moved, display: false)
+        controller.window?.close()
+
+        controller.showAndActivate()
+        defer { controller.window?.close() }
+
+        #expect(controller.window?.frame == moved)
+    }
+
+    @Test("rememberPosition は左上だけを復元し、サイズは生成時のまま")
+    func rememberPositionRestoresOnlyTopLeft() {
+        let name = Self.uniqueAutosaveName()
+        defer { Self.removeSavedFrame(name) }
+        let moved = NSRect(x: 40, y: 60, width: 610, height: 450)
+        let initialSize = makeResizable(placement: .centered).window?.frame.size
+
+        let frame = reopenedFrame(after: moved, placement: .rememberPosition(autosaveName: name))
+
+        #expect(frame?.size == initialSize)
+        #expect(frame?.minX == moved.minX)
+        #expect(frame?.maxY == moved.maxY)
+    }
+
+    @Test("保存値が無い初回は中央に開く")
+    func rememberFrameCentersWithoutSavedFrame() {
+        let name = Self.uniqueAutosaveName()
+        defer { Self.removeSavedFrame(name) }
+        let expected = makeResizable(placement: .centered)
+        expected.showAndActivate()
+        defer { expected.window?.close() }
+
+        let controller = makeResizable(placement: .rememberFrame(autosaveName: name))
+        controller.showAndActivate()
+        defer { controller.window?.close() }
+
+        #expect(controller.window?.frame == expected.window?.frame)
+    }
+
+    @Test("centered は動かしても開くたびに中央へ戻す")
+    func centeredRecentersOnEveryShow() {
+        let controller = makeResizable(placement: .centered)
+        controller.showAndActivate()
+        let centered = controller.window?.frame
+        controller.window?.setFrameOrigin(NSPoint(x: 40, y: 60))
+        controller.window?.close()
+
+        controller.showAndActivate()
+        defer { controller.window?.close() }
+
+        #expect(controller.window?.frame == centered)
+    }
+
+    @Test("パネルごとの方針: ブックマークは位置とサイズ、設定は位置だけ、読むだけのパネルは中央")
+    func placementPerPanel() {
+        #expect(HostedPanel.bookmarks.placement.keepsSize)
+        #expect(HostedPanel.bookmarks.placement.autosaveName != nil)
+        #expect(!HostedPanel.settings.placement.keepsSize)
+        #expect(HostedPanel.settings.placement.autosaveName != nil)
+        #expect(HostedPanel.bookmarks.placement.autosaveName != HostedPanel.settings.placement.autosaveName)
+        let readOnly: [HostedPanel] = [.about, .featureOverview, .keyboardShortcuts, .aiIntegration, .ossLicenses]
+        for panel in readOnly {
+            #expect(panel.placement == .centered, "\(panel)")
+        }
     }
 }
