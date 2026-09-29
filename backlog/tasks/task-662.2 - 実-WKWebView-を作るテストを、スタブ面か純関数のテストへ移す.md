@@ -1,11 +1,11 @@
 ---
 id: TASK-662.2
 title: 実 WKWebView を作るテストを、スタブ面か純関数のテストへ移す
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-29 04:29'
-updated_date: '2026-09-29 05:09'
+updated_date: '2026-09-29 05:56'
 labels: []
 dependencies: []
 parent_task_id: TASK-662
@@ -30,7 +30,7 @@ ordinal: 858000
 <!-- AC:BEGIN -->
 - [x] #1 上記の各テストについて、実 WebView を残す／スタブへ移す／純関数へ移すの判断を Notes に記録し、実 WebView の生成回数を変更前後で数えている
 - [x] #2 統合テストから単体テストへ移したケースは、守っている修正を戻すと移行後のテストが落ちることを確認している
-- [ ] #3 実 WebView を残した統合テストが CI で 3 回連続緑である
+- [x] #3 実 WebView を残した統合テストが CI で 3 回連続緑である
 - [x] #4 変更前後で対象スイートの所要時間（--filter で直列）と全体の swift test wall を測り、Notes に記録している
 <!-- AC:END -->
 
@@ -78,4 +78,16 @@ ordinal: 858000
 ## 対象外として残したもの
 - WebKitRenderSurface.make(for:) が codeFont を surfaceOptions へ渡す 1 行の転送は、実 WebView を作るテストでしか見られないため直接の担保を外した（surfaceOptions→userScriptSources は担保あり）
 - swiftlint: main 46 件 / HEAD 46 件で新規ゼロ
+
+## CI（AC #3）
+PR #703 run 36525076672 の attempt 1〜3 で、実 WebView を残したスイート（ViewerRendererOneShotIntegrationTests / ViewerRendererContentUpdateIntegrationTests / SurfaceConstructionOrderTests / WebKitSurfaceEventBridgeMappingTests）と移行先（ViewerRendererRenderRaceTests / DocumentSurfaceLazyWebViewTests）は default・strict の両ジョブで 3 回連続緑。
+ただし strict ジョブ全体は 3/3 で赤。落ちたのは毎回 DistributedAckWaiterIntegrationTests / CLIRequestWireIntegrationTests の 2 件（このタスクでは触っていない）。変更を 3 グループのどれか 1 つだけ戻した使い捨て PR #704〜#706 はすべて緑で、特定のテストではなくタイミングのずれで顕在化した既知の間欠失敗（TASK-622 Notes で 1 回観測済み）。原因と実測は TASK-664 に記録し、PR #703 のマージは TASK-664 に塞がれている。
+
+native-app-design.md: テストの置き換えと、needsWebSurface を同じ判定のまま static 関数へ出しただけで仕様は変わらないため更新不要。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+実 WKWebView を作っていたテストのうち、Swift 側のミラーや注入スクリプトの文字列しか見ていないものを、スタブ面（ViewerRendererMessageStubs.Surface + surfaceDidFinishLoad）と純関数（userScriptSources / DocumentSurfaceStack.needsWebSurface）のテストへ移した。対象テストの実 WebView 生成は 35→6 個、ロード完了待ちは 9→2 個。移したテストは守っている修正を 1 つずつ戻す変異 11 件ですべて落ちることを確認した。対象スイートの直列実行は 2.0 秒→0.6 秒。全体の並列 wall は 42.4/42.7 秒→42.8/45.3 秒で誤差範囲、短縮は観測できなかった（律速はメインキュー全体）。実 WebView を残した統合テストは CI で 3 回連続緑だが、strict ジョブは既知の Distributed Notification 系 2 件（TASK-664）で落ちており、PR #703 のマージは TASK-664 待ち。swiftlint は main との差分ゼロ。
+<!-- SECTION:FINAL_SUMMARY:END -->
