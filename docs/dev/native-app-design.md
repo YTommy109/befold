@@ -107,8 +107,8 @@ git サブプロセスの起動・`stat`・ディレクトリ列挙・ファイ�
 
 - `scripts/check-no-detached-blocking.sh`（pre-commit と CI）が
   Swift コード中の `Task.detached` を機械的に弾く
-- CI の build-and-test が `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（プール幅 1）でも
-  全件を回す。1 本でも協調スレッドを塞げば決定的に落ちる
+- CI の build-and-test が通常ランと並列の strict レッグで
+  `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（プール幅 1）でも全件を回す。1 本でも協調スレッドを塞げば決定的に落ちる
 
 ---
 
