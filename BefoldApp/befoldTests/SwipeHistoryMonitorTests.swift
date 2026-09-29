@@ -7,11 +7,14 @@ import Testing
 @Suite
 @MainActor
 struct SwipeHistoryMonitorTests {
+    /// handlePhase は窓を見ないので、1 枚を使い回す（`defer: true` で窓サーバー側の実体も作らない）。
+    /// SwipeHistoryMonitor は窓を weak で持つため、static で生かしておく。
+    private static let window = NSWindow(
+        contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true
+    )
+
     private func makeMonitor(onNavigate: @escaping (Int) -> Void) -> SwipeHistoryMonitor {
-        let window = NSWindow(
-            contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false
-        )
-        return SwipeHistoryMonitor(window: window, onNavigate: onNavigate)
+        SwipeHistoryMonitor(window: Self.window, onNavigate: onNavigate)
     }
 
     @Test(".began 〜 .changed の積算がしきい値を超えると .ended で戻る/進むを通知する", arguments: [

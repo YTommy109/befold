@@ -38,7 +38,10 @@ public enum ChunkBoundary: Sendable {
 public actor StringChunkReader: ChunkedTextReading {
     public static let linesPerChunk = 1000
     /// 不平衡クォートや改行なし巨大行でも 1 チャンクが際限なく肥大化しないための強制分割の上限。
-    public static let maxChunkBytes = 1 * 1024 * 1024
+    public static let defaultMaxChunkBytes = 1 * 1024 * 1024
+    /// このインスタンスの強制分割の上限。既定は defaultMaxChunkBytes。テストは小さな値を渡して
+    /// MB 単位の入力を作らずに同じ不変条件を測る(TASK-662.7)。
+    let maxChunkBytes: Int
 
     /// 走査対象の正規化バイト列。戦略ごとの extension(+Lines / +Markdown / +Quotes)から
     /// 参照するため internal。外部には公開しない。
@@ -70,15 +73,24 @@ public actor StringChunkReader: ChunkedTextReading {
 
     /// boundary はファイル種別ごとの「途中で切ると壊れる構造」に合わせた走査方式。
     /// 種別から決める場合は `ChunkBoundary(fileType:)` を使う。
-    public init(cache: NormalizedTextCache, boundary: ChunkBoundary = .lines) {
+    public init(
+        cache: NormalizedTextCache, boundary: ChunkBoundary = .lines,
+        maxChunkBytes: Int = defaultMaxChunkBytes
+    ) {
         self.cache = cache
         self.boundary = boundary
+        self.maxChunkBytes = maxChunkBytes
     }
 
     /// CSV のクォート判定の有無だけを指定する簡易イニシャライザ。
     /// クォート挙動そのものを対象にしたテストで使う。
-    public init(cache: NormalizedTextCache, respectsCSVQuotes: Bool) {
-        self.init(cache: cache, boundary: respectsCSVQuotes ? .csvQuotes : .lines)
+    public init(
+        cache: NormalizedTextCache, respectsCSVQuotes: Bool,
+        maxChunkBytes: Int = defaultMaxChunkBytes
+    ) {
+        self.init(
+            cache: cache, boundary: respectsCSVQuotes ? .csvQuotes : .lines, maxChunkBytes: maxChunkBytes
+        )
     }
 
     public func readNextChunk() -> (text: String, isAtEnd: Bool) {
@@ -96,7 +108,7 @@ public actor StringChunkReader: ChunkedTextReading {
         // 十分なので、両方を満たす必要はない。
         cache.ensureNormalized(
             minimumLineCount: currentLine + Self.linesPerChunk + 1,
-            minimumByteCount: startOffset + Self.maxChunkBytes
+            minimumByteCount: startOffset + maxChunkBytes
         )
 
         let (endOffset, endLine, forcedSplit) = advance(from: startOffset)

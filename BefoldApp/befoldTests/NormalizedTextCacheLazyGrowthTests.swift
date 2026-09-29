@@ -63,11 +63,11 @@ struct NormalizedTextCacheLazyGrowthTests {
     func ensureNormalizedStopsAtByteTarget() throws {
         // minimumByteCount = maxChunkBytes まで進めた時点で「まだ全体正規化されていない」ことを
         // 検証するので、フィクスチャは maxChunkBytes より確実に大きければよい(倍率は余裕分)。
-        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes * 5)
+        let text = String(repeating: "A", count: StringChunkReader.defaultMaxChunkBytes * 5)
         var cache = try NormalizedTextCache(data: Data(text.utf8), normalizeFully: false)
 
-        cache.ensureNormalized(minimumLineCount: .max, minimumByteCount: StringChunkReader.maxChunkBytes)
-        #expect(cache.normalizedByteCount >= StringChunkReader.maxChunkBytes)
+        cache.ensureNormalized(minimumLineCount: .max, minimumByteCount: StringChunkReader.defaultMaxChunkBytes)
+        #expect(cache.normalizedByteCount >= StringChunkReader.defaultMaxChunkBytes)
         #expect(cache.isFullyNormalized == false)
     }
 
@@ -99,7 +99,7 @@ struct NormalizedTextCacheLazyGrowthTests {
     func incrementalGrowthMatchesEagerResultForHugeSingleLine() throws {
         // 改行が 1 つも無い入力で、チャンク境界を複数回またいでも eager と一致することを見る。
         // 端数(12345)は境界がちょうど揃った場合だけ通る実装を弾くために付けている。
-        let text = String(repeating: "x", count: StringChunkReader.maxChunkBytes * 3 + 12345)
+        let text = String(repeating: "x", count: StringChunkReader.defaultMaxChunkBytes * 3 + 12345)
         let data = Data(text.utf8)
 
         let eager = try NormalizedTextCache(data: data, normalizeFully: true)

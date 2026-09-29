@@ -39,7 +39,7 @@ extension StringChunkReader {
                 bytesScanned += 1
                 cursor += 1
 
-                if bytesScanned >= Self.maxChunkBytes {
+                if bytesScanned >= maxChunkBytes {
                     let forcedEnd = cache.snappedToCharacterBoundary(cursor, lowerBound: lineStart)
                     if inQuotes, forcedEnd < cursor {
                         // snappedToCharacterBoundary が巻き戻したバイトは次回の

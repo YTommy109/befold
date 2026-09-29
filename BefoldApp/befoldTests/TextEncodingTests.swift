@@ -22,34 +22,21 @@ struct TextEncodingTests {
         #expect(TextEncoding.detectBOM(data) == nil)
     }
 
-    @Test("エンコーディング判定の所要時間がデータ量に比例しない")
-    func detectEncodingCostDoesNotScaleWithDataSize() throws {
-        // detectEncoding は先頭 sniffLength バイトしか見ないため、データを 20 倍にしても
-        // 所要時間はほぼ変わらないはずである。「3 秒以内」のような絶対値だと、共有 CI
-        // ランナーや TSan 計装下のマシン速度に左右されてフレーキーになるうえ、全走査への
-        // 退行も 3 秒未満なら見逃す。ここでは同一マシン上の相対比較で線形走査を検出する。
-        let line = "これはエンコーディング判定の速度を確認するためのテスト行です。\n"
-        let small = try #require(String(repeating: line, count: 5000).data(using: .shiftJIS))
-        let large = try #require(String(repeating: line, count: 100_000).data(using: .shiftJIS))
-        #expect(large.count > small.count * 15)
+    /// detectEncoding のレガシー判定は先頭 sniffLength バイトしか見ない(巨大ファイルでも
+    /// 判定の所要時間がデータ量に比例しないのはこのため)。所要時間の比で測ると 9MB の
+    /// 入力と繰り返し計測が要るので、振る舞いで測る: 判定窓の後ろに Shift_JIS として
+    /// 不正なバイトを置いても、判定結果は窓の中身だけで決まる。全体を見る実装へ戻ると、
+    /// 後ろの不正バイトのせいで Shift_JIS と判定できなくなる。
+    @Test("レガシーエンコーディングの判定は先頭 sniffLength バイトだけで決まる")
+    func legacyDetectionLooksOnlyAtSniffWindow() throws {
+        let line = "これはエンコーディング判定の窓を確認するためのテスト行です。\n"
+        let head = try #require(String(repeating: line, count: 200).data(using: .shiftJIS))
+        #expect(head.count > TextEncoding.sniffLength)
+        // 0xFF は Shift_JIS のどの位置にも現れない。UTF-8 としても不正。
+        let tail = Data(repeating: 0xFF, count: 1024)
 
-        // 1 回きりの計測だと、先に測る small 側だけが page-in や String/ICU の遅延初期化を
-        // 負担して数倍に膨らみ、比率での判定が緩む(逆に large 側がスケジューラ揺らぎで
-        // 上振れすると誤って赤くなる)。ウォームアップしてから複数回計測の最小値を採り、
-        // どちらの向きの一過性ノイズも取り除く。
-        _ = TextEncoding.detectEncoding(small)
-        _ = TextEncoding.detectEncoding(large)
-
-        let clock = ContinuousClock()
-        func minElapsed(of body: () -> Void) -> Duration {
-            (0 ..< 5).map { _ in clock.measure(body) }.min() ?? .zero
-        }
-        let elapsedSmall = minElapsed { _ = TextEncoding.detectEncoding(small) }
-        let elapsedLarge = minElapsed { _ = TextEncoding.detectEncoding(large) }
-
-        // データ量は 20 倍。全走査していれば所要時間も概ね 20 倍になる。
-        // 5 倍 + 固定スラック(計測ノイズ吸収)を超えたら線形走査を疑う。
-        #expect(elapsedLarge < elapsedSmall * 5 + .milliseconds(50))
+        #expect(TextEncoding.detectEncoding(head)?.encoding == .shiftJIS)
+        #expect(TextEncoding.detectEncoding(head + tail)?.encoding == .shiftJIS)
     }
 
     /// sniffLength を超えるASCIIヘッダーに続けて `body` を配置したShift_JISテストデータを組み立てる。

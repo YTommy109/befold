@@ -24,6 +24,9 @@ struct SidebarListingSeedTests {
         return base
     }
 
+    /// canApply(to:) は URL と設定を比べるだけでファイルシステムを見ないので、実在しない固定パスで足りる。
+    private static let fixedDirectory = URL(fileURLWithPath: "/seed-tests/folder")
+
     private func makeController(
         file: URL, seed: SidebarListingSeed?, prefix: String
     ) -> ViewerWindowController {
@@ -85,14 +88,12 @@ struct SidebarListingSeedTests {
     /// 列挙の入力が食い違う窓へは引き継がない。素通しすると、取り直しが着地するまでの
     /// 間だけ「不可視ファイルが出ている一覧」が新しい窓に見える。
     @Test("並び順・不可視ファイルの設定が違えば引き継がない")
-    func rejectsSeedWithDifferentListingInputs() throws {
-        let base = try makeDirectory()
-        defer { withExtendedLifetime(base) {} }
+    func rejectsSeedWithDifferentListingInputs() {
         let model = FileListModel(
-            currentDirectory: base.url, entries: [], selection: nil
+            currentDirectory: Self.fixedDirectory, entries: [], selection: nil
         )
         let seed = SidebarListingSeed(
-            directory: base.url,
+            directory: Self.fixedDirectory,
             listing: DirectoryListing(rootChildren: []),
             sortOrder: model.display.sortOrder,
             showHiddenFiles: !model.display.showHiddenFiles
@@ -104,12 +105,10 @@ struct SidebarListingSeedTests {
     /// 列挙に失敗した結果は引き継がない。失敗は「読めなかった」という事実であり、
     /// 写すと新しい窓が自分では試していないのに失敗表示から始まる(TASK-410)。
     @Test("列挙に失敗した結果は引き継がない")
-    func rejectsFailedListing() throws {
-        let base = try makeDirectory()
-        defer { withExtendedLifetime(base) {} }
-        let model = FileListModel(currentDirectory: base.url, entries: [], selection: nil)
+    func rejectsFailedListing() {
+        let model = FileListModel(currentDirectory: Self.fixedDirectory, entries: [], selection: nil)
         let seed = SidebarListingSeed(
-            directory: base.url,
+            directory: Self.fixedDirectory,
             listing: DirectoryListing(rootChildren: [], didFailEnumeration: true),
             sortOrder: model.display.sortOrder,
             showHiddenFiles: model.display.showHiddenFiles
@@ -120,12 +119,10 @@ struct SidebarListingSeedTests {
 
     /// 別フォルダの一覧は引き継がない。
     @Test("別のフォルダの一覧は引き継がない")
-    func rejectsSeedFromDifferentDirectory() throws {
-        let base = try makeDirectory()
-        defer { withExtendedLifetime(base) {} }
-        let model = FileListModel(currentDirectory: base.url, entries: [], selection: nil)
+    func rejectsSeedFromDifferentDirectory() {
+        let model = FileListModel(currentDirectory: Self.fixedDirectory, entries: [], selection: nil)
         let seed = SidebarListingSeed(
-            directory: base.url.appendingPathComponent("elsewhere"),
+            directory: Self.fixedDirectory.appendingPathComponent("elsewhere"),
             listing: DirectoryListing(rootChildren: []),
             sortOrder: model.display.sortOrder,
             showHiddenFiles: model.display.showHiddenFiles

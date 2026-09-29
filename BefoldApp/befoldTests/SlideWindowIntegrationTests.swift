@@ -21,42 +21,46 @@ struct SlideWindowIntegrationTests {
         )
     }
 
-    @Test("スライドモードで開くと種別 .slide の新しいウィンドウになる")
-    func opensAsASlideWindow() throws {
+    /// 「slide で 1 回開く」だけで決まる性質をまとめて測る（窓を 1 枚だけ作る）。
+    /// どれか 1 つが崩れても、その #expect が個別に落ちる。
+    @Test("スライド窓は種別 .slide で、ツールバー・サイドバー・per-file の記憶・セッションの記録を持たない")
+    func slideWindowProperties() throws {
         let fixture = makeFixture()
         defer { fixture.closeAll() }
+        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
 
         let controller = try #require(
             fixture.manager.openViewer(for: first, disposition: .slide)
         )
+        let window = try #require(controller.window)
 
         #expect(controller.kind == .slide)
-    }
-
-    @Test("スライド窓はツールバーを持たない")
-    func hasNoToolbar() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        let controller = try #require(
-            fixture.manager.openViewer(for: first, disposition: .slide)
-        )
-
         #expect(controller.toolbarController == nil)
-        #expect(controller.window?.toolbar == nil)
+        #expect(window.toolbar == nil)
+        // 種別そのものの allowsSidebar は ViewerWindowKindTests が窓なしで測る。
+        #expect(controller.initialSidebarCollapsed)
+        // 折りたたみは種別の帰結であって利用者の選択ではないので、per-file の記憶へ
+        // 書いてはならない（ADR 0002）。書くと、そのファイルを次に通常窓で開いたときに
+        // サイドバーが畳まれた状態で開く。
+        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
+        #expect(ViewerTabGrouping.viewerPath(of: window) == nil)
+        #expect(ViewerTabGrouping.tabGroup(of: window) == nil)
     }
 
-    /// 通常窓と対にして測る。片方だけだと「そもそもツールバーが付いていない」のか
-    /// 「種別で外れている」のか区別できない。
-    @Test("通常のビューア窓はツールバーを持つ")
-    func viewerWindowStillHasToolbar() throws {
+    /// 上のテストと対にして測る。片方だけだと「そもそもツールバーが付いていない」
+    /// 「そもそも誰も記憶へ書かない」のか、「種別で外れている」のか区別できない。
+    @Test("通常のビューア窓はツールバーを持ち、per-file の記憶へ書き、セッションの記録に入る")
+    func viewerWindowCounterparts() throws {
         let fixture = makeFixture()
         defer { fixture.closeAll() }
 
         let controller = try #require(fixture.manager.openViewer(for: first))
+        let window = try #require(controller.window)
 
         #expect(controller.toolbarController != nil)
-        #expect(controller.window?.toolbar != nil)
+        #expect(window.toolbar != nil)
+        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) != nil)
+        #expect(ViewerTabGrouping.viewerPath(of: window) == first.normalizedPathKey)
     }
 
     @Test("スライド窓はタブ結合を禁止していて、起点のタブグループに入らない")
@@ -72,71 +76,6 @@ struct SlideWindowIntegrationTests {
 
         #expect(slide.window?.tabbingMode == .disallowed)
         #expect(slide.window?.tabGroup?.windows.contains { $0 === sourceWindow } != true)
-    }
-
-    @Test("スライド窓のサイドバーは畳まれたまま開く")
-    func opensWithTheSidebarCollapsed() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        let controller = try #require(
-            fixture.manager.openViewer(for: first, disposition: .slide)
-        )
-
-        #expect(controller.initialSidebarCollapsed)
-        #expect(!controller.kind.allowsSidebar)
-    }
-
-    /// 折りたたみは種別の帰結であって利用者の選択ではないので、per-file の記憶へ
-    /// 書いてはならない（ADR 0002）。書くと、そのファイルを次に通常窓で開いたときに
-    /// サイドバーが畳まれた状態で開く。
-    @Test("スライド窓は per-file のサイドバー開閉の記憶を書き換えない")
-    func doesNotWriteThePerFileSidebarMemory() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
-
-        _ = try #require(fixture.manager.openViewer(for: first, disposition: .slide))
-
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
-    }
-
-    /// 対の確認。通常窓は従来どおり記憶へ書くので、上のテストが「そもそも誰も書かない」
-    /// ことを測っているわけではないと分かる。
-    @Test("通常のビューア窓は従来どおり per-file の記憶へ書く")
-    func viewerWindowStillWritesThePerFileSidebarMemory() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        _ = try #require(fixture.manager.openViewer(for: first))
-
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) != nil)
-    }
-
-    @Test("スライド窓はセッションのスナップショットに入らない")
-    func isExcludedFromTheSessionSnapshot() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        let slide = try #require(
-            fixture.manager.openViewer(for: first, disposition: .slide)
-        )
-        let window = try #require(slide.window)
-
-        #expect(ViewerTabGrouping.viewerPath(of: window) == nil)
-        #expect(ViewerTabGrouping.tabGroup(of: window) == nil)
-    }
-
-    @Test("通常のビューア窓はセッションのスナップショットに入る")
-    func viewerWindowIsIncludedInTheSessionSnapshot() throws {
-        let fixture = makeFixture()
-        defer { fixture.closeAll() }
-
-        let controller = try #require(fixture.manager.openViewer(for: first))
-        let window = try #require(controller.window)
-
-        #expect(ViewerTabGrouping.viewerPath(of: window) == first.normalizedPathKey)
     }
 
     /// 前後移動キーが実際にファイルを切り替えるところまでを、キーイベントを作らずに測る

@@ -21,7 +21,7 @@ struct SettingsViewSnapshotTests {
     func rendersOffscreen() throws {
         // 桁区切りを切った状態も撮れるようにしておく(見本がその設定に連動する)。
         let grouping = ProcessInfo.processInfo.environment["BEFOLD_SNAPSHOT_GROUPING"] != "0"
-        let rep = try Self.renderSettingsView(grouping: grouping)
+        let rep = try grouping ? Self.rendered.get().rep : Self.renderSettingsView(grouping: false)
         #expect(rep.pixelsWide > 0)
 
         guard let outputPath = ProcessInfo.processInfo.environment["BEFOLD_SNAPSHOT_PATH"] else {
@@ -37,8 +37,8 @@ struct SettingsViewSnapshotTests {
     /// 効かなくなったらここで落とす）。
     @Test("負の数の選択肢に赤い見本が描かれる")
     func redSamplesAreRendered() throws {
-        let rep = try Self.renderSettingsView()
-        #expect(Self.reddishPixelCount(in: rep) > 0)
+        let pixels = try Self.rendered.get().pixels
+        #expect(Self.reddishPixelCount(in: pixels) > 0)
     }
 
     /// 中身が描けていること（真っ白でないこと）。ImageRenderer 経由では
@@ -46,8 +46,8 @@ struct SettingsViewSnapshotTests {
     /// 同じ形で静かに空になったらここで落とす。
     @Test("描画結果が真っ白でない")
     func renderedContentIsNotBlank() throws {
-        let rep = try Self.renderSettingsView()
-        #expect(Self.inkPixelCount(in: rep) > 0)
+        let pixels = try Self.rendered.get().pixels
+        #expect(Self.inkPixelCount(in: pixels) > 0)
     }
 
     /// 4 つの選択肢の見本は右揃えの固定幅列に入れてあるので、**行ごとの右端が
@@ -60,11 +60,11 @@ struct SettingsViewSnapshotTests {
     /// なので、黙って通るより落ちるほうがよい。
     @Test("負の数の選択肢の見本が右端で揃っている")
     func negativeSamplesAreRightAligned() throws {
-        let rep = try Self.renderSettingsView()
-        let rows = Self.inkRowBands(in: rep).suffix(4)
+        let pixels = try Self.rendered.get().pixels
+        let rows = Self.inkRowBands(in: pixels).suffix(4)
         #expect(rows.count == 4)
 
-        let rightEdges = rows.compactMap { Self.rightmostInkColumn(in: rep, rows: $0) }
+        let rightEdges = rows.compactMap { Self.rightmostInkColumn(in: pixels, rows: $0) }
         #expect(rightEdges.count == 4)
         let spread = (rightEdges.max() ?? 0) - (rightEdges.min() ?? 0)
         // 1px の許容は、黒い文字と赤い文字でアンチエイリアスの端が 1 つずれるため
@@ -74,11 +74,11 @@ struct SettingsViewSnapshotTests {
     }
 
     /// 地でない行が連続するかたまり(= テキストの行)の範囲を返す。
-    private static func inkRowBands(in rep: NSBitmapImageRep) -> [Range<Int>] {
+    private static func inkRowBands(in pixels: Pixels) -> [Range<Int>] {
         var bands: [Range<Int>] = []
         var start: Int?
-        for row in 0 ..< rep.pixelsHigh {
-            let hasInk = rowHasInk(in: rep, row: row)
+        for row in 0 ..< pixels.height {
+            let hasInk = rowHasInk(in: pixels, row: row)
             if hasInk, start == nil {
                 start = row
             } else if !hasInk, let began = start {
@@ -87,28 +87,24 @@ struct SettingsViewSnapshotTests {
             }
         }
         if let began = start {
-            bands.append(began ..< rep.pixelsHigh)
+            bands.append(began ..< pixels.height)
         }
         return bands
     }
 
-    private static func rowHasInk(in rep: NSBitmapImageRep, row: Int) -> Bool {
-        rightmostInkColumn(in: rep, rows: row ..< (row + 1)) != nil
+    private static func rowHasInk(in pixels: Pixels, row: Int) -> Bool {
+        rightmostInkColumn(in: pixels, rows: row ..< (row + 1)) != nil
     }
 
     /// 指定した行範囲で、地でないいちばん右のピクセルの x。無ければ nil。
     /// 地の判定は inkPixelCount と同じ閾値だが、Section の淡い背景まで拾うと
     /// 右端が常に枠の端になってしまうので、**文字として濃い**ピクセルだけを見る。
-    private static func rightmostInkColumn(in rep: NSBitmapImageRep, rows: Range<Int>) -> Int? {
+    private static func rightmostInkColumn(in pixels: Pixels, rows: Range<Int>) -> Int? {
         var rightmost: Int?
         for row in rows {
-            for column in stride(from: rep.pixelsWide - 1, through: 0, by: -1) {
-                guard let color = rep.colorAt(x: column, y: row) else { continue }
-                let converted = color.usingColorSpace(.sRGB) ?? color
-                let brightness = (Double(converted.redComponent)
-                    + Double(converted.greenComponent)
-                    + Double(converted.blueComponent)) / 3
-                if brightness < 0.6 {
+            for column in stride(from: pixels.width - 1, through: 0, by: -1) {
+                let color = pixels.rgb(column: column, row: row)
+                if (color.red + color.green + color.blue) / 3 < 0.6 {
                     if column > (rightmost ?? -1) {
                         rightmost = column
                     }
@@ -117,6 +113,13 @@ struct SettingsViewSnapshotTests {
             }
         }
         return rightmost
+    }
+
+    /// 描画はどのテストでも同じなので 1 回だけ行う（窓の生成とピクセルの読み出しが重い）。
+    /// 失敗も Result に閉じ込めて、各テストで同じ理由で落ちるようにする。
+    private static let rendered: Result<(rep: NSBitmapImageRep, pixels: Pixels), any Error> = Result {
+        let rep = try renderSettingsView()
+        return try (rep, Pixels(rep))
     }
 
     private static func renderSettingsView(grouping: Bool = true) throws -> NSBitmapImageRep {
@@ -134,7 +137,7 @@ struct SettingsViewSnapshotTests {
             resizable: false,
             placement: .centered
         )
-        controller.showAndActivate()
+        // 表示もアクティベートもしない。cacheDisplay は画面に出ていない窓の中身も描ける。
         defer { controller.window?.close() }
         let window = try #require(controller.window)
         // 明色の外観に固定する。このファイルの判定はどれも「地はほぼ白、文字は暗い」
@@ -154,36 +157,76 @@ struct SettingsViewSnapshotTests {
 
     /// 赤とみなすピクセル数。閾値は「赤成分が十分高く、緑と青がどちらも低い」で、
     /// 本文の黒・地の白・選択中ラジオのアクセント色のいずれにも当たらない。
-    private static func reddishPixelCount(in rep: NSBitmapImageRep) -> Int {
-        countPixels(in: rep) { red, green, blue in
+    private static func reddishPixelCount(in pixels: Pixels) -> Int {
+        countPixels(in: pixels) { red, green, blue in
             red > 0.55 && green < 0.45 && blue < 0.45
         }
     }
 
     /// 地（ほぼ白）でないピクセル数。
-    private static func inkPixelCount(in rep: NSBitmapImageRep) -> Int {
-        countPixels(in: rep) { red, green, blue in
+    private static func inkPixelCount(in pixels: Pixels) -> Int {
+        countPixels(in: pixels) { red, green, blue in
             red < 0.9 || green < 0.9 || blue < 0.9
         }
     }
 
     private static func countPixels(
-        in rep: NSBitmapImageRep, matching predicate: (Double, Double, Double) -> Bool
+        in pixels: Pixels, matching predicate: (Double, Double, Double) -> Bool
     ) -> Int {
         var count = 0
-        for row in stride(from: 0, to: rep.pixelsHigh, by: 2) {
-            for column in stride(from: 0, to: rep.pixelsWide, by: 2) {
-                guard let color = rep.colorAt(x: column, y: row) else { continue }
-                let converted = color.usingColorSpace(.sRGB) ?? color
-                if predicate(
-                    Double(converted.redComponent),
-                    Double(converted.greenComponent),
-                    Double(converted.blueComponent)
-                ) {
+        for row in stride(from: 0, to: pixels.height, by: 2) {
+            for column in stride(from: 0, to: pixels.width, by: 2) {
+                let color = pixels.rgb(column: column, row: row)
+                if predicate(color.red, color.green, color.blue) {
                     count += 1
                 }
             }
         }
         return count
+    }
+}
+
+/// ビットマップを sRGB・8bit RGBA の既知形式へ描き直して生バイトで持つ。
+/// `NSBitmapImageRep.colorAt` は 1 画素ごとに NSColor を作り、色空間の変換まで
+/// 挟むので、全画素を走査すると遅い。y は上から数える(colorAt と同じ向き)。
+private struct Pixels {
+    let width: Int
+    let height: Int
+    private let bytes: [UInt8]
+
+    init(_ rep: NSBitmapImageRep) throws {
+        let image = try #require(rep.cgImage)
+        let width = image.width
+        let height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(
+                      data: buffer.baseAddress, width: width, height: height,
+                      bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        try #require(drawn)
+        self.width = width
+        self.height = height
+        self.bytes = bytes
+    }
+
+    struct RGB {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    func rgb(column: Int, row: Int) -> RGB {
+        let offset = (row * width + column) * 4
+        return RGB(
+            red: Double(bytes[offset]) / 255,
+            green: Double(bytes[offset + 1]) / 255,
+            blue: Double(bytes[offset + 2]) / 255
+        )
     }
 }

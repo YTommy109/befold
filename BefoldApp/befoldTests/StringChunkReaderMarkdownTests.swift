@@ -90,14 +90,16 @@ struct StringChunkReaderMarkdownTests {
     /// 境界判定より優先される(巨大な 1 行や空行の無い文書での保険)。
     @Test("空行の無い markdown でもバイト上限で強制分割される")
     func markdownStillForceSplitsWithoutBlankLines() async throws {
-        let text = String(repeating: "a", count: StringChunkReader.maxChunkBytes * 2)
+        // 上限は注入して KB 単位で測る(本番の 1MB と同じ分岐を通る)。
+        let limit = 16 * 1024
+        let text = String(repeating: "a", count: limit * 2)
 
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache, boundary: .markdownBlocks)
+        let reader = StringChunkReader(cache: cache, boundary: .markdownBlocks, maxChunkBytes: limit)
         let chunks = await readAll(reader)
 
         #expect(chunks.count >= 2)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.allSatisfy { $0.utf8.count <= limit })
         #expect(chunks.joined() == text)
     }
 
