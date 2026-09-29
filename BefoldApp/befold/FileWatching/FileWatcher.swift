@@ -30,16 +30,42 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     private var fileSource: DispatchSourceFileSystemObject?
     private var dirSource: DispatchSourceFileSystemObject?
     private let debouncer: Debouncer
-    private let onChange: @MainActor @Sendable () -> Void
-    private let onRename: (@MainActor @Sendable (URL) -> Void)?
+    /// 通知先。監視キュー上で呼ばれる。MainActor へ渡すのは通常の init が包む。
+    private let onChange: @Sendable () -> Void
+    private let onRename: (@Sendable (URL) -> Void)?
     private let queue: DispatchQueue
 
-    init(
+    /// 通知を `@MainActor` へ渡す通常の口。
+    convenience init(
         path: URL,
         debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
         renameSettleDelay: TimeInterval = FileWatcher.defaultRenameSettleDelay,
         onChange: @escaping @MainActor @Sendable () -> Void,
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
+    ) {
+        var renameOnMainActor: (@Sendable (URL) -> Void)?
+        if let onRename {
+            renameOnMainActor = { url in Task { @MainActor in onRename(url) } }
+        }
+        self.init(
+            path: path,
+            debounceDelay: debounceDelay,
+            renameSettleDelay: renameSettleDelay,
+            onChangeOnWatcherQueue: { Task { @MainActor in onChange() } },
+            onRenameOnWatcherQueue: renameOnMainActor
+        )
+    }
+
+    /// 通知を監視キュー上でそのまま呼ぶ口。検知ロジックのテストが、MainActor の
+    /// 混雑（並列実行で 1 回の配送が 10 秒級になる。`waitForMainActorDelivery` の
+    /// doc を参照）に左右されずに完了を待てるようにするためのもの（TASK-662.4）。
+    /// 呼び出しは直列だが、コールバックは監視キューを塞がない軽い処理に限ること。
+    init(
+        path: URL,
+        debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
+        renameSettleDelay: TimeInterval = FileWatcher.defaultRenameSettleDelay,
+        onChangeOnWatcherQueue onChange: @escaping @Sendable () -> Void,
+        onRenameOnWatcherQueue onRename: (@Sendable (URL) -> Void)? = nil
     ) {
         resolvedPath = path.resolvingSymlinksInPath()
         self.renameSettleDelay = renameSettleDelay
@@ -212,10 +238,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         stopDirectoryMonitor()
         startMonitors()
 
-        guard let onRename else { return }
-        Task { @MainActor in
-            onRename(newPath)
-        }
+        onRename?(newPath)
     }
 
     /// F_GETPATH で fd が指すファイルの現在のパスを取得する。取得できなければ nil。
@@ -258,12 +281,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     // MARK: - Notification
 
     private func scheduleNotify() {
-        let onChange = onChange
-        debouncer.schedule {
-            Task { @MainActor in
-                onChange()
-            }
-        }
+        debouncer.schedule(action: onChange)
     }
 
     // MARK: - Lifecycle
@@ -271,8 +289,9 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     /// 全監視を停止しリソースを解放する。
     func stop() {
         // fileSource / dirSource へのアクセスをイベントハンドラと同じ監視キューに
-        // 直列化する。stop() は MainActor（windowWillClose）または deinit からのみ
-        // 呼ばれ、監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
+        // 直列化する。stop() は MainActor（windowWillClose など）からのみ呼ばれ、
+        // 監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
+        // deinit は監視キュー上で走りうるので stop() を呼ばない（deinit の doc を参照）。
         queue.sync {
             stopFileMonitor()
             stopDirectoryMonitor()
@@ -280,8 +299,20 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         }
     }
 
+    /// `stop()` を呼ばず、監視キューへ直列化せずに片付ける。
+    ///
+    /// **deinit は監視キュー上で走りうる。** init の `queue.async { self... }` は self を
+    /// 強参照で持つため、その実行前・実行中に持ち主が手放すと、最後の解放はブロックの
+    /// 破棄(= 監視キュー上)になる。イベントハンドラの `guard let self` が一時的に持つ
+    /// 強参照も同じ。そこで `queue.sync` すると libdispatch が「自分が持つキューへの
+    /// dispatch_sync」として trap し、テストプロセスごと落ちていた(TASK-663)。
+    ///
+    /// 直列化が要らないのは、deinit に入った時点で self を持つ者が他に居ないから。
+    /// ハンドラは weak で self を取り直すため、以後は何もせずに戻る。
     deinit {
-        stop()
+        stopFileMonitor()
+        stopDirectoryMonitor()
+        debouncer.cancel()
     }
 }
 

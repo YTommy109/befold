@@ -7,6 +7,10 @@ import WebKit
 
 /// ナビゲーション判断まわりの共有スタブ。
 enum SurfaceNavigationStubs {
+    /// `decidePolicyFor` の引数を埋めるだけの WebView。ブリッジは引数を読まないので、
+    /// 呼び出しごとに作らず 1 個を使い回す（実 WebView の生成は MainActor を占有する。TASK-662.2）。
+    @MainActor static let placeholderWebView = WKWebView()
+
     /// `WebKitSurfaceEventBridge` が組み立てた `SurfaceNavigationRequest` を記録するだけの受け口。
     /// ブリッジは観測者を weak で持つので、テスト側で強参照を保つこと。
     @MainActor
@@ -90,7 +94,7 @@ struct WebKitSurfaceEventBridgeMappingTests {
         let eventBridge = WebKitSurfaceEventBridge(navigation: navigation, bridge: bridge)
 
         eventBridge.webView(
-            WKWebView(),
+            SurfaceNavigationStubs.placeholderWebView,
             decidePolicyFor: SurfaceNavigationStubs.NavigationAction(
                 type: type, url: url, modifiers: modifiers
             ),
@@ -147,7 +151,7 @@ struct WebKitSurfaceEventBridgeMappingTests {
 
         var decided: WKNavigationActionPolicy?
         eventBridge.webView(
-            WKWebView(),
+            SurfaceNavigationStubs.placeholderWebView,
             decidePolicyFor: SurfaceNavigationStubs.NavigationAction(type: .linkActivated, url: nil),
             decisionHandler: { decided = $0 }
         )
@@ -164,7 +168,7 @@ struct WebKitSurfaceEventBridgeMappingTests {
 
         var decided: WKNavigationActionPolicy?
         eventBridge.webView(
-            WKWebView(),
+            SurfaceNavigationStubs.placeholderWebView,
             decidePolicyFor: SurfaceNavigationStubs.NavigationAction(type: .other, url: nil),
             decisionHandler: { decided = $0 }
         )
@@ -172,7 +176,7 @@ struct WebKitSurfaceEventBridgeMappingTests {
 
         navigation.decision = .cancel
         eventBridge.webView(
-            WKWebView(),
+            SurfaceNavigationStubs.placeholderWebView,
             decidePolicyFor: SurfaceNavigationStubs.NavigationAction(type: .reload, url: nil),
             decisionHandler: { decided = $0 }
         )

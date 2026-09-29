@@ -22,6 +22,7 @@ public enum GitTestRepo {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["git", "-C", dir.path] + args
+        process.environment = environment
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return }
@@ -35,13 +36,31 @@ public enum GitTestRepo {
         watchdog.cancel()
     }
 
-    /// dir を git リポジトリとして初期化し、コミットに必要な最低限の設定を入れる。
-    public static func initRepository(
-        at dir: URL, userEmail: String = "t@example.com", userName: String = "t"
-    ) {
+    /// fixture を作る git に渡す環境変数。
+    ///
+    /// 利用者のグローバル設定(`~/.gitconfig` / `~/.config/git/config`)と `/etc/gitconfig` を
+    /// 読ませない。`commit.gpgsign` や `init.defaultBranch`、`diff.noprefix` のような設定で
+    /// fixture の形や比較相手の出力が手元ごとに変わるのを防ぐ。コミットに要る作者情報も
+    /// ここで渡すので、`git config user.*` を打つ往復が要らない(1 起動 9〜25ms、TASK-662.6)。
+    public static let environment: [String: String] = ProcessInfo.processInfo.environment.merging([
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.com",
+    ]) { _, override in override }
+
+    /// dir を git リポジトリとして初期化する。作者情報は `environment` が渡す。
+    public static func initRepository(at dir: URL) {
         run(["init"], in: dir)
-        run(["config", "user.email", userEmail], in: dir)
-        run(["config", "user.name", userName], in: dir)
+    }
+
+    /// `@MainActor` のテストから fixture を作るときに使う。`run` はスレッドを同期で塞ぐため、
+    /// そのまま呼ぶとメインスレッドを git の起動回数ぶん止め、同じキューに並ぶ他の
+    /// `@MainActor` テストを待たせる。nonisolated な async 関数はメインアクターの外で走る。
+    public static func offMainActor(_ body: @Sendable () throws -> Void) async throws {
+        try body()
     }
 
     /// dir にファイルを 1 つ作って追跡・コミットする(最小の初期コミット)。
@@ -51,6 +70,13 @@ public enum GitTestRepo {
         try contents.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
         run(["add", name], in: dir)
         run(["commit", "-m", "init"], in: dir)
+    }
+
+    /// 作業ツリーの変更をすべて追跡してコミットする。ファイルを先に全部書いてから 1 回で
+    /// コミットすれば、ファイルごとに `commitFile` するより git の起動が減る。
+    public static func commitAll(message: String = "init", in dir: URL) {
+        run(["add", "-A"], in: dir)
+        run(["commit", "-m", message], in: dir)
     }
 
     /// 既存ファイルを書き換えて `git add` まで済ませる(index にのみ変更がある状態)。

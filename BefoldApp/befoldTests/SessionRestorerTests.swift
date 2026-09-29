@@ -32,66 +32,33 @@ struct SessionRestorerTests {
         )
     }
 
+    /// 3 つのオプションは `CLIOpenOptions` の 1 フィールド違いなので、1 回の復元でまとめて
+    /// 測る（実窓を 1 枚にする / TASK-662.7）。どれかの配線が落ちれば、その #expect が個別に落ちる。
+    ///
     /// `--hidden-files` は `--sort` と同じ**その起動限りの窓単位の上書き**で、保存された
     /// 既定値は書き換えない(TASK-480.3 / ADR 0002 の CLI 規則)。既定値へ書く形へ戻すと、
     /// 一度 `--hidden-files` で開いただけで以後のすべての窓が隠しファイル表示で開く。
-    @Test("復元に渡した showHiddenFiles は復元される窓へ適用され、保存された既定値は変わらない")
-    func hiddenFilesOptionAppliesToRestoredWindowWithoutPersisting() throws {
+    /// 復元経路は options をそのまま ViewerWindowManager へ渡す。フィールド単位の
+    /// 手写しに戻ると、この経路だけ並び順の指定が落ちる形の欠落が起きうる。
+    ///
+    /// オプション未指定の復元は `restoreLastSessionDropsMissingFilesFromRecord` が通る。
+    @Test("復元に渡した表示オプションは復元される窓へ適用され、保存された既定値は変わらない")
+    func optionsApplyToRestoredWindowWithoutPersisting() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
         defer { fixture.closeAll() }
         let restorer = makeRestorer(fixture)
         fixture.sessionStore.noteOpened(file)
 
         restorer.captureSavedState()
-        restorer.restoreLastSession(options: CLIOpenOptions(showHiddenFiles: true))
+        restorer.restoreLastSession(
+            options: CLIOpenOptions(showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: true)
+        )
 
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         #expect(controller.fileListModel.display.showHiddenFiles)
+        #expect(controller.store.showLineNumbers)
+        #expect(controller.fileListModel.display.sortOrder == .alphabetical)
         #expect(!fixture.displayDefaults.settings.showHiddenFiles)
-    }
-
-    @Test("復元に渡した showLineNumbers は復元されるウィンドウへ適用される")
-    func lineNumbersOptionAppliesToRestoredWindow() {
-        let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
-        defer { fixture.closeAll() }
-        let restorer = makeRestorer(fixture)
-        fixture.sessionStore.noteOpened(file)
-
-        restorer.captureSavedState()
-        restorer.restoreLastSession(options: CLIOpenOptions(showLineNumbers: true))
-
-        let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
-        #expect(controller?.store.showLineNumbers == true)
-    }
-
-    /// 復元経路は options をそのまま ViewerWindowManager へ渡す。フィールド単位の
-    /// 手写しに戻ると、この経路だけ並び順の指定が落ちる形の欠落が起きうる。
-    @Test("復元に渡した sortOrder は復元されるウィンドウへ適用される")
-    func sortOrderOptionAppliesToRestoredWindow() {
-        let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
-        defer { fixture.closeAll() }
-        let restorer = makeRestorer(fixture)
-        fixture.sessionStore.noteOpened(file)
-
-        restorer.captureSavedState()
-        restorer.restoreLastSession(options: CLIOpenOptions(sortOrder: .alphabetical))
-
-        let controller = fixture.manager.controllers[file.normalizedPathKey]?.first
-        #expect(controller?.fileListModel.display.sortOrder == .alphabetical)
-    }
-
-    @Test("オプション未指定時は従来どおり復元される(既定のフォルダー優先ソート)")
-    func noOptionsPreservesDefaultRestoreBehavior() {
-        let fixture = MockedViewerWindowManager(files: [file], prefix: "SessionRestorerTests")
-        defer { fixture.closeAll() }
-        let restorer = makeRestorer(fixture)
-        fixture.sessionStore.noteOpened(file)
-
-        restorer.captureSavedState()
-        restorer.restoreLastSession()
-
-        #expect(!fixture.displayDefaults.settings.showHiddenFiles)
-        #expect(fixture.manager.controllers[file.normalizedPathKey] != nil)
     }
 
     @Test("復元時に消えていたファイルはウィンドウを開かずセッション記録からも取り除かれる")

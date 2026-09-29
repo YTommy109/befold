@@ -150,6 +150,13 @@ final class SidebarTreePresenter {
         pendingRebuild != nil
     }
 
+    /// 予約した組み直しが走り始める前に待つもの。**テスト専用**で、本番は常に nil。
+    ///
+    /// 着地(予約)と予約の実行はどちらもメインアクターの別ジョブで、間にテストが入れる
+    /// 保証は無い。譲りの回数で「予約中」を捕まえる形は負荷次第で落ちた(TASK-661)ので、
+    /// テストはここで予約を止めておいてから観測する。
+    var scheduledRebuildHold: (@MainActor () async -> Void)?
+
     /// 子リストの着地ごとの組み直しを、同じ時期に届いたぶんで 1 回へまとめる(TASK-637)。
     ///
     /// 組み直しは全行の組み立てで、700 行で 1 回約 12ms(実測)。着地ごとに組み直すと、
@@ -160,6 +167,7 @@ final class SidebarTreePresenter {
     private func scheduleRebuild() {
         guard pendingRebuild == nil else { return }
         pendingRebuild = Task {
+            await self.scheduledRebuildHold?()
             // 取り消された予約は `pendingRebuild` を触らない。既に次の予約が入っていれば
             // それを消してしまう。
             guard !Task.isCancelled else { return }

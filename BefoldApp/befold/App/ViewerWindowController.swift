@@ -237,6 +237,10 @@ final class ViewerWindowController: NSWindowController {
     /// - Parameter gitStatusStore: サイドバーの git 状態バッジの取得元。本番では AppDelegate が
     ///   生成した単一インスタンスを渡す。デフォルトはルート解決が常に nil を返す無効化状態で、
     ///   注入を省略したテストが git を起動しないことを保証する。
+    /// - Parameter sidebarGit: テスト専用シーム。サイドバーの git 読み取り(基準ディレクトリ解決・
+    ///   git 状態)を差し替える。既定の nil は `gitFileIndex` と `gitStatusStore` から作る本番経路。
+    ///   解決を async の境界で足止めしたいテストが使う(同期の索引を塞ぐと、待ちに壁時計の
+    ///   上限が要り、その上限が MainActor の混雑を測ってしまう / TASK-665)。
     /// - Parameter store: 同上。表示状態に無関心なテストが省略できるようにする。
     /// - Parameter makeContentView: テスト専用シーム。コンテンツペイン(ViewerContentView / 実 WKWebView)を
     ///   差し替える。既定の nil は本番経路(実 WKWebView を生成する)。サイドバー(FileListView)と
@@ -258,6 +262,7 @@ final class ViewerWindowController: NSWindowController {
         diffLoader: GitDiffLoader? = nil,
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
         gitStatusStore: GitStatusStore = GitStatusStore(),
+        sidebarGit: (any SidebarGitReading)? = nil,
         initialSidebarCollapsed: Bool = true,
         kind: ViewerWindowKind = .viewer,
         initialFrameDescriptor: String? = nil,
@@ -308,7 +313,7 @@ final class ViewerWindowController: NSWindowController {
             overrides: SidebarDisplayOverrides(
                 sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
             ),
-            gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore
+            gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore, sidebarGit: sidebarGit
         )
         let window = ViewerWindowChrome.makeWindow(fileURL: fileURL, kind: kind)
 

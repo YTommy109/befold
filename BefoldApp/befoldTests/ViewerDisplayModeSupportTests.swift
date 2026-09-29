@@ -4,7 +4,6 @@ import Testing
 
 /// 表示モードの降格規則（成立しないモードをその種別で成立するモードへ落とす）を検証する。
 /// 規則の置き場は `ViewerDisplayMode.supported(for:)` の 1 箇所だけ。
-@MainActor
 struct ViewerDisplayModeSupportTests {
     private let markdown = URL(fileURLWithPath: "/mock/note.md")
     private let csv = URL(fileURLWithPath: "/mock/table.csv")

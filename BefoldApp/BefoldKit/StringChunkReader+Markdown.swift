@@ -36,8 +36,8 @@ extension StringChunkReader {
         scanLines(from: startOffset) { lineStart, lineEnd, bytesScanned in
             let lineBytes = lineEnd - lineStart
             // 空行を探して際限なく伸びないよう、バイト上限は境界判定より優先する。
-            if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let rawEnd = lineStart + (Self.maxChunkBytes - bytesScanned)
+            if bytesScanned + lineBytes >= maxChunkBytes {
+                let rawEnd = lineStart + (maxChunkBytes - bytesScanned)
                 let forcedEnd = cache.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart)
                 return .forcedSplit(endOffset: forcedEnd)
             }

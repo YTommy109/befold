@@ -26,9 +26,16 @@ struct GitDiffReader: GitDiffReading {
     static let wholeFileContextLines: UInt32 = 1_000_000
 
     private let comparisonBase: any GitComparisonBaseResolving
+    private let byteLimit: Int
 
-    init(comparisonBase: any GitComparisonBaseResolving = GitComparisonBaseResolver()) {
+    /// - Parameter byteLimit: `tooLarge` にする境目。本番は `maxDiffBytes` のまま。
+    ///   テストが上限超えを数 KB の fixture で作れるように注入できる。
+    init(
+        comparisonBase: any GitComparisonBaseResolving = GitComparisonBaseResolver(),
+        byteLimit: Int = GitDiffReader.maxDiffBytes
+    ) {
         self.comparisonBase = comparisonBase
+        self.byteLimit = byteLimit
     }
 
     func diff(forFileAt url: URL, in root: URL) -> GitFileDiff? {
@@ -47,7 +54,7 @@ struct GitDiffReader: GitDiffReading {
             guard let relativePath = Self.relativePath(of: url, in: root, repository: repository) else {
                 return .notInRepository
             }
-            return Self.diff(in: repository, relativePath: relativePath, base: base)
+            return Self.diff(in: repository, relativePath: relativePath, base: base, byteLimit: byteLimit)
         }
         switch outcome {
         case let .success(diff):
@@ -77,7 +84,7 @@ struct GitDiffReader: GitDiffReading {
     /// `git_strarray` が指す配列が `git_diff_tree_to_workdir_with_index` の呼び出しより
     /// 長生きしなければならないため(オプションを作って返す形にすると領域が先に消える)。
     private static func diff(
-        in repository: OpaquePointer, relativePath: String, base: String
+        in repository: OpaquePointer, relativePath: String, base: String, byteLimit: Int
     ) -> GitFileDiff {
         guard let baseTree = tree(in: repository, revision: base) else { return .noCommits }
         defer { git_object_free(baseTree) }
@@ -95,14 +102,14 @@ struct GitDiffReader: GitDiffReading {
                       let diff
                 else { return .noChanges }
                 defer { git_diff_free(diff) }
-                return result(of: diff, in: repository, relativePath: relativePath)
+                return result(of: diff, in: repository, relativePath: relativePath, byteLimit: byteLimit)
             }
         }
     }
 
     /// 差分を表示用の結果へ写す。
     private static func result(
-        of diff: OpaquePointer, in repository: OpaquePointer, relativePath: String
+        of diff: OpaquePointer, in repository: OpaquePointer, relativePath: String, byteLimit: Int
     ) -> GitFileDiff {
         // 出力が空でも「変更なし」とは限らない。未追跡ファイルは base に対応物が無く、
         // 差分は成功して空を返す。空かどうかではなく追跡されているかで判定する。
@@ -122,7 +129,7 @@ struct GitDiffReader: GitDiffReading {
         // 読んで初めて確定するため、生成前の delta には立っていない(実測)。
         if isBinary(diff) { return .binary }
         let data = Data(bytes: pointer, count: buffer.size)
-        if data.count > maxDiffBytes { return .tooLarge(byteCount: data.count) }
+        if data.count > byteLimit { return .tooLarge(byteCount: data.count) }
         guard let text = String(data: data, encoding: .utf8) else { return .binary }
         return text.isEmpty ? .noChanges : .diff(text)
     }

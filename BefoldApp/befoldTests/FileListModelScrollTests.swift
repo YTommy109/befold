@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -32,14 +33,6 @@ struct FileListModelScrollTests {
         let tableView = SpyTableView()
         model.tableFocuser.tableView = tableView
         return (model, tableView)
-    }
-
-    /// スクロール要求は NSTableView が新しい行を反映したあとになるよう次のランループへ
-    /// 遅らせてある。先に積まれたその要求が走り終わってから検証するために 1 回譲る。
-    private func drainMainQueue() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async { continuation.resume() }
-        }
     }
 
     @Test("選択を動かすと、その行を可視にするようスクロールを要求する")

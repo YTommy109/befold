@@ -8,9 +8,14 @@ struct DebouncerTests {
     /// テスト用のデバウンス遅延。プロダクト既定より短くして所要時間を抑える。
     private static let delay: TimeInterval = 0.1
 
-    /// 「発火しない」ことを検証するための静穏待ち。デバウンス遅延の 3 倍あれば、
-    /// 発火するはずのタイミングは十分に過ぎている。
-    private static let settlePeriod: TimeInterval = delay * 3
+    /// 「発火しない」ことを検証するための目印。同じ直列キューへ、既に積まれたどの
+    /// 予約よりも遅い期限で積むので、これが走った時点で先行の予約は発火済みか取り消し済み。
+    /// 固定時間の静穏待ちで「十分待ったつもり」にならずに済む。
+    private static func passPendingDeadlines(on queue: DispatchQueue) async {
+        let passed = LockedBox(false)
+        queue.asyncAfter(deadline: .now() + delay) { passed.set(true) }
+        await waitUntil { passed.get() }
+    }
 
     @Test(testTimeLimit())
     func firesAfterDelay() async {
@@ -46,10 +51,10 @@ struct DebouncerTests {
                 }
             }
 
-            // まず 1 回目の発火を待ち、そのあと追加発火が無いことを静穏待ちで確かめる
+            // まず 1 回目の発火を待ち、そのあと追加発火が無いことを確かめる
             // (合一の検証は「1 回で止まる」ことまで見ないと成立しないため)。
             await waitUntil { fireCount.get() >= 1 }
-            try? await Task.sleep(for: .seconds(Self.settlePeriod))
+            await Self.passPendingDeadlines(on: queue)
             #expect(fireCount.get() == 1)
         }
     }
@@ -67,9 +72,8 @@ struct DebouncerTests {
             }
             debouncer.cancel()
 
-            // 否定的検証のため条件待ちにはできない。発火するはずの時刻を
-            // 十分に過ぎるまで待つ (settlePeriod = デバウンス遅延の 3 倍)。
-            try? await Task.sleep(for: .seconds(Self.settlePeriod))
+            // 否定的検証のため発火は待てない。発火するはずの時刻を過ぎたことを目印で確かめる。
+            await Self.passPendingDeadlines(on: queue)
         }
     }
 

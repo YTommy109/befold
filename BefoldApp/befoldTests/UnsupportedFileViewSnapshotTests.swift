@@ -28,14 +28,6 @@ struct UnsupportedFileViewSnapshotTests {
         return rep
     }
 
-    /// 描かれた画のフィンガープリント。**明暗の閾値で数えない。**
-    /// 外観（ライト/ダーク）で地と文字の明るさが入れ替わるため、
-    /// 閾値で数えると全画素が「文字」に見えて 3 つの理由が同じ数になる
-    /// （実測: どれも 310369 で区別できなかった）。画そのものを比べる。
-    private func fingerprint(of rep: NSBitmapImageRep) -> Data {
-        rep.representation(using: .png, properties: [:]) ?? Data()
-    }
-
     /// 画に含まれる色の種類数。地一色なら 1 で、文字が乗っていれば増える。
     private func distinctColorCount(in rep: NSBitmapImageRep) -> Int {
         var colors: Set<String> = []
@@ -56,20 +48,17 @@ struct UnsupportedFileViewSnapshotTests {
         #expect(distinctColorCount(in: damaged) > 1)
     }
 
-    /// 新しい理由が既存の文言と**別のもの**として出ること。
-    /// 同じ画になるなら、どれかの理由へ丸められている（区別した意味が無い）。
+    /// 新しい理由が既存の文言と**別のもの**として出ること。同じ文言なら、どれかの理由へ
+    /// 丸められている（区別した意味が無い）。バナーは `rejectReason.localizedMessage` を
+    /// そのまま描くので、文言が描かれること自体は上のテストに任せ、ここは描かずに
+    /// 文言の引き当てを比べる（理由ごとに描いて PNG を比べていたのを TASK-662.7 で縮めた）。
     @Test("壊れた PDF の文言は他の理由の文言と異なる")
-    func damagedDocumentMessageDiffersFromOthers() throws {
-        let damaged = try fingerprint(of: render(.damagedDocument))
-        let tooLarge = try fingerprint(of: render(.fileTooLarge))
-        let unsupported = try fingerprint(of: render(.unsupportedFormat))
+    func damagedDocumentMessageDiffersFromOthers() {
+        let damaged = RejectReason.damagedDocument.localizedMessage
 
         #expect(!damaged.isEmpty)
-        #expect(damaged != tooLarge)
-        #expect(damaged != unsupported)
-        // 文言そのものも別であることを、リソースの引き当てでも押さえる。
-        #expect(RejectReason.damagedDocument.localizedMessage != RejectReason.fileTooLarge.localizedMessage)
-        #expect(!RejectReason.damagedDocument.localizedMessage.isEmpty)
+        #expect(damaged != RejectReason.fileTooLarge.localizedMessage)
+        #expect(damaged != RejectReason.unsupportedFormat.localizedMessage)
     }
 }
 

@@ -42,7 +42,7 @@ struct BefoldCLIIntegrationTests {
     /// ファイルにはその上限が無いため、読み出しの順序やタイミングを気にせず扱える。
     ///
     /// この関数は同期のため `.timeLimit` では `waitUntilExit` を中断できない。
-    /// 代わりに `timeout` までポーリングし、応答しなければ終了させて失敗を記録する。
+    /// 代わりに終了通知を `timeout` まで待ち、応答しなければ失敗を記録して終了させる。
     private func runCLI(
         _ arguments: [String],
         currentDirectory: URL? = nil,
@@ -65,20 +65,14 @@ struct BefoldCLIIntegrationTests {
         process.currentDirectoryURL = currentDirectory
         process.standardOutput = outHandle
         process.standardError = errHandle
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         try process.run()
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
-        }
+        waitOrRecordTimeout(exited, "befold-cli \(arguments) の終了", fallback: timeout)
         if process.isRunning {
-            Issue.record("befold-cli \(arguments) が \(timeout) 秒以内に終了しなかった")
             process.terminate()
-            let killDeadline = Date().addingTimeInterval(1)
-            while process.isRunning, Date() < killDeadline {
-                Thread.sleep(forTimeInterval: 0.01)
-            }
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            if exited.wait(timeout: .now() + 1) == .timedOut { kill(process.processIdentifier, SIGKILL) }
         }
         process.waitUntilExit()
 

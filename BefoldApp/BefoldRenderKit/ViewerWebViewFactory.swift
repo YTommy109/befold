@@ -161,8 +161,9 @@ public enum ViewerWebViewFactory {
     /// ロード前に注入する JS を一括で組み立てる(全て atDocumentStart / メインフレーム限定)。
     /// Markdown 本文をシステム設定のテキストサイズに合わせる際は preferredFont(.body) を使う
     /// (アクセシビリティのテキストサイズ変更に追従、既定 13pt)。
+    /// 実 WebView を作らずに注入内容を測れるよう internal に置く(TASK-662.2)。
     @MainActor
-    private static func userScriptSources(options: Options) -> [String] {
+    static func userScriptSources(options: Options) -> [String] {
         [
             ViewerBridge.initialZoomScript(options.initialZoom),
             ViewerBridge.systemFontSizeScript(NSFont.preferredFont(forTextStyle: .body).pointSize),

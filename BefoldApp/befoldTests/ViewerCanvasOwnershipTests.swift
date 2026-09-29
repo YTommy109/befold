@@ -1,8 +1,8 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import BefoldTestSupport
+import Foundation
 import Testing
-import WebKit
 
 /// canvas(地)の所有者の判定と適用を検証する。
 ///
@@ -13,10 +13,6 @@ import WebKit
 /// `RenderedStateMirror` の比較には現れないためここで直接押さえる。
 @Suite(testTimeLimit())
 struct ViewerCanvasOwnershipTests {
-    private static func drawsBackground(_ webView: WKWebView) -> Bool {
-        (webView.value(forKey: "drawsBackground") as? Bool) ?? false
-    }
-
     @Test("外部のHTML文書だけがcanvasを所有する")
     func documentOwnsCanvasOnlyForHTMLDocuments() {
         #expect(ViewerWebViewFactory.documentOwnsCanvas(fileType: .html, isSourceMode: false))
@@ -26,37 +22,18 @@ struct ViewerCanvasOwnershipTests {
         #expect(!ViewerWebViewFactory.documentOwnsCanvas(fileType: .mmd, isSourceMode: false))
     }
 
-    @Test("直接HTMLモードへ入るとcanvasを文書へ明け渡す")
-    @MainActor
-    func enterHandsCanvasToDocument() {
-        let renderer = ViewerRenderer()
-        let webView = WKWebView()
-        renderer.surface = WebKitRenderSurface(webView)
-        ViewerWebViewFactory.setDocumentOwnsCanvas(false, on: webView)
-
-        let url = URL(fileURLWithPath: "/tmp/task511-enter.html")
-        _ = renderer.directHTML.enter(
-            surface: WebKitRenderSurface(webView),
-            filePath: url,
-            request: DirectHTMLLoadRequest(
-                content: "<h1>x</h1>", contentRevision: 1, fileType: .html,
-                isSourceMode: false, hasDeclaredHTMLCharset: true
-            )
-        )
-
-        #expect(Self.drawsBackground(webView))
-    }
-
+    /// 入る側（文書へ明け渡す）は `RenderSurfaceDispatchTests` が同じスタブ面で見ている。
+    /// 実 WebView の `drawsBackground` へ届くことは
+    /// `ViewerRendererOneShotIntegrationTests.loadOneShotReportsRejectForBinary` の 1 件で見る(TASK-662.2)。
     @Test("直接HTMLモードから復帰するとcanvasは透過へ戻る")
     @MainActor
     func exitRestoresTransparentCanvas() {
         let renderer = ViewerRenderer()
-        let webView = WKWebView()
-        renderer.surface = WebKitRenderSurface(webView)
-        ViewerWebViewFactory.setDocumentOwnsCanvas(true, on: webView)
+        let surface = ViewerRendererMessageStubs.Surface()
+        renderer.surface = surface
 
-        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
+        renderer.directHTML.exit(surface: surface) {}
 
-        #expect(!Self.drawsBackground(webView))
+        #expect(surface.documentOwnsCanvasHistory == [false])
     }
 }

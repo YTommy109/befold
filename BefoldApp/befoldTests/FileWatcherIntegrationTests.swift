@@ -8,35 +8,43 @@ import Testing
 /// 所要時間とマージンを改善する。
 private let testDebounceDelay: TimeInterval = 0.05
 private let testRenameSettleDelay: TimeInterval = 0.05
+/// 書き込みの再試行間隔。取りこぼし(監視の張り直し直後など)からの復帰待ちなので、
+/// デバウンスが確定するより長ければよい。
+private let testRetryInterval: TimeInterval = testDebounceDelay * 4
 
+/// 検知ロジックのテストは通知を監視キュー上で受け取る(`onChangeOnWatcherQueue`)。
+/// `@MainActor` 経由だと並列実行時の混雑で 1 回の配送が 10 秒級になり(TASK-335)、
+/// 壁時計予算を持つ待機が使えなかったため(TASK-662.4)。MainActor へ渡ることは
+/// `detectsAtomicSave` と `ViewerStoreIntegrationTests` が見る。
 @Suite
 struct FileWatcherIntegrationTests {
     /// 「TempDir に初期ファイルを作成し、短い debounce/renameSettleDelay で FileWatcher を
-    /// 張る」定型(6 回反復)を共通化する。detectsMoveToAnotherDirectory は src/dst 2 ディレクトリを
-    /// 使う特殊なセットアップのため対象外。
-    /// 呼び出し側は返り値の tmp を `defer { withExtendedLifetime(tmp) {} }` で、
+    /// 張る」定型(5 回反復)を共通化する。detectsMoveToAnotherDirectory は src/dst 2 ディレクトリを
+    /// 使う特殊なセットアップ、detectsAtomicSave は MainActor 経由の init を通すため対象外。
+    /// TempDir は呼び出し側が作って `defer { withExtendedLifetime(tmp) {} }` で保持し、
     /// watcher を `defer { watcher.stop() }`(または明示的な `watcher.stop()`)で解放すること。
-    private func makeWatchedTempFile(
-        onChange: @escaping @MainActor @Sendable () -> Void,
-        onRename: (@MainActor @Sendable (URL) -> Void)? = nil
-    ) throws -> (tmp: TempDir, file: URL, watcher: FileWatcher) {
-        let tmp = try TempDir()
+    private func makeWatchedFile(
+        in tmp: TempDir,
+        onChange: @escaping @Sendable () -> Void,
+        onRename: (@Sendable (URL) -> Void)? = nil
+    ) throws -> (file: URL, watcher: FileWatcher) {
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
         let watcher = FileWatcher(
             path: file,
             debounceDelay: testDebounceDelay,
             renameSettleDelay: testRenameSettleDelay,
-            onChange: onChange,
-            onRename: onRename
+            onChangeOnWatcherQueue: onChange,
+            onRenameOnWatcherQueue: onRename
         )
-        return (tmp, file, watcher)
+        return (file, watcher)
     }
 
     @Test(testTimeLimit())
     func detectsFileDeletion() async throws {
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { count.update { $0 += 1 } })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { count.update { $0 += 1 } })
         defer { watcher.stop() }
 
         // 削除は一度きり（エッジトリガー）で再実行できないため、書き込みプローブで
@@ -46,15 +54,23 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.removeItem(at: file)
 
         // 削除後の発火（基準値からの増加）を待つ
-        await waitForMainActorDelivery { count.get() > baseline }
+        await waitUntil { count.get() > baseline }
         #expect(count.get() > baseline)
     }
 
     @Test(testTimeLimit())
     func detectsAtomicSave() async throws {
+        // このテストだけは通常の init(通知を `@MainActor` へ渡す口)を通す。
         let changed = LockedBox(false)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { changed.set(true) })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
+        let watcher = FileWatcher(
+            path: file,
+            debounceDelay: testDebounceDelay,
+            renameSettleDelay: testRenameSettleDelay,
+            onChange: { changed.set(true) }
+        )
         defer { watcher.stop() }
 
         // アトミック保存（一時ファイル → rename）を発火するまで繰り返す。
@@ -75,8 +91,9 @@ struct FileWatcherIntegrationTests {
     @Test(testTimeLimit())
     func detectsChangeAfterRecreation() async throws {
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { count.update { $0 += 1 } })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { count.update { $0 += 1 } })
         defer { watcher.stop() }
 
         // 削除を確実に捕捉するため、監視 arm を確認してから削除する。
@@ -86,7 +103,7 @@ struct FileWatcherIntegrationTests {
         // 解放が反映されるまで（コールバック増加）を待ってから再作成する。
         let beforeDelete = count.get()
         try FileManager.default.removeItem(at: file)
-        await waitForMainActorDelivery { count.get() > beforeDelete }
+        await waitUntil { count.get() > beforeDelete }
 
         // 同名で再作成（ディレクトリ監視が検知してファイル監視を再開する）。
         // ディレクトリソースは file source より前に登録されるため、arm 確認済みなら
@@ -101,7 +118,7 @@ struct FileWatcherIntegrationTests {
         let baseline = count.get()
 
         // 監視再開が遅れてもリトライで検知できるよう、発火するまで書き込みを繰り返す
-        await waitForMainActorDelivery(action: {
+        await waitUntilWithRetry(interval: testRetryInterval, action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: file, atomically: false, encoding: .utf8)
         }, until: {
@@ -116,11 +133,13 @@ struct FileWatcherIntegrationTests {
     func detectsRenameWithinSameDirectory() async throws {
         let renamed = LockedBox<URL?>(nil)
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(
+            in: tmp,
             onChange: { count.update { $0 += 1 } },
             onRename: { url in renamed.set(url) }
         )
-        defer { withExtendedLifetime(tmp) {} }
         defer { watcher.stop() }
 
         // rename は一度きり（エッジトリガー）で再実行できないため、監視 arm を確認してから
@@ -132,13 +151,13 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: newFile)
 
         // rename 通知を待つ
-        await waitForMainActorDelivery { renamed.get() != nil }
+        await waitUntil { renamed.get() != nil }
         #expect(renamed.get()?.lastPathComponent == "renamed.mmd")
 
         // 追従後（監視は新パスへ張り直され再び登録レースが発生する）の変更を、
         // 発火するまで書き込みを繰り返して検知する
         let baseline = count.get()
-        await waitForMainActorDelivery(action: {
+        await waitUntilWithRetry(interval: testRetryInterval, action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: newFile, atomically: false, encoding: .utf8)
         }, until: {
@@ -166,10 +185,10 @@ struct FileWatcherIntegrationTests {
             path: file,
             debounceDelay: testDebounceDelay,
             renameSettleDelay: testRenameSettleDelay,
-            onChange: {
+            onChangeOnWatcherQueue: {
                 count.update { $0 += 1 }
             },
-            onRename: { url in
+            onRenameOnWatcherQueue: { url in
                 renamed.set(url)
             }
         )
@@ -183,13 +202,13 @@ struct FileWatcherIntegrationTests {
         try FileManager.default.moveItem(at: file, to: moved)
 
         // rename 通知を待つ
-        await waitForMainActorDelivery { renamed.get() != nil }
+        await waitUntil { renamed.get() != nil }
         #expect(renamed.get()?.path == moved.resolvingSymlinksInPath().path)
 
         // 新しい親ディレクトリ基準で監視が張り直され、移動後の変更を
         // 発火するまで書き込みを繰り返して検知する
         let baseline = count.get()
-        await waitForMainActorDelivery(action: {
+        await waitUntilWithRetry(interval: testRetryInterval, action: {
             try? "graph TD; A-->\(Int.random(in: 0 ... 999))"
                 .write(to: moved, atomically: false, encoding: .utf8)
         }, until: {
@@ -204,11 +223,13 @@ struct FileWatcherIntegrationTests {
     func saveByRenameIsTreatedAsChangeNotRename() async throws {
         let renamed = LockedBox<URL?>(nil)
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(
+            in: tmp,
             onChange: { count.update { $0 += 1 } },
             onRename: { url in renamed.set(url) }
         )
-        defer { withExtendedLifetime(tmp) {} }
         defer { watcher.stop() }
 
         // save-by-rename の .rename も一度きり。監視 arm を確認してから実行する。
@@ -223,7 +244,7 @@ struct FileWatcherIntegrationTests {
         let backup = tmp.url.appendingPathComponent("test.mmd.bak")
         try FileManager.default.moveItem(at: file, to: backup)
         try "graph TD; X-->Y".write(to: file, atomically: false, encoding: .utf8)
-        await waitForMainActorDelivery(action: {
+        await waitUntilWithRetry(interval: testRetryInterval, action: {
             try? "graph TD; X-->\(Int.random(in: 0 ... 999))"
                 .write(to: file, atomically: false, encoding: .utf8)
         }, until: {
@@ -250,8 +271,9 @@ struct FileWatcherIntegrationTests {
     @Test(testTimeLimit())
     func stopPreventsCallback() async throws {
         let callbackFired = LockedBox(false)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { callbackFired.set(true) })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { callbackFired.set(true) })
 
         // 監視を停止してからファイルを変更
         watcher.stop()
@@ -259,11 +281,12 @@ struct FileWatcherIntegrationTests {
 
         // 十分待ってもコールバックが呼ばれないこと（発火しないことの確認なので固定待ち）。
         // atomically: true の書き込みは rename 経由(.rename → renameSettleDelay →
-        // resolveRename → scheduleNotify → debounce → MainActor、FileWatcher.swift:108-160)
+        // resolveRename → scheduleNotify → debounce、FileWatcher.swift)
         // のため、万一 stop() がリークしても発火し得る最大経路長
-        // testRenameSettleDelay + testDebounceDelay を基準に + 0.3s の余裕を持たせ、
-        // 時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。
-        try? await Task.sleep(for: .seconds(testRenameSettleDelay + testDebounceDelay + 0.3))
+        // testRenameSettleDelay + testDebounceDelay を基準に余裕を持たせ、
+        // 時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。通知は監視キュー上で
+        // 届くので、MainActor の混雑分の余裕は要らない。
+        try? await Task.sleep(for: .seconds(testRenameSettleDelay + testDebounceDelay + 0.1))
         #expect(!callbackFired.get())
     }
 }

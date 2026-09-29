@@ -231,9 +231,11 @@ struct GitStatusReaderIntegrationTests {
     func deliversRealStatusesToSidebarModel() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            try GitTestRepo.commitFile(named: "a.md", in: temp.url)
+            try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        }
 
         let gitFileIndex = GitCommandFileIndex()
         let store = GitStatusStore(
@@ -270,9 +272,11 @@ struct GitStatusReaderIntegrationTests {
     func updatesWithoutExplicitRefreshAfterStaging() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            try GitTestRepo.commitFile(named: "a.md", in: temp.url)
+            try GitTestRepo.modifyWithoutStaging("a.md", in: temp.url)
+        }
 
         let gitFileIndex = GitCommandFileIndex()
         let store = GitStatusStore(
@@ -302,7 +306,7 @@ struct GitStatusReaderIntegrationTests {
         #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.worktreeChange == .modified)
 
         // ここから先は明示的な refresh を一切呼ばない。`.git/index` の監視だけが契機。
-        GitTestRepo.run(["add", "a.md"], in: temp.url)
+        try await GitTestRepo.offMainActor { GitTestRepo.run(["add", "a.md"], in: temp.url) }
 
         await waitUntilOnMainActor { navigator.fileListModel.gitStatus?.fileStatus(at: key)?.indexChange == .modified }
         #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.worktreeChange == nil)

@@ -8,7 +8,7 @@ import Testing
 /// Finder からのドロップ経路のうち、SwiftUI の `.onDrop` より内側
 /// (`NSItemProvider` → URL → モデル → ストア)を、実際の provider で通す。
 /// ドラッグそのものは自動化できないため、受理の判定と非同期の着地をここで固定する。
-@Suite
+@Suite(testTimeLimit())
 @MainActor
 struct BookmarkManagerViewDropTests {
     private let note = URL(fileURLWithPath: "/mock/docs/note.md")
@@ -19,13 +19,6 @@ struct BookmarkManagerViewDropTests {
         return BookmarkManagerView(model: model)
     }
 
-    /// 着地は非同期(provider の読み出し + MainActor 外の stat)なので、上限付きで待つ。
-    private func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0 ..< 200 where !condition() {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-    }
-
     @Test("ファイル URL の provider を落とすと受理され、非同期にブックマークへ追加される")
     func acceptsFileURLProviderAndAddsBookmark() async {
         let store = BookmarkStore(defaults: makeIsolatedDefaults(prefix: "BookmarkManagerViewDrop.accept"))
@@ -33,7 +26,7 @@ struct BookmarkManagerViewDropTests {
         let view = makeView(store: store) { changes += 1 }
 
         let accepted = view.handleDrop([NSItemProvider(object: note as NSURL)], into: [])
-        await waitUntil { store.isBookmarked(note) }
+        await waitForDeliveryOnMainActor { store.isBookmarked(note) }
 
         #expect(accepted)
         #expect(store.isBookmarked(note))
@@ -54,7 +47,7 @@ struct BookmarkManagerViewDropTests {
         let diagramEntry = try #require(store.library().entry(for: diagram))
 
         let accepted = view.handleDrop([BookmarkManagerView.dragProvider(for: diagramEntry)], into: ["Work"])
-        await waitUntil { store.library().entry(for: diagram)?.folder == ["Work"] }
+        await waitForDeliveryOnMainActor { store.library().entry(for: diagram)?.folder == ["Work"] }
 
         #expect(accepted)
         #expect(store.library().entry(for: diagram)?.folder == ["Work"])
@@ -65,7 +58,7 @@ struct BookmarkManagerViewDropTests {
         let reordered = view.handleReorder(
             [BookmarkManagerView.dragProvider(for: noteEntry)], into: ["Work"], before: diagram
         )
-        await waitUntil { store.library().children(of: ["Work"]).entries.count == 2 }
+        await waitForDeliveryOnMainActor { store.library().children(of: ["Work"]).entries.count == 2 }
 
         #expect(reordered)
         #expect(store.library().children(of: ["Work"]).entries.map(\.path) == [note.path, diagram.path])

@@ -24,7 +24,7 @@ struct DocumentSurfaceStack: View {
     /// 生きている窓が拾ってしまう（ADR 0002「文書の状態の規則」1）。
     let store: ViewerStore
     /// この窓が開く対象の種別。**内容が着地するまでのあいだだけ**、どの面を
-    /// 用意するかの判断に使う(`isOpeningPDF`)。着地後は `contentState.fileType` が
+    /// 用意するかの判断に使う(`needsWebSurface`)。着地後は `contentState.fileType` が
     /// 唯一の情報源になるので、この値が古くなっても影響しない。
     let openingFileType: FileType
     /// この文書が画面に出ているか。フォルダー一覧を重ねている間は false になる。
@@ -82,11 +82,17 @@ struct DocumentSurfaceStack: View {
     /// (TASK-266 の「行を通過するたびに作り直さない」はそのまま守る)。既に作ってあるか
     /// どうかは proxy が持つ参照がそのまま表すので、別の記憶を新設しない。
     private var needsWebSurface: Bool {
-        webViewProxy.webView != nil || !isOpeningPDF
+        Self.needsWebSurface(
+            hasWebSurface: webViewProxy.webView != nil,
+            landedFileType: store.contentState.filePath == nil ? nil : store.contentState.fileType,
+            openingFileType: openingFileType
+        )
     }
 
-    /// 開こうとしている / 開いている文書が PDF か。
+    /// `needsWebSurface` の判定本体。実 WKWebView を階層へ出さずに測れるよう
+    /// 入力を値で受ける(TASK-662.2)。`landedFileType` は内容が着地していなければ nil。
     ///
+    /// 開こうとしている / 開いている文書が PDF かは、
     /// **内容が着地するまでは `openingFileType`(窓が開く対象の種別)で判断する。**
     /// 着地前の `contentState.fileType` は既定のままなので、それだけで判断すると
     /// 必ず WKWebView を作ってしまい目的を果たさない。`ViewerStore.pendingFileType` も
@@ -97,8 +103,10 @@ struct DocumentSurfaceStack: View {
     /// 宛先の決定(`DocumentSurfaces.operating(on:)`)が提示予定の種別を**使わない**のとは
     /// 逆の判断だが、性質が違う——あちらは fail-silent(命令が無言で捨てられる)、
     /// こちらは fail-safe(判断を外しても面が少し遅れて作られるだけ)。
-    private var isOpeningPDF: Bool {
-        store.contentState.filePath == nil ? openingFileType == .pdf : showsPDF
+    static func needsWebSurface(
+        hasWebSurface: Bool, landedFileType: FileType?, openingFileType: FileType
+    ) -> Bool {
+        hasWebSurface || (landedFileType ?? openingFileType) != .pdf
     }
 
     var body: some View {

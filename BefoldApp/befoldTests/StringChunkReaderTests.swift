@@ -4,6 +4,11 @@ import Testing
 
 @Suite
 struct StringChunkReaderTests {
+    /// バイト上限を扱うテストで注入する上限。本番の 1MB と同じ不変条件を KB 単位の入力で測る。
+    /// 1000 行(linesPerChunk)の "a,b,c\n" = 6KB より大きく、クォートの規定長(500 バイト)
+    /// よりはるかに大きい値にしておく(どちらかを下回ると測りたい分岐に届かない)。
+    private let limit = 16 * 1024
+
     private func makeCache(_ text: String) throws -> NormalizedTextCache {
         try NormalizedTextCache(data: Data(text.utf8))
     }
@@ -117,21 +122,21 @@ struct StringChunkReaderTests {
     @Test("対のない引用符を含む巨大CSVは規定長超過後に行ベース分割へ復帰し、少数の巨大チャンクにならない")
     func unbalancedQuoteLargeCSVIsChunked() async throws {
         // 500 バイト回復機能の導入後は、不均衡クォート検出後すぐに行ベース
-        // 分割へ復帰するため、チャンクは maxChunkBytes(1MB)に達する前に 1000 行単位で
-        // 区切られるようになった。「各チャンクが maxChunkBytes 以下」という
+        // 分割へ復帰するため、チャンクはバイト上限に達する前に 1000 行単位で
+        // 区切られるようになった。「各チャンクがバイト上限以下」という
         // アサーションだけでは復帰後の小さなチャンクでも自明に成立してしまい、
-        // 復帰の成否を検出できない。復帰していれば 300,000 行 / 1000 行 ≈ 300 個の
-        // チャンクに分かれ、各チャンクは数KB程度に収まるはずである。復帰に失敗して
-        // 不均衡クォートのままバイト上限まで走査し続けた場合は、maxChunkBytes ごとの
-        // 少数(数個)の巨大チャンクにしかならない。
-        let rowCount = 300_000
+        // 復帰の成否を検出できない。復帰していれば 30,000 行 / 1000 行 = 30 個の
+        // チャンクに分かれ、各チャンクは 6KB 程度に収まるはずである。復帰に失敗して
+        // 不均衡クォートのままバイト上限まで走査し続けた場合は、上限(16KB)ごとの
+        // 少数の巨大チャンクにしかならない。
+        let rowCount = 30000
         let hugeAfterUnbalancedQuote = String(repeating: "a,b,c\n", count: rowCount)
         let text = "\"unbalanced\n" + hugeAfterUnbalancedQuote
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.joined() == text)
-        #expect(chunks.count >= 250)
+        #expect(chunks.count >= 25)
         #expect(chunks.allSatisfy { $0.utf8.count <= 10000 })
     }
 
@@ -142,17 +147,17 @@ struct StringChunkReaderTests {
         // 強制分割後も inQuotes/quotedRunLength が正しく保持されていなければ、
         // フィールド内部の改行がチャンク境界(または行境界)として扱われてしまったり、
         // フィールドを閉じた後の後続クォート対応(followUpField)が反転したりする。
-        let openingQuoteOffset = StringChunkReader.maxChunkBytes - 150
+        let openingQuoteOffset = limit - 150
         let filler = String(repeating: "a", count: openingQuoteOffset)
         let straddlingField = "\"" + String(repeating: "x", count: 300) + "\nafter\"\n"
         let trailingRows = (0 ..< 2000).map { "row\($0)\n" }.joined()
         let followUpField = "\"quoted\nfield\"\n"
         let text = filler + straddlingField + trailingRows + followUpField + "tail\n"
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.joined() == text)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.allSatisfy { $0.utf8.count <= limit })
         // filler だけで maxChunkBytes 手前まで達しているため、強制分割(バイト上限)と
         // 通常の行ベース分割の両方が発生し、複数チャンクに分かれるはず。
         #expect(chunks.count > 2)
@@ -165,12 +170,12 @@ struct StringChunkReaderTests {
     func noNewlineHugeSingleLineIsChunked() async throws {
         // 改行が無いので分割は必ずバイト上限で起きる。「2 チャンク以上に分かれる」ことを
         // 見るのが目的なので、maxChunkBytes をはっきり超えていればサイズは十分。
-        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes + 500_000)
+        let text = String(repeating: "A", count: limit + 500)
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache)
+        let reader = StringChunkReader(cache: cache, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.count >= 2)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.allSatisfy { $0.utf8.count <= limit })
         #expect(chunks.joined() == text)
     }
 
@@ -226,7 +231,7 @@ struct StringChunkReaderTests {
         // カウントされないはずの内部改行が 1 行早く linesConsumed に数えられてしまう。
         // その 1 行のずれは以降ずっと持ち越されるため、フィールドの後に十分な数の平文行を
         // 続けると、二重カウントの有無でチャンク境界が 1 行分ずれて現れる。
-        let openingQuoteByteOffset = StringChunkReader.maxChunkBytes - 498
+        let openingQuoteByteOffset = limit - 498
         let filler = String(repeating: "a", count: openingQuoteByteOffset)
         let field = "\"" + String(repeating: "a", count: 495) + "あ\nz\"\n"
         // 二重カウントされると内部改行が数えられ始めるのが 1 行早まるため、
@@ -236,19 +241,19 @@ struct StringChunkReaderTests {
         let paddingLines = (0 ..< 999).map { "pad\($0)\n" }.joined()
         let text = filler + field + paddingLines
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true)
+        let reader = StringChunkReader(cache: cache, respectsCSVQuotes: true, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.joined() == text)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.allSatisfy { $0.utf8.count <= limit })
         #expect(chunks.contains { $0.contains("あ\nz\"") })
         #expect(chunks.contains { $0.contains("pad998\n") && $0.contains("あ\nz\"") })
     }
 
     @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき境界外アクセスせずに読み切れる")
     func exactMaxChunkBytesNoTrailingNewlineDoesNotCrash() async throws {
-        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes)
+        let text = String(repeating: "A", count: limit)
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache)
+        let reader = StringChunkReader(cache: cache, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.count == 1)
         #expect(chunks.joined() == text)
@@ -256,24 +261,24 @@ struct StringChunkReaderTests {
 
     @Test("改行なしテキストの長さがちょうど maxChunkBytes のとき最初の readNextChunk で isAtEnd が true になる")
     func exactMaxChunkBytesNoTrailingNewlineReportsAtEndImmediately() async throws {
-        let text = String(repeating: "A", count: StringChunkReader.maxChunkBytes)
+        let text = String(repeating: "A", count: limit)
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache)
+        let reader = StringChunkReader(cache: cache, maxChunkBytes: limit)
         let result = await reader.readNextChunk()
         #expect(result.text == text)
         #expect(result.isAtEnd)
     }
 
-    @Test("1MB超の単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
+    @Test("バイト上限を超える単一行日本語テキストの強制分割がマルチバイト文字境界を尊重する")
     func forcedSplitRespectsMultibyteCharacterBoundary() async throws {
         // 「あ」は 3 バイトなので、繰り返し回数 = maxChunkBytes でバイト長は上限の 3 倍になり、
         // 強制分割が確実に複数回起きる。3 の倍数判定を成立させるため文字は「あ」だけにする。
-        let text = String(repeating: "あ", count: StringChunkReader.maxChunkBytes)
+        let text = String(repeating: "あ", count: limit)
         let cache = try makeCache(text)
-        let reader = StringChunkReader(cache: cache)
+        let reader = StringChunkReader(cache: cache, maxChunkBytes: limit)
         let chunks = await readAll(reader)
         #expect(chunks.count >= 2)
-        #expect(chunks.allSatisfy { $0.utf8.count <= StringChunkReader.maxChunkBytes })
+        #expect(chunks.allSatisfy { $0.utf8.count <= limit })
         // 分割位置が文字境界からずれていれば、結合結果が元テキストと一致しない、
         // または不正な UTF-8 途中断片から構築された文字列が混入して文字数が変化する。
         #expect(chunks.joined() == text)

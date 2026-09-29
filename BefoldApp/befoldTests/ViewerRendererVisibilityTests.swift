@@ -1,8 +1,8 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import BefoldTestSupport
+import Foundation
 import Testing
-import WebKit
 
 /// 見えていない間は再描画しないこと(ADR 0002 段 5 / TASK-272)を検証する。
 /// 抑止中もミラーは更新しないため、見える状態へ戻った時点で最新の内容が 1 度だけ描画される。
@@ -14,7 +14,7 @@ struct ViewerRendererVisibilityTests {
 
     private func makeRenderer() -> ViewerRenderer {
         let renderer = ViewerRenderer()
-        renderer.surface = WebKitRenderSurface(WKWebView())
+        renderer.surface = ViewerRendererMessageStubs.Surface()
         renderer.readiness.markReady()
         return renderer
     }

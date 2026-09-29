@@ -5,8 +5,9 @@ import Testing
 
 /// 「フォルダを開いたまま複数階層を同時表示する」不変条件と、表示モードの永続化
 /// (TASK-361.4)。
+/// 行組み立ては非隔離なので、MainActor は `SidebarDisplayDefaults` を触るテストにだけ付ける
+/// (TASK-662.3)。
 @Suite
-@MainActor
 struct SidebarTreeLayoutTests {
     private func folder(_ path: String) -> FileListEntry {
         FileListEntry(url: URL(fileURLWithPath: path), kind: .folder)
@@ -74,6 +75,7 @@ struct SidebarTreeLayoutTests {
     // MARK: - 表示モードの永続化
 
     @Test("表示モードは保存され、次回の読み出しで復元される")
+    @MainActor
     func layoutModePersists() {
         let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-persist")
         let first = SidebarDisplayDefaults(defaults: defaults)
@@ -87,6 +89,7 @@ struct SidebarTreeLayoutTests {
 
     /// 保存値のツリーは、ビルド構成によらずそのままツリーとして読む(TASK-187 で降格を撤去)。
     @Test("保存値がツリーならそのままツリーとして読まれる")
+    @MainActor
     func layoutModeReadsStoredTreeAsIs() {
         let defaults = makeIsolatedDefaults(prefix: "SidebarTreeLayoutTests-stored")
         SidebarDisplayDefaults(defaults: defaults).record { $0.layoutMode = .tree }

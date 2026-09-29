@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import PDFKit
 import Testing
 
@@ -71,14 +72,6 @@ struct PDFSurfaceRenderingTests {
         return total > 0 ? Double(dark) / Double(total) : 0
     }
 
-    /// PDFKit がメインキューへ積んだ再レイアウト（`didRotatePage` のブロック）を
-    /// 走らせる。倍率の入れ直しは `PDFSurfaceLayout.rotate` が同期で済ませる（TASK-572）ので
-    /// ここで待つのは PDFKit 側だけ。`RunLoop.run(until:)` では走らない
-    /// (下の `MainQueueDrainTests` の実測)。
-    private func settleLayout() async {
-        try? await Task.sleep(for: .milliseconds(200))
-    }
-
     /// 面の座標系での、いま表示しているページの矩形。
     private func pageRect(in pdfView: PDFView) -> NSRect? {
         guard let page = pdfView.currentPage else { return nil }
@@ -138,7 +131,10 @@ struct PDFSurfaceRenderingTests {
         let before = try #require(pageRect(in: pdfView))
 
         pdfView.rotate(byDegrees: 90)
-        await settleLayout()
+        // PDFKit がメインキューへ積んだ再レイアウト（`didRotatePage` のブロック）を走らせる。
+        // 倍率の入れ直しは `PDFSurfaceLayout.rotate` が同期で済ませる（TASK-572）ので、
+        // 待つのは PDFKit 側だけ（1 周で足りることは下の `MainQueueDrainTests` の前提）。
+        await drainMainQueue()
         pdfView.layoutSubtreeIfNeeded()
 
         let after = try #require(pageRect(in: pdfView))
@@ -178,7 +174,7 @@ struct PDFSurfaceRenderingTests {
 /// テストの前提そのものの確認。回転後の PDFKit の再レイアウトはメインキューへ積まれるので、
 /// **テストがメインキューを明け渡さない限り観測できない**。
 /// 実測: `RunLoop.current.run(until:)` では走らず（Swift Testing の @MainActor テストは
-/// メインキューを自分で回さない）、`await Task.sleep` なら走る。
+/// メインキューを自分で回さない）、`drainMainQueue()` で明け渡せば走る。
 @MainActor
 @Suite
 struct MainQueueDrainTests {
@@ -190,7 +186,7 @@ struct MainQueueDrainTests {
         DispatchQueue.main.async { box.ran = true }
         // `RunLoop.run(until:)` では走らない。Swift Testing の @MainActor テストは
         // メインキューを自分で回さないため、待つなら await で明け渡す必要がある。
-        try? await Task.sleep(for: .milliseconds(200))
+        await drainMainQueue()
 
         #expect(box.ran)
     }

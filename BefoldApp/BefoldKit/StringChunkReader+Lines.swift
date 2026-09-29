@@ -8,8 +8,8 @@ extension StringChunkReader {
     func advanceByLines(from startOffset: Int) -> (endOffset: Int, endLine: Int, forcedSplit: Bool) {
         scanLines(from: startOffset) { lineStart, lineEnd, bytesScanned in
             let lineBytes = lineEnd - lineStart
-            if bytesScanned + lineBytes >= Self.maxChunkBytes {
-                let rawEnd = lineStart + (Self.maxChunkBytes - bytesScanned)
+            if bytesScanned + lineBytes >= maxChunkBytes {
+                let rawEnd = lineStart + (maxChunkBytes - bytesScanned)
                 let forcedEnd = cache.snappedToCharacterBoundary(rawEnd, lowerBound: lineStart)
                 return .forcedSplit(endOffset: forcedEnd)
             }

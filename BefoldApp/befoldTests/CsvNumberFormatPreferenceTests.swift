@@ -1,5 +1,6 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -7,10 +8,7 @@ import Testing
 @Suite
 struct CsvNumberFormatPreferenceTests {
     private func makeDefaults() -> UserDefaults {
-        let suite = "CsvNumberFormatPreferenceTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return defaults
+        makeIsolatedDefaults(prefix: "CsvNumberFormatPreferenceTests")
     }
 
     @Test("未設定なら桁区切りはオン、負の数は通常表記")

@@ -206,12 +206,17 @@ jobs:
       # 幅 1 なら 1 本でも塞いだ時点で決定的に落ちるため、TSan の稀なフレークを
       # 待たずにここで捕まえる。実測: 手元で 40 秒(通常実行は 36 秒)。
       # 変数は値ではなく有無で切り替える(default レッグには定義自体を渡さない)。
+      #
+      # befoldCLITests は別プロセスで回す(TASK-664)。実 Distributed Notification の
+      # 配送はメインランループの一巡を待つため、同じプロセスで befoldTests の
+      # @MainActor テストがメインを 70 秒塞いだ回に ACK 待ち 2 件が予算切れで落ちた。
       - name: テストを実行する（${{ matrix.pool }}）
         run: |
           if [ '${{ matrix.pool }}' = strict ]; then
             export LIBDISPATCH_COOPERATIVE_POOL_STRICT=1
           fi
-          swift test
+          swift test --skip befoldCLITests
+          swift test --filter befoldCLITests
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
@@ -315,4 +320,7 @@ jobs:
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。
       - name: ThreadSanitizer 付きでテストを実行する
-        run: swift test --sanitize=thread
+        # befoldCLITests を分ける理由は build-and-test と同じ(TASK-664)。
+        run: |
+          swift test --sanitize=thread --skip befoldCLITests
+          swift test --sanitize=thread --filter befoldCLITests

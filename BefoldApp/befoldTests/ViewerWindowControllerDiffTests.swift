@@ -5,13 +5,16 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// ルート解決に時間がかかる索引。`git rev-parse` のサブプロセスが遅い状況
-/// (ネットワークボリューム・応答しない git)を、実 git を起こさずに作る。
+/// ルート解決を `hold(_:)` で渡したゲートが開くまで止められる索引。`git rev-parse` の
+/// サブプロセスが遅い状況(ネットワークボリューム・応答しない git)を、実 git を起こさずに作る。
+/// 既定は足止めしない(提示状態の準備は構築時の解決の着地を待つため、最初から止めると進まない)。
 private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
-    private let delay: TimeInterval
+    private let lock = NSLock()
+    private var gate = BlockingGate(isOpen: true)
 
-    init(delay: TimeInterval) {
-        self.delay = delay
+    /// 以後のルート解決を `gate` が開くまで止める。
+    func hold(_ gate: BlockingGate) {
+        lock.withLock { self.gate = gate }
     }
 
     func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
@@ -22,7 +25,7 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     /// ここで上書きしても `any GitFileIndexing` 越しには呼ばれない。プロトコル要件である
     /// こちらを遅くすることで、拡張経由の解決も遅くなる。
     func repositoryRoot(forFileAt url: URL) -> URL? {
-        Thread.sleep(forTimeInterval: delay)
+        lock.withLock { gate }.wait("SlowRootGitFileIndex.repositoryRoot")
         return url.deletingLastPathComponent()
     }
 }
@@ -153,7 +156,7 @@ struct ViewerWindowControllerDiffTests {
             diffDisplayPreference: preference,
             // コミット後を模す。差分が無くなった結果を返す取得器を注入する。
             diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
-            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+            gitFileIndex: SlowRootGitFileIndex()
         ).controller
         defer { controller.close() }
         await presentDocument(in: controller, file: file)
@@ -230,7 +233,7 @@ struct ViewerWindowControllerDiffTests {
             diffDisplayPreference: preference,
             diffLoader: GitDiffLoader(reader: reader),
             // 既定の索引は /mock 配下でリポジトリルートを返さず、取得へ到達しない。
-            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+            gitFileIndex: SlowRootGitFileIndex()
         ).controller
         defer { controller.close() }
         // 前提: 切替前の .swift のロードが確定し、差分を出せる状態になっている
@@ -273,7 +276,7 @@ struct ViewerWindowControllerDiffTests {
             diffDisplayPreference: preference,
             diffLoader: GitDiffLoader(reader: reader),
             // 既定の索引は /mock 配下でリポジトリルートを返さず、取得へ到達しない。
-            gitFileIndex: SlowRootGitFileIndex(delay: 0)
+            gitFileIndex: SlowRootGitFileIndex()
         ).controller
         defer { controller.close() }
         // presentDocument は差分表示にしてしまうため、提示状態だけを作る
@@ -298,26 +301,32 @@ struct ViewerWindowControllerDiffTests {
     }
 
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
-    /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。refreshDiff がすぐ戻ることで測る。
+    /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。ルート解決を閉じたゲートで
+    /// 足止めしたまま refreshDiff が戻ることで測る。メインアクター上で解決していれば
+    /// ゲートを開ける者がいないので、待機が上限に達して失敗が記録される。
+    /// refreshDiff の中へ解決の同期呼び出しを足すと落ちることを実測で確認している。
     @Test("差分の取り直しはリポジトリルート解決でメインアクターを止めない")
-    func refreshDiffDoesNotBlockMainActorOnRootResolution() {
-        let preference = makePreference()
-        let delay: TimeInterval = 0.5
+    func refreshDiffDoesNotBlockMainActorOnRootResolution() async {
+        let index = SlowRootGitFileIndex()
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "let a = 1",
             defaults: makeIsolatedDefaults(prefix: "ViewerWindowControllerDiffTests.slowRoot"),
-            diffDisplayPreference: preference,
+            diffDisplayPreference: makePreference(),
             // 機能ゲートが無効なビルドでは既定の diffLoader が nil で、refreshDiff が
             // ルート解決へ到達しない(それでは何も測れない)。取得器を明示的に注入する。
             diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
-            gitFileIndex: SlowRootGitFileIndex(delay: delay)
+            gitFileIndex: index
         ).controller
         defer { controller.close() }
+        await presentDocument(in: controller, file: file)
+        // 前提: 差分表示中でなければ refreshDiff は解決へ到達せず、何も測れない。
+        #expect(controller.isDiffShown)
+        let gate = BlockingGate()
+        index.hold(gate)
 
-        let started = Date()
         controller.refreshDiff()
-        let elapsed = Date().timeIntervalSince(started)
 
-        #expect(elapsed < delay / 2)
+        gate.open()
+        await controller.diffRefreshTask?.value
     }
 }

@@ -4,7 +4,6 @@ import Testing
 /// View メニューのサイドバー表示 3 項目が、**アクティブウィンドウの現在値**を映すこと
 /// (TASK-480.3)。保存された既定値を映す形へ戻すと、前面の窓と食い違ったチェック状態になる。
 @Suite
-@MainActor
 struct SidebarDisplayMenuStateTests {
     private func settings(
         showHiddenFiles: Bool = false, showChangedFilesOnly: Bool = false,

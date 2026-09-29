@@ -16,24 +16,26 @@ private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Senda
     }
 }
 
-/// ルート解決を遅らせる索引。コントローラ構築時に飛ぶ基準ディレクトリ解決が
-/// 「準備を終えてもまだ着地していない」状況を決定的に作るために使う(TASK-512)。
-/// `repositoryRoot(forDirectoryAt:)` はプロトコル拡張だけの実装(静的ディスパッチ)なので、
-/// プロトコル要件であるこちらを遅くする。
-private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
-    private let delay: TimeInterval
+/// 基準ディレクトリの解決を `gate` が開くまで止めるサイドバー用 git 読み取り。
+/// コントローラ構築時に飛ぶ解決が「準備を終えてもまだ着地していない」状況を
+/// 決定的に作るために使う(TASK-512)。
+///
+/// 同期の索引(`GitFileIndexing.repositoryRoot`)を `BlockingGate` で塞ぐ形にしない
+/// (TASK-665)。ゲートを開くのはテスト本体がロードと差分取得を待ち終えた後で、
+/// そこへ着くまでの時間は MainActor の順番待ちで決まる。同期の待機には壁時計の上限が
+/// 要るため、並列実行ではその上限が混雑を測って切れていた(0.3 秒の上限で並列に回すと
+/// 上限超過が 2 件、CI で落ちた形そのものが出る)。async の境界で止めれば上限は要らず、
+/// ハングはスイートの打ち切りが止める。
+private struct SlowRootSidebarGitReading: SidebarGitReading {
+    let gate: AsyncGate
 
-    init(delay: TimeInterval) {
-        self.delay = delay
+    func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {
+        await gate.wait()
+        return .root(url)
     }
 
-    func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
-        nil
-    }
-
-    func repositoryRoot(forFileAt url: URL) -> URL? {
-        Thread.sleep(forTimeInterval: delay)
-        return url.deletingLastPathComponent()
+    func statuses(forDirectoryAt _: URL, policy _: GitStatusRefreshPolicy) async -> GitStatusResult {
+        .empty
     }
 }
 
@@ -129,6 +131,7 @@ struct ViewerWindowControllerDiffPendingTests {
     /// `.pending` で落ちることを実測で確認している。
     @Test("サイドバーの基準ディレクトリ解決が遅れて着地しても確定状態が壊れない")
     func keepsResolvedDiffWhenBaseDirectoryResolutionLandsLate() async {
+        let gate = AsyncGate()
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "# note",
             defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve"),
@@ -136,10 +139,20 @@ struct ViewerWindowControllerDiffPendingTests {
                 defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve.pref")
             ),
             diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
-            gitFileIndex: SlowRootGitFileIndex(delay: 0.5)
+            gitFileIndex: ImmediateRootGitFileIndex(),
+            sidebarGit: SlowRootSidebarGitReading(gate: gate)
         ).controller
-        defer { controller.close() }
-        await preparePresentedMarkdown(controller)
+        defer {
+            gate.open()
+            controller.close()
+        }
+        let prepared = Task { await preparePresentedMarkdown(controller) }
+        // 準備が解決以外に待つもの(ロードと差分取得)が済んでから解決を着地させる。
+        // 修正が無ければ準備はこの時点で抜けており、解決は準備の後に着地する。
+        await controller.store.loadTask?.value
+        await controller.diffRefreshTask?.value
+        gate.open()
+        await prepared.value
 
         // 準備を抜けた時点で解決は着地済み。ここが nil なら解決はまだ飛行中で、
         // 後から着地した `gitContextDidChange()` が確定済みの状態を `.pending` へ戻す

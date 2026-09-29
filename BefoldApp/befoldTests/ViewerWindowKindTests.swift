@@ -9,7 +9,6 @@ import Testing
 ///
 /// **窓そのものの見た目（ツールバーが出ない・タブに合流しない）は自動テスト対象外**なので、
 /// ここで測るのは「種別が述語として何を意味するか」と「述語を読む側が種別どおりに振る舞うか」。
-@MainActor
 struct ViewerWindowKindTests {
     @Test("通常のビューア窓はサイドバー・ツールバー・タブ・復元・利用履歴のすべてを持つ")
     func viewerKindAllowsEverything() {
