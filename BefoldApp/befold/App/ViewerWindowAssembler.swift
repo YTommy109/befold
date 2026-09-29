@@ -63,7 +63,8 @@ enum ViewerWindowAssembler {
         displayDefaults: SidebarDisplayDefaults,
         overrides: SidebarDisplayOverrides,
         gitFileIndex: any GitFileIndexing,
-        gitStatusStore: GitStatusStore
+        gitStatusStore: GitStatusStore,
+        sidebarGit: (any SidebarGitReading)? = nil
     ) -> SidebarNavigator {
         // 初期一覧は空で始め、attach 直後の refreshFileList()（非同期の DirectoryLister.listingAsync）に
         // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
@@ -71,7 +72,7 @@ enum ViewerWindowAssembler {
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
             displayDefaults: displayDefaults, overrides: overrides,
-            git: makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
+            git: sidebarGit ?? makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )
     }
 

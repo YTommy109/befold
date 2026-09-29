@@ -16,24 +16,26 @@ private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Senda
     }
 }
 
-/// ルート解決を `gate` が開くまで止める索引。コントローラ構築時に飛ぶ基準ディレクトリ解決が
-/// 「準備を終えてもまだ着地していない」状況を決定的に作るために使う(TASK-512)。
-/// `repositoryRoot(forDirectoryAt:)` はプロトコル拡張だけの実装(静的ディスパッチ)なので、
-/// プロトコル要件であるこちらを止める。
-private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
-    private let gate: BlockingGate
+/// 基準ディレクトリの解決を `gate` が開くまで止めるサイドバー用 git 読み取り。
+/// コントローラ構築時に飛ぶ解決が「準備を終えてもまだ着地していない」状況を
+/// 決定的に作るために使う(TASK-512)。
+///
+/// 同期の索引(`GitFileIndexing.repositoryRoot`)を `BlockingGate` で塞ぐ形にしない
+/// (TASK-665)。ゲートを開くのはテスト本体がロードと差分取得を待ち終えた後で、
+/// そこへ着くまでの時間は MainActor の順番待ちで決まる。同期の待機には壁時計の上限が
+/// 要るため、並列実行ではその上限が混雑を測って切れていた(0.3 秒の上限で並列に回すと
+/// 上限超過が 2 件、CI で落ちた形そのものが出る)。async の境界で止めれば上限は要らず、
+/// ハングはスイートの打ち切りが止める。
+private struct SlowRootSidebarGitReading: SidebarGitReading {
+    let gate: AsyncGate
 
-    init(gate: BlockingGate) {
-        self.gate = gate
+    func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {
+        await gate.wait()
+        return .root(url)
     }
 
-    func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
-        nil
-    }
-
-    func repositoryRoot(forFileAt url: URL) -> URL? {
-        gate.wait("SlowRootGitFileIndex.repositoryRoot")
-        return url.deletingLastPathComponent()
+    func statuses(forDirectoryAt _: URL, policy _: GitStatusRefreshPolicy) async -> GitStatusResult {
+        .empty
     }
 }
 
@@ -129,7 +131,7 @@ struct ViewerWindowControllerDiffPendingTests {
     /// `.pending` で落ちることを実測で確認している。
     @Test("サイドバーの基準ディレクトリ解決が遅れて着地しても確定状態が壊れない")
     func keepsResolvedDiffWhenBaseDirectoryResolutionLandsLate() async {
-        let gate = BlockingGate()
+        let gate = AsyncGate()
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "# note",
             defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve"),
@@ -137,7 +139,8 @@ struct ViewerWindowControllerDiffPendingTests {
                 defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve.pref")
             ),
             diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
-            gitFileIndex: SlowRootGitFileIndex(gate: gate)
+            gitFileIndex: ImmediateRootGitFileIndex(),
+            sidebarGit: SlowRootSidebarGitReading(gate: gate)
         ).controller
         defer {
             gate.open()

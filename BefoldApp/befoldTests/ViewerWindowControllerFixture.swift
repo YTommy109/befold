@@ -42,6 +42,7 @@ struct ViewerWindowControllerFixture {
         sourceModeOverride: Bool? = nil,
         gitStatusStore: GitStatusStore = GitStatusStore(),
         gitFileIndex: any GitFileIndexing = DisabledGitFileIndex(),
+        sidebarGit: (any SidebarGitReading)? = nil,
         documentRenderer: (any DocumentRendering)? = nil,
         openFileElsewhere: @escaping (URL, OpenDisposition, NewTabPlacement, NSWindow?) -> Void = { _, _, _, _ in },
         externalOpener: @escaping (URL) -> Void = { _ in }
@@ -75,6 +76,7 @@ struct ViewerWindowControllerFixture {
             diffLoader: diffLoader,
             gitFileIndex: gitFileIndex,
             gitStatusStore: gitStatusStore,
+            sidebarGit: sidebarGit,
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: initialSortOrder,
             initialListing: initialListing,
