@@ -4,6 +4,7 @@ title: thread-sanitizer ジョブがテスト実行中に SEGV でプロセス�
 status: To Do
 assignee: []
 created_date: '2026-09-16 02:32'
+updated_date: '2026-09-29 08:51'
 labels: []
 dependencies: []
 priority: medium
@@ -42,3 +43,11 @@ TSan 自身がバックトレースを出し切る前に死んでおり、スタ
 - [ ] #3 原因が特定できた場合は修正し、swift test --sanitize=thread を複数回まわして再発しないことを実測している
 - [ ] #4 原因が特定できない場合は、何が観測できれば着手できるかを Notes に明記して閉じている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-665 の調査で得た手がかり(2026-09-29、コード参照のみで未実測):
+- withBlockingWork(BefoldKit/BlockingWork.swift)は、呼び出しごとに Thread を新規生成する(プールを使わない)。本番の git ルート解決(SidebarGitReader.repositoryRootLookup、RecentRepositoryRecorder.recordIfNeeded)がこれを通るため、ウィンドウを生成するテストの数に比例してスレッドが生まれる。AC#2 でスレッド生成数を実測するときは、最初に数える発生源の候補になる(rg 'withBlockingWork' で呼び出し元を列挙できる)
+- TASK-665 では ViewerWindowControllerDiffPendingTests の足止めを AsyncGate に替え、専用スレッド 2 本を塞ぐ形をやめた。ただしクラッシュ(2026-09-16)の時点のこのテストは Thread.sleep(0.5) で、減ったのも高々 2 本。本件の原因とも対策とも数えない
+<!-- SECTION:NOTES:END -->
