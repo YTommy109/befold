@@ -1,10 +1,11 @@
 ---
 id: TASK-664
 title: CI で Distributed Notification の配送待ちテスト 2 件が同時にタイムアウトする（再発）
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-29 05:22'
-updated_date: '2026-09-29 05:55'
+updated_date: '2026-09-29 06:17'
 labels: []
 dependencies: []
 priority: high
@@ -27,6 +28,14 @@ PR #703（TASK-662.2）は befoldCLITests にもこの 2 テストにも触れ�
 - [ ] #1 失敗 2 回分の CI ログから、配送が止まったのか受信側が回っていないのかを切り分けて Notes に記録している
 - [ ] #2 原因に応じて、同じ形で落ちない構造（受信の配送先・待ち方）へ直している、または再現できない場合はその根拠を記録している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. CI の swift test を befoldCLITests とそれ以外の 2 プロセスに分ける（build-and-test 両レッグと thread-sanitizer）
+2. 受信側をメイン以外へ移す案は採らない: 停滞はテストの同居でしか起きず、本番コードを変える理由がない
+3. PR #703（3/3 で strict が落ちた状態）に載せて strict が緑になることを実測する
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
