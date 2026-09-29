@@ -145,6 +145,23 @@ struct ViewerWebViewCoordinatorTests {
         #expect(names.count == 3)
     }
 
+    // MARK: - userScriptSources
+
+    /// 実 WebView は作らない。makeWebView がロード前に登録するのはこの一覧そのもの(TASK-662.2)。
+    @Test("描画面の構成がコードフォント設定をロード前スクリプトへ注入する")
+    @MainActor
+    func userScriptSourcesInjectCodeFontScripts() {
+        let sources = ViewerWebViewFactory.userScriptSources(
+            options: ViewerRenderer().surfaceOptions(
+                initialZoom: 1.0, findOptionsPreference: nil,
+                codeFontFamily: "Menlo", codeFontSizePoints: 14
+            )
+        )
+
+        #expect(sources.contains { $0.contains("_mmdMonoFontFamily") && $0.contains("Menlo") })
+        #expect(sources.contains { $0.contains("_mmdCodeFontSize") && $0.contains("14") })
+    }
+
     // MARK: - renderableContent(ローカル画像埋め込み)
 
     /// InMemoryFileReader を背にした MarkdownImageEmbedder を注入(TASK-116.12)して、

@@ -1,13 +1,13 @@
 import BefoldKit
 @testable import BefoldRenderKit
 import BefoldTestSupport
+import Foundation
 import Testing
-import WebKit
 
 /// updateContent の純粋なミラー更新判定を検証する。同一 revision でも filePath が
 /// 変われば再描画対象と判定すること、pendingAppend 消費可否の判定(canConsumePendingAppend)
-/// が対象を扱う。実 WKWebView をロードして描画完了まで待つテストは
-/// ViewerRendererContentUpdateIntegrationTests へ分離した。
+/// が対象を扱う。描画の競合でミラーが正しく進むことは ViewerRendererRenderRaceTests、
+/// JS 側の状態まで読むテストは ViewerRendererContentUpdateIntegrationTests が持つ。
 @Suite(testTimeLimit())
 struct ViewerRendererContentUpdateTests {
     private static let truncation = ViewerRenderer.TruncationState(isTruncated: false, lineCount: 0, failed: false)
@@ -21,8 +21,8 @@ struct ViewerRendererContentUpdateTests {
     @MainActor
     func directHTMLExitDiscardsEntireMirror() {
         let renderer = ViewerRenderer()
-        let webView = WKWebView()
-        renderer.surface = WebKitRenderSurface(webView)
+        let surface = ViewerRendererMessageStubs.Surface()
+        renderer.surface = surface
         renderer.recordRendered(RenderedStateMirror(
             contentRevision: 3,
             fileType: .markdown,
@@ -33,7 +33,7 @@ struct ViewerRendererContentUpdateTests {
             diffState: DiffState(text: "@@ -1 +1 @@", layout: .sideBySide)
         ))
 
-        renderer.directHTML.exit(surface: WebKitRenderSurface(webView)) {}
+        renderer.directHTML.exit(surface: surface) {}
 
         #expect(renderer.rendered == RenderedStateMirror())
     }
@@ -42,7 +42,7 @@ struct ViewerRendererContentUpdateTests {
     @MainActor
     func needsRenderDetectsFilePathChangeEvenWithSameRevision() async {
         let renderer = ViewerRenderer()
-        renderer.surface = WebKitRenderSurface(WKWebView())
+        renderer.surface = ViewerRendererMessageStubs.Surface()
         renderer.readiness.markReady()
 
         let fileA = URL(fileURLWithPath: "/tmp/task68-same-a.md")

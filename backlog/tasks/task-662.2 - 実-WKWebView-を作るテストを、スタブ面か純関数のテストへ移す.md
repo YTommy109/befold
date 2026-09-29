@@ -1,9 +1,11 @@
 ---
 id: TASK-662.2
 title: 実 WKWebView を作るテストを、スタブ面か純関数のテストへ移す
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-29 04:29'
+updated_date: '2026-09-29 05:09'
 labels: []
 dependencies: []
 parent_task_id: TASK-662
@@ -26,8 +28,54 @@ ordinal: 858000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 上記の各テストについて、実 WebView を残す／スタブへ移す／純関数へ移すの判断を Notes に記録し、実 WebView の生成回数を変更前後で数えている
-- [ ] #2 統合テストから単体テストへ移したケースは、守っている修正を戻すと移行後のテストが落ちることを確認している
+- [x] #1 上記の各テストについて、実 WebView を残す／スタブへ移す／純関数へ移すの判断を Notes に記録し、実 WebView の生成回数を変更前後で数えている
+- [x] #2 統合テストから単体テストへ移したケースは、守っている修正を戻すと移行後のテストが落ちることを確認している
 - [ ] #3 実 WebView を残した統合テストが CI で 3 回連続緑である
-- [ ] #4 変更前後で対象スイートの所要時間（--filter で直列）と全体の swift test wall を測り、Notes に記録している
+- [x] #4 変更前後で対象スイートの所要時間（--filter で直列）と全体の swift test wall を測り、Notes に記録している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. 変更前の対象スイート直列 ×3・全体並列 ×2 を計測（.tmp/662-2/before）
+2. OneShot: BuildsWebView のアサートを AwaitsRenderCompletion へ統合、messageHandlerNames は ViewerWebViewCoordinatorTests と重複なので削除。HandsCanvas は既存の純関数テスト（ViewerCanvasOwnershipTests.documentOwnsCanvasOnlyForHTMLDocuments）に任せ、reject 経路を .html にして drawsBackground の配線を 1 件で見る
+3. ContentUpdateIntegration: abortedRender 以外の 4 件をスタブ面 + surfaceDidFinishLoad へ移し ViewerRendererContentUpdateTests 側へ。codeFont 注入は userScriptSources の直接テストへ
+4. userScriptSources を internal にし、spaceScroll / codeFont を実 WebView 無しで測る
+5. DocumentSurfaceStack の needsWebSurface を 3 入力の static 純関数へ出し引数化テスト。階層確認は PDF の 1 件だけ残し固定 sleep を撤去
+6. ロードしない WKWebView() をスタブ面へ（Visibility / ContentUpdate / ReadinessGate / CanvasOwnership）。enter の canvas は RenderSurfaceDispatchTests と重複なので削除。ナビゲーション写像は WKWebView を 1 個共有
+7. 移した単体テストは修正を戻して落ちることを確認
+8. 変更後を同条件で計測し Notes へ。CI 3 回連続緑
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 判断（実 WebView を残す／スタブへ／純関数へ）と生成数
+
+| テスト | 判断 | 実 WebView 生成（前→後） |
+|---|---|---|
+| OneShotIntegration BuildsWebViewAndReportsReject | 削除。rejectReason nil・webView 同一性は AwaitsRenderCompletion へ統合、messageHandlerNames は ViewerWebViewCoordinatorTests と重複 | 1→0 |
+| OneShotIntegration HandsCanvasToHTMLDocumentsOnly | 削除。判定は既存の純関数テスト documentOwnsCanvasOnlyForHTMLDocuments、配線は ReportsRejectForBinary を .html にして drawsBackground を実物で 1 件見る | 2→0 |
+| OneShotIntegration ReportsRejectForBinary / AwaitsRenderCompletion | 実 WebView に残す | 2→2 |
+| ContentUpdateIntegration directHTMLExit / diffStateIsNotConfirmed / staleImageEmbed / pendingDiffHolds | スタブ面 + surfaceDidFinishLoad へ移し ViewerRendererRenderRaceTests（新規）へ | 4→0 |
+| ContentUpdateIntegration surfaceConstructionInjectsCodeFontScripts | userScriptSources を直接測る形で ViewerWebViewCoordinatorTests へ | 1→0 |
+| ContentUpdateIntegration abortedRenderDoesNotLeaveOptionsInJS | JS の _mmdViewOptions を読むので実 WebView に残す | 1→1 |
+| RendererFeaturesTests makeWebViewInjectsSpaceScrollFlag | userScriptSources（private→internal）を直接測る | 2→0 |
+| DocumentSurfaceLazyWebViewTests | needsWebSurface を 3 入力の static 純関数へ出し引数化テスト（6 ケース）。階層は PDF の 1 件（WebView 0 個）だけ残し Task.sleep(200ms)×2 を撤去 | 2→0 |
+| Visibility（3）/ ContentUpdateTests（2）/ ReadinessGate（1）/ CanvasOwnership exit（1） | スタブ面へ。canvas の enter は RenderSurfaceDispatchTests と重複のため削除 | 9→0 |
+| WebKitSurfaceEventBridgeMappingTests | ブリッジは引数を読まない（RenderDiagnostics.id のみ）ので static な 1 個を共有 | 10→1 |
+| SurfaceConstructionOrderTests | 構成順序そのものが対象なので残す | 2→2 |
+
+合計 **35→6 個**。うち viewer.html のロード完了まで待つもの 9→2。
+
+## 修正を戻して落ちることの確認（AC #2、.tmp/662-2/mutate.py）
+11 変異すべてで対象テストが落ちた: TASK-68（離脱分岐の先行確定。exit() がミラーを空にするので exit 呼び出しの後に入れて測った。前に入れた 1 回目は打ち消されて素通りした）、TASK-334（await 前の差分確定）、TASK-224（世代ガード撤去）、TASK-407（pending 見送り撤去）、needsWebSurface の着地種別無視・作成済み無視・View が判定を使わない、spaceScroll 固定 true、codeFont 非注入、exit で canvas を戻さない、OneShot の canvas 配線撤去。
+
+## 計測（AC #4、手元 M 系 / debug / 2026-09-29）
+- 対象スイート直列（--no-parallel --filter、3 回）: 前 53 件 2.08 / 2.02 / 1.99 秒 → 後 48 件 0.61 / 0.60 / 0.59 秒（後は移行先 ViewerRendererRenderRaceTests を含む）
+- 全体 swift test 並列（2 回）: 前 2021 件 42.4 / 42.7 秒 → 後 2017 件 42.8 / 45.3 秒。**全体 wall は誤差範囲で短縮は観測できなかった**。律速はメインキューに並ぶ ~1900 件の @MainActor テストの総量で、実 WebView 29 個分では動かない（TASK-662 の見立てどおり、効くのは他サブタスクとの合算）
+
+## 対象外として残したもの
+- WebKitRenderSurface.make(for:) が codeFont を surfaceOptions へ渡す 1 行の転送は、実 WebView を作るテストでしか見られないため直接の担保を外した（surfaceOptions→userScriptSources は担保あり）
+- swiftlint: main 46 件 / HEAD 46 件で新規ゼロ
+<!-- SECTION:NOTES:END -->
