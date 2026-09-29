@@ -1,7 +1,7 @@
 @testable import BefoldRenderKit
 import BefoldTestSupport
-import Foundation
 import Testing
+import WebKit
 
 /// 準備完了ゲートの保留スロットを検証する(TASK-446)。
 ///
@@ -51,7 +51,8 @@ struct ViewerReadinessGateTests {
     @Test("直接HTMLロードの失敗で読み直しても、保留中の描画要求は失われない")
     func navigationFailureKeepsPendingRender() {
         let renderer = ViewerRenderer()
-        renderer.surface = ViewerRendererMessageStubs.Surface()
+        let webView = WKWebView()
+        renderer.surface = WebKitRenderSurface(webView)
         renderer.directHTML.simulateForTesting(
             active: true, lastPath: URL(fileURLWithPath: "/tmp/task446-direct.html")
         )

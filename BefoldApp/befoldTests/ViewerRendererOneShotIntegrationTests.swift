@@ -15,20 +15,59 @@ struct ViewerRendererOneShotIntegrationTests {
         try ViewerLoadPipeline.defaultChunkedReaderFactory(cache, fileType)
     }
 
-    /// 拒否の経路でも面の構成は通る（`OneShotRenderer.load` は描画の前に canvas の所有を
-    /// 決める）ので、canvas の配線もここで見る。判定そのもの（HTML 文書だけが所有する）は
-    /// `ViewerCanvasOwnershipTests.documentOwnsCanvasOnlyForHTMLDocuments` が純関数で持つ。
-    /// 描画完了を待たずに済むため、実 WebView のロードを 1 回ぶん減らせる(TASK-662.2)。
-    ///
+    @Test("loadOneShot が oneShotLoad+ブリッジ無効で WebView を構成し reject を返す")
+    @MainActor
+    func loadOneShotBuildsWebViewAndReportsReject() async {
+        let renderer = OneShotRenderer(features: .quickLookRestricted)
+
+        let url = URL(fileURLWithPath: "/tmp/oneshot-api.md")
+        let fileReader = InMemoryFileReader(files: [url.path: "# ok\n"])
+
+        let result = await renderer.load(
+            url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
+        )
+
+        #expect(result.rejectReason == nil)
+        #expect(result.webView === renderer.webView)
+        // ブリッジ無効構成では攻撃面となる2種のハンドラを登録しない。
+        let names = ViewerWebViewFactory.messageHandlerNames(for: RendererFeatures.quickLookRestricted)
+        #expect(!names.contains(ViewerBridgeMessage.loadMoreLines.rawValue))
+        #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
+    }
+
     /// QuickLook では allowDirectHTML=false のため HTML も viewer.html 内の iframe で描くが、
     /// 外部の HTML 文書であることは変わらないので canvas は文書に所有させる。透過のままだと
     /// 子文書の color-scheme 宣言が届かず、明るい背景前提の HTML が読めなくなる(TASK-511)。
-    @Test("loadOneShot は非対応ファイルの rejectReason を返し、HTML 文書なら canvas を明け渡す")
+    @Test("loadOneShot はHTML文書のときだけcanvasを文書へ明け渡す")
+    @MainActor
+    func loadOneShotHandsCanvasToHTMLDocumentsOnly() async {
+        func drawsBackground(_ webView: WKWebView) -> Bool {
+            (webView.value(forKey: "drawsBackground") as? Bool) ?? false
+        }
+
+        let htmlURL = URL(fileURLWithPath: "/tmp/task511-oneshot.html")
+        let html = await OneShotRenderer(features: .quickLookRestricted).load(
+            url: htmlURL,
+            fileReader: InMemoryFileReader(files: [htmlURL.path: "<h1>ok</h1>\n"]),
+            chunkedReaderFactory: chunkedReaderFactory
+        )
+        #expect(drawsBackground(html.webView))
+
+        let mdURL = URL(fileURLWithPath: "/tmp/task511-oneshot.md")
+        let markdown = await OneShotRenderer(features: .quickLookRestricted).load(
+            url: mdURL,
+            fileReader: InMemoryFileReader(files: [mdURL.path: "# ok\n"]),
+            chunkedReaderFactory: chunkedReaderFactory
+        )
+        #expect(!drawsBackground(markdown.webView))
+    }
+
+    @Test("loadOneShot は非対応ファイルの rejectReason を返す")
     @MainActor
     func loadOneShotReportsRejectForBinary() async {
         let renderer = OneShotRenderer(features: .quickLookRestricted)
 
-        let url = URL(fileURLWithPath: "/tmp/oneshot-binary.html")
+        let url = URL(fileURLWithPath: "/tmp/oneshot-binary.md")
         let fileReader = InMemoryFileReader(files: [url.path: "binary-ish"])
         // QuickLook でもバイナリ拒否の理由が汎用文言に丸められないこと(TASK-260)。
         fileReader.setBinary(true, at: url)
@@ -38,7 +77,6 @@ struct ViewerRendererOneShotIntegrationTests {
         )
 
         #expect(result.rejectReason == .binaryContent)
-        #expect((result.webView.value(forKey: "drawsBackground") as? Bool) == true)
     }
 
     /// loadOneShot が「描画を予約して即 return」ではなく、実際の描画完了まで待つこと。
@@ -61,9 +99,6 @@ struct ViewerRendererOneShotIntegrationTests {
             url: url, fileReader: fileReader, chunkedReaderFactory: chunkedReaderFactory
         )
 
-        #expect(result.rejectReason == nil)
-        // 内包するレンダラが描画完了まで面を保持し続けている。
-        #expect(result.webView === renderer.webView)
         let html = try await result.webView.evaluateJavaScript(
             "document.getElementById('diagram-wrap').innerHTML"
         ) as? String
