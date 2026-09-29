@@ -154,8 +154,17 @@ jobs:
     # 通常は 4 分ほどで終わる。テストが停止したまま既定の 6 時間ランナーを
     # 占有した実績があるため上限を切る(TASK-424)。
     timeout-minutes: 30
+    # 通常ランと協調スレッドプール幅 1 のランを別ランナーで並列に回す(TASK-662.1)。
+    # 同じジョブで直列に回すと、幅 1 のラン(実測 1 分 46 秒〜2 分 22 秒)が
+    # そのまま PR の待ち時間に乗る。片方が落ちても他方の結果は見たいので fail-fast は切る。
+    strategy:
+      fail-fast: false
+      matrix:
+        pool: [default, strict]
+    # グループに matrix 値を含める。含めないと 2 つのレッグが同じグループに入り、
+    # 後から始まった側が先の側をキャンセルする。
     concurrency:
-      group: ci-build-and-test-${{ github.ref }}
+      group: ci-build-and-test-${{ matrix.pool }}-${{ github.ref }}
       cancel-in-progress: true
     defaults:
       run:
@@ -178,7 +187,9 @@ jobs:
       - name: アプリをビルドする（SwiftLint も実行される）
         run: swift build
 
+      # ソースだけを見る検査なので、2 つのレッグで重ねて回さない。
       - name: SwiftFormat の整形を検証する
+        if: matrix.pool == 'default'
         run: swift package plugin --allow-writing-to-package-directory swiftformat -- --lint
 
       # TASK-607: 実 WKWebView の統合テストが間欠的に落ちる原因は、swift-testing の
@@ -187,19 +198,20 @@ jobs:
       # ただし `--no-parallel` は**採れない**——手元では直列 3 回とも 56 秒で緑だが、
       # CI では別のところでハングし 24 分間出力が止まって打ち切られた（run 34304889554）。
       # 対処は未確定。詳細と次の一手は TASK-607 の Notes を参照。
-      - name: テストを実行する
-        run: swift test
-
-      # 協調スレッドプールの幅を 1 に絞って回す。同期的に塞ぐ処理を
+      #
+      # strict レッグは協調スレッドプールの幅を 1 に絞って回す。同期的に塞ぐ処理を
       # `Task.detached`(= 協調スレッド)へ置くと、幅ぶんの同時ブロックで
       # プロセス全体の前進が止まり、全スイート pass でも «unknown» issue で
       # run が落ちる(TASK-424 / TASK-427 / TASK-516 で 3 度再発)。
       # 幅 1 なら 1 本でも塞いだ時点で決定的に落ちるため、TSan の稀なフレークを
       # 待たずにここで捕まえる。実測: 手元で 40 秒(通常実行は 36 秒)。
-      - name: 協調スレッドプール幅 1 でテストを実行する
-        run: swift test
-        env:
-          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+      # 変数は値ではなく有無で切り替える(default レッグには定義自体を渡さない)。
+      - name: テストを実行する（${{ matrix.pool }}）
+        run: |
+          if [ '${{ matrix.pool }}' = strict ]; then
+            export LIBDISPATCH_COOPERATIVE_POOL_STRICT=1
+          fi
+          swift test
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
