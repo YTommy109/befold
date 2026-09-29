@@ -55,22 +55,26 @@ struct SidebarTreePresenterChildTasksTests {
         #expect(presenter.pendingChildKeys.isEmpty)
     }
 
+    /// 予約した組み直しを、返したゲートが開くまで走らせない。着地(予約)と予約の実行は
+    /// どちらもメインアクターの別ジョブで、間にテストが入れる保証は無い(TASK-661)。
+    private func holdScheduledRebuild(_ presenter: SidebarTreePresenter) -> AsyncGate {
+        let hold = AsyncGate()
+        presenter.scheduledRebuildHold = { await hold.wait() }
+        return hold
+    }
+
     @Test("組み直しの予約中に畳むと、同期の組み直しが予約を捨て、組み直しは 1 回で済む")
     func collapseDropsScheduledRebuild() async throws {
         let presenter = makePresenter()
+        let hold = holdScheduledRebuild(presenter)
+        defer { hold.open() }
         let key = base.appendingPathComponent("a").normalizedPathKey
-        // 着地(予約)と予約の実行はどちらもメインアクターの別ジョブで、間に譲りが挟まる
-        // 保証は無い。予約が観測より先に走ったら、畳んでやり直す。
-        var observed = false
-        for _ in 0 ..< 50 where !observed {
-            expand(presenter, "a")
-            for _ in 0 ..< 10000 where presenter.pendingChildKeys.contains(key) {
-                await Task.yield()
-            }
-            observed = presenter.hasPendingRebuild
-            if !observed { presenter.collapseFolder(key) }
+        expand(presenter, "a")
+        // 予約は止めてあるので、立てば立ったまま残る。
+        for _ in 0 ..< 10000 where !presenter.hasPendingRebuild {
+            await Task.yield()
         }
-        try #require(observed)
+        try #require(presenter.hasPendingRebuild)
 
         presenter.collapseFolder(key)
 
@@ -110,9 +114,10 @@ struct SidebarTreePresenterChildTasksTests {
         let gate = AsyncGate()
         let issued = LockedBox(0)
         let presenter = makeReviewPresenter(gate: gate, issued: issued, returned: LockedBox(0))
+        let hold = holdScheduledRebuild(presenter)
         try #require(presenter.expandedKeys == [base.appendingPathComponent("a").normalizedPathKey])
         gate.open()
-        // 予約を観測できた時点では、まだ走っていない(走り始めに nil へ戻す)。
+        // 予約は止めてあるので、立てば立ったまま残る。
         for _ in 0 ..< 10000 where !presenter.hasPendingRebuild {
             await Task.yield()
         }
@@ -121,6 +126,8 @@ struct SidebarTreePresenterChildTasksTests {
         presenter.invalidateExpansion()
 
         #expect(!presenter.hasPendingRebuild)
+        // 予約が残っていれば、下の awaitSettled がそれを待って走らせ、展開を開き直す。
+        hold.open()
         await presenter.awaitSettled()
         #expect(issued.get() == 1)
         #expect(presenter.expandedKeys.isEmpty)
