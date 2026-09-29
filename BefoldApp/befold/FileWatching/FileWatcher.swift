@@ -289,8 +289,9 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     /// 全監視を停止しリソースを解放する。
     func stop() {
         // fileSource / dirSource へのアクセスをイベントハンドラと同じ監視キューに
-        // 直列化する。stop() は MainActor（windowWillClose）または deinit からのみ
-        // 呼ばれ、監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
+        // 直列化する。stop() は MainActor（windowWillClose など）からのみ呼ばれ、
+        // 監視キュー上からは呼ばれないため queue.sync でデッドロックしない。
+        // deinit は監視キュー上で走りうるので stop() を呼ばない（deinit の doc を参照）。
         queue.sync {
             stopFileMonitor()
             stopDirectoryMonitor()
@@ -298,8 +299,20 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         }
     }
 
+    /// `stop()` を呼ばず、監視キューへ直列化せずに片付ける。
+    ///
+    /// **deinit は監視キュー上で走りうる。** init の `queue.async { self... }` は self を
+    /// 強参照で持つため、その実行前・実行中に持ち主が手放すと、最後の解放はブロックの
+    /// 破棄(= 監視キュー上)になる。イベントハンドラの `guard let self` が一時的に持つ
+    /// 強参照も同じ。そこで `queue.sync` すると libdispatch が「自分が持つキューへの
+    /// dispatch_sync」として trap し、テストプロセスごと落ちていた(TASK-663)。
+    ///
+    /// 直列化が要らないのは、deinit に入った時点で self を持つ者が他に居ないから。
+    /// ハンドラは weak で self を取り直すため、以後は何もせずに戻る。
     deinit {
-        stop()
+        stopFileMonitor()
+        stopDirectoryMonitor()
+        debouncer.cancel()
     }
 }
 
