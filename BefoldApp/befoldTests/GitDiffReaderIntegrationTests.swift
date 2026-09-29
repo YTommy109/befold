@@ -15,130 +15,121 @@ struct GitDiffReaderIntegrationTests {
         GitDiffReader()
     }
 
-    @Test("未ステージの変更が unified diff で返る")
-    func returnsUnifiedDiffForUnstagedChange() throws {
+    /// 読むだけで済む分類を 1 つのリポジトリにまとめて確かめる。ファイルごとに状態を変えた
+    /// fixture を 1 回で作り、差分はファイル単位の pathspec で取るので互いに干渉しない
+    /// (TASK-662.6。以前は 7 件が個別に init・commit していた)。
+    /// `.git/index` の mtime を触る `diffDoesNotDisturbIndexFingerprint` はここへ入れない。
+    @Test("読むだけの分類を共有リポジトリで確かめる", arguments: ReadOnlyCase.allCases)
+    func classifiesFileInSharedRepository(_ readOnlyCase: ReadOnlyCase) throws {
+        let root = try Self.sharedRepository.get().url
+        let result = makeReader().diff(forFileAt: root.appendingPathComponent(readOnlyCase.fileName), in: root)
+        readOnlyCase.verify(result)
+    }
+
+    /// 共有リポジトリ。テストプロセスの寿命と同じだけ生きる(static は解放されないため、
+    /// 一時ディレクトリは OS の掃除に任せる)。
+    private static let sharedRepository = Result { try makeSharedRepository() }
+
+    private static func makeSharedRepository() throws -> TempDir {
         let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.swift", contents: "let a = 2\n", in: temp.url)
-
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
-
-        guard case let .diff(text) = result else {
-            Issue.record("差分が返らなかった: \(String(describing: result))")
-            return
+        let root = temp.url
+        GitTestRepo.initRepository(at: root)
+        for readOnlyCase in ReadOnlyCase.allCases {
+            try readOnlyCase.committed?.write(to: root.appendingPathComponent(readOnlyCase.fileName))
         }
-        #expect(text.contains("@@"))
-        #expect(text.contains("-let a = 1"))
-        #expect(text.contains("+let a = 2"))
-    }
-
-    /// ビューアは「ファイルを読む」画面なので、変更の周辺だけを抜き出すと前後が飛んで
-    /// 読めなくなる。既定の -U3 では 3 行を超えて離れた行が落ちるため、全文を出す。
-    @Test("変更から離れた行も含めてファイル全体が差分に載る")
-    func includesWholeFileNotJustChangedNeighborhood() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        // 1 行目だけを変更し、-U3 の文脈からは外れる 10 行目以降まで用意する。
-        let original = (1 ... 12).map { "let v\($0) = \($0)\n" }.joined()
-        let modified = original.replacingOccurrences(of: "let v1 = 1\n", with: "let v1 = 99\n")
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", contents: original, in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("a.swift", contents: modified, in: temp.url)
-
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
-
-        guard case let .diff(text) = result else {
-            Issue.record("差分が返らなかった: \(String(describing: result))")
-            return
+        GitTestRepo.commitAll(in: root)
+        for readOnlyCase in ReadOnlyCase.allCases {
+            try readOnlyCase.current?.write(to: root.appendingPathComponent(readOnlyCase.fileName))
         }
-        #expect(text.contains(" let v12 = 12"))
-        // 全文が 1 つのハンクに収まるので、ハンクの区切りも 1 つだけになる。
-        #expect(text.components(separatedBy: "@@ -").count - 1 == 1)
+        GitTestRepo.run(["add", ReadOnlyCase.staged.fileName], in: root)
+        return temp
     }
 
-    /// 比較対象を index ではなく HEAD にした理由そのもの。`git diff`(index 比較)だと
-    /// ステージ済みの変更が差分から消え、バッジと表示が食い違う。
-    @Test("ステージ済みの変更も差分に含まれる")
-    func includesStagedChanges() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
-        try GitTestRepo.stageChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
+    enum ReadOnlyCase: String, CaseIterable, Sendable {
+        case unstaged, wholeFile, staged, clean, untracked, combiningCharacters, binary
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
-
-        guard case let .diff(text) = result else {
-            Issue.record("差分が返らなかった: \(String(describing: result))")
-            return
+        var fileName: String {
+            switch self {
+            case .unstaged: "unstaged.swift"
+            case .wholeFile: "whole.swift"
+            case .staged: "staged.swift"
+            case .clean: "clean.swift"
+            case .untracked: "new.swift"
+            // Issue #685 の回帰。Foundation のファイル書き込み API はファイルシステム表現を
+            // 作る際に合成済み文字(NFC)を分解形(NFD)へ変換するため、実ディスク上のバイト列は
+            // NFD になる(実測)。一方 `git add` に渡した文字列(NFC)はそのまま index に記録される
+            // (実測: `git ls-files` は NFC のバイト列を返す)。この不一致を揃え損ねると、
+            // pathspec・`git_index_get_bypath` のどちらもバイト一致せず untracked と誤判定する。
+            case .combiningCharacters: "\u{305F}\u{3099}.md".precomposedStringWithCanonicalMapping // "だ.md"(NFC)
+            case .binary: "b.dat"
+            }
         }
-        #expect(text.contains("+let a = 2"))
-    }
 
-    @Test("変更が無ければ noChanges")
-    func reportsNoChangesForCleanFile() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", in: temp.url)
+        /// 1 行目だけを変更し、-U3 の文脈からは外れる 10 行目以降まで用意する。
+        private static let twelveLines = (1 ... 12).map { "let v\($0) = \($0)\n" }.joined()
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
-
-        #expect(result == .noChanges)
-    }
-
-    /// 未追跡ファイルも diff は成功して空を返す。空かどうかで判定していると
-    /// 「変更なし」と誤答する(この分類が退行したらここが落ちる)。
-    @Test("未追跡ファイルは untracked（空出力を変更なしと混同しない）")
-    func distinguishesUntrackedFromNoChanges() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", in: temp.url)
-        try GitTestRepo.addUntrackedFile(named: "new.swift", in: temp.url)
-
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("new.swift"), in: temp.url)
-
-        #expect(result == .untracked)
-    }
-
-    /// Issue #685 の回帰。Foundation のファイル書き込み API はファイルシステム表現を
-    /// 作る際に合成済み文字(NFC)を分解形(NFD)へ変換するため、実ディスク上のバイト列は
-    /// NFD になる(実測)。一方 `git add` に渡した文字列(NFC)はそのまま index に記録される
-    /// (実測: `git ls-files` は NFC のバイト列を返す)。この不一致を揃え損ねると、
-    /// pathspec・`git_index_get_bypath` のどちらもバイト一致せず untracked と誤判定する。
-    @Test("結合文字を含むファイル名でも差分が返る")
-    func returnsUnifiedDiffForFileNameWithCombiningCharacters() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        let name = "\u{305F}\u{3099}.md".precomposedStringWithCanonicalMapping // "だ.md"(NFC)
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: name, contents: "a\n", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging(name, contents: "b\n", in: temp.url)
-
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent(name), in: temp.url)
-
-        guard case let .diff(text) = result else {
-            Issue.record("差分が返らなかった(NFC/NFD 不一致で untracked 扱いになっていないか): \(String(describing: result))")
-            return
+        /// 初期コミットに載せる内容。nil はコミットしない。
+        var committed: Data? {
+            switch self {
+            case .unstaged, .staged, .clean: Data("let a = 1\n".utf8)
+            case .wholeFile: Data(Self.twelveLines.utf8)
+            case .untracked: nil
+            case .combiningCharacters: Data("a\n".utf8)
+            case .binary: Data([0x00, 0x01, 0x02, 0x00])
+            }
         }
-        #expect(text.contains("+b"))
-    }
 
-    @Test("バイナリファイルは binary")
-    func reportsBinary() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        let binary = temp.url.appendingPathComponent("b.dat")
-        try Data([0x00, 0x01, 0x02, 0x00]).write(to: binary)
-        GitTestRepo.run(["add", "b.dat"], in: temp.url)
-        GitTestRepo.run(["commit", "-m", "init"], in: temp.url)
-        try Data([0x00, 0x09, 0x7F, 0x00]).write(to: binary)
+        /// コミット後に作業ツリーへ書く内容。nil は触らない。`staged` はこの後 add する。
+        var current: Data? {
+            switch self {
+            case .unstaged, .staged: Data("let a = 2\n".utf8)
+            case .wholeFile:
+                Data(Self.twelveLines.replacingOccurrences(of: "let v1 = 1\n", with: "let v1 = 99\n").utf8)
+            case .clean: nil
+            case .untracked: Data("untracked".utf8)
+            case .combiningCharacters: Data("b\n".utf8)
+            case .binary: Data([0x00, 0x09, 0x7F, 0x00])
+            }
+        }
 
-        #expect(makeReader().diff(forFileAt: binary, in: temp.url) == .binary)
+        func verify(_ result: GitFileDiff?) {
+            switch self {
+            case .unstaged:
+                let text = diffText(result)
+                #expect(text?.contains("@@") == true)
+                #expect(text?.contains("-let a = 1") == true)
+                #expect(text?.contains("+let a = 2") == true)
+            case .wholeFile:
+                // ビューアは「ファイルを読む」画面なので、変更の周辺だけを抜き出すと前後が飛んで
+                // 読めなくなる。既定の -U3 では 3 行を超えて離れた行が落ちるため、全文を出す。
+                let text = diffText(result)
+                #expect(text?.contains(" let v12 = 12") == true)
+                // 全文が 1 つのハンクに収まるので、ハンクの区切りも 1 つだけになる。
+                #expect(text.map { $0.components(separatedBy: "@@ -").count - 1 } == 1)
+            case .staged:
+                // 比較対象を index ではなく HEAD にした理由そのもの。`git diff`(index 比較)だと
+                // ステージ済みの変更が差分から消え、バッジと表示が食い違う。
+                #expect(diffText(result)?.contains("+let a = 2") == true)
+            case .clean:
+                #expect(result == .noChanges)
+            case .untracked:
+                // 未追跡ファイルも diff は成功して空を返す。空かどうかで判定していると
+                // 「変更なし」と誤答する(この分類が退行したらここが落ちる)。
+                #expect(result == .untracked)
+            case .combiningCharacters:
+                #expect(diffText(result)?.contains("+b") == true, "NFC/NFD 不一致で untracked 扱いになっていないか")
+            case .binary:
+                #expect(result == .binary)
+            }
+        }
+
+        private func diffText(_ result: GitFileDiff?) -> String? {
+            guard case let .diff(text) = result else {
+                Issue.record("差分が返らなかった: \(String(describing: result))")
+                return nil
+            }
+            return text
+        }
     }
 
     @Test("コミットが無いリポジトリは noCommits")
@@ -233,6 +224,9 @@ struct GitDiffReaderIntegrationTests {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
+        // fixture と同じくグローバル設定を切る。`diff.noprefix` などで出力の形が変わると
+        // libgit2 の出力と一致しなくなる。
+        process.environment = GitTestRepo.environment
         do { try process.run() } catch { return nil }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -245,16 +239,20 @@ struct GitDiffReaderIntegrationTests {
         defer { withExtendedLifetime(temp) {} }
         GitTestRepo.initRepository(at: temp.url)
         try GitTestRepo.commitFile(named: "big.txt", contents: "seed\n", in: temp.url)
-        let huge = String(repeating: "0123456789abcdef\n", count: GitDiffReader.maxDiffBytes / 8)
+        // 上限は注入して小さくする。本番の 1MB を超えさせるには約 2MB を書いて libgit2 に
+        // diff させることになり、それだけで数百 ms かかっていた(TASK-662.6)。
+        let limit = 4096
+        let huge = String(repeating: "0123456789abcdef\n", count: limit / 8)
         try GitTestRepo.modifyWithoutStaging("big.txt", contents: huge, in: temp.url)
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("big.txt"), in: temp.url)
+        let result = GitDiffReader(byteLimit: limit)
+            .diff(forFileAt: temp.url.appendingPathComponent("big.txt"), in: temp.url)
 
         guard case let .tooLarge(byteCount) = result else {
             Issue.record("tooLarge が返らなかった: \(String(describing: result))")
             return
         }
-        #expect(byteCount > GitDiffReader.maxDiffBytes)
+        #expect(byteCount > limit)
     }
 }
 

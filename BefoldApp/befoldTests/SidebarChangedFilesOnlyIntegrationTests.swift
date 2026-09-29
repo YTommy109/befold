@@ -19,18 +19,15 @@ struct SidebarChangedFilesOnlyIntegrationTests {
     func filtersSidebarToRealChangedEntries() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "changed.md", in: temp.url)
-        try GitTestRepo.commitFile(named: "clean.md", in: temp.url)
-        for folder in ["nested", "quiet"] {
-            try FileManager.default.createDirectory(
-                at: temp.url.appendingPathComponent(folder), withIntermediateDirectories: true
-            )
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            for path in ["changed.md", "clean.md", "nested/inner.md", "quiet/inner.md"] {
+                _ = try temp.file(atPath: path, contents: "print(1)")
+            }
+            GitTestRepo.commitAll(in: temp.url)
+            try GitTestRepo.modifyWithoutStaging("changed.md", in: temp.url)
+            try GitTestRepo.modifyWithoutStaging("nested/inner.md", in: temp.url)
         }
-        try GitTestRepo.commitFile(named: "nested/inner.md", in: temp.url)
-        try GitTestRepo.commitFile(named: "quiet/inner.md", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("changed.md", in: temp.url)
-        try GitTestRepo.modifyWithoutStaging("nested/inner.md", in: temp.url)
         let entries = [
             FileListEntry(url: temp.url.appendingPathComponent("changed.md"), kind: .file),
             FileListEntry(url: temp.url.appendingPathComponent("clean.md"), kind: .file),
@@ -64,12 +61,13 @@ struct SidebarChangedFilesOnlyIntegrationTests {
     func keepsFilesInsideFoldedUntrackedDirectory() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "root.md", in: temp.url)
         let newDirectory = temp.url.appendingPathComponent("newdir")
-        try FileManager.default.createDirectory(at: newDirectory, withIntermediateDirectories: true)
-        try GitTestRepo.addUntrackedFile(named: "newdir/b.md", in: temp.url)
-        try GitTestRepo.addUntrackedFile(named: "newdir/c.md", in: temp.url)
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            try GitTestRepo.commitFile(named: "root.md", in: temp.url)
+            _ = try temp.file(atPath: "newdir/b.md", contents: "untracked")
+            _ = try temp.file(atPath: "newdir/c.md", contents: "untracked")
+        }
         // 前提の確認: 実 git が畳んでいる(配下のファイル個別のレコードは出ない)。
         let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
         #expect(snapshot.statuses[newDirectory.appendingPathComponent("b.md").normalizedPathKey] == nil)
@@ -103,9 +101,12 @@ struct SidebarChangedFilesOnlyIntegrationTests {
     func filterAppliesInCleanRepository() async throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.md", in: temp.url)
-        try GitTestRepo.commitFile(named: "b.md", in: temp.url)
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            _ = try temp.file(named: "a.md", contents: "print(1)")
+            _ = try temp.file(named: "b.md", contents: "print(1)")
+            GitTestRepo.commitAll(in: temp.url)
+        }
         let entries = [
             FileListEntry(url: temp.url.appendingPathComponent("a.md"), kind: .file),
             FileListEntry(url: temp.url.appendingPathComponent("b.md"), kind: .file),

@@ -5,6 +5,11 @@ import Testing
 
 /// 実 git が作ったリポジトリからリモートのリンクを組み立てられること、および
 /// 組み立てられない条件で nil へ縮退すること（メニューは disabled になる）。
+///
+/// URL の形式（ホストごとの組み立て・エンコード・対応外ホスト）は純粋テスト
+/// `RemoteForgeTests` が網羅している。ここで実 git に頼るのは、リポジトリから読む値
+/// （ブランチ名・origin・作業ツリールート）だけで、リポジトリは 2 つで足りる（TASK-662.6。
+/// 以前は 8 件がそれぞれ init・commit・remote add していた）。
 struct GitRepositoryRemoteLinkTests {
     private func makeRepo(_ dir: URL, remote: String? = nil) throws {
         GitTestRepo.initRepository(at: dir)
@@ -12,74 +17,44 @@ struct GitRepositoryRemoteLinkTests {
         if let remote { GitTestRepo.run(["remote", "add", "origin", remote], in: dir) }
     }
 
-    @Test("origin が GitHub なら GitHub の blob URL を組み立てる")
-    func buildsLinkForGitHubOrigin() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url, remote: "git@github.com:Tommy109/behold.git")
-
-        let link = GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift"))
-        let branch = try #require(GitRepository().worktrees(forRoot: temp.url).first?.branch)
-
-        #expect(link?.url.absoluteString == "https://github.com/Tommy109/behold/blob/\(branch)/main.swift")
+    private func link(_ url: URL) -> String? {
+        GitRepository().remoteFileLink(forFileAt: url)?.url.absoluteString
     }
 
     /// 未 push のブランチでも「リモートに在るか」を確かめずブランチ名で組み立てる。
     /// ここに判定を足すと、作ったばかりのブランチで項目が黙って無効化される。
-    @Test("未 push のブランチでもブランチ名のまま URL を作る")
-    func buildsLinkForUnpushedBranch() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url, remote: "https://github.com/Tommy109/behold.git")
-        GitTestRepo.createBranch(named: "feature/local-only", in: temp.url)
-
-        let link = GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift"))
-
-        #expect(link?.url.absoluteString
-            == "https://github.com/Tommy109/behold/blob/feature/local-only/main.swift")
-    }
-
-    @Test("サブディレクトリのファイルはリポジトリルート基準の相対パスになる")
-    func usesRepositoryRootRelativePath() throws {
+    /// サブディレクトリのファイルはリポジトリルート基準の相対パスになる。
+    @Test("origin が GitHub なら、未 push のブランチ名とルート基準の相対パスで blob URL を組み立てる")
+    func buildsLinkFromRepositoryState() throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         try makeRepo(temp.url, remote: "git@github.com:Tommy109/behold.git")
-        let nested = temp.url.appendingPathComponent("docs/dev", isDirectory: true)
-        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
-        try "x".write(to: nested.appendingPathComponent("設計 メモ.md"), atomically: true, encoding: .utf8)
+        GitTestRepo.createBranch(named: "feature/local-only", in: temp.url)
+        let nested = try temp.file(atPath: "docs/dev/設計 メモ.md", contents: "x")
 
-        let link = GitRepository().remoteFileLink(forFileAt: nested.appendingPathComponent("設計 メモ.md"))
-
-        #expect(link?.url.absoluteString.hasPrefix("https://github.com/Tommy109/behold/blob/") == true)
-        #expect(link?.url.absoluteString.hasSuffix("/docs/dev/%E8%A8%AD%E8%A8%88%20%E3%83%A1%E3%83%A2.md") == true)
+        let blob = "https://github.com/Tommy109/behold/blob/feature/local-only"
+        #expect(link(temp.url.appendingPathComponent("main.swift")) == "\(blob)/main.swift")
+        #expect(link(nested) == "\(blob)/docs/dev/%E8%A8%AD%E8%A8%88%20%E3%83%A1%E3%83%A2.md")
     }
 
-    @Test("origin が無いリポジトリでは nil")
-    func returnsNilWithoutOrigin() throws {
+    /// 1 つのリポジトリの状態を順に変えながら、組み立てられない条件をそれぞれ確かめる。
+    @Test("origin が無い・対応外のホスト・detached HEAD では nil")
+    func returnsNilWhenRepositoryStateCannotBuildLink() throws {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
         try makeRepo(temp.url)
+        let file = temp.url.appendingPathComponent("main.swift")
 
-        #expect(GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift")) == nil)
-    }
+        #expect(link(file) == nil, "origin が無い")
 
-    @Test("対応外のホストのリモートでは nil")
-    func returnsNilForUnsupportedRemote() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url, remote: "git@codeberg.org:Tommy109/behold.git")
+        GitTestRepo.run(["remote", "add", "origin", "git@codeberg.org:Tommy109/behold.git"], in: temp.url)
+        #expect(link(file) == nil, "対応外のホスト")
 
-        #expect(GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift")) == nil)
-    }
-
-    @Test("detached HEAD では nil")
-    func returnsNilForDetachedHead() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url, remote: "git@github.com:Tommy109/behold.git")
+        GitTestRepo.run(["remote", "set-url", "origin", "git@github.com:Tommy109/behold.git"], in: temp.url)
+        // 前提の確認: ブランチ上なら組み立てられる(nil になるのは detached だからであること)。
+        #expect(link(file) != nil)
         GitTestRepo.run(["checkout", "--detach", "HEAD"], in: temp.url)
-
-        #expect(GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift")) == nil)
+        #expect(link(file) == nil, "detached HEAD")
     }
 
     @Test("git 管理外のファイルでは nil")
@@ -87,22 +62,6 @@ struct GitRepositoryRemoteLinkTests {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
 
-        #expect(GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("x.md")) == nil)
-    }
-
-    /// ホストが変われば URL 形式も変わることを、実リポジトリ経由でも 1 本だけ固定する
-    /// （形式そのものの網羅は `RemoteForgeTests`）。
-    @Test("origin が GitLab なら GitLab の URL 形式になる")
-    func buildsLinkForGitLabOrigin() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        try makeRepo(temp.url, remote: "git@gitlab.com:group/subgroup/behold.git")
-
-        let link = GitRepository().remoteFileLink(forFileAt: temp.url.appendingPathComponent("main.swift"))
-        let branch = try #require(GitRepository().worktrees(forRoot: temp.url).first?.branch)
-
-        #expect(link?.forge == .gitLab)
-        #expect(link?.url.absoluteString
-            == "https://gitlab.com/group/subgroup/behold/-/blob/\(branch)/main.swift")
+        #expect(link(temp.url.appendingPathComponent("x.md")) == nil)
     }
 }
