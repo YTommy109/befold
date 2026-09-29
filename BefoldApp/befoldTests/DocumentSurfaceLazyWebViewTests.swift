@@ -10,7 +10,7 @@ import WebKit
 /// **PDF だけを開いた窓では WKWebView を作らない**（TASK-564.7）。
 ///
 /// 破れても画面は正しいまま（速いか遅いかの差にしかならない）ので、
-/// 判定を純関数で固定し、階層へ現れないことを PDF の 1 件で数える。
+/// 実際に階層へ現れるかどうかを数えて固定する。
 @MainActor
 @Suite
 struct DocumentSurfaceLazyWebViewTests {
@@ -54,8 +54,15 @@ struct DocumentSurfaceLazyWebViewTests {
         ViewerStore(defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceLazyWebViewTests"))
     }
 
-    /// 配線の確認は 1 件だけ実階層で見る。判定そのものは下の純関数テストが持つ
-    /// （実 WKWebView を生成して固定時間待っていた旧テストの置き換え。TASK-662.2）。
+    private func displayState(fileType: FileType) -> ViewerContentState.DisplayState {
+        ViewerContentState.DisplayState(
+            fileType: fileType, contentHash: 1, chunkSession: nil, rejectReason: nil,
+            isTruncated: false, content: fileType == .pdf ? "" : "# hi",
+            data: fileType == .pdf ? Data("%PDF-".utf8) : nil,
+            tracksLineCount: false, hasDeclaredHTMLCharset: nil
+        )
+    }
+
     @Test("PDF を開く窓では WKWebView が作られない")
     func doesNotBuildTheWebSurfaceForPDF() {
         let store = makeStore()
@@ -65,25 +72,34 @@ struct DocumentSurfaceLazyWebViewTests {
         #expect(webViewCount(in: view) == 0)
     }
 
-    @Test(
-        "面が要るかは、作成済みか・着地した種別（未着地なら開く対象）が PDF 以外かで決まる",
-        arguments: [
-            // 未着地: 開く対象の種別で判断する。
-            (false, FileType?.none, FileType.pdf, false),
-            (false, nil, .markdown, true),
-            // 着地後は着地した種別が唯一の情報源（開く対象が古くても影響しない）。
-            (false, .markdown, .pdf, true),
-            (false, .pdf, .markdown, false),
-            // 一度作った面は PDF へ戻しても壊さない（TASK-266）。
-            (true, .pdf, .pdf, true),
-            (true, nil, .pdf, true),
-        ]
-    )
-    func needsWebSurface(hasWebSurface: Bool, landed: FileType?, opening: FileType, expected: Bool) {
-        #expect(
-            DocumentSurfaceStack.needsWebSurface(
-                hasWebSurface: hasWebSurface, landedFileType: landed, openingFileType: opening
-            ) == expected
-        )
+    /// PDF 以外は従来どおり最初から面を持つ（遅延で描画が遅れないこと）。
+    @Test("PDF 以外を開く窓では従来どおり WKWebView が作られる")
+    func buildsTheWebSurfaceForOtherTypes() {
+        let store = makeStore()
+
+        let view = host(makeStack(store: store, opening: .markdown))
+
+        #expect(webViewCount(in: view) == 1)
+    }
+
+    /// PDF → 他種別へ切り替えたら面が作られ、**PDF へ戻しても壊さない**
+    /// （TASK-266 の「行を通過するたびに作り直さない」を保つ）。
+    @Test("PDF から他種別へ移ると面が作られ、PDF へ戻しても残る")
+    func createsTheSurfaceOnSwitchAndKeepsIt() async {
+        let store = makeStore()
+        let view = host(makeStack(store: store, opening: .pdf))
+        #expect(webViewCount(in: view) == 0)
+
+        store.contentState.finishLoading(url: URL(fileURLWithPath: "/files/a.md"))
+        _ = store.contentState.applyDisplayState(displayState(fileType: .markdown))
+        try? await Task.sleep(for: .milliseconds(200))
+        view.layoutSubtreeIfNeeded()
+        #expect(webViewCount(in: view) == 1)
+
+        store.contentState.finishLoading(url: URL(fileURLWithPath: "/files/b.pdf"))
+        _ = store.contentState.applyDisplayState(displayState(fileType: .pdf))
+        try? await Task.sleep(for: .milliseconds(200))
+        view.layoutSubtreeIfNeeded()
+        #expect(webViewCount(in: view) == 1)
     }
 }
