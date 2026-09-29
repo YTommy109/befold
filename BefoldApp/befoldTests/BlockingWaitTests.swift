@@ -22,9 +22,13 @@ struct BlockingGateTests {
     /// このテスト自身が «unknown» の Issue を出し、CI（3〜4 コア）では 0.2 秒の sleep が
     /// 13.6 秒に伸びてその間ワーカー 3 本を塞いでいた。専用スレッドなら塞いでも
     /// ディスパッチ側の供給に影響しない。
-    private func startWaiters(_ count: Int, on gate: BlockingGate, passed: LockedBox<Int>) {
+    /// `entered` を渡すと、`wait` を呼ぶ直前に数える（待機に入った数を待てるようにする）。
+    private func startWaiters(
+        _ count: Int, on gate: BlockingGate, passed: LockedBox<Int>, entered: LockedBox<Int>? = nil
+    ) {
         for _ in 0 ..< count {
             Thread.detachNewThread {
+                entered?.update { $0 += 1 }
                 guard gate.wait("BlockingGateTests") else { return }
                 passed.update { $0 += 1 }
             }
@@ -46,11 +50,12 @@ struct BlockingGateTests {
     func openReleasesAllPendingWaiters() async {
         let gate = BlockingGate()
         let passed = LockedBox(0)
-        startWaiters(3, on: gate, passed: passed)
+        let entered = LockedBox(0)
+        startWaiters(3, on: gate, passed: passed, entered: entered)
 
-        // 開ける前に通ってはならない(待機が始まる前なら 0 のままで成立するが、
-        // 素通ししてしまう実装なら必ず落ちる)。
-        try? await Task.sleep(for: .milliseconds(200))
+        // 開ける前に通ってはならない。全員が wait の直前まで来てから数える
+        // (素通ししてしまう実装なら、ポーリングで入場を観測するまでに通り抜けている)。
+        await waitUntil { entered.get() == 3 }
         #expect(passed.get() == 0)
 
         gate.open()

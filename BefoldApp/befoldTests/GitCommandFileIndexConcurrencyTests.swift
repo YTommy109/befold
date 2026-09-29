@@ -5,7 +5,9 @@ import Foundation
 import Testing
 
 /// 指定したルートの列挙だけを合図があるまで止めるフェイク。ロックの粒度を観測するために使う。
-/// `trackedFiles` はディレクトリをそのままルートとみなす MultiRepoFake と同じ規約。
+/// ルート解決はファイルの親ディレクトリの親をルートとみなす（`/repo/d0/x.md` → `/repo`）。
+/// ディレクトリを分けると同じルートでも解決がディレクトリごとに走るので、呼び出しが
+/// ルートキーのロックの手前まで来たことを `rootLookupCount` で数えられる。
 private final class BlockingRepository: GitRepositoryReading, @unchecked Sendable {
     /// 列挙を止めるルートのパス。ここ以外のルートは即座に返す。
     private let blockedRootPath: String
@@ -22,6 +24,12 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
 
     private let lock = NSLock()
     private var callCountByRoot: [String: Int] = [:]
+    private let rootLookups = LockedBox(0)
+
+    /// ルート解決が呼ばれた回数（解決はディレクトリごとにキャッシュされる）。
+    var rootLookupCount: Int {
+        rootLookups.get()
+    }
 
     init(blocking blockedRoot: URL) {
         blockedRootPath = blockedRoot.path
@@ -33,7 +41,8 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
     }
 
     func root(forFileAt url: URL) -> GitRootLookup {
-        .root(url.deletingLastPathComponent())
+        rootLookups.update { $0 += 1 }
+        return .root(url.deletingLastPathComponent().deletingLastPathComponent())
     }
 
     func trackedFiles(at root: URL) -> [URL]? {
@@ -44,38 +53,6 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
             enteredBlockedEnumeration.set(true)
             releaseBlockedEnumeration.wait("BlockingRepository.trackedFiles")
         }
-        return [root.appendingPathComponent("a.swift")]
-    }
-
-    func indexFingerprint(at _: URL) -> Date? {
-        Date(timeIntervalSince1970: 1)
-    }
-}
-
-/// 列挙に一定時間かかるフェイク。同一ルートへの同時呼び出しが重なる窓を作り、
-/// in-flight 管理が無ければ列挙が重複することを観測できるようにする。
-private final class SlowRepository: GitRepositoryReading, @unchecked Sendable {
-    private let enumerationDelay: TimeInterval
-    private let lock = NSLock()
-    private var _trackedCallCount = 0
-
-    var trackedCallCount: Int {
-        lock.lock(); defer { lock.unlock() }; return _trackedCallCount
-    }
-
-    init(enumerationDelay: TimeInterval) {
-        self.enumerationDelay = enumerationDelay
-    }
-
-    func root(forFileAt url: URL) -> GitRootLookup {
-        .root(url.deletingLastPathComponent())
-    }
-
-    func trackedFiles(at root: URL) -> [URL]? {
-        lock.lock()
-        _trackedCallCount += 1
-        lock.unlock()
-        Thread.sleep(forTimeInterval: enumerationDelay)
         return [root.appendingPathComponent("a.swift")]
     }
 
@@ -107,7 +84,7 @@ struct GitCommandFileIndexConcurrencyTests {
         // 遅いリポジトリの列挙を進行中のまま止める。
         Task {
             _ = await withBlockingWork {
-                sut.trackedFileIndex(forFileAt: slowRoot.appendingPathComponent("x.md"))
+                sut.trackedFileIndex(forFileAt: slowRoot.appendingPathComponent("d/x.md"))
             }
         }
         await waitUntil { repo.didEnterBlockedEnumeration }
@@ -116,7 +93,7 @@ struct GitCommandFileIndexConcurrencyTests {
         let otherResolved = LockedBox(false)
         Task {
             _ = await withBlockingWork {
-                sut.trackedFileIndex(forFileAt: url("/other-repo").appendingPathComponent("y.md"))
+                sut.trackedFileIndex(forFileAt: url("/other-repo/d/y.md"))
             }
             otherResolved.set(true)
         }
@@ -127,23 +104,31 @@ struct GitCommandFileIndexConcurrencyTests {
 
     /// 同一ルートへの同時呼び出しが直列化されないと、N ウィンドウぶんの `git ls-files` が
     /// 同時に走り、索引の構築(候補数に比例した正規化)も重複する。
+    ///
+    /// 1 本目の列挙を止めたまま、残りの呼び出しがルート解決を終える（= ルートキーのロックの
+    /// 手前まで来る）のを数えてから解放する。直列化が無ければ、残りは解放前にキャッシュを
+    /// 外して列挙へ入る。ロック（`rootLocks.withLock`）を外すと落ちることを実測で確認している。
     @Test("同一ルートへの同時呼び出しでは列挙が 1 度しか走らない", testTimeLimit())
     func concurrentCallsForSameRootEnumerateOnce() async {
-        let repo = SlowRepository(enumerationDelay: 0.2)
-        let sut = GitCommandFileIndex(repository: repo)
         let root = url("/repo")
+        let repo = BlockingRepository(blocking: root)
+        let sut = GitCommandFileIndex(repository: repo)
+        defer { repo.releaseBlockedEnumeration.open() }
+        let callers = 4
 
         let finished = LockedBox(0)
-        for _ in 0 ..< 4 {
+        for caller in 0 ..< callers {
             Task {
                 _ = await withBlockingWork {
-                    sut.trackedFileIndex(forFileAt: root.appendingPathComponent("x.md"))
+                    sut.trackedFileIndex(forFileAt: root.appendingPathComponent("d\(caller)/x.md"))
                 }
                 finished.update { $0 += 1 }
             }
         }
+        await waitUntil { repo.didEnterBlockedEnumeration && repo.rootLookupCount == callers }
+        repo.releaseBlockedEnumeration.open()
 
-        await waitUntil { finished.get() == 4 }
-        #expect(repo.trackedCallCount == 1, "同一ルートの列挙が重複して走っている")
+        await waitUntil { finished.get() == callers }
+        #expect(repo.trackedCallCount(for: root) == 1, "同一ルートの列挙が重複して走っている")
     }
 }

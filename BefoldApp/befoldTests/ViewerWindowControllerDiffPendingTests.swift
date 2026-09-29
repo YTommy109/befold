@@ -16,15 +16,15 @@ private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Senda
     }
 }
 
-/// ルート解決を遅らせる索引。コントローラ構築時に飛ぶ基準ディレクトリ解決が
+/// ルート解決を `gate` が開くまで止める索引。コントローラ構築時に飛ぶ基準ディレクトリ解決が
 /// 「準備を終えてもまだ着地していない」状況を決定的に作るために使う(TASK-512)。
 /// `repositoryRoot(forDirectoryAt:)` はプロトコル拡張だけの実装(静的ディスパッチ)なので、
-/// プロトコル要件であるこちらを遅くする。
+/// プロトコル要件であるこちらを止める。
 private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
-    private let delay: TimeInterval
+    private let gate: BlockingGate
 
-    init(delay: TimeInterval) {
-        self.delay = delay
+    init(gate: BlockingGate) {
+        self.gate = gate
     }
 
     func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
@@ -32,7 +32,7 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     }
 
     func repositoryRoot(forFileAt url: URL) -> URL? {
-        Thread.sleep(forTimeInterval: delay)
+        gate.wait("SlowRootGitFileIndex.repositoryRoot")
         return url.deletingLastPathComponent()
     }
 }
@@ -129,6 +129,7 @@ struct ViewerWindowControllerDiffPendingTests {
     /// `.pending` で落ちることを実測で確認している。
     @Test("サイドバーの基準ディレクトリ解決が遅れて着地しても確定状態が壊れない")
     func keepsResolvedDiffWhenBaseDirectoryResolutionLandsLate() async {
+        let gate = BlockingGate()
         let controller = ViewerWindowControllerFixture(
             file: file, contents: "# note",
             defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve"),
@@ -136,10 +137,19 @@ struct ViewerWindowControllerDiffPendingTests {
                 defaults: makeIsolatedDefaults(prefix: "DiffPendingTests.lateResolve.pref")
             ),
             diffLoader: GitDiffLoader(reader: StubDiffReader(result: .noChanges)),
-            gitFileIndex: SlowRootGitFileIndex(delay: 0.5)
+            gitFileIndex: SlowRootGitFileIndex(gate: gate)
         ).controller
-        defer { controller.close() }
-        await preparePresentedMarkdown(controller)
+        defer {
+            gate.open()
+            controller.close()
+        }
+        let prepared = Task { await preparePresentedMarkdown(controller) }
+        // 準備が解決以外に待つもの(ロードと差分取得)が済んでから解決を着地させる。
+        // 修正が無ければ準備はこの時点で抜けており、解決は準備の後に着地する。
+        await controller.store.loadTask?.value
+        await controller.diffRefreshTask?.value
+        gate.open()
+        await prepared.value
 
         // 準備を抜けた時点で解決は着地済み。ここが nil なら解決はまだ飛行中で、
         // 後から着地した `gitContextDidChange()` が確定済みの状態を `.pending` へ戻す

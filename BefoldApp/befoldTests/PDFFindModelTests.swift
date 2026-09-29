@@ -1,6 +1,7 @@
 import AppKit
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import PDFKit
 import Testing
 
@@ -9,7 +10,7 @@ import Testing
 /// 検索そのものは PDFKit の `beginFindString` が非同期に行い、通知をメインスレッドへ
 /// 返す。ここでは「結果の受け取り方」——世代管理・現在位置の巡回・件数表示——を固定する。
 @MainActor
-@Suite
+@Suite(testTimeLimit())
 struct PDFFindModelTests {
     /// **1 ページに `count` 回 "needle" が出てくる PDF。**
     ///
@@ -92,10 +93,7 @@ struct PDFFindModelTests {
 
     /// 検索が終わるまで待つ（非同期なので完了を待たないと件数が確定しない）。
     private func waitForSearch(_ model: PDFFindModel) async {
-        for _ in 0 ..< 100 {
-            if !model.isSearching, !model.matches.isEmpty { return }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
+        await waitForDeliveryOnMainActor { !model.isSearching && !model.matches.isEmpty }
     }
 
     @Test("検索するとヒットが集まり、1 件目が選ばれる")
@@ -145,7 +143,9 @@ struct PDFFindModelTests {
         model.open()
 
         model.setQuery("anything")
-        try? await Task.sleep(for: .milliseconds(300))
+        #expect(model.isSearching, "走行中でなければ終了を待っても何も検証していない")
+        // 0 件では一致の到着を目印にできないので、終了通知（`handleEnd`）を待つ。
+        await waitForDeliveryOnMainActor { !model.isSearching }
 
         #expect(model.matches.isEmpty)
         #expect(model.countText == "0/0")

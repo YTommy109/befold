@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import PDFKit
 import QuartzCore
 import Testing
@@ -171,7 +172,7 @@ struct PDFSurfaceRotationTests {
         #expect(abs(pdfView.zoom - 1.0) < 0.0001)
 
         // メインキューを 1 周させても（`MainQueueDrainTests` の前提）倍率は変わらない。
-        try? await Task.sleep(for: .milliseconds(200))
+        await drainMainQueue()
         #expect(abs(pdfView.zoom - 1.0) < 0.0001)
         #expect(abs(pdfView.scaleFactor - scaleAfterSwitch) < 0.0001)
     }

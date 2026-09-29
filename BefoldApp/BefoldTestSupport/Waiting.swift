@@ -250,3 +250,15 @@ public func waitUntilWithRetryOnMainActor(
     )
     return false
 }
+
+/// メインキューへ先に積まれたブロックが走り終わるまで待つ。同じキューへ後から積んだ
+/// 目印を待つので時間に依存しない（FIFO なので、目印が走った時点で先行ブロックは実行済み）。
+/// `asyncAfter` で遅らせたブロックはこれでは待てない。
+///
+/// Swift Testing の `@MainActor` テストはメインキューを自分で回さないため、
+/// `RunLoop.run(until:)` では先行ブロックが走らない。await で明け渡す必要がある。
+public func drainMainQueue() async {
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        DispatchQueue.main.async { continuation.resume() }
+    }
+}

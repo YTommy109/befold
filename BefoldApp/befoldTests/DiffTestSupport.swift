@@ -22,11 +22,9 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
     private var calls = 0
     private var requested: [URL] = []
     private let result: GitFileDiff?
-    private let delay: TimeInterval
 
-    init(result: GitFileDiff? = .noChanges, delay: TimeInterval = 0) {
+    init(result: GitFileDiff? = .noChanges) {
         self.result = result
-        self.delay = delay
     }
 
     var callCount: Int {
@@ -44,7 +42,6 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
         calls += 1
         requested.append(url)
         lock.unlock()
-        if delay > 0 { Thread.sleep(forTimeInterval: delay) }
         return result
     }
 }

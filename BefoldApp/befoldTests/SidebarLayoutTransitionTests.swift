@@ -83,14 +83,6 @@ struct SidebarLayoutTransitionTests {
         return (navigator, host)
     }
 
-    /// スクロール要求は次のランループへ遅らせてある(`SidebarTableFocuser`)。
-    /// `awaitSettled()` はタスクしか待たないので、先に積まれたその要求をここで流す。
-    private func drainMainQueue() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async { continuation.resume() }
-        }
-    }
-
     /// ツリーで sub を展開した状態を作る。
     private func expandSub(_ navigator: SidebarNavigator, _ fixture: Fixture) async {
         navigator.refreshFileList()

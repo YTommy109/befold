@@ -169,7 +169,7 @@ struct PDFSurfacePositionTests {
     func keepsRestoredPositionAfterLaterLayout() async {
         let pdfView = simulateSwitch(pageCount: 30, restore: 0.5)
 
-        try? await Task.sleep(for: .milliseconds(200))
+        await drainMainQueue()
         pdfView.layoutSubtreeIfNeeded()
 
         #expect(abs(PDFSurfaceLayout.documentFraction(of: pdfView) - 0.5) < 0.01)

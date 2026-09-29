@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import PDFKit
 import Testing
 
@@ -65,14 +66,6 @@ struct PDFSurfaceTextFieldTests {
         let proxy = PDFViewProxy()
         proxy.pdfView = pdfView
         return Surface(pdfView: pdfView, window: window, proxy: proxy)
-    }
-
-    /// フォーカス移動は `DispatchQueue.main.async` で 1 周遅れて走る。同じキューへ後から
-    /// 積んだマーカーを待つことで、その 1 周が終わったことを決定的に判定する（FIFO）。
-    private func drainMainQueue() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
     }
 
     // MARK: - 閉じたら面へ戻す

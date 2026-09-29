@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import PDFKit
 import Testing
 
@@ -75,15 +76,6 @@ struct PDFPageIndicatorFocusTests {
         let proxy = PDFViewProxy()
         proxy.pdfView = pdfView
         return Surface(pdfView: pdfView, window: window, proxy: proxy)
-    }
-
-    /// フォーカス移動は `DispatchQueue.main.async` で 1 周遅れて走る。**同じキューへ
-    /// 後から積んだマーカーを待つ**ことで、その 1 周が終わったことを決定的に判定する
-    /// （FIFO なので、マーカーが走った時点で先行ブロックは実行済み）。時間で待たない。
-    private func drainMainQueue() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
     }
 
     /// 本体の回帰。サイドバーを矢印で流し読みしている最中に PDF の行へ来ると、
