@@ -10,11 +10,11 @@ import Testing
 /// 使われており（`viewer-src/keyboard.ts` はどちらも見ていない）、奪うと Markdown 文書の
 /// リンクをキーボードで辿れなくなる。矢印なら履歴（⌘[ / ⌘]）とも衝突せず、
 /// PDF 面は Cmd 付きを `super` へ流し、web 面は `metaKey` で早期 return する。
-@MainActor
+///
+/// キー割り当ては非隔離の `SidebarKeyAction` だけを測るので MainActor に並ばない。
+/// メニュー側は `FocusTraversalTests` へ分けてある（TASK-662.3）。
 @Suite
-struct FocusTraversalTests {
-    // MARK: - サイドバーのキー割り当て
-
+struct FocusTraversalKeyTests {
     /// ⌘→ がサイドバーの「開く / 降りる」に食われないこと。修飾なしの `.rightArrow` は
     /// forward に割り当たっており、その switch は修飾キーを見ないので、明示的に譲る分岐が
     /// 無いと ⌘→ で**別のファイルが開いてしまう**。
@@ -71,7 +71,12 @@ struct FocusTraversalTests {
         #expect(right != .ignored)
         #expect(left != .ignored)
     }
+}
 
+/// ⌘← / ⌘→ のメニュー項目（有効判定とメニューへの登録）。NSMenu を使うので MainActor。
+@MainActor
+@Suite
+struct FocusTraversalTests {
     // MARK: - メニューの有効判定
 
     private final class StubSource: ViewerMenuValidationSource {

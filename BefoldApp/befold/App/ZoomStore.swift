@@ -4,12 +4,14 @@ import Foundation
 /// パスはシンボリックリンク解決後の絶対パスで正規化して保持する。
 @MainActor
 final class ZoomStore {
-    static let defaultZoom = 1.0
+    /// 定数はすべて nonisolated。契約テスト(ViewerBridgeContractTests)が
+    /// MainActor に並ばずに参照できるように(TASK-662.3)。
+    nonisolated static let defaultZoom = 1.0
     /// viewer.js の ZOOM_MIN / ZOOM_MAX と同値。
-    static let minZoom = 0.5
-    static let maxZoom = 2.0
+    nonisolated static let minZoom = 0.5
+    nonisolated static let maxZoom = 2.0
     /// viewer.js の ZOOM_STEP と同値。
-    static let zoomStep = 0.25
+    nonisolated static let zoomStep = 0.25
 
     private let zooms: PathKeyedDictionary<Double>
 

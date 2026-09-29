@@ -1,4 +1,5 @@
 @testable import befold
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -6,10 +7,7 @@ import Testing
 @Suite
 struct CodeFontPreferenceTests {
     private func makeDefaults() -> UserDefaults {
-        let suite = "CodeFontPreferenceTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return defaults
+        makeIsolatedDefaults(prefix: "CodeFontPreferenceTests")
     }
 
     @Test("初期状態はファミリー・サイズともに nil(未カスタマイズ)")

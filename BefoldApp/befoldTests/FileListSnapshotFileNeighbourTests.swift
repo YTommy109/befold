@@ -6,7 +6,6 @@ import Testing
 ///
 /// `FileListSnapshot` を直接組む純粋テスト。フォルダー行を飛ばすこと・端で止まること・
 /// 絞り込みが反映されることを、ウィンドウを作らずに測る。
-@MainActor
 struct FileListSnapshotFileNeighbourTests {
     private let directory = URL(fileURLWithPath: "/tmp/FileListSnapshotFileNeighbourTests")
 

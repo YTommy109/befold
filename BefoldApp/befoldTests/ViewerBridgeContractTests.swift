@@ -11,7 +11,6 @@ import Testing
 /// ドリフトをビルド時に落とす。ViewerBridge の文字列生成そのものの検証は
 /// ViewerBridgeTests が担う。
 @Suite
-@MainActor // ZoomStore(@MainActor)の static 定数を参照するため
 struct ViewerBridgeContractTests {
     // MARK: - 関数名・メッセージ名
 

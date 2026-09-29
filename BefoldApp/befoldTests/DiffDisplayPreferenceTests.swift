@@ -1,14 +1,13 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
 @MainActor
 struct DiffDisplayPreferenceTests {
     private func makeDefaults(_ name: String) -> UserDefaults {
-        let defaults = UserDefaults(suiteName: "DiffDisplayPreferenceTests.\(name)")!
-        defaults.removePersistentDomain(forName: "DiffDisplayPreferenceTests.\(name)")
-        return defaults
+        makeIsolatedDefaults(prefix: "DiffDisplayPreferenceTests.\(name)")
     }
 
     @Test("既定はインライン")
