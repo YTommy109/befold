@@ -19,15 +19,15 @@ private let testRetryInterval: TimeInterval = testDebounceDelay * 4
 @Suite
 struct FileWatcherIntegrationTests {
     /// 「TempDir に初期ファイルを作成し、短い debounce/renameSettleDelay で FileWatcher を
-    /// 張る」定型(6 回反復)を共通化する。detectsMoveToAnotherDirectory は src/dst 2 ディレクトリを
-    /// 使う特殊なセットアップのため対象外。
-    /// 呼び出し側は返り値の tmp を `defer { withExtendedLifetime(tmp) {} }` で、
+    /// 張る」定型(5 回反復)を共通化する。detectsMoveToAnotherDirectory は src/dst 2 ディレクトリを
+    /// 使う特殊なセットアップ、detectsAtomicSave は MainActor 経由の init を通すため対象外。
+    /// TempDir は呼び出し側が作って `defer { withExtendedLifetime(tmp) {} }` で保持し、
     /// watcher を `defer { watcher.stop() }`(または明示的な `watcher.stop()`)で解放すること。
-    private func makeWatchedTempFile(
+    private func makeWatchedFile(
+        in tmp: TempDir,
         onChange: @escaping @Sendable () -> Void,
         onRename: (@Sendable (URL) -> Void)? = nil
-    ) throws -> (tmp: TempDir, file: URL, watcher: FileWatcher) {
-        let tmp = try TempDir()
+    ) throws -> (file: URL, watcher: FileWatcher) {
         let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
         let watcher = FileWatcher(
             path: file,
@@ -36,14 +36,15 @@ struct FileWatcherIntegrationTests {
             onChangeOnWatcherQueue: onChange,
             onRenameOnWatcherQueue: onRename
         )
-        return (tmp, file, watcher)
+        return (file, watcher)
     }
 
     @Test(testTimeLimit())
     func detectsFileDeletion() async throws {
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { count.update { $0 += 1 } })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { count.update { $0 += 1 } })
         defer { watcher.stop() }
 
         // 削除は一度きり（エッジトリガー）で再実行できないため、書き込みプローブで
@@ -90,8 +91,9 @@ struct FileWatcherIntegrationTests {
     @Test(testTimeLimit())
     func detectsChangeAfterRecreation() async throws {
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { count.update { $0 += 1 } })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { count.update { $0 += 1 } })
         defer { watcher.stop() }
 
         // 削除を確実に捕捉するため、監視 arm を確認してから削除する。
@@ -131,11 +133,13 @@ struct FileWatcherIntegrationTests {
     func detectsRenameWithinSameDirectory() async throws {
         let renamed = LockedBox<URL?>(nil)
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(
+            in: tmp,
             onChange: { count.update { $0 += 1 } },
             onRename: { url in renamed.set(url) }
         )
-        defer { withExtendedLifetime(tmp) {} }
         defer { watcher.stop() }
 
         // rename は一度きり（エッジトリガー）で再実行できないため、監視 arm を確認してから
@@ -219,11 +223,13 @@ struct FileWatcherIntegrationTests {
     func saveByRenameIsTreatedAsChangeNotRename() async throws {
         let renamed = LockedBox<URL?>(nil)
         let count = LockedBox(0)
-        let (tmp, file, watcher) = try makeWatchedTempFile(
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(
+            in: tmp,
             onChange: { count.update { $0 += 1 } },
             onRename: { url in renamed.set(url) }
         )
-        defer { withExtendedLifetime(tmp) {} }
         defer { watcher.stop() }
 
         // save-by-rename の .rename も一度きり。監視 arm を確認してから実行する。
@@ -265,8 +271,9 @@ struct FileWatcherIntegrationTests {
     @Test(testTimeLimit())
     func stopPreventsCallback() async throws {
         let callbackFired = LockedBox(false)
-        let (tmp, file, watcher) = try makeWatchedTempFile(onChange: { callbackFired.set(true) })
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
+        let (file, watcher) = try makeWatchedFile(in: tmp, onChange: { callbackFired.set(true) })
 
         // 監視を停止してからファイルを変更
         watcher.stop()
