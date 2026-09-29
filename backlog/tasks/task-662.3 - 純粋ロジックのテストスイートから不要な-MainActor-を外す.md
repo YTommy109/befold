@@ -1,9 +1,10 @@
 ---
 id: TASK-662.3
 title: 純粋ロジックのテストスイートから不要な @MainActor を外す
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-29 04:29'
+updated_date: '2026-09-29 06:44'
 labels: []
 dependencies: []
 parent_task_id: TASK-662
@@ -31,7 +32,26 @@ ordinal: 859000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 上記スイートの @MainActor が外れる（またはテスト単位へ下りる）か、外せない理由が Notes にある
-- [ ] #2 3 ファイルのディスク UserDefaults が makeIsolatedDefaults に置き換わっている
-- [ ] #3 swiftlint のベースライン差分がゼロ（/swiftlint-baseline）
+- [x] #1 上記スイートの @MainActor が外れる（またはテスト単位へ下りる）か、外せない理由が Notes にある
+- [x] #2 3 ファイルのディスク UserDefaults が makeIsolatedDefaults に置き換わっている
+- [x] #3 swiftlint のベースライン差分がゼロ（/swiftlint-baseline）
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Package.swift に defaultIsolation が無いことを確認し、対象スイートの @MainActor を外してコンパイラに隔離を判定させる。FocusTraversalTests はキー割り当て側を別スイートへ分割、SidebarTreeLayoutTests は UserDefaults を触る 2 件だけテスト単位へ下ろす。ZoomStore の static 定数を nonisolated にする。Preference 3 スイートは makeIsolatedDefaults へ置き換える。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+外せなかったスイートは無い。FocusTraversalTests はキー割り当て 4 件を FocusTraversalKeyTests（非隔離）へ分け、NSMenu を使う残り 4 件は @MainActor の FocusTraversalTests に残した。SidebarTreeLayoutTests は SidebarDisplayDefaults を触る 2 件だけ @MainActor。Preference 3 スイートは対象型が @MainActor 前提のため suite の @MainActor は残し、UserDefaults だけ makeIsolatedDefaults に置き換えた。
+検証: swift test（並列）2017 件 44.3 秒で全件成功、対象 13 スイート 69 件成功。swiftformat --lint 全ターゲット 0 件。/swiftlint-baseline は main 46 件 / HEAD 46 件で真の新規・解消とも 0。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+純粋ロジックのテスト 7 スイートを MainActor から外し（FocusTraversalTests は分割、SidebarTreeLayoutTests はテスト単位へ下ろす）、ZoomStore の static 定数を nonisolated にした。Preference 系 3 スイートのディスク UserDefaults を makeIsolatedDefaults に置き換えた。swift test 全 2017 件成功・swiftlint ベースライン差分 0 で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->
