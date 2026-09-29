@@ -30,16 +30,42 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     private var fileSource: DispatchSourceFileSystemObject?
     private var dirSource: DispatchSourceFileSystemObject?
     private let debouncer: Debouncer
-    private let onChange: @MainActor @Sendable () -> Void
-    private let onRename: (@MainActor @Sendable (URL) -> Void)?
+    /// 通知先。監視キュー上で呼ばれる。MainActor へ渡すのは通常の init が包む。
+    private let onChange: @Sendable () -> Void
+    private let onRename: (@Sendable (URL) -> Void)?
     private let queue: DispatchQueue
 
-    init(
+    /// 通知を `@MainActor` へ渡す通常の口。
+    convenience init(
         path: URL,
         debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
         renameSettleDelay: TimeInterval = FileWatcher.defaultRenameSettleDelay,
         onChange: @escaping @MainActor @Sendable () -> Void,
         onRename: (@MainActor @Sendable (URL) -> Void)? = nil
+    ) {
+        var renameOnMainActor: (@Sendable (URL) -> Void)?
+        if let onRename {
+            renameOnMainActor = { url in Task { @MainActor in onRename(url) } }
+        }
+        self.init(
+            path: path,
+            debounceDelay: debounceDelay,
+            renameSettleDelay: renameSettleDelay,
+            onChangeOnWatcherQueue: { Task { @MainActor in onChange() } },
+            onRenameOnWatcherQueue: renameOnMainActor
+        )
+    }
+
+    /// 通知を監視キュー上でそのまま呼ぶ口。検知ロジックのテストが、MainActor の
+    /// 混雑（並列実行で 1 回の配送が 10 秒級になる。`waitForMainActorDelivery` の
+    /// doc を参照）に左右されずに完了を待てるようにするためのもの（TASK-662.4）。
+    /// 呼び出しは直列だが、コールバックは監視キューを塞がない軽い処理に限ること。
+    init(
+        path: URL,
+        debounceDelay: TimeInterval = FileWatcher.defaultDebounceDelay,
+        renameSettleDelay: TimeInterval = FileWatcher.defaultRenameSettleDelay,
+        onChangeOnWatcherQueue onChange: @escaping @Sendable () -> Void,
+        onRenameOnWatcherQueue onRename: (@Sendable (URL) -> Void)? = nil
     ) {
         resolvedPath = path.resolvingSymlinksInPath()
         self.renameSettleDelay = renameSettleDelay
@@ -212,10 +238,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
         stopDirectoryMonitor()
         startMonitors()
 
-        guard let onRename else { return }
-        Task { @MainActor in
-            onRename(newPath)
-        }
+        onRename?(newPath)
     }
 
     /// F_GETPATH で fd が指すファイルの現在のパスを取得する。取得できなければ nil。
@@ -258,12 +281,7 @@ final class FileWatcher: FileWatching, @unchecked Sendable {
     // MARK: - Notification
 
     private func scheduleNotify() {
-        let onChange = onChange
-        debouncer.schedule {
-            Task { @MainActor in
-                onChange()
-            }
-        }
+        debouncer.schedule(action: onChange)
     }
 
     // MARK: - Lifecycle

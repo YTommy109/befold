@@ -27,24 +27,23 @@ func quiesceCutoffSeconds(quiescePeriod: TimeInterval) -> TimeInterval {
 /// 2. プローブ書き込みのデバウンス残コールバックが後続の検証を汚さないよう、
 ///    コールバック数が `quiescePeriod` の間ひとつも増えなくなるまで待つ。
 ///
-/// - Parameter quiescePeriod: 静穏判定の待機時間。既定 0.35s(testDebounceDelay + 0.3)は、
-///   kevent 配送 → 監視キュー → デバウンサー → `@MainActor` ホップまでを含む経路全体を
-///   見込んだ値。この sleep 自体はグローバルプールで時間どおり起きるが、
-///   コールバック側は `@MainActor` へホップしてから `callbackCount` を更新するため、
-///   MainActor が他テストの並列実行で混雑していると更新が遅れうる。その遅延を
-///   吸収できるだけの余裕を持たせている(DebouncerTests の settlePeriod のような
-///   単純な「デバウンス遅延の定数倍」の類推ではなく、経路全体の余裕として定めた値)。
+/// 前提: 通知は監視キュー上で受け取っていること(`FileWatcher` の
+/// `onChangeOnWatcherQueue`)。`@MainActor` 経由の配送は並列実行時の混雑で 10 秒級に
+/// 遅れうるため(`waitForMainActorDelivery` の doc)、ここでの壁時計予算付きの待機と
+/// 短い静穏判定が成り立たない(TASK-662.4)。
+///
+/// - Parameter quiescePeriod: 静穏判定の待機時間。既定 0.15s はテストのデバウンス
+///   (0.05s)の 3 倍で、DebouncerTests の settlePeriod と同じ基準。デバウンス残りの
+///   コールバックは監視キュー上で確定するので、それ以上の経路の余裕は要らない。
 /// - Returns: 静穏化後のコールバック回数。以降は「操作後の発火」を
 ///   この基準値との比較（`callbackCount.get() > baseline`）で判定する。
 func confirmWatcherArmed(
     file: URL,
     callbackCount: LockedBox<Int>,
-    quiescePeriod: TimeInterval = 0.35,
+    quiescePeriod: TimeInterval = 0.15,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async -> Int {
-    // arm の観測はコールバック（`@MainActor` へホップして届く）の到達を待つため、
-    // 壁時計予算を持たない待機を使う（理由は waitForMainActorDelivery を参照）。
-    await waitForMainActorDelivery(action: {
+    await waitUntilWithRetry(interval: quiescePeriod, sourceLocation: sourceLocation, action: {
         try? "arm-probe-\(Int.random(in: 0 ... 999))"
             .write(to: file, atomically: false, encoding: .utf8)
     }, until: {

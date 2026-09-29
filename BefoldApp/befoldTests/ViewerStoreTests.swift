@@ -107,6 +107,24 @@ struct ViewerStoreTests {
         store.close()
     }
 
+    @Test("close で監視が止まる")
+    func closeStopsWatcher() {
+        let file = URL(fileURLWithPath: "/files/a.mmd")
+        let reader = InMemoryFileReader()
+        reader.setFile("A", at: file)
+
+        nonisolated(unsafe) var stopCount = 0
+        let store = ViewerStore(watcherFactory: { _, _, _, _ in
+            StopCountingWatcher { stopCount += 1 }
+        }, fileReader: reader)
+
+        store.openFile(file)
+        #expect(stopCount == 0)
+
+        store.close()
+        #expect(stopCount == 1)
+    }
+
     @Test("showLineNumbers のデフォルトは false")
     func showLineNumbersDefaultsToFalse() {
         let store = makeStore(reader: InMemoryFileReader())

@@ -11,18 +11,14 @@ import Testing
 /// (fileGoneGracePeriod もこの値の 5 倍として連動して短縮される)。
 private let testDebounceDelay: TimeInterval = 0.05
 
-/// 実ファイルシステム + 実 FileWatcher を使うため直列化する。
-/// 並列実行では複数の GCD キュー・DispatchSource が CI の少コアランナー上で
-/// リソースを奪い合い、イベント配送が遅れてフレーキーになるため
-/// (docs/dev/flaky-test-filewatcher-investigation.md「追加対策 6」)。
+/// 実ファイルシステム + 実 FileWatcher で、通知が `@MainActor` の ViewerStore まで
+/// 届くことを見る。FileWatcher の検知ロジック自体は FileWatcherIntegrationTests、
+/// close で監視が止まることは `ViewerStoreTests.closeStopsWatcher` が見る。
 ///
-/// 注: この根拠は FileWatcherIntegrationTests(本タスクで .serialized を解除済み)と
-/// 同一であり、両スイートを構造的に区別する固有の理由は見つかっていない
-/// (このドキュメントの調査時点では両方に同じ理由で .serialized を付与していた)。
-/// FileWatcherIntegrationTests 側は今回 3 回連続実行(--filter 単独 + フル swift test)で
-/// 安定を確認した上で解除したが、ViewerStoreIntegrationTests 側は本タスクのスコープでは
-/// 未検証のため、予防的に直列のまま維持する。
-@Suite(.serialized)
+/// かつては FileWatcherIntegrationTests と同じ根拠(並列時のイベント配送遅延、
+/// docs/dev/flaky-test-filewatcher-investigation.md「追加対策 6」)で直列化していたが、
+/// 待機はどれも条件待ちで、直列化を外して 3 回連続で緑を確認した(TASK-662.4)。
+@Suite
 @MainActor
 struct ViewerStoreIntegrationTests {
     /// 実 FileWatcher を短い debounce で生成する watcherFactory。
@@ -97,32 +93,5 @@ struct ViewerStoreIntegrationTests {
         #expect(store.contentState.content == "graph TD; X-->Y")
 
         store.close()
-    }
-
-    @Test(testTimeLimit())
-    func closeStopsWatching() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let file = try tmp.file(named: "test.mmd", contents: "graph TD; A-->B")
-
-        let store = ViewerStore(watcherFactory: Self.fastWatcherFactory(), watcherDebounceDelay: testDebounceDelay)
-        store.openFile(file)
-        // 読み込みは非同期のため、完了を待ってから検証する。
-        await store.loadTask?.value
-        #expect(store.contentState.content == "graph TD; A-->B")
-
-        store.close()
-        #expect(store.contentState.filePath == file)
-
-        try "graph TD; X-->Y".write(to: file, atomically: true, encoding: .utf8)
-
-        // close 後は変更が反映されないこと（発火しないことの確認なので固定待ち）。
-        // atomically: true の書き込みは rename 経由(renameSettleDelay → debounce → MainActor、
-        // FileWatcher.swift:108-160)で、さらに万一 onChange が発火すれば ViewerStore の
-        // 非同期再読込(loadContent → apply)が後段に乗る。万一 close() のリークで発火しても
-        // 反映され得る最大経路長 testDebounceDelay(renameSettleDelay) + testDebounceDelay(debounce)
-        // を基準に + 0.3s の余裕を持たせ、時限の境界を確実に跨ぐ(docs/dev/coding_rule.md 参照)。
-        try await Task.sleep(for: .seconds(testDebounceDelay + testDebounceDelay + 0.3))
-        #expect(store.contentState.content == "graph TD; A-->B")
     }
 }
