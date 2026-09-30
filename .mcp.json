@@ -6,6 +6,10 @@
         "serve"
       ],
       "type": "stdio"
+    },
+    "sosumi": {
+      "type": "http",
+      "url": "https://sosumi.ai/mcp"
     }
   }
 }

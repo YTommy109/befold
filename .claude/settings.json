@@ -1,6 +1,7 @@
 {
   "enabledMcpjsonServers": [
-    "dagayn"
+    "dagayn",
+    "sosumi"
   ],
   "permissions": {
     "allow": [
@@ -50,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *type-group-baseline.txt) echo 'BLOCK: 型グループのベースラインを手で書き換えないでください。返済してから scripts/check-type-group-size.sh --update-baseline を実行してください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; *.pbxproj) echo 'BLOCK: .pbxproj は XcodeGen の生成物です。project.yml を編集して xcodegen generate を実行してください' >&2; exit 2;; *Localizable.xcstrings) echo '注意: Localizable.xcstrings の直接編集はキー追加漏れ・JSON 構造破壊のリスクがあります。編集後は /l10n-check で en/ja の翻訳漏れ・整合性を確認してください' >&2;; *backlog/*.md) echo 'BLOCK: Backlog タスク/ドラフト/ドキュメント/決定事項/マイルストーンは backlog CLI 経由で編集してください（直接編集不可）。backlog instructions を参照' >&2; exit 2;; esac"
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *Package.resolved|*.swiftlint.yml|*.swiftformat) echo 'BLOCK: このファイルはユーザーの明示的な指示なしに編集しないでください' >&2; exit 2;; *type-group-baseline.txt) echo 'BLOCK: 型グループのベースラインを手で書き換えないでください。返済してから scripts/check-type-group-size.sh --update-baseline を実行してください' >&2; exit 2;; *mermaid.min.js|*markdown-it.min.js|*highlight.min.js|*github-markdown.css) echo 'BLOCK: ベンダリング済みファイルは直接編集しないでください。更新は /check-vendored-deps を使用' >&2; exit 2;; *.pbxproj) echo 'BLOCK: .pbxproj は XcodeGen の生成物です。project.yml を編集して xcodegen generate を実行してください' >&2; exit 2;; *Localizable.xcstrings) echo '注意: Localizable.xcstrings の直接編集はキー追加漏れ・JSON 構造破壊のリスクがあります。編集後は /l10n-check で en/ja の翻訳漏れ・整合性を確認してください' >&2;; *backlog/*.md) echo 'BLOCK: Backlog タスク/ドラフト/ドキュメント/決定事項/マイルストーンは backlog CLI 経由で編集してください（直接編集不可）。backlog instructions を参照' >&2; exit 2;; *site/migrations/*.sql) if [ -f \"$f\" ]; then echo 'BLOCK: 既存のマイグレーションは本番 D1 と atlas.sum に適用済みのため編集しないでください。変更は新しいマイグレーションとして追加してください（未適用のものを直す必要があるならユーザーに確認）' >&2; exit 2; fi;; esac"
           }
         ]
       }
@@ -99,6 +100,12 @@
           },
           {
             "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */node_modules/*|*.min.js) exit 0;; *BefoldApp/*.ts|*BefoldApp/*.mjs|*BefoldApp/*.js) d=BefoldApp;; *site/*.ts|*site/*.tsx|*site/*.mjs|*site/*.js) d=site;; *) exit 0;; esac; cd \"${CLAUDE_PROJECT_DIR:-.}/$d\" || exit 0; [ -x node_modules/.bin/oxlint ] || { echo \"oxlint 未インストールのためスキップ: cd $d && npm ci\" >&2; exit 0; }; out=$( { npm run --silent lint && npm run --silent format:check; } 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }",
+            "statusMessage": "oxlint + oxfmt",
+            "timeout": 60
+          },
+          {
+            "type": "command",
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.github/workflows/*.yml|*.github/workflows/*.yaml) cd \"${CLAUDE_PROJECT_DIR:-.}\"; command -v actionlint >/dev/null || { echo 'actionlint 未インストール: brew install actionlint'; exit 0; }; { out=$(actionlint 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; };; esac",
             "statusMessage": "actionlint"
           },
@@ -123,6 +130,18 @@
             "command": "m=\"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build/.claude-swift-dirty\"; [ -f \"$m\" ] || exit 0; rm -f \"$m\"; cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; }",
             "statusMessage": "swift test (unit、このターンで Swift を編集した場合のみ)",
             "timeout": 300
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" || exit 0; for d in BefoldApp site; do [ -f \"$d/package-lock.json\" ] || continue; [ \"$d/node_modules/.package-lock.json\" -nt \"$d/package-lock.json\" ] && continue; if out=$( (cd \"$d\" && npm ci --silent) 2>&1 ); then echo \"$d: npm ci を実行しました（node_modules が無いか package-lock.json より古かったため）\"; else echo \"$d: npm ci に失敗しました。JS の lint・テストのフックはスキップされます: $(printf '%s' \"$out\" | tail -3)\"; fi; done; exit 0",
+            "statusMessage": "npm ci (node_modules が無いか古い場合のみ)",
+            "timeout": 180
           }
         ]
       }
