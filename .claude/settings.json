@@ -133,6 +133,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" || exit 0; for d in BefoldApp site; do [ -f \"$d/package-lock.json\" ] || continue; [ \"$d/node_modules/.package-lock.json\" -nt \"$d/package-lock.json\" ] && continue; if out=$( (cd \"$d\" && npm ci --silent) 2>&1 ); then echo \"$d: npm ci を実行しました（node_modules が無いか package-lock.json より古かったため）\"; else echo \"$d: npm ci に失敗しました。JS の lint・テストのフックはスキップされます: $(printf '%s' \"$out\" | tail -3)\"; fi; done; exit 0",
+            "statusMessage": "npm ci (node_modules が無いか古い場合のみ)",
+            "timeout": 180
+          }
+        ]
+      }
     ]
   }
 }
