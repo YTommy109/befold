@@ -5,7 +5,8 @@
   塗らない(body は透明)。これによりタイトルバー等のネイティブ部分と
   WebView 部分が構成上必ず同色になる。状態表示の背景は不透明色でなく
   半透明ティントで重ねる。ここにキャンバス色(#fff / #1e1e1e 等)を
-  書かないこと。
+  書かないこと。本文に重なる読み込みバナーだけは、文字が透けないよう
+  ライト・ダークそれぞれの不透明な状態表示色を使う。
 
   例外は**外部の HTML 文書**(.html / .htm のレンダリング表示)だけ。ブラウザと同じく
   文書が canvas ごと所有する(WKWebView 側で drawsBackground を戻す。
@@ -61,6 +62,7 @@
   --jump-current-bg: rgba(0, 122, 255, 0.14);
 
   --panel-bg: rgba(255, 255, 255, 0.92);
+  --truncated-banner-bg: #fff7d9;
   --panel-border: rgba(0, 0, 0, 0.12);
   --panel-shadow: rgba(0, 0, 0, 0.1);
   --btn-fg: #333;
@@ -102,6 +104,7 @@
     --jump-current-bg: rgba(74, 163, 255, 0.16);
 
     --panel-bg: rgba(44, 44, 44, 0.92);
+    --truncated-banner-bg: #40381a;
     --panel-border: rgba(255, 255, 255, 0.14);
     --panel-shadow: rgba(0, 0, 0, 0.4);
     --btn-fg: #ddd;
@@ -192,7 +195,7 @@ body {
   font-size: 12px;
   text-align: center;
   z-index: 1000;
-  background: rgba(255, 204, 0, 0.15);
+  background: var(--truncated-banner-bg);
   color: var(--fg);
   border-top: 1px solid rgba(255, 204, 0, 0.3);
   display: none;
