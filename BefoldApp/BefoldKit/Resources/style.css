@@ -972,11 +972,8 @@ mark.mmd-find-match-current {
    csv-body(CSV 専用の上書き)を両方付与する。CSV 専用スタイルをここに
    スコープすることで、通常の Markdown テーブルは github-markdown-css 本来の
    見た目のまま保たれる。
-   table 自体が github-markdown-css で display:block; overflow:auto の
-   スクロールコンテナになっている(flex コンテナ経由ではない)ため、
-   その table 自身に padding-right を持たせれば、右端までスクロールしても
-   トレーリング側の余白が(WebKit のフレックス経由スクロールで起きがちな
-   ように)欠落しない。 */
+   横スクロールと右端の余白は .csv-scroll が持つ。table は自然幅または
+   明示的な列幅で描き、スクロールコンテナを二重にしない。 */
 #diagram-wrap.markdown-body.csv-body {
   /* markdown-body の読み幅(980px)は表には適用せず、利用可能な幅を使う。
      markdown-body も併記して詳細度で勝たせ、記述順に依存させない(TASK-633) */
@@ -984,10 +981,12 @@ mark.mmd-find-match-current {
 }
 
 #diagram-wrap.csv-body table {
+  display: table;
+  overflow: visible;
   max-width: none;
   /* Markdown 本文サイズ × 0.75(ソースコード表示と同程度) */
   font-size: 0.75em;
-  padding-right: 32px;
+  padding-right: 0;
 }
 
 #diagram-wrap.csv-body table th,
@@ -996,8 +995,49 @@ mark.mmd-find-match-current {
 }
 
 #diagram-wrap.csv-body table th {
+  position: relative;
   background-color: var(--csv-th-bg);
   color: var(--csv-th-fg);
+}
+
+#diagram-wrap.csv-body .csv-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  padding-right: 32px;
+}
+
+#diagram-wrap.csv-body table.csv-sized {
+  table-layout: fixed;
+}
+
+#diagram-wrap.csv-body table.csv-sized th,
+#diagram-wrap.csv-body table.csv-sized td {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+#diagram-wrap.csv-body .csv-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+#diagram-wrap.csv-body .csv-resize-handle:hover,
+#diagram-wrap.csv-body .csv-resize-handle:focus-visible {
+  background: var(--fg-muted);
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+
+#diagram-wrap.csv-body .csv-resizing,
+#diagram-wrap.csv-body .csv-resizing * {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* ── CSV Rainbow ソース表示 ── */

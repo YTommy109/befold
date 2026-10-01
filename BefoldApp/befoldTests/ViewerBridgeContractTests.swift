@@ -142,7 +142,7 @@ struct ViewerBridgeContractTests {
         let keys = try ViewerBridgeContractSupport.bridgeGlobalKeys(
             from: ViewerBridge.uiStringsScript(), global: "window._mmdUIStrings"
         )
-        #expect(keys.count == 4)
+        #expect(keys.count == 6)
         for key in keys {
             #expect(source.contains(".\(key)"), "UI キー '\(key)' が viewer-bundle.js で読まれていない")
         }
@@ -158,11 +158,21 @@ struct ViewerBridgeContractTests {
         let data = try #require(jsonPart.data(using: .utf8))
         let decoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        for key in ["zoomOut", "zoomReset", "zoomIn"] {
+        for key in ["zoomOut", "zoomReset", "zoomIn", "csvResizeColumn", "csvResizeHint"] {
             #expect((decoded[key] as? String)?.isEmpty == false)
         }
         let modes = try #require(decoded["modes"] as? [String: String])
         #expect(Set(modes.keys) == Set(ViewerBridge.barModes))
+    }
+
+    @Test("CSV 列幅操作のラベル・ヒントが en/ja に訳されている")
+    func csvResizeStringsAreLocalized() throws {
+        let catalog = try LocalizableCatalog.load(bundle: .befoldKitResources)
+        for key in ["viewer.csv.resizeColumn", "viewer.csv.resizeHint"] {
+            for lang in ["en", "ja"] {
+                #expect(catalog[key]?[lang]?.isEmpty == false, "\(lang) に \(key) の訳が無い")
+            }
+        }
     }
 
     /// bar-mode.ts の MODES に足したモードが Swift のモード一覧と Localizable.xcstrings の

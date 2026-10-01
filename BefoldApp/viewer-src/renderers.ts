@@ -6,6 +6,7 @@
 import { renderCodeHtml } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
+import { installCsvResize } from './csv-resize.js';
 import { renderDiffHtml } from './diff-html.js';
 import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { markdownRenderer, sanitizeRenderedHtml } from './markdown.js';
@@ -192,6 +193,14 @@ function _renderCsv(
   diagramWrap.classList.add('markdown-body', 'csv-body');
   var table = buildCsvTable(content, lang || ',');
   diagramWrap.innerHTML = table.html;
+  var element = diagramWrap.querySelector('table');
+  if (element) {
+    var scroll = document.createElement('div');
+    scroll.className = 'csv-scroll';
+    element.before(scroll);
+    scroll.append(element);
+    installCsvResize(element);
+  }
   return table.formats;
 }
 
