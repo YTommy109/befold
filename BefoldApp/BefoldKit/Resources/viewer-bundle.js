@@ -15193,8 +15193,8 @@
       // 次の render() が表示する文書パスの予告。採用は adoptPending()(= render 開始時)。
       // ここで即時に切り替えると、render script の実行前に通知が発火したとき
       // 旧文書の値が新パスのキーで保存される。
-      setPending: function(path) {
-        pendingDocPath = path;
+      setPending: function(path2) {
+        pendingDocPath = path2;
       },
       // rename / move の追随。DOM は同一文書のまま名前だけ変わるため render を経ずに
       // 即時差し替える。現在値・予告値のうち from に一致するものだけを書き換える
@@ -15221,8 +15221,8 @@
     };
   }
   var _mmdDocPath = _createDocPathTracker();
-  function _mmdSetRenderDocPath(path) {
-    _mmdDocPath.setPending(path);
+  function _mmdSetRenderDocPath(path2) {
+    _mmdDocPath.setPending(path2);
   }
   function _mmdRenameDocPath(from, to) {
     _mmdDocPath.rename(from, to);
@@ -15751,11 +15751,11 @@
     return files;
   }
   function diffPath(raw) {
-    var path = raw.split("	")[0];
-    if (path === "/dev/null") {
-      return path;
+    var path2 = raw.split("	")[0];
+    if (path2 === "/dev/null") {
+      return path2;
     }
-    return path.replace(/^[ab]\//u, "");
+    return path2.replace(/^[ab]\//u, "");
   }
   function highlightedSideLines(hljs, lines, indexes, lang) {
     var texts = [];
@@ -24495,6 +24495,128 @@
     _mmdWrapDiagrams(diagramWrap);
   }
 
+  // viewer-src/csv-resize.ts
+  var MIN_WIDTH = 40;
+  var widths = [];
+  var path = null;
+  var cancelDrag;
+  function prepareCsvResize(newPath, sameContent) {
+    cancelDrag?.();
+    if (path !== newPath || !sameContent) widths = [];
+    path = newPath;
+  }
+  function applyWidths(table2) {
+    if (widths.length === 0) return;
+    var headers = table2.tHead.rows[0].cells;
+    var group = table2.querySelector("colgroup");
+    if (!group) {
+      group = document.createElement("colgroup");
+      table2.prepend(group);
+    }
+    while (group.children.length < headers.length) group.append(document.createElement("col"));
+    for (var i = 0; i < headers.length; i++) {
+      if (widths[i] === void 0) widths[i] = Math.max(MIN_WIDTH, headers[i].offsetWidth);
+      var col = group.children[i];
+      if (col instanceof HTMLElement) col.style.width = widths[i] + "px";
+      headers[i].querySelector(".csv-resize-handle")?.setAttribute(
+        "aria-valuenow",
+        String(Math.round(widths[i]))
+      );
+    }
+    table2.classList.add("csv-sized");
+    table2.style.width = widths.reduce((sum, width) => sum + width, 1) + "px";
+  }
+  function setWidth(table2, index, width) {
+    if (widths.length === 0)
+      widths = Array.from(
+        table2.tHead.rows[0].cells,
+        (cell) => Math.max(MIN_WIDTH, cell.offsetWidth)
+      );
+    widths[index] = Math.max(MIN_WIDTH, width);
+    applyWidths(table2);
+  }
+  function fitColumn(table2, index) {
+    var probe = table2.cloneNode(false);
+    if (!(probe instanceof HTMLTableElement)) return;
+    probe.classList.remove("csv-sized");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
+    for (var row of table2.rows) {
+      var cell = row.cells[index];
+      if (!cell) continue;
+      var copy = cell.cloneNode(true);
+      if (!(copy instanceof HTMLTableCellElement)) continue;
+      copy.querySelector(".csv-resize-handle")?.remove();
+      copy.style.whiteSpace = "pre";
+      probe.insertRow().append(copy);
+    }
+    table2.parentElement.append(probe);
+    var width = probe.offsetWidth || MIN_WIDTH;
+    probe.remove();
+    setWidth(table2, index, width);
+  }
+  function installCsvResize(table2) {
+    var headers = table2.tHead?.rows[0]?.cells;
+    if (!headers) return;
+    var strings = window._mmdUIStrings || {};
+    Array.from(headers).forEach(function(header, index) {
+      if (header.querySelector(".csv-resize-handle")) return;
+      var handle = document.createElement("span");
+      handle.className = "csv-resize-handle";
+      handle.tabIndex = 0;
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", "vertical");
+      handle.setAttribute("aria-valuemin", String(MIN_WIDTH));
+      handle.setAttribute("aria-valuenow", String(widths[index] || header.offsetWidth));
+      handle.setAttribute(
+        "aria-label",
+        (strings.csvResizeColumn || "Resize column {column}").replace("{column}", String(index + 1))
+      );
+      handle.title = strings.csvResizeHint || "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows.";
+      handle.addEventListener("dblclick", function(event) {
+        event.preventDefault();
+        fitColumn(table2, index);
+      });
+      handle.addEventListener("keydown", function(event) {
+        if (!["ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.key === "Enter") fitColumn(table2, index);
+        else setWidth(table2, index, header.offsetWidth + (event.key === "ArrowRight" ? 10 : -10));
+      });
+      handle.addEventListener("pointerdown", function(event) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        cancelDrag?.();
+        var startX = event.clientX;
+        var startWidth = header.offsetWidth;
+        var zoom = _mmdZoom.value();
+        handle.setPointerCapture(event.pointerId);
+        table2.classList.add("csv-resizing");
+        function move(e) {
+          setWidth(table2, index, startWidth + (e.clientX - startX) / zoom);
+        }
+        function finish() {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", finish);
+          handle.removeEventListener("lostpointercapture", finish);
+          handle.removeEventListener("pointercancel", finish);
+          table2.classList.remove("csv-resizing");
+          if (handle.hasPointerCapture(event.pointerId))
+            handle.releasePointerCapture(event.pointerId);
+          cancelDrag = void 0;
+        }
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", finish);
+        handle.addEventListener("lostpointercapture", finish);
+        handle.addEventListener("pointercancel", finish);
+        cancelDrag = finish;
+      });
+      header.append(handle);
+    });
+    applyWidths(table2);
+  }
+
   // viewer-src/renderers.ts
   var BODY_CLASSES = [
     "markdown-body",
@@ -24607,6 +24729,14 @@
     diagramWrap.classList.add("markdown-body", "csv-body");
     var table2 = buildCsvTable(content, lang || ",");
     diagramWrap.innerHTML = table2.html;
+    var element = diagramWrap.querySelector("table");
+    if (element) {
+      var scroll = document.createElement("div");
+      scroll.className = "csv-scroll";
+      element.before(scroll);
+      scroll.append(element);
+      installCsvResize(element);
+    }
     return table2.formats;
   }
   function _renderImage(diagramWrap, content, lang) {
@@ -24690,6 +24820,10 @@
   }
   async function render(content, type, lang) {
     _mmdDocPath.adoptPending();
+    prepareCsvResize(
+      _mmdDocPath.current(),
+      type === "csv" && _mmdDocument.type() === type && _mmdDocument.content() === content
+    );
     _mmdJump.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
@@ -24793,6 +24927,7 @@
       for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
         _walkTextNodes(tbody.rows[r2], false);
       }
+      installCsvResize(table2);
     } else {
       var isCsvSource = _mmdDocument.shape() === "csv-source";
       var codeEl = diagramWrap.querySelector("pre code");

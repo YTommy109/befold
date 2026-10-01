@@ -86,6 +86,42 @@
         }
       }
     },
+    "viewer.csv.resizeColumn": {
+      "comment": "Accessible name for the column resize handle. {column} is the one-based column number.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resize column {column}"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列 {column} の幅を変更"
+          }
+        }
+      }
+    },
+    "viewer.csv.resizeHint": {
+      "comment": "Tooltip for CSV/TSV column resize handles. Auto-fit only considers loaded rows.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドラッグまたは左右の矢印キーで幅を変更。ダブルクリックまたは Enter で読み込み済みの行に合わせます。"
+          }
+        }
+      }
+    },
     "viewer.diagram.zoomIn": {
       "extractionState": "manual",
       "localizations": {

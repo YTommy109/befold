@@ -306,9 +306,11 @@ public enum ViewerBridge {
         let zoomOut: String
         let zoomReset: String
         let zoomIn: String
+        let csvResizeColumn: String
+        let csvResizeHint: String
     }
 
-    /// ロード時に viewer.html のモード切替と Mermaid 個別ズームの文言を注入する。
+    /// ロード時に表示モード・Mermaid 個別ズーム・CSV 列幅操作の文言を注入する。
     /// モード名は `viewer.mode.<モード名>` から引く。キーが無ければキー文字列そのものが入る。
     public static func uiStringsScript(bundle: Bundle = .befoldKitResources) -> String {
         let modes = Dictionary(uniqueKeysWithValues: barModes.map { mode in
@@ -318,7 +320,9 @@ public enum ViewerBridge {
             modes: modes,
             zoomOut: String(localized: "viewer.diagram.zoomOut", bundle: bundle),
             zoomReset: String(localized: "viewer.diagram.zoomReset", bundle: bundle),
-            zoomIn: String(localized: "viewer.diagram.zoomIn", bundle: bundle)
+            zoomIn: String(localized: "viewer.diagram.zoomIn", bundle: bundle),
+            csvResizeColumn: String(localized: "viewer.csv.resizeColumn", bundle: bundle),
+            csvResizeHint: String(localized: "viewer.csv.resizeHint", bundle: bundle)
         )
         return assignGlobalScript("window._mmdUIStrings", strings)
     }
