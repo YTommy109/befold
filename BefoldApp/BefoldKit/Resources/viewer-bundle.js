@@ -24500,14 +24500,15 @@
   var widths = [];
   var path = null;
   var cancelDrag;
-  function prepareCsvResize(newPath, sameContent) {
+  function prepareCsvResize(newPath) {
     cancelDrag?.();
-    if (path !== newPath || !sameContent) widths = [];
+    if (newPath === null || path !== newPath) widths = [];
     path = newPath;
   }
   function applyWidths(table2) {
     if (widths.length === 0) return;
     var headers = table2.tHead.rows[0].cells;
+    widths.length = Math.min(widths.length, headers.length);
     var group = table2.querySelector("colgroup");
     if (!group) {
       group = document.createElement("colgroup");
@@ -24820,10 +24821,7 @@
   }
   async function render(content, type, lang) {
     _mmdDocPath.adoptPending();
-    prepareCsvResize(
-      _mmdDocPath.current(),
-      type === "csv" && _mmdDocument.type() === type && _mmdDocument.content() === content
-    );
+    prepareCsvResize(_mmdDocPath.current());
     _mmdJump.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;

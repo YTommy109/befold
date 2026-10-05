@@ -6,15 +6,19 @@ var widths: number[] = [];
 var path: string | null = null;
 var cancelDrag: (() => void) | undefined;
 
-function prepareCsvResize(newPath: string | null, sameContent: boolean): void {
+// 幅の持ち主は文書のパス。同じパスの再描画（保存による内容変更・表示切替）では保持する。
+// パス不明（null）は別文書かもしれないので、常に捨てる。
+function prepareCsvResize(newPath: string | null): void {
   cancelDrag?.();
-  if (path !== newPath || !sameContent) widths = [];
+  if (newPath === null || path !== newPath) widths = [];
   path = newPath;
 }
 
 function applyWidths(table: HTMLTableElement): void {
   if (widths.length === 0) return;
   var headers = table.tHead!.rows[0]!.cells;
+  // 列が減った再描画では、消えた列の幅を合計に残さない。
+  widths.length = Math.min(widths.length, headers.length);
   var group = table.querySelector('colgroup');
   if (!group) {
     group = document.createElement('colgroup');

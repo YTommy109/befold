@@ -53,7 +53,7 @@ describe('CSV/TSV の列幅', () => {
     },
   );
 
-  test('表示モード切替とチャンク追記で保持し、文書切替・内容変更でリセットする', async () => {
+  test('表示モード切替とチャンク追記で保持し、文書切替でリセットする', async () => {
     const viewer = loadViewerMain();
     viewer.main._mmdSetRenderDocPath('/a.csv');
     await viewer.main.render(CSV, 'csv', ',');
@@ -65,12 +65,33 @@ describe('CSV/TSV の列幅', () => {
     viewer.main.setViewMode('rendered');
     await viewer.main.render(CSV + 'new,3000,extra\n', 'csv', ',');
     expect(columnWidths(viewer)).toEqual(['110px', '100px', '40px']);
-    await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
+    viewer.main._mmdSetRenderDocPath('/b.csv');
+    await viewer.main.render(CSV, 'csv', ',');
     expect(columnWidths(viewer)).toEqual([]);
+  });
+
+  // TASK-666: 保存（内容変更）のたびに手で調整した幅を失わない。
+  test('同じパスの内容変更では列幅を保持し、列が減った分は捨て、増えた列は自然幅にする', async () => {
+    const viewer = loadViewerMain();
+    viewer.main._mmdSetRenderDocPath('/a.csv');
+    await viewer.main.render(CSV + 'x,1,2\n', 'csv', ',');
     measureHeaders(tableIn(viewer));
     key(viewer, 0, 'ArrowRight');
-    viewer.main._mmdSetRenderDocPath('/b.csv');
     await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    await viewer.main.render('Name\n日本語\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px']);
+    // 戻った 2 列目は捨てた幅を復活させず自然幅から始まる（jsdom は layout が無く下限 40px）。
+    await viewer.main.render(CSV, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '40px']);
+  });
+
+  test('文書のパスが不明（null）の再描画は別文書として列幅を捨てる', async () => {
+    const viewer = loadViewerMain();
+    await viewer.main.render(CSV, 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    await viewer.main.render(CSV, 'csv', ',');
     expect(columnWidths(viewer)).toEqual([]);
   });
 
