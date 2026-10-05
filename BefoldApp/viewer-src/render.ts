@@ -4,6 +4,7 @@
 import { buildLineNumberRows, codeChunkInnerHtml, lastLines } from './code-html.js';
 import { csvRowsHtml, csvSourceInnerHtml, parseCsv } from './csv-html.js';
 import { _mmdCsvNumberFormat } from './csv-number-format.js';
+import { prepareCsvResize, installCsvResize } from './csv-resize.js';
 import { _mmdDocPath } from './doc-path.js';
 import { _mmdChunkTail, _mmdCsvColumns, _mmdDocument } from './document-state.js';
 import { _mmdFind } from './find.js';
@@ -101,6 +102,10 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   // このパスをキーにする。render 開始より前に採用すると、まだ旧文書が DOM に
   // 出ている間の通知が新パスのキーで保存される。
   _mmdDocPath.adoptPending();
+  prepareCsvResize(
+    _mmdDocPath.current(),
+    type === 'csv' && _mmdDocument.type() === type && _mmdDocument.content() === content,
+  );
   // 描画の着地まで（mermaid の描画を await する間）DOM は既に差し替わっている。
   // 目印の列は列そのものが状態なので、ここで捨てておかないと前の文書の
   // n/N と現在位置ハイライトがその間ずっと表示され続ける。
@@ -281,6 +286,7 @@ function appendChunk(text: string, type: string, lang?: string): void {
     for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
       _walkTextNodes(tbody.rows[r2]!, false);
     }
+    installCsvResize(table);
   } else {
     // 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
     // CSV/TSV のソース表示('csv-source')がここへ来る。前者と後者は 1 行の
