@@ -233,7 +233,7 @@ describe('CSV/TSV の列幅', () => {
       await viewer.main.render(CSV, 'csv', ',');
       measureHeaders(tableIn(viewer));
       handles(viewer)[0]!.focus();
-      const press = (index: number, keyName: string): void =>
+      const press = (index: number, keyName: string): void => {
         handles(viewer)[index]!.dispatchEvent(
           new viewer.window.KeyboardEvent('keydown', {
             key: keyName,
@@ -241,6 +241,7 @@ describe('CSV/TSV の列幅', () => {
             bubbles: true,
           }),
         );
+      };
       press(0, 'ArrowLeft');
       expect(viewer.document.activeElement).toBe(handles(viewer)[0]);
       press(0, 'ArrowRight');
