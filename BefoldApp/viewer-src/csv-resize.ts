@@ -48,6 +48,40 @@ function setWidth(table: HTMLTableElement, index: number, width: number): void {
   applyWidths(table);
 }
 
+// 測定表へ入れるセルの上限（ヘッダー除く）。全行を入れると行数に比例して遅くなる
+// （実測 TASK-668: 10,000 行で約 0.3 秒、50,000 行で約 1.5 秒）。
+var FIT_SAMPLE = 200;
+
+// 表示上の長さの目安（全角は 2）。最長の行を選ぶための順位づけにだけ使い、
+// 幅そのものは下で DOM に測らせる。
+function displayLength(text: string): number {
+  var longest = 0;
+  for (var line of text.split('\n')) {
+    var length = 0;
+    for (var ch of line) length += ch.codePointAt(0)! >= 0x2e80 ? 2 : 1;
+    longest = Math.max(longest, length);
+  }
+  return longest;
+}
+
+// 長さの上位 FIT_SAMPLE 個（とヘッダー）だけを測る。順位は文字数の近似なので、
+// 比例幅フォントで僅差の行が漏れても、差は上位に入った行との僅差に収まる。
+function fitCandidates(table: HTMLTableElement, index: number): HTMLTableCellElement[] {
+  var cells: HTMLTableCellElement[] = [];
+  for (var row of table.rows) {
+    var cell = row.cells[index];
+    if (cell) cells.push(cell);
+  }
+  if (cells.length <= FIT_SAMPLE + 1) return cells;
+  var [header, ...body] = cells;
+  var ranked = body.map((candidate) => ({
+    cell: candidate,
+    length: displayLength(candidate.textContent ?? ''),
+  }));
+  ranked.sort((a, b) => b.length - a.length);
+  return [header!, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
+}
+
 // DOM の表示文言を測るので桁区切り・負数表記も含む。画面外の読み込み済み行も対象。
 function fitColumn(table: HTMLTableElement, index: number): void {
   // セルを同じ CSS の下で折り返さず測る。WebKit の font shorthand や
@@ -58,9 +92,7 @@ function fitColumn(table: HTMLTableElement, index: number): void {
   probe.setAttribute('aria-hidden', 'true');
   probe.style.cssText =
     'position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none';
-  for (var row of table.rows) {
-    var cell = row.cells[index];
-    if (!cell) continue;
+  for (var cell of fitCandidates(table, index)) {
     var copy = cell.cloneNode(true);
     if (!(copy instanceof HTMLTableCellElement)) continue;
     copy.querySelector('.csv-resize-handle')?.remove();
@@ -81,7 +113,9 @@ function installCsvResize(table: HTMLTableElement): void {
     if (header.querySelector('.csv-resize-handle')) return;
     var handle = document.createElement('span');
     handle.className = 'csv-resize-handle';
-    handle.tabIndex = 0;
+    // Tab で止まるのは表全体で 1 つ（roving tabindex）。列数ぶん止まると、
+    // 100 列の表では Tab を 100 回押さないと表を抜けられない。
+    handle.tabIndex = index === 0 ? 0 : -1;
     handle.setAttribute('role', 'separator');
     handle.setAttribute('aria-orientation', 'vertical');
     handle.setAttribute('aria-valuemin', String(MIN_WIDTH));
@@ -92,17 +126,24 @@ function installCsvResize(table: HTMLTableElement): void {
     );
     handle.title =
       strings.csvResizeHint ||
-      'Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows.';
+      'Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows. Alt+Left/Right moves to another column.';
     handle.addEventListener('dblclick', function (event) {
       event.preventDefault();
       fitColumn(table, index);
+    });
+    handle.addEventListener('focus', function () {
+      for (var other of table.querySelectorAll<HTMLElement>('.csv-resize-handle'))
+        other.tabIndex = other === handle ? 0 : -1;
     });
     handle.addEventListener('keydown', function (event) {
       if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(event.key)) return;
       event.preventDefault();
       event.stopPropagation();
       if (event.key === 'Enter') fitColumn(table, index);
-      else setWidth(table, index, header.offsetWidth + (event.key === 'ArrowRight' ? 10 : -10));
+      else if (event.altKey) {
+        var handles = table.querySelectorAll<HTMLElement>('.csv-resize-handle');
+        handles[index + (event.key === 'ArrowRight' ? 1 : -1)]?.focus();
+      } else setWidth(table, index, header.offsetWidth + (event.key === 'ArrowRight' ? 10 : -10));
     });
     handle.addEventListener('pointerdown', function (event) {
       if (event.button !== 0) return;

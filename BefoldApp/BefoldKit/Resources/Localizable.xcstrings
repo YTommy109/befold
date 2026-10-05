@@ -111,13 +111,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows."
+            "value": "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows. Alt+Left/Right moves to another column."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ドラッグまたは左右の矢印キーで幅を変更。ダブルクリックまたは Enter で読み込み済みの行に合わせます。"
+            "value": "ドラッグまたは左右の矢印キーで幅を変更。ダブルクリックまたは Enter で読み込み済みの行に合わせます。Option+左右の矢印キーで隣の列へ移動します。"
           }
         }
       }

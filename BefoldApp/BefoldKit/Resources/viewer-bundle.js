@@ -24536,15 +24536,38 @@
     widths[index] = Math.max(MIN_WIDTH, width);
     applyWidths(table2);
   }
+  var FIT_SAMPLE = 200;
+  function displayLength(text3) {
+    var longest = 0;
+    for (var line of text3.split("\n")) {
+      var length = 0;
+      for (var ch of line) length += ch.codePointAt(0) >= 11904 ? 2 : 1;
+      longest = Math.max(longest, length);
+    }
+    return longest;
+  }
+  function fitCandidates(table2, index) {
+    var cells = [];
+    for (var row of table2.rows) {
+      var cell = row.cells[index];
+      if (cell) cells.push(cell);
+    }
+    if (cells.length <= FIT_SAMPLE + 1) return cells;
+    var [header, ...body] = cells;
+    var ranked = body.map((candidate) => ({
+      cell: candidate,
+      length: displayLength(candidate.textContent ?? "")
+    }));
+    ranked.sort((a, b) => b.length - a.length);
+    return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
+  }
   function fitColumn(table2, index) {
     var probe = table2.cloneNode(false);
     if (!(probe instanceof HTMLTableElement)) return;
     probe.classList.remove("csv-sized");
     probe.setAttribute("aria-hidden", "true");
     probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
-    for (var row of table2.rows) {
-      var cell = row.cells[index];
-      if (!cell) continue;
+    for (var cell of fitCandidates(table2, index)) {
       var copy = cell.cloneNode(true);
       if (!(copy instanceof HTMLTableCellElement)) continue;
       copy.querySelector(".csv-resize-handle")?.remove();
@@ -24564,7 +24587,7 @@
       if (header.querySelector(".csv-resize-handle")) return;
       var handle = document.createElement("span");
       handle.className = "csv-resize-handle";
-      handle.tabIndex = 0;
+      handle.tabIndex = index === 0 ? 0 : -1;
       handle.setAttribute("role", "separator");
       handle.setAttribute("aria-orientation", "vertical");
       handle.setAttribute("aria-valuemin", String(MIN_WIDTH));
@@ -24573,17 +24596,24 @@
         "aria-label",
         (strings.csvResizeColumn || "Resize column {column}").replace("{column}", String(index + 1))
       );
-      handle.title = strings.csvResizeHint || "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows.";
+      handle.title = strings.csvResizeHint || "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows. Alt+Left/Right moves to another column.";
       handle.addEventListener("dblclick", function(event) {
         event.preventDefault();
         fitColumn(table2, index);
+      });
+      handle.addEventListener("focus", function() {
+        for (var other of table2.querySelectorAll(".csv-resize-handle"))
+          other.tabIndex = other === handle ? 0 : -1;
       });
       handle.addEventListener("keydown", function(event) {
         if (!["ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return;
         event.preventDefault();
         event.stopPropagation();
         if (event.key === "Enter") fitColumn(table2, index);
-        else setWidth(table2, index, header.offsetWidth + (event.key === "ArrowRight" ? 10 : -10));
+        else if (event.altKey) {
+          var handles = table2.querySelectorAll(".csv-resize-handle");
+          handles[index + (event.key === "ArrowRight" ? 1 : -1)]?.focus();
+        } else setWidth(table2, index, header.offsetWidth + (event.key === "ArrowRight" ? 10 : -10));
       });
       handle.addEventListener("pointerdown", function(event) {
         if (event.button !== 0) return;
