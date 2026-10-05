@@ -107,9 +107,24 @@ export const DOWNLOAD_METRICS: ReadonlySet<MetricKey> = new Set(
  */
 export const OVERVIEW_METRICS: ReadonlySet<MetricKey> = new Set<MetricKey>(['visit'])
 
-/** ダウンロード系の合計。内訳が互いに素なので、単純な和で総ダウンロード数になる。 */
-export function downloadTotal(counts: KindCounts): number {
-  return [...DOWNLOAD_METRICS].reduce((sum, metric) => sum + counts[metric], 0)
+/**
+ * 既存ユーザの自動更新（Sparkle）。新規獲得ではないので、新規ダウンロードとは
+ * 分けて数える。
+ */
+export function updateDownloads(counts: KindCounts): number {
+  return counts.update_download
+}
+
+/**
+ * 新規ダウンロード = ダウンロード系から自動更新を除いた残り。**`DOWNLOAD_METRICS`
+ * から導く**ので、ダウンロード経路を足すと自動的にこちらへ入る（更新と新規の
+ * 和が全ダウンロード数になり、どちらにも入らない系列が黙って生まれない）。
+ */
+export function newDownloads(counts: KindCounts): number {
+  return [...DOWNLOAD_METRICS].reduce(
+    (sum, metric) => (metric === 'update_download' ? sum : sum + counts[metric]),
+    0,
+  )
 }
 
 /**

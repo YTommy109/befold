@@ -5,7 +5,8 @@ import type { KindCounts } from '../src/analytics'
 import {
   DASHBOARD_PAGES,
   DOWNLOAD_METRICS,
-  downloadTotal,
+  newDownloads,
+  updateDownloads,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   OVERVIEW_METRICS,
@@ -334,8 +335,8 @@ describe('集計の表示', () => {
     const traffic = await (await call(PAGE.traffic, AUTH_HEADERS)).text()
 
     expect(overview).toContain('<span class="value" id="count-visit">2</span>')
-    // 概要面に残るダウンロード指標は合計のみ。内訳とアップデート確認は流入面へ移した。
-    expect(overview).toContain('<span class="value" id="count-download-total">2</span>')
+    // 概要面に残るダウンロード指標は新規とアップデートのみ。内訳とアップデート確認は流入面へ移した。
+    expect(overview).toContain('<span class="value" id="count-download-new">2</span>')
     expect(overview).not.toContain('id="count-update_check"')
     expect(traffic).toContain('<span class="value" id="traffic-download">2</span>')
     expect(traffic).toContain('<span class="value" id="traffic-update_check">1</span>')
@@ -785,7 +786,7 @@ describe('SSE ストリーム', () => {
     // サーバー側で描画済みの集計表がそのまま届く（クライアントは差し替えるだけ）。
     expect(html).toContain('<h2>日毎の推移（直近 14 日）</h2>')
     expect(html).toContain('v1.10.0')
-    expect(html).toContain('<span class="value" id="count-download-total">1</span>')
+    expect(html).toContain('<span class="value" id="count-download-new">1</span>')
     // data 行は 1 行に収まっている
     expect(html).not.toContain('\n')
   })
@@ -899,12 +900,12 @@ describe('グラフ描画', () => {
     expect(daily.match(/<svg class="chart"/gu)).toHaveLength(1)
     expect(hourly.match(/<svg class="chart"/gu)).toHaveLength(1)
     // 系列の本数は面ごとに違う。概要面は人のアクセス中心（OVERVIEW_METRICS +
-    // ダウンロード合計の 1 本）、時間帯分布は KIND_LABELS の全指標。どちらも
+    // 新規ダウンロードとアップデートの 2 本）、時間帯分布は KIND_LABELS の全指標。どちらも
     // literal で固定しない（固定すると指標追加のたびにここが落ち、「1 枚に
     // まとめてあるか」という本題と関係のない修正が要る）。ユニークは母集団が
     // 違うので別節へ分けてある。色は --series-1..5 の 5 スロットが上限。
     for (const [chart, series] of [
-      [daily, OVERVIEW_METRICS.size + 1],
+      [daily, OVERVIEW_METRICS.size + 2],
       [hourly, KIND_LABELS.length],
     ] as const) {
       expect(series).toBeLessThanOrEqual(5)
@@ -1275,16 +1276,20 @@ describe('ダウンロード系指標の見せ方', () => {
   it.each([
     ['累計（全期間）', 'count'],
     ['本日（JST 0 時から）', 'today'],
-  ])('%s のカードに出るダウンロード指標は合計のみ', async (heading, prefix) => {
+  ])('%s のカードに出るダウンロード指標は新規とアップデートのみ', async (heading, prefix) => {
     // 報告された状態そのもの: LP 1 件に対し、旧バージョンが 6 件。概要面は
     // 合計だけを出すので、内訳が本体を上回って見える形にならない（TASK-551）。
     await seed('download', { source: 'lp' })
     for (let i = 0; i < 6; i += 1) await seed('download', { source: 'archive' })
+    await seed('download', { source: 'sparkle' })
+    await seed('download', { source: 'sparkle' })
 
     const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), heading)
 
-    expect(block).toContain(`<span class="value" id="${prefix}-download-total">7</span>`)
-    expect(labelOf(block, `${prefix}-download-total`)).toBe('ダウンロード合計')
+    expect(block).toContain(`<span class="value" id="${prefix}-download-new">7</span>`)
+    expect(labelOf(block, `${prefix}-download-new`)).toBe('新規ダウンロード数')
+    expect(block).toContain(`<span class="value" id="${prefix}-download-update">2</span>`)
+    expect(labelOf(block, `${prefix}-download-update`)).toBe('アップデート数')
     for (const metric of ['download', 'update_download', 'archive_download']) {
       expect(labelOf(block, `${prefix}-${metric}`)).toBe(null)
     }
@@ -1320,7 +1325,7 @@ describe('ダウンロード系指標の見せ方', () => {
     ])
   })
 
-  it('合計は内訳の和で、ダウンロード系を足しても和から漏れない', () => {
+  it('新規とアップデートの和が全ダウンロードで、ダウンロード系を足しても漏れない', () => {
     // DOWNLOAD_METRICS から導いているので、KIND_LABELS の download 系すべてが
     // 合計に入る。列挙を手書きに戻すとここが落ちる。
     const downloads = KIND_LABELS.filter((entry) => DOWNLOAD_METRICS.has(entry.kind))
@@ -1330,6 +1335,8 @@ describe('ダウンロード系指標の見せ方', () => {
       'update_download',
       'archive_download',
     ])
-    expect(downloadTotal({ ...EMPTY_COUNTS, download: 1, archive_download: 6 })).toBe(7)
+    const counts = { ...EMPTY_COUNTS, download: 1, archive_download: 6, update_download: 2 }
+    expect(newDownloads(counts)).toBe(7)
+    expect(updateDownloads(counts)).toBe(2)
   })
 })

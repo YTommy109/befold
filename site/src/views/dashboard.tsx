@@ -21,7 +21,8 @@ import {
   DELIVERY_RECENT_DAYS,
   DELIVERY_WINDOW_DAYS,
   DOWNLOAD_METRICS,
-  downloadTotal,
+  newDownloads,
+  updateDownloads,
   EVENTS_PAGE_LIMIT,
   KIND_LABELS,
   OVERVIEW_METRICS,
@@ -385,11 +386,11 @@ const SeriesChart: FC<{ title: string; labels: string[]; series: Series[] }> = (
  * `metrics` は**必須引数**。面ごとに出す指標が違う（概要面は人のアクセス中心で
  * `OVERVIEW_METRICS` のみ）ため絞れる必要があるが、デフォルト引数を置くと次に
  * 指標を足した人が渡し忘れても通り、概要面へ静かに復活する（TASK-551）。
- * ダウンロード合計だけは面に依らず出す。概要面に残すダウンロード指標は合計のみ。
+ * 新規ダウンロードとアップデートの 2 枚は面に依らず出す。概要面に残すダウンロード指標はこの 2 つのみ。
  *
  * 累計と本日で同じ関数を通す。片方だけ合計を足すと、同じ画面の上下で
- * 「ダウンロード」の意味が変わってしまう。合計は `downloadTotal` が
- * `DOWNLOAD_METRICS` から導くので、内訳を足しても和から漏れない。
+ * 「ダウンロード」の意味が変わってしまう。新規は `newDownloads` が
+ * `DOWNLOAD_METRICS` から導くので、経路を足しても漏れない。
  */
 function metricCards(counts: KindCounts, idPrefix: string, metrics: ReadonlySet<MetricKey>) {
   const first = KIND_LABELS.findIndex((entry) => DOWNLOAD_METRICS.has(entry.kind))
@@ -397,11 +398,18 @@ function metricCards(counts: KindCounts, idPrefix: string, metrics: ReadonlySet<
 
   for (const [index, entry] of KIND_LABELS.entries()) {
     if (index === first) {
-      cards.push({
-        value: downloadTotal(counts),
-        label: 'ダウンロード合計',
-        id: `${idPrefix}-download-total`,
-      })
+      cards.push(
+        {
+          value: newDownloads(counts),
+          label: '新規ダウンロード数',
+          id: `${idPrefix}-download-new`,
+        },
+        {
+          value: updateDownloads(counts),
+          label: 'アップデート数',
+          id: `${idPrefix}-download-update`,
+        },
+      )
     }
     if (!metrics.has(entry.kind)) continue
     cards.push({ value: counts[entry.kind], label: entry.label, id: `${idPrefix}-${entry.kind}` })
@@ -485,9 +493,14 @@ export const OverviewSections: FC<{ summary: OverviewSummary }> = ({ summary }) 
               values: summary.daily.map((point) => point.counts[entry.kind]),
             })),
             {
-              label: 'ダウンロード合計',
+              label: '新規ダウンロード数',
               unit: '件',
-              values: summary.daily.map((point) => downloadTotal(point.counts)),
+              values: summary.daily.map((point) => newDownloads(point.counts)),
+            },
+            {
+              label: 'アップデート数',
+              unit: '件',
+              values: summary.daily.map((point) => updateDownloads(point.counts)),
             },
           ]}
         />
@@ -720,7 +733,7 @@ export const TrafficSections: FC<{ summary: TrafficSummary }> = ({ summary }) =>
     <>
       <section class="block">
         <h2>内訳（全期間の累計）</h2>
-        {/* 概要面はページビューとダウンロード合計だけを出すので、指標ごとの総数
+        {/* 概要面はページビューと新規ダウンロード・アップデート数だけを出すので、指標ごとの総数
             （アップデート確認・ダウンロードの内訳）はここでしか読めない。数字は
             概要カードと同じ cumulativeTotals から来ており、クエリは増えない。 */}
         <Cards
