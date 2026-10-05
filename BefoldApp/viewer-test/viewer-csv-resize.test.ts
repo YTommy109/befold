@@ -53,7 +53,7 @@ describe('CSV/TSV の列幅', () => {
     },
   );
 
-  test('表示モード切替とチャンク追記で保持し、文書切替・内容変更でリセットする', async () => {
+  test('表示モード切替とチャンク追記で保持し、文書切替でリセットする', async () => {
     const viewer = loadViewerMain();
     viewer.main._mmdSetRenderDocPath('/a.csv');
     await viewer.main.render(CSV, 'csv', ',');
@@ -65,12 +65,33 @@ describe('CSV/TSV の列幅', () => {
     viewer.main.setViewMode('rendered');
     await viewer.main.render(CSV + 'new,3000,extra\n', 'csv', ',');
     expect(columnWidths(viewer)).toEqual(['110px', '100px', '40px']);
-    await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
+    viewer.main._mmdSetRenderDocPath('/b.csv');
+    await viewer.main.render(CSV, 'csv', ',');
     expect(columnWidths(viewer)).toEqual([]);
+  });
+
+  // TASK-666: 保存（内容変更）のたびに手で調整した幅を失わない。
+  test('同じパスの内容変更では列幅を保持し、列が減った分は捨て、増えた列は自然幅にする', async () => {
+    const viewer = loadViewerMain();
+    viewer.main._mmdSetRenderDocPath('/a.csv');
+    await viewer.main.render(CSV + 'x,1,2\n', 'csv', ',');
     measureHeaders(tableIn(viewer));
     key(viewer, 0, 'ArrowRight');
-    viewer.main._mmdSetRenderDocPath('/b.csv');
     await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    await viewer.main.render('Name\n日本語\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px']);
+    // 戻った 2 列目は捨てた幅を復活させず自然幅から始まる（jsdom は layout が無く下限 40px）。
+    await viewer.main.render(CSV, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '40px']);
+  });
+
+  test('文書のパスが不明（null）の再描画は別文書として列幅を捨てる', async () => {
+    const viewer = loadViewerMain();
+    await viewer.main.render(CSV, 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    await viewer.main.render(CSV, 'csv', ',');
     expect(columnWidths(viewer)).toEqual([]);
   });
 
@@ -158,6 +179,78 @@ describe('CSV/TSV の列幅', () => {
       .dispatchEvent(new viewer.window.MouseEvent('dblclick', { bubbles: true }));
     expect(columnWidths(viewer)).toEqual(widths);
     expect(viewer.document.querySelector('table[aria-hidden]')).toBeNull();
+  });
+
+  // TASK-668: 測定表の行数を固定し、行数に比例して遅くならないようにする。
+  test('auto-fit は行数が多くても測定表を一定の行数に抑え、最長の行（全角は 2 倍）を落とさない', async () => {
+    const viewer = loadViewerMain();
+    const probes: string[][] = [];
+    Object.defineProperty(viewer.window.HTMLTableElement.prototype, 'offsetWidth', {
+      get(this: HTMLTableElement) {
+        probes.push(Array.from(this.rows, (row) => row.cells[0]!.textContent!));
+        return 100;
+      },
+      configurable: true,
+    });
+    // 表示長 120。半角 100 文字より長い
+    const wide = '幅'.repeat(60);
+    const latin = 'x'.repeat(100);
+    const rows = Array.from({ length: 3000 }, (_, i) => `row${i},${i}`);
+    rows[1700] = `${wide},1`;
+    rows[2500] = `${latin},1`;
+    await viewer.main.render(`Name,Amount\n${rows.join('\n')}\n`, 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'Enter');
+    const probe = probes.at(-1)!;
+    expect(probe.length).toBeLessThanOrEqual(201);
+    expect(probe).toContain('Name');
+    expect(probe).toContain(wide);
+    expect(probe).toContain(latin);
+  });
+
+  // TASK-667: Tab で止まるハンドルは表全体で 1 つ。Alt+左右で隣の列へ移る。
+  describe('キーボード操作', () => {
+    function handles(viewer: LoadedViewer): HTMLElement[] {
+      return Array.from(tableIn(viewer).querySelectorAll<HTMLElement>('.csv-resize-handle'));
+    }
+    function tabbable(viewer: LoadedViewer): number[] {
+      return handles(viewer).flatMap((handle, index) => (handle.tabIndex === 0 ? [index] : []));
+    }
+
+    test('Tab で止まるハンドルは 1 つで、フォーカスした列に移る。追記で増えた列は止まらない', async () => {
+      const viewer = loadViewerMain();
+      await viewer.main.render(CSV, 'csv', ',');
+      expect(tabbable(viewer)).toEqual([0]);
+      handles(viewer)[1]!.focus();
+      expect(tabbable(viewer)).toEqual([1]);
+      viewer.main.appendChunk('new,3000,extra\n', 'csv', ',');
+      expect(handles(viewer)).toHaveLength(3);
+      expect(tabbable(viewer)).toEqual([1]);
+    });
+
+    test('Alt+左右は隣の列のハンドルへフォーカスを移し、幅は変えない。端では動かない', async () => {
+      const viewer = loadViewerMain();
+      await viewer.main.render(CSV, 'csv', ',');
+      measureHeaders(tableIn(viewer));
+      handles(viewer)[0]!.focus();
+      const press = (index: number, keyName: string): void => {
+        handles(viewer)[index]!.dispatchEvent(
+          new viewer.window.KeyboardEvent('keydown', {
+            key: keyName,
+            altKey: true,
+            bubbles: true,
+          }),
+        );
+      };
+      press(0, 'ArrowLeft');
+      expect(viewer.document.activeElement).toBe(handles(viewer)[0]);
+      press(0, 'ArrowRight');
+      expect(viewer.document.activeElement).toBe(handles(viewer)[1]);
+      expect(tabbable(viewer)).toEqual([1]);
+      press(1, 'ArrowRight');
+      expect(viewer.document.activeElement).toBe(handles(viewer)[1]);
+      expect(columnWidths(viewer)).toEqual([]);
+    });
   });
 
   test('ラベルを注入し、Markdown 表にはハンドルを付けない', async () => {

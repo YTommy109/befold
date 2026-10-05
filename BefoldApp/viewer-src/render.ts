@@ -102,10 +102,7 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   // このパスをキーにする。render 開始より前に採用すると、まだ旧文書が DOM に
   // 出ている間の通知が新パスのキーで保存される。
   _mmdDocPath.adoptPending();
-  prepareCsvResize(
-    _mmdDocPath.current(),
-    type === 'csv' && _mmdDocument.type() === type && _mmdDocument.content() === content,
-  );
+  prepareCsvResize(_mmdDocPath.current());
   // 描画の着地まで（mermaid の描画を await する間）DOM は既に差し替わっている。
   // 目印の列は列そのものが状態なので、ここで捨てておかないと前の文書の
   // n/N と現在位置ハイライトがその間ずっと表示され続ける。
