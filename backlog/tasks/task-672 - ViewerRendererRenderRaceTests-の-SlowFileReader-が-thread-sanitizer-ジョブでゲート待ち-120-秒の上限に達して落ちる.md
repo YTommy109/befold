@@ -3,10 +3,11 @@ id: TASK-672
 title: >-
   ViewerRendererRenderRaceTests の SlowFileReader が thread-sanitizer ジョブでゲート待ち
   120 秒の上限に達して落ちる
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-10-06 02:54'
-updated_date: '2026-10-06 04:47'
+updated_date: '2026-10-06 04:49'
 labels:
   - bug
   - test
@@ -43,4 +44,13 @@ ordinal: 857000
 - 未確認（推定）: 終了後の再描画が同じフェイクをもう一度呼び、誰も解放しない待機が上限に達した形（BlockingGate の doc にある TASK-427 の型）に見える。根拠は «unknown» への帰属とスイート自体が pass していること。確かめるには diffStateIsNotConfirmedBeforeRender 等でゲートを開く前にテストが抜ける経路を読み、ゲートを開く直前の主キュー遅延を測る。
 - 未確認: 負荷 40 本は CI（コア数の少ないランナー）と構造が同じとは限らない。再現率を比べるなら同じ負荷で 10 回程度の追加が要る。CI のコア数と並列度は未確認（gh run view 37401520728 --log で見られる）。
 - 着手の手がかり: AC#1 のうち「落ちたテストの特定」は未達（«unknown» のまま）。「協調スレッドが塞がれているか」は否定できた。
+
+原因の特定（2026-10-06、CI run 37401520728 の thread-sanitizer ログとコード参照。AC#1 の「条件」は特定、「どのテストか」は 2 件まで絞った）:
+- 実測（時刻）: スイートの 4 テストは 01:58:18.84 に同時開始。issue は 02:03:10.01（開始 + 291 秒）に記録され、4 テストの完了は 02:03:50〜02:04:24（開始 + 332〜362 秒）。つまり issue は**テストの実行中**に出ている。BlockingGate の doc（TASK-427）の「テスト終了後の再描画が同じフェイクを呼んだ」型ではない。C40-3 でも同じ順序（issue が 4086 行、4 テストの完了が 4445〜5052 行）。
+- 実測（所要）: 同じ 4 テストは単独実行で合計 0.015 秒。CI では各 332〜362 秒、C40-3 では 430〜461 秒かかった。待っていたのは MainActor の順番（`waitUntilYielding` の Task.yield）で、スイート自体が極端な混雑の中にあった。
+- 推定（上の時刻からの算術）: 上限が 120 秒（CI の env は BEFOLD_TEST_TIMEOUT_SECONDS=120、ログで確認）なので、readData の待機は開始 + 約 171 秒に始まり、291 秒までゲートが開かれなかった。ゲートを開くのはテスト本体（MainActor）で、`entered` を観測する `waitUntilYielding` を抜けてから `gate.open()` までは await が無い。よって「`entered` が立ってから、テストが MainActor の順番を得るまで」が 120 秒を超えた。
+- コード参照: `Test «unknown»` になるのは、`SlowFileReader.readData` が `withBlockingWork` の専用 Thread（BefoldKit/BlockingWork.swift）で走り、Thread は Swift Testing のテスト文脈を引き継がないため。issue は常に «unknown» になる（TASK-427 型だけの目印ではない）。この Thread は協調プールの外なので、TASK-424 の「プール枯渇」とは別。実験 A/B（プール幅 1 で 0/13）とも整合する。
+- 候補テスト（実測では未特定）: SlowFileReader に閉じたゲートを渡すのは diffStateIsNotConfirmedBeforeRender と staleImageEmbedDoesNotClobberNewerRender の 2 件。どちらも解放側が MainActor の await 越し。残り 2 件（directHTMLExit…、pendingDiffHoldsPreviousFrame…）は閉じたゲートを使わない。ラベルが共通の "SlowFileReader.readData" なので issue からは区別できない。
+- 構造上の原因: 解放が MainActor の順番待ちに左右されるのに、待機側は壁時計の上限（env 由来 120 秒）を持つ。輻輳が 120 秒を超えると、テストが正しくても落ちる。TASK-619 の fixedBudget の doc と同じ型。TASK-665 は待ちを async の境界（AsyncGate）へ移して壁時計を不要にしたが、ここの readData は同期プロトコル（FileReading）なので同じ移し方はできない。
+- 未確認: どちらのテストか。両者の差を測るには、ラベルをテストごとに分ける（例: "SlowFileReader.readData(diffState…)"）。
 <!-- SECTION:NOTES:END -->
