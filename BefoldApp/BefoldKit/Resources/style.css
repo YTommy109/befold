@@ -1036,11 +1036,23 @@ mark.mmd-find-match-current {
   outline-offset: -2px;
 }
 
-#diagram-wrap.csv-body .csv-resizing,
-#diagram-wrap.csv-body .csv-resizing * {
+.csv-resize-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
   cursor: col-resize;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.csv-resize-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fg-muted);
+  pointer-events: none;
 }
 
 /* ── CSV Rainbow ソース表示 ── */

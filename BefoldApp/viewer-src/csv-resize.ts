@@ -2,6 +2,11 @@
 import { _mmdZoom } from './zoom.js';
 
 var MIN_WIDTH = 40;
+// これを超える行数の表は、ドラッグ中に幅を更新せず案内線だけ動かし、離したときに 1 回だけ確定する。
+// 幅変更 1 回は全行の再レイアウトで、実測（TASK-669）は 10,000 行で約 0.13 秒、50,000 行で
+// 約 0.37 秒。ライブで追従したときのフレーム時間は 1,000 行で 14ms、2,000 行で 20ms
+// （30fps の目安 33ms 以内）、10,000 行で約 105ms。2,000 行は余裕を持って追従できる上限。
+var LIVE_RESIZE_MAX_ROWS = 2000;
 var widths: number[] = [];
 var path: string | null = null;
 var cancelDrag: (() => void) | undefined;
@@ -152,26 +157,54 @@ function installCsvResize(table: HTMLTableElement): void {
       var startX = event.clientX;
       var startWidth = header.offsetWidth;
       var zoom = _mmdZoom.value();
-      handle.setPointerCapture(event.pointerId);
-      table.classList.add('csv-resizing');
-      function move(e: PointerEvent): void {
-        setWidth(table, index, startWidth + (e.clientX - startX) / zoom);
+      // ライブか案内線かは開始時に 1 回だけ決める（ドラッグ中に行数が変わっても切り替えない）。
+      var guided = (table.tBodies[0]?.rows.length ?? 0) > LIVE_RESIZE_MAX_ROWS;
+      var width: number | undefined;
+      // カーソルと選択の抑止は、表へクラスやスタイルを触らず全面オーバーレイで行う。
+      // 継承プロパティ（cursor・user-select）を表で切り替えると、全セルのスタイル再計算が
+      // 走り、幅変更 1 回分（10,000 行で約 0.1 秒）かかる（TASK-669）。
+      var overlay = document.createElement('div');
+      overlay.className = 'csv-resize-overlay';
+      overlay.setAttribute('aria-hidden', 'true');
+      var guide: HTMLElement | undefined;
+      if (guided) {
+        guide = document.createElement('div');
+        guide.className = 'csv-resize-guide';
+        guide.style.left = startX + 'px';
+        overlay.append(guide);
       }
-      function finish(): void {
+      document.body.append(overlay);
+      handle.setPointerCapture(event.pointerId);
+      function move(e: PointerEvent): void {
+        width = Math.max(MIN_WIDTH, startWidth + (e.clientX - startX) / zoom);
+        // 案内線の位置は確定幅と同じ式の逆変換。下限で止まる位置も一致させる。
+        if (guide) guide.style.left = startX + (width - startWidth) * zoom + 'px';
+        else setWidth(table, index, width);
+      }
+      // 確定は pointerup だけ。取り消し・再描画では、古い表へ幅を書かない。
+      function end(commit: boolean): void {
         handle.removeEventListener('pointermove', move);
-        handle.removeEventListener('pointerup', finish);
-        handle.removeEventListener('lostpointercapture', finish);
-        handle.removeEventListener('pointercancel', finish);
-        table.classList.remove('csv-resizing');
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('lostpointercapture', onCancel);
+        handle.removeEventListener('pointercancel', onCancel);
+        overlay.remove();
         if (handle.hasPointerCapture(event.pointerId))
           handle.releasePointerCapture(event.pointerId);
         cancelDrag = undefined;
+        // 動かさずに離しただけの操作では、幅も表のレイアウトも変えない。
+        if (commit && guided && width !== undefined) setWidth(table, index, width);
+      }
+      function onUp(): void {
+        end(true);
+      }
+      function onCancel(): void {
+        end(false);
       }
       handle.addEventListener('pointermove', move);
-      handle.addEventListener('pointerup', finish);
-      handle.addEventListener('lostpointercapture', finish);
-      handle.addEventListener('pointercancel', finish);
-      cancelDrag = finish;
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('lostpointercapture', onCancel);
+      handle.addEventListener('pointercancel', onCancel);
+      cancelDrag = onCancel;
     });
     header.append(handle);
   });

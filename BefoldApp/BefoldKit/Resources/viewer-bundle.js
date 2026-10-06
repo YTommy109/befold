@@ -24497,6 +24497,7 @@
 
   // viewer-src/csv-resize.ts
   var MIN_WIDTH = 40;
+  var LIVE_RESIZE_MAX_ROWS = 2e3;
   var widths = [];
   var path = null;
   var cancelDrag;
@@ -24622,26 +24623,47 @@
         var startX = event.clientX;
         var startWidth = header.offsetWidth;
         var zoom = _mmdZoom.value();
-        handle.setPointerCapture(event.pointerId);
-        table2.classList.add("csv-resizing");
-        function move(e) {
-          setWidth(table2, index, startWidth + (e.clientX - startX) / zoom);
+        var guided = (table2.tBodies[0]?.rows.length ?? 0) > LIVE_RESIZE_MAX_ROWS;
+        var width;
+        var overlay = document.createElement("div");
+        overlay.className = "csv-resize-overlay";
+        overlay.setAttribute("aria-hidden", "true");
+        var guide;
+        if (guided) {
+          guide = document.createElement("div");
+          guide.className = "csv-resize-guide";
+          guide.style.left = startX + "px";
+          overlay.append(guide);
         }
-        function finish() {
+        document.body.append(overlay);
+        handle.setPointerCapture(event.pointerId);
+        function move(e) {
+          width = Math.max(MIN_WIDTH, startWidth + (e.clientX - startX) / zoom);
+          if (guide) guide.style.left = startX + (width - startWidth) * zoom + "px";
+          else setWidth(table2, index, width);
+        }
+        function end(commit) {
           handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", finish);
-          handle.removeEventListener("lostpointercapture", finish);
-          handle.removeEventListener("pointercancel", finish);
-          table2.classList.remove("csv-resizing");
+          handle.removeEventListener("pointerup", onUp);
+          handle.removeEventListener("lostpointercapture", onCancel);
+          handle.removeEventListener("pointercancel", onCancel);
+          overlay.remove();
           if (handle.hasPointerCapture(event.pointerId))
             handle.releasePointerCapture(event.pointerId);
           cancelDrag = void 0;
+          if (commit && guided && width !== void 0) setWidth(table2, index, width);
+        }
+        function onUp() {
+          end(true);
+        }
+        function onCancel() {
+          end(false);
         }
         handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", finish);
-        handle.addEventListener("lostpointercapture", finish);
-        handle.addEventListener("pointercancel", finish);
-        cancelDrag = finish;
+        handle.addEventListener("pointerup", onUp);
+        handle.addEventListener("lostpointercapture", onCancel);
+        handle.addEventListener("pointercancel", onCancel);
+        cancelDrag = onCancel;
       });
       header.append(handle);
     });

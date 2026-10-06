@@ -36,6 +36,38 @@ function columnWidths(viewer: LoadedViewer): string[] {
   return Array.from(tableIn(viewer).querySelectorAll('col'), (col) => col.style.width);
 }
 
+// ポインタ捕捉は jsdom に無いので、捕捉の有無だけ記録する差し替えを付ける。
+function pointerOn(viewer: LoadedViewer, handle: HTMLElement) {
+  let captured = false;
+  Object.assign(handle, {
+    setPointerCapture: () => {
+      captured = true;
+    },
+    hasPointerCapture: () => captured,
+    releasePointerCapture: () => {
+      captured = false;
+    },
+  });
+  return {
+    captured: () => captured,
+    fire(type: string, clientX: number): void {
+      const event = new viewer.window.MouseEvent(type, {
+        clientX,
+        button: 0,
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, 'pointerId', { value: 7 });
+      handle.dispatchEvent(event);
+    },
+  };
+}
+
+const overlayIn = (viewer: LoadedViewer): Element | null =>
+  viewer.document.querySelector('.csv-resize-overlay');
+const guideIn = (viewer: LoadedViewer): HTMLElement | null =>
+  viewer.document.querySelector<HTMLElement>('.csv-resize-guide');
+
 describe('CSV/TSV の列幅', () => {
   test.each([',', '\t'])(
     '左右キーは対象列だけを変更し、40px 未満にはしない (%s)',
@@ -95,6 +127,9 @@ describe('CSV/TSV の列幅', () => {
     expect(columnWidths(viewer)).toEqual([]);
   });
 
+  // 行数がしきい値（2,000）を超える CSV。
+  const BIG_CSV = 'Name,Amount\n' + 'a,1\n'.repeat(2001);
+
   test('ズームを割り戻してドラッグし、表外での終了・再描画で捕捉を解除する', async () => {
     const viewer = loadViewerMain();
     await viewer.main.render(CSV, 'csv', ',');
@@ -102,41 +137,105 @@ describe('CSV/TSV の列幅', () => {
     measureHeaders(table);
     viewer.main._mmdZoomIn();
     viewer.main._mmdZoomIn();
-    const handle = table.querySelector<HTMLElement>('.csv-resize-handle')!;
-    let captured = false;
-    Object.assign(handle, {
-      setPointerCapture: () => {
-        captured = true;
-      },
-      hasPointerCapture: () => captured,
-      releasePointerCapture: () => {
-        captured = false;
-      },
-    });
-    function pointer(type: string, clientX: number): void {
-      const event = new viewer.window.MouseEvent(type, {
-        clientX,
-        button: 0,
-        bubbles: true,
-        cancelable: true,
-      });
-      Object.defineProperty(event, 'pointerId', { value: 7 });
-      handle.dispatchEvent(event);
-    }
-    pointer('pointerdown', 100);
-    pointer('pointermove', 250);
+    const drag = pointerOn(viewer, table.querySelector<HTMLElement>('.csv-resize-handle')!);
+    drag.fire('pointerdown', 100);
+    drag.fire('pointermove', 250);
     expect(columnWidths(viewer)).toEqual(['200px', '100px']);
-    expect(table.classList.contains('csv-resizing')).toBe(true);
-    pointer('pointerup', 250);
-    pointer('pointermove', 400);
+    expect(overlayIn(viewer)).not.toBeNull();
+    drag.fire('pointerup', 250);
+    drag.fire('pointermove', 400);
     expect(columnWidths(viewer)).toEqual(['200px', '100px']);
-    expect(captured).toBe(false);
-    expect(table.classList.contains('csv-resizing')).toBe(false);
-    pointer('pointerdown', 250);
+    expect(drag.captured()).toBe(false);
+    expect(overlayIn(viewer)).toBeNull();
+    drag.fire('pointerdown', 250);
     await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
-    expect(captured).toBe(false);
-    expect(table.classList.contains('csv-resizing')).toBe(false);
+    expect(drag.captured()).toBe(false);
+    expect(overlayIn(viewer)).toBeNull();
     expect(columnWidths(viewer)).toEqual([]);
+  });
+
+  // TASK-669: 継承プロパティ（cursor・user-select）を表へ切り替えると全セルが再計算され、
+  // 幅変更 1 回分かかる。カーソルと選択の抑止は表の外のオーバーレイだけで行う。
+  test('ドラッグ中は表のクラスを変えず、全面オーバーレイでカーソルと選択を抑える。小さい表は案内線なしでライブ更新する', async () => {
+    const viewer = loadViewerMain();
+    await viewer.main.render(CSV, 'csv', ',');
+    const table = tableIn(viewer);
+    measureHeaders(table);
+    const before = table.className;
+    const drag = pointerOn(viewer, table.querySelector<HTMLElement>('.csv-resize-handle')!);
+    drag.fire('pointerdown', 100);
+    expect(table.className).toBe(before);
+    expect(overlayIn(viewer)?.parentElement).toBe(viewer.document.body);
+    expect(guideIn(viewer)).toBeNull();
+    drag.fire('pointermove', 130);
+    expect(columnWidths(viewer)).toEqual(['130px', '100px']);
+    drag.fire('pointerup', 130);
+    expect(table.className).toBe('csv-sized');
+    expect(overlayIn(viewer)).toBeNull();
+  });
+
+  describe('行数の多い表（案内線）', () => {
+    async function bigDrag(viewer: LoadedViewer) {
+      await viewer.main.render(BIG_CSV, 'csv', ',');
+      const table = tableIn(viewer);
+      measureHeaders(table);
+      return pointerOn(viewer, table.querySelector<HTMLElement>('.csv-resize-handle')!);
+    }
+
+    test('ドラッグ中は幅を更新せず案内線だけ動かし、離したときに 1 回だけ確定する', async () => {
+      const viewer = loadViewerMain();
+      const drag = await bigDrag(viewer);
+      const before = tableIn(viewer).className;
+      drag.fire('pointerdown', 100);
+      expect(guideIn(viewer)!.style.left).toBe('100px');
+      drag.fire('pointermove', 160);
+      drag.fire('pointermove', 180);
+      expect(guideIn(viewer)!.style.left).toBe('180px');
+      expect(columnWidths(viewer)).toEqual([]);
+      expect(tableIn(viewer).className).toBe(before);
+      drag.fire('pointerup', 180);
+      expect(columnWidths(viewer)).toEqual(['180px', '100px']);
+      expect(overlayIn(viewer)).toBeNull();
+    });
+
+    test('ズームを割り戻し、下限（40px）では案内線も確定幅も同じ位置で止まる', async () => {
+      const viewer = loadViewerMain();
+      const drag = await bigDrag(viewer);
+      drag.fire('pointerdown', 100);
+      drag.fire('pointermove', -500);
+      expect(guideIn(viewer)!.style.left).toBe('40px');
+      drag.fire('pointerup', -500);
+      expect(columnWidths(viewer)).toEqual(['40px', '100px']);
+    });
+
+    test('動かさずに離しただけでは幅も表のレイアウトも変えない', async () => {
+      const viewer = loadViewerMain();
+      const drag = await bigDrag(viewer);
+      drag.fire('pointerdown', 100);
+      drag.fire('pointerup', 100);
+      expect(columnWidths(viewer)).toEqual([]);
+      expect(tableIn(viewer).classList.contains('csv-sized')).toBe(false);
+    });
+
+    test('取り消し（pointercancel・捕捉の喪失・再描画）では確定せず、オーバーレイを残さない', async () => {
+      const viewer = loadViewerMain();
+      const drag = await bigDrag(viewer);
+      drag.fire('pointerdown', 100);
+      drag.fire('pointermove', 160);
+      drag.fire('pointercancel', 160);
+      expect(columnWidths(viewer)).toEqual([]);
+      expect(overlayIn(viewer)).toBeNull();
+      drag.fire('pointerdown', 100);
+      drag.fire('pointermove', 160);
+      drag.fire('lostpointercapture', 160);
+      expect(columnWidths(viewer)).toEqual([]);
+      expect(overlayIn(viewer)).toBeNull();
+      drag.fire('pointerdown', 100);
+      drag.fire('pointermove', 160);
+      await viewer.main.render(BIG_CSV + 'changed,9000\n', 'csv', ',');
+      expect(overlayIn(viewer)).toBeNull();
+      expect(columnWidths(viewer)).toEqual([]);
+    });
   });
 
   test('追加の列にもハンドルを作り、既存の幅を保持する', async () => {
