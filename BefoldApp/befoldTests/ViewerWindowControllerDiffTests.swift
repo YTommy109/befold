@@ -25,7 +25,7 @@ private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     /// ここで上書きしても `any GitFileIndexing` 越しには呼ばれない。プロトコル要件である
     /// こちらを遅くすることで、拡張経由の解決も遅くなる。
     func repositoryRoot(forFileAt url: URL) -> URL? {
-        lock.withLock { gate }.wait("SlowRootGitFileIndex.repositoryRoot")
+        lock.withLock { gate }.waitUntilOpen()
         return url.deletingLastPathComponent()
     }
 }
@@ -302,8 +302,9 @@ struct ViewerWindowControllerDiffTests {
 
     /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
     /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。ルート解決を閉じたゲートで
-    /// 足止めしたまま refreshDiff が戻ることで測る。メインアクター上で解決していれば
-    /// ゲートを開ける者がいないので、待機が上限に達して失敗が記録される。
+    /// 足止めしたまま refreshDiff が戻ることで測る。メインアクター上で解決していれば、
+    /// 閉じたゲートをメインスレッドで待つことになり、ゲートが塞がずに失敗を記録する
+    /// (BlockingGate.waitUntilOpen。ADR 0012)。
     /// refreshDiff の中へ解決の同期呼び出しを足すと落ちることを実測で確認している。
     @Test("差分の取り直しはリポジトリルート解決でメインアクターを止めない")
     func refreshDiffDoesNotBlockMainActorOnRootResolution() async {

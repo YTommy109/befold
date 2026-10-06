@@ -103,12 +103,24 @@ git サブプロセスの起動・`stat`・ディレクトリ列挙・ファイ�
 「全スイート pass なのに `«unknown»` issue で run が exit 1」という、
 失敗テスト名の出ない形で現れる（TASK-424 / TASK-427 / TASK-516 で 3 度再発した）。
 
-破れないよう次の 2 つで担保する。
+破れないよう次の 3 つで担保する。
 
 - `scripts/check-no-detached-blocking.sh`（pre-commit と CI）が
   Swift コード中の `Task.detached` を機械的に弾く
 - CI の build-and-test が通常ランと並列の strict レッグで
   `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`（プール幅 1）でも全件を回す。1 本でも協調スレッドを塞げば決定的に落ちる
+- テストのフェイクが「遅い実装」を演じる同期ゲート `BlockingGate`
+  （`BefoldTestSupport/BlockingWait.swift`）は、閉じたゲートをメインスレッドか
+  Swift Concurrency のタスクの上で待とうとすると、塞がずに失敗を記録して戻る。
+  フェイクを呼ぶ本番コードが `withBlockingWork` を通さなくなる退行は、
+  どのレッグでも待たずにテスト名つきで落ちる
+
+`BlockingGate` の待機は壁時計の上限を持たない。ゲートを開けるのはテスト本体で、
+そこへ着くまでの時間は MainActor の順番待ちで決まるため、上限があると混雑のたびに
+正しいテストが落ちる（TASK-619 / TASK-665 / TASK-672 で 3 度起きた）。戻らない回帰の
+打ち切りはスイートの `.timeLimit` に委ねる。決定の経緯は
+[ADR 0012](../adr/0012-sync-gate-without-wall-clock-bound.md) にある。
+async の注入点がある箇所では、スレッドを塞がない `AsyncGate` を先に選ぶ。
 
 ---
 

@@ -25,7 +25,7 @@ struct BlockingWorkTests {
             Task {
                 await withBlockingWork {
                     entered.update { $0 += 1 }
-                    gate.wait("BlockingWorkTests")
+                    gate.waitUntilOpen()
                 }
                 finished.update { $0 += 1 }
             }

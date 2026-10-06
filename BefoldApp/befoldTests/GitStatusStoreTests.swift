@@ -70,12 +70,11 @@ struct GitStatusStoreTests {
             let calls = calls
             lock.unlock()
             onCall?(calls)
-            // `fixedBudget` で BEFOLD_TEST_TIMEOUT_SECONDS を無視する(TASK-619)。
             // この足止めの解除は「git 実行の模した遅さ」ではなく、2 本目の要求が
             // MainActor の順番待ちを経て secondRootResolved を開くまでの時間に支配される。
-            // 同じ env 変数を使うと、フルスイートでの輻輳が増えるほど耐性も同時に縮み、
-            // 実測 111〜137 秒の輻輳に対して CI の予算(60 秒)が先に切れて誤検知していた。
-            if let block { block.wait("FakeReader.status", fixedBudget: 300) }
+            // 壁時計の上限を付けると、その上限が輻輳を測って誤検知する(TASK-619 は 60 秒で
+            // 落ち、300 秒へ延ばしても TSan の run は 363 秒かかった)。上限は持たない(ADR 0012)。
+            block?.waitUntilOpen()
             return result
         }
     }
@@ -217,6 +216,8 @@ struct GitStatusStoreTests {
         let readerEntered = AsyncGate()
         let secondRootResolved = AsyncGate()
         let release = BlockingGate()
+        // 途中で抜けても reader を走らせている専用スレッドを残さない。
+        defer { release.open() }
         let reader = FakeReader(
             results: [snapshot(modifiedStatus)],
             onCall: { _ in readerEntered.open() },

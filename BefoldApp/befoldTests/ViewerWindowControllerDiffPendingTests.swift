@@ -22,9 +22,10 @@ private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Senda
 ///
 /// 同期の索引(`GitFileIndexing.repositoryRoot`)を `BlockingGate` で塞ぐ形にしない
 /// (TASK-665)。ゲートを開くのはテスト本体がロードと差分取得を待ち終えた後で、
-/// そこへ着くまでの時間は MainActor の順番待ちで決まる。同期の待機には壁時計の上限が
-/// 要るため、並列実行ではその上限が混雑を測って切れていた(0.3 秒の上限で並列に回すと
-/// 上限超過が 2 件、CI で落ちた形そのものが出る)。async の境界で止めれば上限は要らず、
+/// そこへ着くまでの時間は MainActor の順番待ちで決まる。当時の同期ゲートは壁時計の
+/// 上限を持ち、並列実行ではその上限が混雑を測って切れていた(0.3 秒の上限で並列に回すと
+/// 上限超過が 2 件、CI で落ちた形そのものが出る)。同期ゲートの上限はその後に撤去したが
+/// (ADR 0012)、async の注入点がある箇所では専用スレッドを塞がない `AsyncGate` を先に選ぶ。
 /// ハングはスイートの打ち切りが止める。
 private struct SlowRootSidebarGitReading: SidebarGitReading {
     let gate: AsyncGate

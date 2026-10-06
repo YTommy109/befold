@@ -53,7 +53,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         private let roots: [String: URL]
         /// この URL の解決だけ gate が開くまで待つ。
         private let gatedPath: String
-        private let gate = DispatchSemaphore(value: 0)
+        private let gate = BlockingGate()
         /// gate を通過して解決を再開したかどうか(テスト側が着地待ちの起点にする)。
         let didResumeGatedLookup = LockedBox(false)
 
@@ -63,7 +63,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
         }
 
         func openGate() {
-            gate.signal()
+            gate.open()
         }
 
         func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
@@ -72,7 +72,7 @@ struct ViewerWindowManagerRecentRepositoriesTests {
 
         func repositoryRoot(forFileAt url: URL) -> URL? {
             if url.normalizedPathKey == gatedPath {
-                waitOrRecordTimeout(gate, "GatedGitFileIndex.repositoryRoot")
+                gate.waitUntilOpen()
                 didResumeGatedLookup.set(true)
             }
             return roots.first { url.path.hasPrefix($0.key) }?.value
@@ -321,6 +321,8 @@ struct ViewerWindowManagerRecentRepositoriesTests {
             files: [fileA, fileB, fileC], root: nil, defaults: defaults, gitFileIndex: index
         )
 
+        // 途中の #require で抜けても、解決を走らせている専用スレッドを残さない。
+        defer { index.openGate() }
         fixture.manager.openViewer(for: fileA)
         let controller = try #require(fixture.manager.controllers[fileA.normalizedPathKey]?.first)
         // 解決が止まっている間に別リポジトリのファイルへ切り替える。

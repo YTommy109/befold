@@ -1,3 +1,4 @@
+import BefoldKit
 import BefoldTestSupport
 import Foundation
 import Testing
@@ -5,16 +6,14 @@ import Testing
 /// 同期ブロッキングのゲート(BefoldTestSupport/BlockingWait.swift)自身のテスト。
 ///
 /// このゲートが「1 回の signal で 1 つだけ通す」実装(DispatchSemaphore)へ戻ると、
-/// テスト終了後に走った余分な待機が誰にも解放されないまま上限に達し、
-/// どのテストにも紐づかない «unknown» の Issue として記録される。全スイートが
-/// pass していても run 全体が exit 1 で落ちるうえ、失敗テスト名も出ない(TASK-427)。
-/// 壊れ方がテストの失敗として現れないため、ゲートの性質をここで直接測る。
+/// テスト終了後に走った余分な待機が誰にも解放されないまま残る(TASK-427 では上限に
+/// 達して、どのテストにも紐づかない «unknown» の Issue で run 全体が exit 1 になった。
+/// 上限を持たない今は専用スレッドが残り続ける)。どちらも壊れ方がテストの失敗として
+/// 現れないため、ゲートの性質をここで直接測る。
 @Suite(testTimeLimit())
 struct BlockingGateTests {
-    /// `wait` を **専用スレッド** で `count` 本走らせ、**ゲートが開いて戻った数**だけを
-    /// `passed` に数える。上限で戻った分を数えると、1 つずつしか通さない実装でも
-    /// 上限到達で数が揃ってしまい、テストが緑のまま «unknown» の Issue だけが残る
-    /// （TASK-427 の壊れ方そのもの）。
+    /// `waitUntilOpen` を **専用スレッド** で `count` 本走らせ、**ゲートが開いて戻った数**だけを
+    /// `passed` に数える（塞ぐのを拒んで戻った分は数えない）。
     ///
     /// `DispatchQueue.global()` で走らせないこと。塞いでいる間そのワーカーが占有され、
     /// コア数の少ない環境では `open()` を出すテスト本体の再開自体が遅れる。実測:
@@ -29,7 +28,7 @@ struct BlockingGateTests {
         for _ in 0 ..< count {
             Thread.detachNewThread {
                 entered?.update { $0 += 1 }
-                guard gate.wait("BlockingGateTests") else { return }
+                guard gate.waitUntilOpen() else { return }
                 passed.update { $0 += 1 }
             }
         }
@@ -63,29 +62,6 @@ struct BlockingGateTests {
         await waitUntil { passed.get() == 3 }
     }
 
-    @Test("上限なしの待機は open() まで戻らず、open() で戻る")
-    func waitUntilOpenReturnsOnlyAfterOpen() async {
-        let gate = BlockingGate()
-        let entered = LockedBox(false)
-        let returned = LockedBox(false)
-        Thread.detachNewThread {
-            entered.set(true)
-            gate.waitUntilOpen()
-            returned.set(true)
-        }
-
-        await waitUntil { entered.get() }
-        // 上限がある実装なら env 由来の予算で戻りうる。開ける前に戻っていないことだけを
-        // 見る（予算を待つほど長くは待たないので、上限なしであることの証明にはならない。
-        // 上限の有無は doc と実装で担保し、ここでは「開けるまで戻らない」と「開けたら戻る」を測る）。
-        await yieldMainActor()
-        #expect(returned.get() == false)
-
-        gate.open()
-
-        await waitUntil { returned.get() }
-    }
-
     @Test("最初から開いたゲートは待たせない")
     func gateCreatedOpenDoesNotBlock() async {
         let gate = BlockingGate(isOpen: true)
@@ -93,5 +69,54 @@ struct BlockingGateTests {
         startWaiters(1, on: gate, passed: passed)
 
         await waitUntil { passed.get() == 1 }
+    }
+
+    // MARK: - 塞いではいけない場所の検査（ADR 0012）
+
+    // 場所の判定（`blockingHazard`）は待機から切り離して測る。待機そのものでメインスレッドを
+    // 測ると、検査が外れた退行でメインスレッドが塞がり、失敗ではなくハングになる。
+
+    @Test("協調スレッドプール上のタスクは塞いではいけない場所と判定する")
+    func taskOnCooperativePoolIsHazardous() {
+        // このスイートは MainActor に隔離していないので、本体は協調プール上のタスクで走る。
+        #expect(BlockingGate.blockingHazard() != nil)
+    }
+
+    @Test("タスクの外でもメインスレッドは塞いではいけない場所と判定する")
+    func mainThreadOutsideTaskIsHazardous() async {
+        // メインキューのコールバックはタスクの上ではない。メインスレッドの判定だけが拾う。
+        let hazard: String? = await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume(returning: BlockingGate.blockingHazard()) }
+        }
+        #expect(hazard != nil)
+    }
+
+    @Test("withBlockingWork の専用スレッドは塞いでよい場所と判定する")
+    func blockingWorkThreadIsNotHazardous() async {
+        #expect(await withBlockingWork { BlockingGate.blockingHazard() } == nil)
+    }
+
+    @Test("閉じたゲートをタスクの上で待つと、塞がずに失敗を記録して戻る")
+    func closedGateRefusesToBlockInsideTask() async {
+        let gate = BlockingGate()
+        // 検査が外れた退行では下の Task が協調スレッドを塞ぐ。抜けるときに必ず解放する。
+        defer { gate.open() }
+        let result = LockedBox<Bool?>(nil)
+
+        await withKnownIssue {
+            Task { result.set(gate.waitUntilOpen()) }
+            // 誰も開けていないのに戻ることで「塞いでいない」を測る。塞いでいれば
+            // ここが予算切れになり、下の比較が nil で落ちる。
+            await waitUntil { result.get() != nil }
+        } matching: { issue in
+            issue.comments.contains { $0.rawValue.contains("BlockingGate") }
+        }
+
+        #expect(result.get() == false)
+    }
+
+    @Test("開いたゲートはタスクの上でも素通しする")
+    func openGatePassesInsideTask() {
+        #expect(BlockingGate(isOpen: true).waitUntilOpen())
     }
 }
