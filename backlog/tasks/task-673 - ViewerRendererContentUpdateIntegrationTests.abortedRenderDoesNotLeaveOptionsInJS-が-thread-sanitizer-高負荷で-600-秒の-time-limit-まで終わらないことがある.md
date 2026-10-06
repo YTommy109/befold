@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-06 06:00'
-updated_date: '2026-10-06 09:22'
+updated_date: '2026-10-06 12:59'
 labels:
   - bug
   - test
@@ -26,9 +26,9 @@ TASK-672 の修正後の検証（2026-10-06、TSan + CPU 負荷 yes 40 本 + 全
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 このテストが止まる await（waitForWebViewLoad の 3 つの待ち・evaluateJavaScript のどれか）、または SlowFileReader のゲートが開かれないままの待ちのどちらかが特定されている
-- [ ] #2 TASK-674.1 を含むツリー（上限なしの waitUntilOpen のみ）と、上限付きだった TASK-672 修正前のツリーで、同じ負荷・同じ回数の発生率が比較され、上限なし化由来かどうかが判定されている
-- [ ] #3 上限なし化由来なら、開け忘れ時に終わらない形（ADR 0012 の再検討条件）への対処（.timeLimit と同じ定数の自己解放など）の要否が判断され、既存の flaky ならその原因への対処が入り、同じ負荷で複数回まわして再発しないことを実測している
+- [x] #1 このテストが止まる await が特定されている（診断ログで 3 回中 3 回とも waitForWebViewLoad の最初の待ち isReady）
+- [x] #2 TASK-672 の上限なし化が原因かが判定されている（止まる位置が SlowFileReader のゲートを作る前なので、原因ではない）
+- [ ] #3 isReady が 600 秒以上来ない原因が特定され、同じ負荷・複数回の全体実行で再発しないことを実測している
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,4 +42,14 @@ TASK-674 / 674.1 との関係（2026-10-06）: (1) 674 の実測で、開け忘�
 - 結論（実測）: 『TASK-672 の上限なし化で、ゲートが開かれないまま待ち続けた』という仮説は否定。止まった時点では SlowFileReader のゲートはまだ作られていない。AC#2 の『修正前との比較』は、このテストが止まる場所がゲートの手前なので前提ごと外れる。
 - 関連（コード・文書参照）: TASK-607 が同じ型（isReady が来ない）を扱い、真因は『Task.sleep 系ではメインランループが回らず実 WKWebView のロードが前進しない。並列実行では他のテストの Task.yield がたまたまランループを回すので、通るか来ないかの二極になる』だった。本テストの waitForWebViewLoad も同じ前提（yield スピンがランループを回す）に依存している。他のテストが終わった後（約 445 秒以降）も 650 秒以上来なかったので、単なる混雑ではなく『ロードが前進しない状態』の疑い。
 - 未確認: なぜ前進しないか（WebContent プロセスの状態、didFinish が来ない/ナビゲーションの失敗、メインランループが回らない）。次は BEFOLD_RENDER_DIAGNOSTICS=1（TASK-607 の診断）と、650 秒止まった時点の sample / WebContent プロセス一覧で切り分ける。
+
+実測 2（2026-10-06、診断ログと sample。ログは .tmp/t673/、リポジトリには含まれない。診断コードは revert 済み）:
+- 追加の全体実行 + 負荷 40 本: 再現は通算 3 件目（G40 run7）。run7 は isReady で止まったまま alarm 1500 秒で打ち切られた。止まった待ちは 3 件とも最初の await の isReady（AC#1 達成）。AC#2: ゲートは isReady の後に作るので、TASK-672 の上限なし化は原因ではない（達成）。
+- 再現率（実測）: 全体実行で 3/22 前後（最初の 8 回で 2、二重実行で捨てた 8 回を除く次の 8 回で 0、次の 10 回で 1）。標本ごとにばらつく。スイート単体 + 負荷 40 本では 0/40。
+- 650 秒止まった時点の sample（run7）: メインスレッドは CFRunLoop を回している（1001 サンプル中 734 が mach_msg 待ち、107 が主キューの処理）。つまり『ランループが回らずロードが進まない』（TASK-607 の型）ではない。
+- 同じ sample で、libdispatch のワーカースレッド 53 本が -[NSAnimation _runBlocking] の入れ子ランループに入ったまま残り、『Dispatch Thread Soft Limit: 64 reached in 998 of 1001 samples』と出ている。ただし**成功した回でも同じ**だった: 通常の全体実行で 5 秒時点から 54 本（開始 5〜360 秒で増減なし、soft limit の警告も毎回出る）。したがって 54 本は止まった回の弁別材料ではない。常に上限 64 の近くで動いていて、残りは約 10 本という背景条件にすぎず、これが止まる原因だとは言えない（未確認）。
+- 発生源（未確認）: この NSAnimation スレッドを残すテスト・処理がどれかは特定できていない。全テストがほぼ同時に始まるため、時系列では絞れなかった。
+- 結論: 『止まる場所』は特定、『止まる理由』は未特定。AC#3 は未達。
+- 同じ実行で出た別の失敗（本タスクとは別。起票はしていない）: ViewerRendererOneShotIntegrationTests の『loadOneShot は描画完了まで待ってから返る』が WKWebView の JavaScript 例外で 2 回（G40 run2 / run7。TASK-672 の Notes にある修正前の同じ型の失敗と同一）、SidebarNavigatorGitStatusTests の『取得結果の .git/index を監視し…』が 1 回（E40 run4）、TSan の SEGV（libsystem_malloc。TASK-629 の型）が 1 回（E40 run8）。
+- 次の手（案。着手はユーザーの指示待ち）: (a) 止まった時点の WKWebView 側を見る（BEFOLD_RENDER_DIAGNOSTICS=1 の出力が G40 run7 のログにある。TASK-607 の診断の分岐のどこで止まったかを読む）、(b) NSAnimation スレッドの発生源を、PDF 系・ウィンドウ表示系のスイートを単独で回して sample で数えて絞る、(c) 3/22 の再現率では検証に 1 件あたり 1 時間以上かかるため、isReady に上限と診断ダンプを付けて『止まったことを即座に失敗として記録する』形（TASK-607 と同じ型）にする。
 <!-- SECTION:NOTES:END -->
