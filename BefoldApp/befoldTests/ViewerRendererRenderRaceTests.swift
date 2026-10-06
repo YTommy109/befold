@@ -106,6 +106,7 @@ struct ViewerRendererRenderRaceTests {
         // 2 回目は差分が届いた状態で、埋め込みを閉じたゲートで止める
         // （埋め込みキャッシュを避けるため embedder ごと差し替える）。
         let gate = BlockingGate()
+        defer { gate.open() }
         let entered = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(
@@ -135,6 +136,7 @@ struct ViewerRendererRenderRaceTests {
         let fileReader = SlowFileReader.makeGatedImageFileReader(markdownURL: markdownURL)
         // readData をゲートで足止めし、遅延埋め込みの完了タイミングをテストから明示的に制御する。
         let releaseGate = BlockingGate()
+        defer { releaseGate.open() }
         let embedCompleted = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(base: fileReader, releaseGate: releaseGate, completed: embedCompleted)
@@ -248,7 +250,10 @@ struct SlowFileReader: FileReading {
 
     func readData(from url: URL) throws -> Data {
         entered?.set(true)
-        releaseGate.wait("SlowFileReader.readData")
+        // 上限なしで待つ。開けるのはテスト本体（MainActor）で、混雑すると順番が数分遅れる。
+        // 壁時計の上限があると、テストが正しくても落ちる（TASK-672）。ここは withBlockingWork の
+        // 専用スレッド上なのでプールは塞がない。呼び出し側は必ず `defer { gate.open() }` を置くこと。
+        releaseGate.waitUntilOpen()
         let data = try base.readData(from: url)
         completed.set(true)
         return data

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-06 02:54'
-updated_date: '2026-10-06 04:49'
+updated_date: '2026-10-06 05:59'
 labels:
   - bug
   - test
@@ -28,9 +28,21 @@ ordinal: 857000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 落ちたテストがどれかと、上限超過の条件（混雑だけか、塞いだ協調スレッドが待ち先の進行を止めているか）を実測で特定している
-- [ ] #2 ゲートの上限を延ばす形ではなく、待ちの構造（TASK-665 と同じく async の境界へ移す等）で直っている
+- [x] #2 ゲートの上限を延ばす形ではなく、待ちの構造（TASK-665 と同じく async の境界へ移す等）で直っている
 - [ ] #3 swift test --sanitize=thread を同一ツリーで複数回まわし、当該テストが再発しないことを実測している
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. BlockingGate に waitUntilOpen()（壁時計の上限を持たない待機）を足す。doc に前提を書く: 専用 Thread 上でのみ使う（協調プールを塞ぐと TASK-424）、開ける側が必ず open() する。既定の wait（env 由来の上限）は変えず他のテストへ波及させない
+2. SlowFileReader.readData を releaseGate.waitUntilOpen() に替える（絞り込み点。3 候補テストを一括で直す）
+3. 閉じたゲートを作る 3 テストの本体で defer { gate.open() } を置き、キャンセル・早期抜けでも必ず解放する（open() は冪等）
+4. BlockingGateTests に、waitUntilOpen が open() まで戻らず open() 後に戻る（上限なし）ことを測るテストを足す
+5. 検証: swift test 全体、CPU 負荷 40 本（再現条件）で複数回。決定的な再現手段が無い（1/3）ので、「修正を戻すと落ちる」は示せない。代わりに同負荷で SlowFileReader.readData の issue が 0 件であること、残る失敗の種類（SEGV・WKWebView）を別物として記録する
+
+設計レビューの結論（/review-design、2026-10-06）: (1) 判定の真実の源: 該当しない（データの形で判定していない）。(2) 不変条件: BlockingGate の doc は『同期ブロックに無期限を許すと協調プールを永久に塞ぐ』を理由に無期限を避けている。ここは embeddedContent → withBlockingWork（専用 Thread、BlockingWork.swift）→ RenderableContent.make → readData なのでプール外（コード参照）。waitUntilOpen は専用 Thread 限定と doc に明記する。(3) 消費経路: SlowFileReader の利用は RenderRace 2 + ContentUpdateIntegration 1 の計 3 テスト（rg 実測）。フェイク側で直し、3 テストに defer を置く。兄弟（未対応）: BlockingGate を env の上限で使う他のテスト（GitCommandFileIndexConcurrencyTests / ViewerWindowControllerDiff*Tests など）は同じ型の露出を持つが、失敗の観測は無い。GitStatusStoreTests は fixedBudget: 300 で別対処済み（TASK-619）。本タスクでは触らず、観測されたら別タスクにする。(4) 表示: 該当しない（テストのみ）。(5) 順序: defer の open() は本体の open() と冪等（BlockingGate.open は opened フラグ）。解放後に走る再描画は今も起きている形で新しい露出ではない。(6) 高頻度経路: 該当しない。(7) 測るもの: 外すのは「ゲートが N 秒で開く」という検査で、テストが守る競合の意味は変わらない。残る上限は .timeLimit（既定 10 分、CI に上書きなし。Waiting.swift の doc どおり run 全体の壁時計）。実測の最長は CI 363 秒・C40 461 秒で余裕は 140 秒以上。それを超える輻輳は名前付きの失敗（.timeLimit）として出る。(8) 世代管理: 該当しない。(9) 担保: 無期限が安全な条件は『開ける側の保証』。解放を忘れたテストは、待機側ではなく waitUntilYielding の 100000 回上限で『どのテストか名前付き』の失敗になる（推定。未実測）。API の挙動は BlockingGateTests で直接測る。(10) 型グループ: ViewerRendererRenderRaceTests は 256 行（check-type-group-size 実測）、追加は数行。BlockingGate にメソッド 1 つ。プロトコル準拠・クロージャ・stored property は増えない。
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
@@ -53,4 +65,12 @@ ordinal: 857000
 - 候補テスト（実測では未特定）: SlowFileReader に閉じたゲートを渡すのは diffStateIsNotConfirmedBeforeRender と staleImageEmbedDoesNotClobberNewerRender の 2 件。どちらも解放側が MainActor の await 越し。残り 2 件（directHTMLExit…、pendingDiffHoldsPreviousFrame…）は閉じたゲートを使わない。ラベルが共通の "SlowFileReader.readData" なので issue からは区別できない。
 - 構造上の原因: 解放が MainActor の順番待ちに左右されるのに、待機側は壁時計の上限（env 由来 120 秒）を持つ。輻輳が 120 秒を超えると、テストが正しくても落ちる。TASK-619 の fixedBudget の doc と同じ型。TASK-665 は待ちを async の境界（AsyncGate）へ移して壁時計を不要にしたが、ここの readData は同期プロトコル（FileReading）なので同じ移し方はできない。
 - 未確認: どちらのテストか。両者の差を測るには、ラベルをテストごとに分ける（例: "SlowFileReader.readData(diffState…)"）。
+
+訂正（/review-design で判明）: 先の Notes の「候補テストは 2 件」は誤り。issue の発生元 :251 は共有フェイク SlowFileReader.readData の行で、このフェイクは ViewerRendererContentUpdateIntegrationTests.abortedRenderDoesNotLeaveOptionsInJS（同じ「テストが entered を待ってから gate.open()」構造）も使う。CI ログでも同テストは issue 時点（開始 + 291 秒）に実行中で 361 秒で完了している。よって候補は 3 件（RenderRace の diffStateIsNotConfirmedBeforeRender / staleImageEmbedDoesNotClobberNewerRender、ContentUpdateIntegration の abortedRenderDoesNotLeaveOptionsInJS）。3 件とも共有フェイクの待機が原因なので、フェイク側（絞り込み点）で直せば区別は要らない。
+
+実装と検証（2026-10-06）: BlockingGate.waitUntilOpen()（上限なし）を足し、SlowFileReader.readData をそれに替え、閉じたゲートを作る 3 テストに defer { gate.open() } を置いた（RenderRace 2 + ContentUpdateIntegration 1）。BlockingGateTests に「open() まで戻らず、open() で戻る」を追加。通常実行は 9 件 pass、swiftformat --lint / swiftlint は新規指摘なし。
+- 負荷下の実測（TSan、yes 40 本、BEFOLD_TEST_TIMEOUT_SECONDS=120、全体実行 6 回、ログは .tmp/t672c-C40-{1..6}.log）: (a) SlowFileReader.readData の「同期待機が」issue は 0/6、(b) SEGV は 0/6、(c) その他の失敗は 1/6、全 pass は 5/6。所要時間 439〜777 秒（CI の 363 秒、修正前 C40-3 の 463 秒と同程度かそれ以上の混雑）。
+- 限界（実測）: 修正前は 1/3、修正後は 0/6。修正前の率が 1/3 のままなら 6 回で 0 件になる確率は約 9% で、有意差が取れる標本ではない。決定的な再現手段が無いので「修正を戻すと落ちる」は示せていない。
+- 未解決（実測）: run3 で ViewerRendererContentUpdateIntegrationTests.abortedRenderDoesNotLeaveOptionsInJS が .timeLimit の 600 秒で落ちた（754 秒）。他のテストが約 445 秒で pass する中、このテストだけが終わらなかった。「同期待機が」issue は出ていない。実 WKWebView の待ち（waitForWebViewLoad / evaluateJavaScript）がある唯一のテストだが、どの await で止まったかは未確認。修正由来か既存の flaky かも未判定（修正前ツリーでの同条件の測定が無い）。別タスクへ切り出した。
+- AC#1（落ちたテストの特定）は未達のまま: 候補 3 件（共有フェイクの issue のためテストへ帰属しない）。AC#3 は 0/6 までで、上の限界により再発しないことの実測とは言えない。
 <!-- SECTION:NOTES:END -->
