@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-06 06:00'
-updated_date: '2026-10-06 12:59'
+updated_date: '2026-10-06 13:35'
 labels:
   - bug
   - test
@@ -52,4 +52,11 @@ TASK-674 / 674.1 との関係（2026-10-06）: (1) 674 の実測で、開け忘�
 - 結論: 『止まる場所』は特定、『止まる理由』は未特定。AC#3 は未達。
 - 同じ実行で出た別の失敗（本タスクとは別。起票はしていない）: ViewerRendererOneShotIntegrationTests の『loadOneShot は描画完了まで待ってから返る』が WKWebView の JavaScript 例外で 2 回（G40 run2 / run7。TASK-672 の Notes にある修正前の同じ型の失敗と同一）、SidebarNavigatorGitStatusTests の『取得結果の .git/index を監視し…』が 1 回（E40 run4）、TSan の SEGV（libsystem_malloc。TASK-629 の型）が 1 回（E40 run8）。
 - 次の手（案。着手はユーザーの指示待ち）: (a) 止まった時点の WKWebView 側を見る（BEFOLD_RENDER_DIAGNOSTICS=1 の出力が G40 run7 のログにある。TASK-607 の診断の分岐のどこで止まったかを読む）、(b) NSAnimation スレッドの発生源を、PDF 系・ウィンドウ表示系のスイートを単独で回して sample で数えて絞る、(c) 3/22 の再現率では検証に 1 件あたり 1 時間以上かかるため、isReady に上限と診断ダンプを付けて『止まったことを即座に失敗として記録する』形（TASK-607 と同じ型）にする。
+
+実測 3（2026-10-06、ユーザーの提案: yes の代わりに taskpolicy で負荷をかける）:
+- taskpolicy -b（バックグラウンド）+ 全体実行 1 回: 1151 秒で終了し、59 テストが .timeLimit（600 秒）で落ちた。全体が極端に遅くなるだけで『1 テストだけが isReady で止まる』形ではない。再現条件としては強すぎる。
+- taskpolicy -c utility + 全体実行 4 回: 129〜142 秒（無負荷の 123〜132 秒と同等）、.timeLimit 0 件、失敗 0 件。混雑にならない。
+- 結論（実測）: taskpolicy は『効かない』か『全体が崩れる』の二択で、yes N 本のように強度を刻めない（クランプは utility / background / maintenance の 3 段のみ）。再現率を調整できる負荷は yes N 本のまま（40 本で 3/22 前後）。マシン全体を使い切る点は残る。taskpolicy を負荷の置き換えにはしない。
+- 止まった回（G40 run7）の診断ログの読み（実測）: loadFileURL は 7 面で呼ばれたが didFinish は 0 件（成功した回は 2 件）。遮断ポリシー完了（WKContentRuleList のコンパイル）に 120〜141 秒かかった面が 3 つあり、その後 loadFileURL に進んでいるが、以後 1300 秒以上 didFinish が来ない。didFail / webContentProcessDidTerminate も無い。つまり『ロードは始まったが完了通知が一度も来ない』。同じ run の ViewerRendererOneShotIntegrationTests が WKWebView の JavaScript 例外で落ちているのも、ページが未ロードのまま JS を評価した形として説明がつく（推定）。
+- 未確認: 完了通知が来ない理由（WebContent プロセスの起動・応答、dispatch ワーカースレッドの上限 64 の逼迫との関係）。次に必要なのは、止まった時点でテストプロセスの子の WebContent を sample すること。再現が 3/22 前後なので、1 件の検証に 1 時間以上かかる。
 <!-- SECTION:NOTES:END -->
