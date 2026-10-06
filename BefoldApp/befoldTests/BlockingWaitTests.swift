@@ -63,6 +63,29 @@ struct BlockingGateTests {
         await waitUntil { passed.get() == 3 }
     }
 
+    @Test("上限なしの待機は open() まで戻らず、open() で戻る")
+    func waitUntilOpenReturnsOnlyAfterOpen() async {
+        let gate = BlockingGate()
+        let entered = LockedBox(false)
+        let returned = LockedBox(false)
+        Thread.detachNewThread {
+            entered.set(true)
+            gate.waitUntilOpen()
+            returned.set(true)
+        }
+
+        await waitUntil { entered.get() }
+        // 上限がある実装なら env 由来の予算で戻りうる。開ける前に戻っていないことだけを
+        // 見る（予算を待つほど長くは待たないので、上限なしであることの証明にはならない。
+        // 上限の有無は doc と実装で担保し、ここでは「開けるまで戻らない」と「開けたら戻る」を測る）。
+        await yieldMainActor()
+        #expect(returned.get() == false)
+
+        gate.open()
+
+        await waitUntil { returned.get() }
+    }
+
     @Test("最初から開いたゲートは待たせない")
     func gateCreatedOpenDoesNotBlock() async {
         let gate = BlockingGate(isOpen: true)

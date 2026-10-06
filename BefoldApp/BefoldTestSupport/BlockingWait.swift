@@ -102,4 +102,26 @@ public final class BlockingGate: @unchecked Sendable {
         }
         return true
     }
+
+    /// ゲートが開くまで、**上限なしで**呼び出しスレッドを塞ぐ。
+    ///
+    /// `wait` が上限を持つのは、解放されないままの待機を失敗として見せるため。だが、解放が
+    /// MainActor の順番待ちに左右されるフェイクでは、その上限が逆に害になる。輻輳が上限を
+    /// 超えると、テストが正しくても `Test «unknown»` の Issue で落ちる（TASK-672 の実測:
+    /// thread-sanitizer ジョブで全体が 363 秒に伸び、テスト本体が開けに来るのが 120 秒の
+    /// 上限に間に合わなかった。`fixedBudget` を伸ばしても輻輳が超えれば同じ）。
+    ///
+    /// **使える条件は 2 つ。**
+    /// - 専用スレッド（`withBlockingWork`）上でだけ呼ぶ。協調スレッドプールで上限なしに
+    ///   塞ぐと、プールが埋まってプロセス全体が止まる（TASK-424）。
+    /// - 開ける側が必ず `open()` する。テスト本体で `defer { gate.open() }` を置くこと。
+    ///   開け忘れは、待機側ではなくテスト本体の待機（`waitUntilYielding` の上限など）が
+    ///   名前付きの失敗として拾う。
+    public func waitUntilOpen() {
+        condition.lock()
+        defer { condition.unlock() }
+        while !opened {
+            condition.wait()
+        }
+    }
 }

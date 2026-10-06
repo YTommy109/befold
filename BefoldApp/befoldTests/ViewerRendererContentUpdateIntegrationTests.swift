@@ -65,6 +65,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
 
         // 2 回目: 差分 ON で描画を始め、画像埋め込みのゲートで中断させる。
         let gate = BlockingGate()
+        defer { gate.open() }
         let entered = LockedBox(false)
         renderer.imageEmbedder = MarkdownImageEmbedder(
             fileReader: SlowFileReader(
