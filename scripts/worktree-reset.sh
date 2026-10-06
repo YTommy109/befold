@@ -6,6 +6,7 @@
 #   --force       : 旧ブランチが未マージでも切り直す（旧ブランチのコミットは失われる）
 #   --no-fetch    : 事前の git fetch --prune を省略する（オフライン時）
 #   --keep-branch : 旧ローカルブランチを削除せず残す（既定は削除する）
+#   --self-test   : 完了判定が働くことを一時リポジトリで確認する（CI 用）
 # 未コミットの変更がある場合は --force でも中断する。
 set -euo pipefail
 
@@ -17,20 +18,71 @@ NEW_BRANCH=""
 FORCE=false
 FETCH=true
 KEEP_BRANCH=false
+SELF_TEST=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
     --no-fetch) FETCH=false ;;
     --keep-branch) KEEP_BRANCH=true ;;
+    --self-test) SELF_TEST=true ;;
     -h|--help)
-      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
-    -*) err "不明な引数: '$arg'（--force | --no-fetch | --keep-branch）" ;;
+    -*) err "不明な引数: '$arg'（--force | --no-fetch | --keep-branch | --self-test）" ;;
     *)
       [ -n "$NEW_BRANCH" ] && err "新ブランチ名が複数指定されています: '$NEW_BRANCH' と '$arg'"
       NEW_BRANCH="$arg" ;;
   esac
 done
+
+# 完了判定が働くこと自体を確認する。一時の bare origin と linked worktree で、実際に
+# このスクリプトを走らせる（gh だけ偽物に差し替える）。
+run_self_test() {
+  local tmp self
+  tmp="$(mktemp -d)"
+  self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  trap "rm -rf '$tmp'" EXIT
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  git init -q --bare -b main "$tmp/origin.git"
+  git clone -q "$tmp/origin.git" "$tmp/main" 2>/dev/null
+  (
+    cd "$tmp/main"
+    git switch -q -c main
+    printf 'a\n' > f.txt && git add f.txt && git commit -q -m base
+    git push -q origin main
+    git worktree add -q -b feature "$tmp/wt"
+    # feature: f.txt を変えたコミットを 1 つ積む
+    cd "$tmp/wt" && printf 'a\nfeature\n' > f.txt && git commit -q -am feature
+    # main: feature を squash merge し、その後に別の PR が同じ f.txt を変更する
+    cd "$tmp/main"
+    printf 'a\nfeature\n' > f.txt && git commit -q -am 'squash of feature (#1)'
+    printf 'a\nfeature\nlater\n' > f.txt && git commit -q -am 'later PR touching f.txt (#2)'
+    git push -q origin main
+  )
+  mkdir "$tmp/bin"
+  # 偽 gh: 環境変数 FAKE_PR_HEAD を「マージ済み PR の headRefOid」として返す
+  printf '#!/bin/sh\n[ -n "$FAKE_PR_HEAD" ] && echo "$FAKE_PR_HEAD"\nexit 0\n' > "$tmp/bin/gh"
+  chmod +x "$tmp/bin/gh"
+
+  local tip out fail=0
+  tip="$(git -C "$tmp/wt" rev-parse HEAD)"
+  # (a) 先端が PR head と一致 → 後続 PR が同じファイルを変えていても --force なしで切り直せる
+  if ! out="$(cd "$tmp/wt" && PATH="$tmp/bin:$PATH" FAKE_PR_HEAD="$tip" bash "$self" next-a 2>&1)"; then
+    echo "self-test 失敗: squash 済み（先端が PR head と一致）なのに切り直せませんでした" >&2
+    printf '%s\n' "$out" >&2
+    fail=1
+  fi
+  # (b) 先端が PR head と一致しない（squash 後に未プッシュコミットを積んだ）→ 従来どおり中断する
+  git -C "$tmp/wt" switch -q -c feature "$tip"
+  printf 'a\nfeature\nunpushed\n' > "$tmp/wt/f.txt" && git -C "$tmp/wt" commit -q -am unpushed
+  if (cd "$tmp/wt" && PATH="$tmp/bin:$PATH" FAKE_PR_HEAD="$tip" bash "$self" next-b >/dev/null 2>&1); then
+    echo "self-test 失敗: 未プッシュコミットを持つブランチを --force なしで切り直してしまいました" >&2
+    fail=1
+  fi
+  [ "$fail" -eq 0 ] && echo "self-test OK: squash 済みは切り直せ、未プッシュコミットがあれば中断する"
+  return "$fail"
+}
+if $SELF_TEST; then run_self_test; exit; fi
 
 git rev-parse --git-dir >/dev/null 2>&1 || err "git リポジトリ内で実行してください。"
 
@@ -61,7 +113,21 @@ else
   err "起点ブランチが見つかりません（origin/$MAIN_BRANCH も $MAIN_BRANCH も無し）。"
 fi
 
-# 完了判定: OLD_BRANCH が BASE の祖先（fast-forward 相当）か、OLD_BRANCH がその
+# GitHub 上でマージ済みの PR の head が、いまのブランチ先端と同じ SHA か。
+# 同じなら PR に含まれない作業は無い。後続の PR が同じファイルを変更していても
+# 影響されない（下のファイル内容の照合は、その場合に未マージと誤判定する）。
+# squash 後に未プッシュコミットを積んでいれば先端が PR head とずれるので一致しない。
+# gh が無い・オフライン（--no-fetch）・取得失敗は「一致しない」側へ倒し、下の照合へ落とす。
+pr_merged_at_tip() {
+  $FETCH && command -v gh >/dev/null 2>&1 || return 1
+  local tip heads
+  tip="$(git rev-parse "$1")"
+  heads="$(gh pr list --head "$1" --state merged --json headRefOid -q '.[].headRefOid' 2>/dev/null || true)"
+  printf '%s\n' "$heads" | grep -qx "$tip"
+}
+
+# 完了判定: OLD_BRANCH が BASE の祖先（fast-forward 相当）か、先端がマージ済み PR の head と
+# 一致するか、OLD_BRANCH がその
 # merge-base から変更したファイルすべてが BASE の現在の内容と一致するか（squash merge
 # を含む）で決める。
 #
@@ -73,6 +139,8 @@ fi
 REASON=""
 if git merge-base --is-ancestor "$OLD_BRANCH" "$BASE" 2>/dev/null; then
   REASON="merged"
+elif pr_merged_at_tip "$OLD_BRANCH"; then
+  REASON="squashed"
 else
   MERGE_BASE="$(git merge-base "$OLD_BRANCH" "$BASE" 2>/dev/null || true)"
   if [ -n "$MERGE_BASE" ]; then

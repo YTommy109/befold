@@ -150,6 +150,8 @@ jobs:
             --key-id "$NOTARY_KEY_ID" \
             --issuer "$NOTARY_ISSUER_ID" \
             --wait 2>&1 | tee "$RUNNER_TEMP/notarytool.log"
+          # pipefail は使わない: Invalid で非 0 終了しても下の公証ログ出力へ届かせるため
+          notary_rc=${PIPESTATUS[0]}
 
           rm "$key_path"
 
@@ -168,6 +170,11 @@ jobs:
             echo "::endgroup::"
             echo "::error::Notarization failed with status Invalid"
             exit 1
+          fi
+
+          if [ "$notary_rc" -ne 0 ]; then
+            echo "::error::notarytool submit failed (exit $notary_rc)"
+            exit "$notary_rc"
           fi
 
       - name: 公証チケットを .app にステープルする
