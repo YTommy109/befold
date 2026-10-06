@@ -51,7 +51,7 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
         lock.unlock()
         if root.path == blockedRootPath {
             enteredBlockedEnumeration.set(true)
-            releaseBlockedEnumeration.wait("BlockingRepository.trackedFiles")
+            releaseBlockedEnumeration.waitUntilOpen()
         }
         return [root.appendingPathComponent("a.swift")]
     }

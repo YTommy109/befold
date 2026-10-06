@@ -2,7 +2,10 @@ import Foundation
 import Testing
 
 /// 同期的にスレッドを塞ぐ待機（`DispatchSemaphore.wait()`）に、必ず上限を付けるための
-/// ヘルパー。フェイクが「遅い実装」を演じるためにブロックする箇所で使う。
+/// ヘルパー。**テスト本体の側**が、バックグラウンドの完了（サブプロセスの終了など）を
+/// 同期に待つ箇所で使う。フェイクが「遅い実装」を演じる足止めには使わない
+/// （`BlockingGate` を使う。足止めに壁時計の上限を付けると、上限が MainActor の
+/// 順番待ちを測ってしまう = ADR 0012）。
 ///
 /// なぜ上限が要るか（TASK-424 の実測）:
 /// 上限なしの `wait()` は、待っている間そのスレッドを協調スレッドプールから外す。
@@ -28,10 +31,6 @@ public func waitOrRecordTimeout(
     let budget = testTimeoutSeconds(fallback: seconds)
     guard semaphore.wait(timeout: .now() + budget) == .timedOut else { return }
 
-    recordBlockingWaitTimeout(label, budget: budget, sourceLocation: sourceLocation)
-}
-
-private func recordBlockingWaitTimeout(_ label: String, budget: Double, sourceLocation: SourceLocation) {
     Issue.record(
         "\(label): 同期待機が \(budget) 秒で上限に達した（解放されないまま協調スレッドを塞いでいる）",
         sourceLocation: sourceLocation
@@ -40,7 +39,8 @@ private func recordBlockingWaitTimeout(_ label: String, budget: Double, sourceLo
 
 /// `open()` されるまで呼び出しスレッドを**同期的に**塞ぐゲート。`AsyncGate` の同期版で、
 /// async にできない同期プロトコル実装（`FileReading.readData` など）のフェイクが
-/// 「遅い実装」を演じる箇所で使う。開いた後の `wait` は何回来ても即座に戻る。
+/// 「遅い実装」を演じる箇所で使う。開いた後の `waitUntilOpen` は何回来ても即座に戻る。
+/// async の注入点が既にある箇所では、こちらではなく `AsyncGate` を先に選ぶ。
 ///
 /// なぜ `DispatchSemaphore` を 1 回 signal する形で代用しないか（TASK-427 の実測）:
 /// signal は待機者を 1 つしか通さないため、テスト終了後に走った再描画が同じフェイクを
@@ -61,7 +61,7 @@ public final class BlockingGate: @unchecked Sendable {
         opened = isOpen
     }
 
-    /// ゲートを開き、待機中の全員を再開する。以後の `wait` は即座に戻る。
+    /// ゲートを開き、待機中の全員を再開する。以後の `waitUntilOpen` は即座に戻る。
     public func open() {
         condition.lock()
         opened = true
@@ -69,59 +69,55 @@ public final class BlockingGate: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// ゲートが開くまで呼び出しスレッドを塞ぐ。上限に達したら `Issue.record` して戻る
-    /// （上限が要る理由は `waitOrRecordTimeout` の doc を参照）。
-    /// - Parameter fixedBudget: 指定すると `BEFOLD_TEST_TIMEOUT_SECONDS` を無視し、
-    ///   この秒数をそのまま上限にする。この待機を解く条件が「模している処理の遅さ」ではなく
-    ///   MainActor の順番待ちなどランナーの輻輳そのものに左右される場合に使う(TASK-619)。
-    ///   輻輳への耐性と輻輳の実測値を同じ env 変数に委ねると、CI が遅くなるほど両方が
-    ///   同時に縮み、耐性が実測を下回る形で必ず食い合う。`waitForMainActorDelivery`
-    ///   (Waiting.swift)が同種の待機で壁時計予算を env に持たせない設計を、同期版のここでも
-    ///   踏襲する（ただしここは完全に無期限にはしない。`.timeLimit` はテストの async な
-    ///   待機点でしかキャンセルを効かせないため、同期ブロックに無期限を許すと
-    ///   協調スレッドプールを永久に塞ぐ TASK-424 の再発になる）。
-    /// - Returns: ゲートが開いて戻ったら true。上限に達したら false。
-    ///   呼び出し元がテスト本体なら無視してよい（失敗は記録済み）。ゲート自身の
-    ///   テストのように「上限で戻った」を通過と区別したい場合にだけ参照する。
+    /// ゲートが開くまで、**上限なしで**呼び出しスレッドを塞ぐ。
+    ///
+    /// **壁時計の上限は持たず、呼び出し側が指定する手段も無い（ADR 0012）。** ゲートを
+    /// 開けるのはテスト本体で、そこへ着くまでの時間は MainActor の順番待ちで決まる。
+    /// 上限があると、それは模した処理の遅さではなく順番待ちを測り、混雑が超えるたびに
+    /// 正しいテストが落ちる（TASK-619 は 60 秒、TASK-665 は 15 秒、TASK-672 は 120 秒で
+    /// 落ちた）。戻らない回帰の打ち切りは、async の待機と同じくスイートの `.timeLimit` に
+    /// 委ねる。
+    ///
+    /// **塞いではいけない場所では塞がない。** 閉じたゲートを `blockingHazard()` が nil で
+    /// ない場所で待とうとしたら、`Issue.record` してすぐ戻る。フェイクを呼ぶ本番コードが
+    /// `withBlockingWork` をやめてタスクの上やメインスレッドで同期に呼ぶ退行は、
+    /// これで待たずに失敗になる。開いたゲートは、どこから来ても素通しする。
+    ///
+    /// テスト本体では `defer { gate.open() }` を置くこと。開け忘れたまま結果を待つと
+    /// テストが戻らず、`.timeLimit` の記録は出るが run が終わらない（ADR 0012 の実測）。
+    /// - Returns: ゲートが開いて戻ったら true。塞ぐのを拒んで戻ったら false。
+    ///   フェイクは無視してよい（失敗は記録済み）。
     @discardableResult
-    public func wait(
-        _ label: String,
-        fallback seconds: Double = 15,
-        fixedBudget: Double? = nil,
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) -> Bool {
-        let budget = fixedBudget ?? testTimeoutSeconds(fallback: seconds)
-        let deadline = Date(timeIntervalSinceNow: budget)
+    public func waitUntilOpen(sourceLocation: SourceLocation = #_sourceLocation) -> Bool {
         condition.lock()
         defer { condition.unlock() }
+        if opened { return true }
+        if let hazard = Self.blockingHazard() {
+            Issue.record(
+                """
+                閉じた BlockingGate を、塞いではいけない場所（\(hazard)）で待とうとした。\
+                同期に塞ぐとその前進が止まるため、塞がずに戻った。フェイクを呼ぶ処理が \
+                withBlockingWork の専用スレッドへ逃がされているかを確認すること
+                """,
+                sourceLocation: sourceLocation
+            )
+            return false
+        }
         while !opened {
-            guard condition.wait(until: deadline) else {
-                recordBlockingWaitTimeout(label, budget: budget, sourceLocation: sourceLocation)
-                return false
-            }
+            condition.wait()
         }
         return true
     }
 
-    /// ゲートが開くまで、**上限なしで**呼び出しスレッドを塞ぐ。
+    /// 呼び出し元の場所を同期に塞ぐと何が止まるか。塞いでよい場所（専用スレッド）なら nil。
     ///
-    /// `wait` が上限を持つのは、解放されないままの待機を失敗として見せるため。だが、解放が
-    /// MainActor の順番待ちに左右されるフェイクでは、その上限が逆に害になる。輻輳が上限を
-    /// 超えると、テストが正しくても `Test «unknown»` の Issue で落ちる（TASK-672 の実測:
-    /// thread-sanitizer ジョブで全体が 363 秒に伸び、テスト本体が開けに来るのが 120 秒の
-    /// 上限に間に合わなかった。`fixedBudget` を伸ばしても輻輳が超えれば同じ）。
-    ///
-    /// **使える条件は 2 つ。**
-    /// - 専用スレッド（`withBlockingWork`）上でだけ呼ぶ。協調スレッドプールで上限なしに
-    ///   塞ぐと、プールが埋まってプロセス全体が止まる（TASK-424）。
-    /// - 開ける側が必ず `open()` する。テスト本体で `defer { gate.open() }` を置くこと。
-    ///   開け忘れは、待機側ではなくテスト本体の待機（`waitUntilYielding` の上限など）が
-    ///   名前付きの失敗として拾う。
-    public func waitUntilOpen() {
-        condition.lock()
-        defer { condition.unlock() }
-        while !opened {
-            condition.wait()
-        }
+    /// Swift Concurrency のタスクは協調スレッドプールか MainActor の上で走るので、
+    /// タスクの上で塞げばそのどちらかが止まる。メインスレッドは、タスクの外
+    /// （メインキューのコールバックなど）から来た場合も塞いではいけない。
+    /// `DispatchQueue.global()` のワーカーは拾えない（タスクの上ではないため）。
+    public static func blockingHazard() -> String? {
+        if Thread.isMainThread { return "メインスレッド" }
+        if withUnsafeCurrentTask(body: { $0 != nil }) { return "Swift Concurrency のタスク" }
+        return nil
     }
 }

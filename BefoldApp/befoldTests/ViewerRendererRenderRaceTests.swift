@@ -250,9 +250,8 @@ struct SlowFileReader: FileReading {
 
     func readData(from url: URL) throws -> Data {
         entered?.set(true)
-        // 上限なしで待つ。開けるのはテスト本体（MainActor）で、混雑すると順番が数分遅れる。
-        // 壁時計の上限があると、テストが正しくても落ちる（TASK-672）。ここは withBlockingWork の
-        // 専用スレッド上なのでプールは塞がない。呼び出し側は必ず `defer { gate.open() }` を置くこと。
+        // 開けるのはテスト本体（MainActor）で、混雑すると順番が数分遅れる（TASK-672）。
+        // 待機に上限は無い。呼び出し側は必ず `defer { gate.open() }` を置くこと。
         releaseGate.waitUntilOpen()
         let data = try base.readData(from: url)
         completed.set(true)
