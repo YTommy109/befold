@@ -3,11 +3,11 @@ id: TASK-672
 title: >-
   ViewerRendererRenderRaceTests の SlowFileReader が thread-sanitizer ジョブでゲート待ち
   120 秒の上限に達して落ちる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-10-06 02:54'
-updated_date: '2026-10-06 05:59'
+updated_date: '2026-10-06 07:43'
 labels:
   - bug
   - test
@@ -27,9 +27,9 @@ ordinal: 857000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 落ちたテストがどれかと、上限超過の条件（混雑だけか、塞いだ協調スレッドが待ち先の進行を止めているか）を実測で特定している
-- [x] #2 ゲートの上限を延ばす形ではなく、待ちの構造（TASK-665 と同じく async の境界へ移す等）で直っている
-- [ ] #3 swift test --sanitize=thread を同一ツリーで複数回まわし、当該テストが再発しないことを実測している
+- [x] #1 上限超過の条件（混雑だけか、塞いだ協調スレッドが待ち先の進行を止めているか）を実測で特定している。どのテストかは共有フェイクの issue のため 3 候補までで、テストへの帰属は取り下げる（直す場所が共有フェイクで、区別が要らないため）
+- [x] #2 ゲートの上限を延ばす形ではなく、待ちの構造（上限なしの waitUntilOpen）で直っている。後に TASK-674.1 が同じ待機を BlockingGate の唯一の API にして吸収した
+- [x] #3 TSan + CPU 負荷 40 本の全体実行 6 回で、SlowFileReader.readData の同期待機の issue が 0 件である（修正前 1/3。標本が小さく有意差は取れておらず、再発しないことの証明ではない）
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -73,4 +73,12 @@ ordinal: 857000
 - 限界（実測）: 修正前は 1/3、修正後は 0/6。修正前の率が 1/3 のままなら 6 回で 0 件になる確率は約 9% で、有意差が取れる標本ではない。決定的な再現手段が無いので「修正を戻すと落ちる」は示せていない。
 - 未解決（実測）: run3 で ViewerRendererContentUpdateIntegrationTests.abortedRenderDoesNotLeaveOptionsInJS が .timeLimit の 600 秒で落ちた（754 秒）。他のテストが約 445 秒で pass する中、このテストだけが終わらなかった。「同期待機が」issue は出ていない。実 WKWebView の待ち（waitForWebViewLoad / evaluateJavaScript）がある唯一のテストだが、どの await で止まったかは未確認。修正由来か既存の flaky かも未判定（修正前ツリーでの同条件の測定が無い）。別タスクへ切り出した。
 - AC#1（落ちたテストの特定）は未達のまま: 候補 3 件（共有フェイクの issue のためテストへ帰属しない）。AC#3 は 0/6 までで、上の限界により再発しないことの実測とは言えない。
+
+完了の判断（2026-10-06、ユーザー指示）: AC を実態に合わせて書き換えて Done にする。元の AC#1 のうち「どのテストか」と、元の AC#3「再発しないことの実測」は達成できなかった（上の限界のとおり、決定的な再現手段が無く標本も 0/6）。取り下げる理由: 同型の失敗が 3 件目（TASK-619 / 665 / 672）になり、個別修正でなく構造で塞ぐ方針に切り替えたため（TASK-674 / ADR 0012）。TASK-674.1 で waitUntilOpen が BlockingGate の唯一の待機 API になり、本タスクの修正は吸収された。残る未解決の run3 失敗（abortedRenderDoesNotLeaveOptionsInJS が 600 秒で time limit）は TASK-673 で扱う。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+SlowFileReader.readData の壁時計の上限付き待機が、TSan の極端な混雑（MainActor の順番待ちが 120 秒を超える）で正しいテストを落とす原因だったと特定し、上限なしの waitUntilOpen へ替えて 3 テストに defer { gate.open() } を置いた（PR #714）。TSan + 負荷 40 本 6 回で当該 issue は 0 件（修正前 1/3、標本が小さく有意差は無い）。どのテストかの特定と再発しないことの実測は未達で、同型 3 件目として TASK-674 の構造対策（ADR 0012、TASK-674.1 で待機 API を 1 本化）へ引き継いだ。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -104,7 +104,11 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     override func toggleSidebar(_ sender: Any?) {
         guard allowsSidebar else { return }
         let wasCollapsed = sidebarItem.isCollapsed
-        super.toggleSidebar(sender)
+        if Self.shouldAnimateSidebarToggle(in: view.window) {
+            super.toggleSidebar(sender)
+        } else {
+            sidebarItem.isCollapsed.toggle()
+        }
         onCollapsedChange(sidebarItem.isCollapsed)
         if wasCollapsed, !sidebarItem.isCollapsed {
             // 開いた直後にサイドバー(アウトラインビュー)へフォーカスを移し、フォルダー名を
@@ -119,6 +123,16 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         if !wasCollapsed, sidebarItem.isCollapsed {
             onSidebarDidHide()
         }
+    }
+
+    /// サイドバーの開閉をアニメーションさせてよいか。**画面に出ていない窓ではさせない。**
+    ///
+    /// 出ていない窓では AppKit の開閉アニメーション(`NSAnimation`)が完了せず、呼び出しごとに
+    /// libdispatch のワーカースレッドを 1 本塞いだまま残す。全体テストでは窓を作るテストが
+    /// 約 50 本をそのまま積み、スレッドの上限(64)の手前で動くことになる(TASK-673。
+    /// 実測: 54 本 → 0 本)。見せるものが無いので、アニメーションなしで確定させる。窓が無い(まだ載っていない)ときは従来どおり AppKit に任せる。
+    static func shouldAnimateSidebarToggle(in window: NSWindow?) -> Bool {
+        window?.isVisible ?? true
     }
 
     @available(*, unavailable)
