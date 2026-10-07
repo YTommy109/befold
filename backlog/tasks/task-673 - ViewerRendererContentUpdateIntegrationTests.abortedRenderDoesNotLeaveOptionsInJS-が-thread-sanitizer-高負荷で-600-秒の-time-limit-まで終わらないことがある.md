@@ -3,11 +3,11 @@ id: TASK-673
 title: >-
   ViewerRendererContentUpdateIntegrationTests.abortedRenderDoesNotLeaveOptionsInJS
   が thread-sanitizer + 高負荷で 600 秒の time limit まで終わらないことがある
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-10-06 06:00'
-updated_date: '2026-10-07 00:50'
+updated_date: '2026-10-07 00:59'
 labels:
   - bug
   - test
@@ -28,7 +28,7 @@ TASK-672 の修正後の検証（2026-10-06、TSan + CPU 負荷 yes 40 本 + 全
 <!-- AC:BEGIN -->
 - [x] #1 このテストが止まる await が特定されている（診断ログで 3 回中 3 回とも waitForWebViewLoad の最初の待ち isReady）
 - [x] #2 TASK-672 の上限なし化が原因かが判定されている（止まる位置が SlowFileReader のゲートを作る前なので、原因ではない）
-- [ ] #3 isReady が 600 秒以上来ない原因が特定され、同じ負荷・複数回の全体実行で再発しないことを実測している
+- [x] #3 止まる原因の探索を、有効な標本（有効な全体実行 + 負荷 40 本）で行い、特定できた分（NSAnimation スレッドの漏れ）は対処し、未特定の分は TASK-675 へ切り出している。再発しないことの実測は達成できておらず、既知の flaky として記録する（ユーザー判断、選択肢 3）
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -68,4 +68,12 @@ TASK-674 / 674.1 との関係（2026-10-06）: (1) 674 の実測で、開け忘�
 - 未確認の候補（いずれも仮説）: (1) 画面に出ていない WKWebView の WebContent が OS に低優先度として扱われ、CPU 負荷 40 本の下で数分〜永久に走らせてもらえない、(2) UI プロセスと WebContent の間の通知が、特定のタイミングで届かないまま両側がアイドルになる（止まった回の観測と整合）。(1) は CPU 負荷の強さに依存するはずで、taskpolicy（弱い設定では混雑にならず、強い設定では全体が崩れる）と整合する。いずれも本タスクの範囲では裏づけを取れていない。
 - 実験の注意（私の運用ミス、記録）: 実験の実行中に別のビルド・テスト・変異テストを走らせたため、V40 run11/12 と F2 の 7 回は無効（二重実行・並走。ログに 945 秒の時刻の飛び、止め忘れた swift test が 1 時間以上並走）。有効なのは V40 run1〜10 と F4 の 12 回。計測中は、ビルド・テストを一切走らせず、止め忘れを pgrep で確認すること。
 - AC#3 は未達（原因の特定と再発しないことの実測）。状態は In Progress のまま。選択肢（ユーザー判断）: (a) 実 WKWebView のロード完了待ちを持つテストを、TASK-607 と同じく実 WebView 依存を外して Swift 側の状態で測る形へ変える（このテストは JS 側の _mmdViewOptions を直接読むので、外せるかの検討が要る）、(b) isReady に上限と診断ダンプを付けて、止まったことを即座に失敗として記録する（原因は残る）、(c) 本件を『負荷下で実 WKWebView のロードが数分遅れる既知の flaky』として記録して止め、原因探索は別タスクに切り出す。
+
+完了の判断（2026-10-07、ユーザー指示: 選択肢 3『既知の flaky として記録して止め、原因探索は別タスクへ』）: AC#3 を実態に合わせて書き換えて Done にする。『原因の特定』と『再発しないことの実測』は達成できていない。理由は実測 4 のとおり、NSAnimation の漏れを除去しても停止の率に有意な差が出なかったため（修正前 4/34、修正後 1/22）。止まる理由（ロード完了の通知が来ない）は TASK-675 へ切り出した。それまでの扱い: このテストは負荷下の全体実行（TSan など）で稀に（1/20 前後）time limit に達しうる既知の flaky で、CI での観測はまだ無い。観測されたら TASK-675 の材料にする。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ViewerRendererContentUpdateIntegrationTests.abortedRenderDoesNotLeaveOptionsInJS が負荷下の全体実行で 600 秒の time limit に達する件を調べ、止まる場所が最初の待ち isReady（実 WKWebView のロード完了待ち）であること、TASK-672 の上限なし化は原因でないことを診断ログで特定した。全体実行で libdispatch のワーカースレッド 54 本が -[NSAnimation _runBlocking] で塞がれたまま残る漏れを見つけ、発生源の ViewerSplitViewController.toggleSidebar を、画面に出ていない窓ではアニメーションなしにして除去した（54 本 → 0 本、回帰テスト付き、無負荷の全体実行 2002 件 pass。コミット 9a184df9）。ただし停止は直らず（修正前 4/34、修正後 1/22、有意差なし）、ロード完了の通知が来ない理由は未特定のため、既知の flaky として記録し、原因探索を TASK-675 へ引き継いだ。
+<!-- SECTION:FINAL_SUMMARY:END -->
