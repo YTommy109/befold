@@ -1286,7 +1286,7 @@ describe('ダウンロード系指標の見せ方', () => {
 
     const block = section(await (await call(PAGE.overview, AUTH_HEADERS)).text(), heading)
 
-    expect(block).toContain(`<span class="value" id="${prefix}-download-new">7</span>`)
+    expect(block).toContain(`<span class="value" id="${prefix}-download-new">1</span>`)
     expect(labelOf(block, `${prefix}-download-new`)).toBe('新規ダウンロード数')
     expect(block).toContain(`<span class="value" id="${prefix}-download-update">2</span>`)
     expect(labelOf(block, `${prefix}-download-update`)).toBe('アップデート数')
@@ -1325,9 +1325,9 @@ describe('ダウンロード系指標の見せ方', () => {
     ])
   })
 
-  it('新規とアップデートの和が全ダウンロードで、ダウンロード系を足しても漏れない', () => {
-    // DOWNLOAD_METRICS から導いているので、KIND_LABELS の download 系すべてが
-    // 合計に入る。列挙を手書きに戻すとここが落ちる。
+  it('新規ダウンロードは LP のみで、旧バージョン経由（ボット直接取得が大半）を含めない', () => {
+    // archive を新規へ混ぜると、ページビューより新規ダウンロードが多い並びになる
+    // （実測: 10/5 は PV 38 に対し LP 5 + archive 48）。
     const downloads = KIND_LABELS.filter((entry) => DOWNLOAD_METRICS.has(entry.kind))
 
     expect(downloads.map((entry) => entry.kind)).toEqual([
@@ -1336,7 +1336,7 @@ describe('ダウンロード系指標の見せ方', () => {
       'archive_download',
     ])
     const counts = { ...EMPTY_COUNTS, download: 1, archive_download: 6, update_download: 2 }
-    expect(newDownloads(counts)).toBe(7)
+    expect(newDownloads(counts)).toBe(1)
     expect(updateDownloads(counts)).toBe(2)
   })
 })

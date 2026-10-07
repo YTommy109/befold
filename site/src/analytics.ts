@@ -116,15 +116,13 @@ export function updateDownloads(counts: KindCounts): number {
 }
 
 /**
- * 新規ダウンロード = ダウンロード系から自動更新を除いた残り。**`DOWNLOAD_METRICS`
- * から導く**ので、ダウンロード経路を足すと自動的にこちらへ入る（更新と新規の
- * 和が全ダウンロード数になり、どちらにも入らない系列が黙って生まれない）。
+ * 新規ダウンロード = 配布 LP 経由（source='lp'）だけ。旧バージョン（archive）を
+ * 含めない。archive は DMG の URL を直接取得するボットが大半（実測: 累計 862 件中
+ * 582 件）で、ページを経由しないため、混ぜると「ページビューより新規ダウンロードが
+ * 多い」という成立しない並びになる。内訳は流入面で読む。
  */
 export function newDownloads(counts: KindCounts): number {
-  return [...DOWNLOAD_METRICS].reduce(
-    (sum, metric) => (metric === 'update_download' ? sum : sum + counts[metric]),
-    0,
-  )
+  return counts.download
 }
 
 /**
