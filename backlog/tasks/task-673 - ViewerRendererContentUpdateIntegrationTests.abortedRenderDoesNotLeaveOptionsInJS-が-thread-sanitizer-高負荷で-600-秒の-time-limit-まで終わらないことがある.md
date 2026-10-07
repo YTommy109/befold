@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-06 06:00'
-updated_date: '2026-10-06 13:35'
+updated_date: '2026-10-07 00:50'
 labels:
   - bug
   - test
@@ -59,4 +59,13 @@ TASK-674 / 674.1 との関係（2026-10-06）: (1) 674 の実測で、開け忘�
 - 結論（実測）: taskpolicy は『効かない』か『全体が崩れる』の二択で、yes N 本のように強度を刻めない（クランプは utility / background / maintenance の 3 段のみ）。再現率を調整できる負荷は yes N 本のまま（40 本で 3/22 前後）。マシン全体を使い切る点は残る。taskpolicy を負荷の置き換えにはしない。
 - 止まった回（G40 run7）の診断ログの読み（実測）: loadFileURL は 7 面で呼ばれたが didFinish は 0 件（成功した回は 2 件）。遮断ポリシー完了（WKContentRuleList のコンパイル）に 120〜141 秒かかった面が 3 つあり、その後 loadFileURL に進んでいるが、以後 1300 秒以上 didFinish が来ない。didFail / webContentProcessDidTerminate も無い。つまり『ロードは始まったが完了通知が一度も来ない』。同じ run の ViewerRendererOneShotIntegrationTests が WKWebView の JavaScript 例外で落ちているのも、ページが未ロードのまま JS を評価した形として説明がつく（推定）。
 - 未確認: 完了通知が来ない理由（WebContent プロセスの起動・応答、dispatch ワーカースレッドの上限 64 の逼迫との関係）。次に必要なのは、止まった時点でテストプロセスの子の WebContent を sample すること。再現が 3/22 前後なので、1 件の検証に 1 時間以上かかる。
+
+実測 4（2026-10-07。NSAnimation スレッドの漏れの除去と、その効果の検証。コミット 9a184df9）:
+- 発生源を特定（実測）: 全体実行の開始 5 秒時点で libdispatch のワーカースレッド 54 本が -[NSAnimation _runBlocking] で塞がれたまま残り（全体 145 スレッド前後、『Dispatch Thread Soft Limit: 64 reached』）、ViewerSplitViewController.toggleSidebar の super.toggleSidebar（AppKit のアニメーション付き開閉）を、画面に出ていない窓で呼ぶと 1 回ごとに 1 本残る。toggleSidebar をアニメーションなしにすると 54 本 → 0 本、全体 約 20〜30 スレッド、警告も消えた。
+- 対処（コミット 9a184df9）: 画面に出ていない窓ではアニメーションなしで確定させる（ViewerSplitViewController.shouldAnimateSidebarToggle(in:)）。窓が無い・出ている場合は従来どおり。回帰テスト ViewerSplitViewControllerAnimationTests を追加（判定を『常に true』に戻すと落ちることを確認）。無負荷の全体実行は 2002 件 pass。
+- 重要（実測）: この対処は TASK-673 の停止を直さなかった。停止の率: 修正前は有効な全体実行 + 負荷 40 本で 4/34（F40 2/8、E40 0/7、G40 1/10、H40 1/9）、修正後は 1/22（V40 run1〜10 で 0/10、最終コードの F4 run1〜12 で 1/12）。F4 run10 で TASK-673 と同じ症状（対象テストが 600 秒の time limit、678 秒で終了）が、NSAnimation スレッドの漏れを除去した状態で出た。差は有意でない（標本が小さい）。したがって『スレッド上限の逼迫が isReady の来ない原因』という仮説は裏づけられなかった。
+- 追加の事実（F4 run10 の診断ログ、実測）: 対象テストの面は loadFileURL が開始 70 秒、didFinish が開始 670 秒で、ロード完了まで約 10 分かかっている。他のテストは約 428 秒で全部終わっており、そこから約 4 分、ロードだけが残った。同じ run の別の面は loadFileURL から didFinish まで 80 秒。成功した回でも didFinish は実行の最後（他のテストが終わるころ）に届く。止まった回（H40 run8、G40 run7）では、メインスレッドはランループを回しており、テストが起動した WebContent と Networking は mach_msg で完全にアイドルだった（UI 側・WebContent 側のどちらも何もしていない）。
+- 未確認の候補（いずれも仮説）: (1) 画面に出ていない WKWebView の WebContent が OS に低優先度として扱われ、CPU 負荷 40 本の下で数分〜永久に走らせてもらえない、(2) UI プロセスと WebContent の間の通知が、特定のタイミングで届かないまま両側がアイドルになる（止まった回の観測と整合）。(1) は CPU 負荷の強さに依存するはずで、taskpolicy（弱い設定では混雑にならず、強い設定では全体が崩れる）と整合する。いずれも本タスクの範囲では裏づけを取れていない。
+- 実験の注意（私の運用ミス、記録）: 実験の実行中に別のビルド・テスト・変異テストを走らせたため、V40 run11/12 と F2 の 7 回は無効（二重実行・並走。ログに 945 秒の時刻の飛び、止め忘れた swift test が 1 時間以上並走）。有効なのは V40 run1〜10 と F4 の 12 回。計測中は、ビルド・テストを一切走らせず、止め忘れを pgrep で確認すること。
+- AC#3 は未達（原因の特定と再発しないことの実測）。状態は In Progress のまま。選択肢（ユーザー判断）: (a) 実 WKWebView のロード完了待ちを持つテストを、TASK-607 と同じく実 WebView 依存を外して Swift 側の状態で測る形へ変える（このテストは JS 側の _mmdViewOptions を直接読むので、外せるかの検討が要る）、(b) isReady に上限と診断ダンプを付けて、止まったことを即座に失敗として記録する（原因は残る）、(c) 本件を『負荷下で実 WKWebView のロードが数分遅れる既知の flaky』として記録して止め、原因探索は別タスクに切り出す。
 <!-- SECTION:NOTES:END -->
