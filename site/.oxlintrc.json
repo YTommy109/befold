@@ -84,6 +84,17 @@
       "rules": { "eslint/no-undef": "off" }
     },
     {
+      // TASK-684 の一時除外。外しても通る状態にするのが後続タスクの AC。
+      // 実測 analytics.ts 1726 / dashboard.tsx 1126 行 → TASK-685 / TASK-686。
+      "files": ["src/analytics.ts", "src/views/dashboard.tsx"],
+      "rules": { "eslint/max-lines": "off" }
+    },
+    {
+      // 実測 249 行のコンポーネント 1 関数 → TASK-689。
+      "files": ["src/views/landing.tsx"],
+      "rules": { "eslint/max-lines-per-function": "off" }
+    },
+    {
       "files": ["test/**"],
       "plugins": ["vitest"],
       "env": { "vitest": true },
@@ -93,6 +104,9 @@
         // いるメッセージが全部エラーになる（実測 20 件）。
         // ベース側にも同じ指定があるが、override で vitest プラグインを有効化すると
         // そちらのルール設定が引き継がれないため、ここにも書く。
+        // サイズ上限（TASK-684）。行数は 1000、関数長は無制限（根拠はルート設定）。
+        "eslint/max-lines": ["error", 1000],
+        "eslint/max-lines-per-function": "off",
         "vitest/valid-expect": ["error", { "maxArgs": 2 }],
         // テストは「この入力ならこう」を並べる場所で、テーブル駆動の for ループと
         // 逐次 await（D1 へ順に INSERT するなど）が既存の書き方。並列化すると
@@ -109,6 +123,11 @@
       "plugins": ["node"],
       "env": { "node": true },
       "rules": { "eslint/no-await-in-loop": "off" }
+    },
+    {
+      // TASK-684 の一時除外。実測 1693 / 1452 / 1342 行 → TASK-688。
+      "files": ["test/analytics.test.ts", "test/public.test.ts", "test/dashboard.test.ts"],
+      "rules": { "eslint/max-lines": "off" }
     }
   ]
 }

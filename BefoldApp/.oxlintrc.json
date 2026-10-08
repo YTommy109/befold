@@ -154,10 +154,34 @@
       }
     },
     {
+      // TASK-684 の一時除外。外しても通る状態にするのが後続タスク TASK-687 の AC。
+      // 実測: diff-html.ts 578 / find.ts 587 / jump.ts 448 / jump-providers.ts 454 行。
+      "files": [
+        "viewer-src/diff-html.ts",
+        "viewer-src/find.ts",
+        "viewer-src/jump.ts",
+        "viewer-src/jump-providers.ts"
+      ],
+      "rules": { "eslint/max-lines": "off" }
+    },
+    {
+      // 実測の関数長 find.ts 389 / jump.ts 248 行 → TASK-687。
+      "files": ["viewer-src/find.ts", "viewer-src/jump.ts"],
+      "rules": { "eslint/max-lines-per-function": "off" }
+    },
+    {
+      // 実測 appendChunk の complexity 30・ネスト 5 → TASK-687。
+      "files": ["viewer-src/render.ts"],
+      "rules": { "eslint/complexity": "off", "eslint/max-depth": "off" }
+    },
+    {
       "files": ["viewer-test/**"],
       "plugins": ["jest"],
       "env": { "jest": true, "node": true },
       "rules": {
+        // サイズ上限（TASK-684）。行数は 1000、関数長は無制限（根拠はルート設定）。
+        "eslint/max-lines": ["error", 1000],
+        "eslint/max-lines-per-function": "off",
         "jest/valid-expect": ["error", { "maxArgs": 2 }],
         // テーブル駆動の for ループが既存の書き方。
         "jest/no-conditional-in-test": "off",
@@ -177,6 +201,11 @@
       "plugins": ["node"],
       "env": { "node": true, "browser": false },
       "rules": { "eslint/no-await-in-loop": "off" }
+    },
+    {
+      // TASK-684 の一時除外。実測 1574 / 1551 行 → TASK-688。
+      "files": ["viewer-test/viewer-main.test.ts", "viewer-test/viewer.test.ts"],
+      "rules": { "eslint/max-lines": "off" }
     }
   ]
 }

@@ -1,10 +1,11 @@
 ---
 id: TASK-684
 title: TS 側のファイル・関数サイズ上限を oxlint で持つ（閾値を決めて有効化する）
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-10-08 09:34'
-updated_date: '2026-10-08 09:35'
+updated_date: '2026-10-08 09:55'
 labels:
   - lint
   - site
@@ -48,15 +49,23 @@ max-lines の超過ファイル（BefoldApp/）: viewer-src/csv-html.ts, diff-ht
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 max-lines / max-lines-per-function / max-depth / import/max-dependencies / complexity のそれぞれについて、閾値を「採用する値」または「採用しない理由」として決め、ルート .oxlintrc.json のコメントに実測件数つきで残す
-- [ ] #2 テストファイル（site/test, viewer-test）の扱い（同じ閾値 / 緩い閾値 / 除外）を決めて設定に反映し、理由をコメントに書く
-- [ ] #3 採用したルールは site/ と BefoldApp/ の両面で error として有効になり、`npm run lint` が両面で通る
-- [ ] #4 現時点の超過ファイルは面ごとの override で理由・実測行数・後続タスク ID つきで一時除外し、除外一覧を Implementation Notes に残す
-- [ ] #5 analytics.ts / dashboard.tsx 以外の超過ファイルについて、分割タスクを起票するか閾値を見直すかを決めて Notes に記録する
+- [x] #1 max-lines / max-lines-per-function / max-depth / import/max-dependencies / complexity のそれぞれについて、閾値を「採用する値」または「採用しない理由」として決め、ルート .oxlintrc.json のコメントに実測件数つきで残す
+- [x] #2 テストファイル（site/test, viewer-test）の扱い（同じ閾値 / 緩い閾値 / 除外）を決めて設定に反映し、理由をコメントに書く
+- [x] #3 採用したルールは site/ と BefoldApp/ の両面で error として有効になり、`npm run lint` が両面で通る
+- [x] #4 現時点の超過ファイルは面ごとの override で理由・実測行数・後続タスク ID つきで一時除外し、除外一覧を Implementation Notes に残す
+- [x] #5 analytics.ts / dashboard.tsx 以外の超過ファイルについて、分割タスクを起票するか閾値を見直すかを決めて Notes に記録する
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 後続（このタスクの override 一時除外を外す側）: TASK-685 analytics.ts、TASK-686 views/dashboard.tsx。
+
+除外一覧（2026-10-08）: site=analytics.ts 1726/dashboard.tsx 1126 行(max-lines, TASK-685/686)、landing.tsx 関数249行(TASK-689)、test 3本 1693/1452/1342(TASK-688)。BefoldApp=diff-html 578/find 587/jump 448/jump-providers 454 行、find 389・jump 248 行関数、render.ts complexity30・depth5(TASK-687)、viewer-test 2本 1574/1551(TASK-688)。AC5: 残りは TASK-687/688/689 を起票。閾値: max-lines 400(test 1000)、関数 150(test off)、complexity 20、max-depth 4、max-dependencies 不採用(結線側3件)。検証: site/BefoldApp とも npm run lint 終了0、format:check OK。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイズ上限を oxlint で有効化し、超過は面ごとの override で後続タスク付きに一時除外。lint は両面で通過。
+<!-- SECTION:FINAL_SUMMARY:END -->
