@@ -84,11 +84,6 @@
       "rules": { "eslint/no-undef": "off" }
     },
     {
-      // 実測 249 行のコンポーネント 1 関数 → TASK-689。
-      "files": ["src/views/landing.tsx"],
-      "rules": { "eslint/max-lines-per-function": "off" }
-    },
-    {
       "files": ["test/**"],
       "plugins": ["vitest"],
       "env": { "vitest": true },
