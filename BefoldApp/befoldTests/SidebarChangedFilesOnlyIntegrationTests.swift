@@ -157,12 +157,96 @@ struct SidebarChangedFilesOnlyIntegrationTests {
         #expect(navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["a.md"])
     }
 
+    /// ブランチ内でコミット済みの `changed.md` だけが base..HEAD に載り、作業ツリーはクリーンな
+    /// リポジトリ(TASK-353.3)。`.head` ならバッジも絞り込み対象も空になる。
+    private func makeBranchChangedRepository() async throws -> (TempDir, [FileListEntry]) {
+        let temp = try TempDir()
+        try await GitTestRepo.offMainActor {
+            GitTestRepo.initRepository(at: temp.url)
+            for name in ["changed.md", "clean.md"] {
+                _ = try temp.file(named: name, contents: "base")
+            }
+            GitTestRepo.commitAll(in: temp.url)
+            GitTestRepo.createBranch(named: "feature", in: temp.url)
+            _ = try temp.file(named: "changed.md", contents: "after")
+            GitTestRepo.commitAll(message: "change", in: temp.url)
+        }
+        let entries = ["changed.md", "clean.md"].map {
+            FileListEntry(url: temp.url.appendingPathComponent($0), kind: .file)
+        }
+        return (temp, entries)
+    }
+
+    @MainActor
+    @Test("変更のみ表示は窓の比較基準に従い、デフォルトブランチ基準ならコミット済みの変更が残る")
+    func filterFollowsDefaultBranchTarget() async throws {
+        let (temp, entries) = try await makeBranchChangedRepository()
+        defer { withExtendedLifetime(temp) {} }
+        let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
+        host.comparisonTarget = .defaultBranch
+        let navigator = makeNavigator(directory: temp.url, entries: entries, host: host)
+        defer { navigator.cancelPendingListing() }
+
+        navigator.refreshFileList()
+        await navigator.awaitSettled()
+
+        let key = temp.url.appendingPathComponent("changed.md").normalizedPathKey
+        #expect(navigator.fileListModel.gitStatus?.fileStatus(at: key)?.branchChange == .modified)
+        #expect(navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+    }
+
+    /// 「作業中の変更」(.head)は base = HEAD で、ブランチ内のコミット済み変更にバッジを出さない。
+    /// 実装側に `.head` の特別扱いは無く、base..HEAD が空になることの帰結。
+    @MainActor
+    @Test("作業中の変更基準では、コミット済みの変更にバッジも絞り込みの残りも出ない")
+    func headTargetShowsNoBranchChanges() async throws {
+        let (temp, entries) = try await makeBranchChangedRepository()
+        defer { withExtendedLifetime(temp) {} }
+        let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
+        host.comparisonTarget = .head
+        let navigator = makeNavigator(directory: temp.url, entries: entries, host: host)
+        defer { navigator.cancelPendingListing() }
+
+        navigator.refreshFileList()
+        await navigator.awaitSettled()
+
+        #expect(navigator.fileListModel.gitStatus != nil)
+        #expect(navigator.fileListModel.visibleEntries.isEmpty)
+    }
+
+    /// 基準を切り替えると、`.git/index` が動いていなくてもバッジが取り直される。
+    /// `GitStatusStore` のキャッシュが target 違いで再利用されると、旧基準のバッジが残る。
+    @MainActor
+    @Test("基準を切り替えて取り直すと、バッジと絞り込みが新しい基準に追従する")
+    func switchingTargetRecomputesBadges() async throws {
+        let (temp, entries) = try await makeBranchChangedRepository()
+        defer { withExtendedLifetime(temp) {} }
+        let host = SidebarNavigatorStubHost(currentFileURL: temp.url)
+        host.comparisonTarget = .defaultBranch
+        let navigator = makeNavigator(directory: temp.url, entries: entries, host: host)
+        defer { navigator.cancelPendingListing() }
+        navigator.refreshFileList()
+        await navigator.awaitSettled()
+        #expect(navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["changed.md"])
+
+        host.comparisonTarget = .head
+        navigator.refreshGitStatuses(policy: .always)
+        await navigator.awaitSettled()
+
+        #expect(navigator.fileListModel.visibleEntries.isEmpty)
+    }
+
     /// 実 Reader / Store を本番と同じ組み合わせで繋いだ SidebarNavigator を作る。
     @MainActor
     private func makeNavigator(
-        directory: URL, entries: [FileListEntry], preference: SidebarDisplayDefaults,
+        directory: URL, entries: [FileListEntry], preference: SidebarDisplayDefaults? = nil,
         host: SidebarNavigatorStubHost
     ) -> SidebarNavigator {
+        let preference = preference ?? {
+            let preference = SidebarDisplayDefaults(defaults: makeIsolatedDefaults(prefix: "GitStatusTarget"))
+            preference.record { $0.showChangedFilesOnly = true }
+            return preference
+        }()
         let gitFileIndex = GitCommandFileIndex()
         let store = GitStatusStore(
             reader: makeReader(),
@@ -174,9 +258,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             selection: nil,
             displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: entries) },
-            git: SidebarGitReadingStub(statuses: { directory, policy in
-                await store.statuses(forDirectoryAt: directory, target: .defaultBranch, policy: policy)
-            })
+            git: SidebarGitReader(fileIndex: gitFileIndex, statusStore: store)
         )
         navigator.attach(to: host)
         return navigator

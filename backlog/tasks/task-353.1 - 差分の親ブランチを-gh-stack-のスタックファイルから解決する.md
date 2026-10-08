@@ -1,11 +1,11 @@
 ---
 id: TASK-353.1
 title: 差分の親ブランチを gh-stack のスタックファイルから解決する
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-10-08 01:59'
-updated_date: '2026-10-08 04:23'
+updated_date: '2026-10-08 04:54'
 labels: []
 milestone: m-11
 dependencies: []
@@ -81,3 +81,9 @@ TASK-353 の「このブランチの変更」は `merge-base(HEAD, 親ブラン�
 - JSON は {schemaVersion:1, repository, stacks:[{trunk:{branch,head}, branches:[{branch, base}]}]}。実物では base が常に入っていたが、pullRequest は PR 作成前なので無かった。base は使わない方針のまま（隣接要素＋trunk で決まる）。
 - 未確認: gh-stack 新版（common dir へ統合）の実物。上流ソースの記述（HasLegacyState）からの推定で、common dir も読む実装にしてある。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+親ブランチ解決と GitComparisonResolution を実装。gh-stack v0.1.1 の配置を実物で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -1,10 +1,11 @@
 ---
 id: TASK-353.3
 title: サイドバーの git バッジを窓の比較基準に追従させる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-10-08 02:00'
-updated_date: '2026-10-08 02:19'
+updated_date: '2026-10-08 04:54'
 labels: []
 milestone: m-11
 dependencies:
@@ -26,10 +27,10 @@ TASK-352 で、差分ビューアとサイドバーのバッジの基準を `Git
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 「このブランチの変更」「スタック全体の変更」では、ブランチで変更のバッジがその基準..HEAD の範囲に付く
-- [ ] #2 「作業中の変更」では、ブランチで変更のバッジを出さない
-- [ ] #3 「変更のみ表示」の絞り込みも同じ基準に従う
-- [ ] #4 基準を切り替えたときにバッジが再計算される
+- [x] #1 「このブランチの変更」「スタック全体の変更」では、ブランチで変更のバッジがその基準..HEAD の範囲に付く
+- [x] #2 「作業中の変更」では、ブランチで変更のバッジを出さない
+- [x] #3 「変更のみ表示」の絞り込みも同じ基準に従う
+- [x] #4 基準を切り替えたときにバッジが再計算される
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -46,3 +47,15 @@ TASK-352 で、差分ビューアとサイドバーのバッジの基準を `Git
 - `SidebarNavigator`（425/425）と `FileListModel`（400/400）は余裕ゼロ。どちらにも行を足さない。足す必要が出たらこのタスクで分割せず、設計へ戻る
 - 空状態の文言（"No Changed Files"）は 3 基準とも事実と一致するので変えない
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+新コードなし。AC#1〜#4 は 353.2 の経路(GitStatusReader.status(target:) → branchChanges(base:)、setComparisonTarget → refreshGitStatuses(.always)、SidebarGitStatus.hasChange)で成立していることをコードと実 git のテストで確認した。「作業中なら branchChanges を飛ばす」分岐は足していない(.head は base..HEAD が空になる帰結)。追加テスト: SidebarChangedFilesOnlyIntegrationTests に target 別 3 件(defaultBranch で残る / head で空 / 切替後に取り直し)。FileListGitStatusGate 自体は target を知らない。旧 target のスナップショットを捨てるのは SidebarGitStatusCoordinator.apply の request.target 照合で、SidebarNavigatorGitStatusTests.discardsStatusesFetchedUnderOldTarget で担保(照合を外すと落ちることを確認)。Reader が target を無視する変異でも 3 件 + AC#5 のテストが落ちる。全 swift test 2032 件 pass(既知 known issue 1 件は BlockingWaitTests)、swiftformat --lint ゼロ、swiftlint は変更ファイルに指摘なし、xcodebuild build 成功。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+バッジ・絞り込みは 353.2 の target 経路で追従。テストで固定。
+<!-- SECTION:FINAL_SUMMARY:END -->

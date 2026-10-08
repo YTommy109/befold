@@ -72,4 +72,32 @@ struct GitStatusBranchDiffIntegrationTests {
         #expect(status?.worktreeChange == .modified)
         #expect(status?.branchChange == nil)
     }
+
+    /// TASK-353.2 AC#5。ブランチ内でコミット済みのファイルは、基準がデフォルトブランチなら
+    /// 差分があり、基準が HEAD なら差分が空になる。差分モードの選択可否はその事実に追従する。
+    @Test("基準を変えるとファイルが未変更になり、差分モードの選択可否が基準に追従する")
+    func diffAvailabilityFollowsComparisonTarget() throws {
+        let temp = try TempDir()
+        defer { withExtendedLifetime(temp) {} }
+        GitTestRepo.initRepository(at: temp.url)
+        _ = try temp.file(named: "a.md", contents: "base")
+        GitTestRepo.commitAll(in: temp.url)
+        GitTestRepo.createBranch(named: "feature", in: temp.url)
+        _ = try temp.file(named: "a.md", contents: "after")
+        GitTestRepo.commitAll(message: "change", in: temp.url)
+        let file = temp.url.appendingPathComponent("a.md")
+        let baseDirectory = BaseDirectoryDescriptor(rootLookup: .root(temp.url), workspaceRoot: temp.url)
+
+        func availability(_ target: GitComparisonTarget) throws -> GitDiffAvailability {
+            let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: target))
+            let result = GitStatusResult(snapshot: snapshot, repositoryRoot: temp.url)
+            return GitDiffAvailability.make(
+                baseDirectory: baseDirectory, gitStatus: SidebarGitStatus(result: result), fileURL: file
+            )
+        }
+
+        #expect(try availability(.defaultBranch) == .changed)
+        #expect(try availability(.head) == .unchanged)
+        #expect(try !availability(.head).allowsDiffSelection)
+    }
 }
