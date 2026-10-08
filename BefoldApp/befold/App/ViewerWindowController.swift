@@ -33,7 +33,8 @@ final class ViewerWindowController: NSWindowController {
         loader: diffLoader, gitFileIndex: gitFileIndex, store: store,
         displayPreference: diffDisplayPreference,
         currentURL: { [weak self] in self?.fileURL },
-        capabilities: { [weak self] in self?.capabilities ?? .none }
+        capabilities: { [weak self] in self?.capabilities ?? .none },
+        diffContentDidChange: { [weak self] in self?.refreshUIState() }
     )
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     /// 判断は diffPresenter が持ち、ここは生成時の受け渡しと共有インスタンスの照合のために保つ。
