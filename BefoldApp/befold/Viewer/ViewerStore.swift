@@ -101,6 +101,13 @@ final class ViewerStore {
     /// 切替直後に前のファイルの差分が残る（開始時の無効化と着地時の確認は別物）。
     var diffContent: ViewerDiffContent = .unavailable
 
+    /// 差分(とサイドバーのバッジ)が何と比べるか。窓ごとのライブ値で、永続化しない
+    /// (新しい窓は常に `GitComparisonTarget.windowDefault` から始まる / TASK-353)。
+    /// ファイル単位の記憶(`WindowPresentationMemory`)にも載せない: 基準は窓の設定であって
+    /// ファイルの設定ではない。**書き込み口は `ViewerDocumentPresenter.setComparisonTarget(_:)` だけ**
+    /// (サイドバーの取り直しと差分の降格を対にするため)。
+    var comparisonTarget: GitComparisonTarget = .windowDefault
+
     /// 開いているファイルが rename / move されたときに旧 URL と新 URL を通知する。
     /// ウィンドウ側がタイトル・representedURL・セッション記録・per-file 状態の移行を
     /// 更新するために使う。旧 URL は store が握る唯一の現在 URL(currentURL)であり、

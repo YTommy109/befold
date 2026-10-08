@@ -8,7 +8,9 @@ import libgit2
 protocol GitDiffReading: Sendable {
     /// - Returns: 取得できた結果。リポジトリを開けなかった場合は nil。
     ///   nil は「不明」であって「差分なし」ではないため、呼び出し側はキャッシュしてはならない。
-    func diff(forFileAt url: URL, in root: URL) -> GitFileDiff?
+    ///
+    /// `target` は必須引数(`GitStatusReading.status` と同じ理由)。
+    func diff(forFileAt url: URL, in root: URL, target: GitComparisonTarget) -> GitFileDiff?
 }
 
 /// 比較の起点から作業ツリーまでの unified diff を libgit2 で読む本番実装。
@@ -38,7 +40,7 @@ struct GitDiffReader: GitDiffReading {
         self.byteLimit = byteLimit
     }
 
-    func diff(forFileAt url: URL, in root: URL) -> GitFileDiff? {
+    func diff(forFileAt url: URL, in root: URL, target: GitComparisonTarget) -> GitFileDiff? {
         // 比較の起点はサイドバーのバッジと同じものを使う。ここを独自に決めると
         // 「バッジは変更ありなのに差分は空」が生まれる。過去 2 度それが起きている
         // (index 比較でステージ済みが消えた件と、HEAD 比較でブランチのコミット済み
@@ -46,7 +48,7 @@ struct GitDiffReader: GitDiffReading {
         //
         // 起点が分からないとき(デフォルトブランチを特定できない・リモートが無い・
         // detached HEAD)だけ HEAD へ落とす。差分が空だったから落とす、ではない。
-        let base = comparisonBase.comparisonBase(forRepositoryAt: root, target: .defaultBranch)?.baseID ?? "HEAD"
+        let base = comparisonBase.comparisonBase(forRepositoryAt: root, target: target)?.baseID ?? "HEAD"
         let outcome = GitLibrary.withRepository(at: root) { repository -> GitFileDiff in
             // コミットが 1 つも無いリポジトリでは比較の相手が存在しない。
             // 出力の有無からは区別できないため、HEAD が未生成かという事実で判定する。

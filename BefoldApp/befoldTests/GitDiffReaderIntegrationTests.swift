@@ -15,6 +15,11 @@ struct GitDiffReaderIntegrationTests {
         GitDiffReader()
     }
 
+    /// デフォルトブランチ基準の差分(この群の fixture が前提にしている基準)。
+    private func diff(of file: URL, in root: URL) -> GitFileDiff? {
+        makeReader().diff(forFileAt: file, in: root, target: .defaultBranch)
+    }
+
     /// 読むだけで済む分類を 1 つのリポジトリにまとめて確かめる。ファイルごとに状態を変えた
     /// fixture を 1 回で作り、差分はファイル単位の pathspec で取るので互いに干渉しない
     /// (TASK-662.6。以前は 7 件が個別に init・commit していた)。
@@ -22,7 +27,7 @@ struct GitDiffReaderIntegrationTests {
     @Test("読むだけの分類を共有リポジトリで確かめる", arguments: ReadOnlyCase.allCases)
     func classifiesFileInSharedRepository(_ readOnlyCase: ReadOnlyCase) throws {
         let root = try Self.sharedRepository.get().url
-        let result = makeReader().diff(forFileAt: root.appendingPathComponent(readOnlyCase.fileName), in: root)
+        let result = diff(of: root.appendingPathComponent(readOnlyCase.fileName), in: root)
         readOnlyCase.verify(result)
     }
 
@@ -139,7 +144,7 @@ struct GitDiffReaderIntegrationTests {
         GitTestRepo.initRepository(at: temp.url)
         try GitTestRepo.addUntrackedFile(named: "a.swift", in: temp.url)
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        let result = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
 
         #expect(result == .noCommits)
     }
@@ -150,7 +155,7 @@ struct GitDiffReaderIntegrationTests {
         defer { withExtendedLifetime(temp) {} }
         try GitTestRepo.addUntrackedFile(named: "a.swift", in: temp.url)
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        let result = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
 
         #expect(result == .notInRepository)
     }
@@ -172,8 +177,8 @@ struct GitDiffReaderIntegrationTests {
         let repository = GitRepository()
         let before = repository.indexFingerprint(at: temp.url)
 
-        _ = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
-        _ = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        _ = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        _ = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
 
         #expect(repository.indexFingerprint(at: temp.url) == before)
     }
@@ -201,7 +206,7 @@ struct GitDiffReaderIntegrationTests {
             "a.swift", contents: lines.joined(separator: "\n"), in: temp.url
         )
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        let result = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
         guard case let .diff(text) = result else {
             Issue.record("差分が返らなかった: \(String(describing: result))")
             return
@@ -247,7 +252,7 @@ struct GitDiffReaderIntegrationTests {
         try GitTestRepo.modifyWithoutStaging("big.txt", contents: huge, in: temp.url)
 
         let result = GitDiffReader(byteLimit: limit)
-            .diff(forFileAt: temp.url.appendingPathComponent("big.txt"), in: temp.url)
+            .diff(forFileAt: temp.url.appendingPathComponent("big.txt"), in: temp.url, target: .defaultBranch)
 
         guard case let .tooLarge(byteCount) = result else {
             Issue.record("tooLarge が返らなかった: \(String(describing: result))")
@@ -268,6 +273,11 @@ struct GitDiffComparisonBaseIntegrationTests {
         GitDiffReader()
     }
 
+    /// デフォルトブランチ基準の差分(この群の fixture が前提にしている基準)。
+    private func diff(of file: URL, in root: URL) -> GitFileDiff? {
+        makeReader().diff(forFileAt: file, in: root, target: .defaultBranch)
+    }
+
     private func makeStatusReader() -> GitStatusReader {
         GitStatusReader()
     }
@@ -282,7 +292,7 @@ struct GitDiffComparisonBaseIntegrationTests {
         GitTestRepo.createBranch(named: "feature", in: temp.url)
         try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        let result = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
 
         guard case let .diff(text) = result else {
             Issue.record("差分が返らなかった: \(String(describing: result))")
@@ -302,7 +312,7 @@ struct GitDiffComparisonBaseIntegrationTests {
         try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
         try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
 
-        let result = makeReader().diff(forFileAt: temp.url.appendingPathComponent("a.swift"), in: temp.url)
+        let result = diff(of: temp.url.appendingPathComponent("a.swift"), in: temp.url)
 
         #expect(result == .noChanges)
     }
@@ -321,11 +331,11 @@ struct GitDiffComparisonBaseIntegrationTests {
 
         let file = temp.url.appendingPathComponent("a.swift")
         // HEAD 基準なので、コミット済みの変更は出ない。
-        #expect(makeReader().diff(forFileAt: file, in: temp.url) == .noChanges)
+        #expect(diff(of: file, in: temp.url) == .noChanges)
 
         // 未コミットの変更は HEAD 基準でも出る(機能全体が死んでいないことの確認)。
         try GitTestRepo.modifyWithoutStaging("a.swift", contents: "let a = 3\n", in: temp.url)
-        if case .diff = makeReader().diff(forFileAt: file, in: temp.url) {} else {
+        if case .diff = diff(of: file, in: temp.url) {} else {
             Issue.record("HEAD 基準の差分すら出なかった")
         }
     }
@@ -346,7 +356,7 @@ struct GitDiffBinaryDetectionIntegrationTests {
         try Data([0x00, 0x01, 0x02, 0x00, 0xFF]).write(to: binary)
         GitTestRepo.run(["add", "b.dat"], in: temp.url)
 
-        #expect(GitDiffReader().diff(forFileAt: binary, in: temp.url) == .binary)
+        #expect(GitDiffReader().diff(forFileAt: binary, in: temp.url, target: .defaultBranch) == .binary)
     }
 
     /// `Binary files … differ` という文字列を**本文に含む**テキストファイルを
@@ -363,7 +373,11 @@ struct GitDiffBinaryDetectionIntegrationTests {
             "a.txt", contents: "Binary files a/x and b/x differ\n", in: temp.url
         )
 
-        let result = GitDiffReader().diff(forFileAt: temp.url.appendingPathComponent("a.txt"), in: temp.url)
+        let result = GitDiffReader().diff(
+            forFileAt: temp.url.appendingPathComponent("a.txt"),
+            in: temp.url,
+            target: .defaultBranch
+        )
 
         guard case let .diff(text) = result else {
             Issue.record("テキスト差分が返らなかった: \(String(describing: result))")

@@ -19,13 +19,16 @@ protocol GitComparisonBaseResolving: Sendable {
 }
 
 /// 何を起点に比べるか。窓ごとの選択肢(TASK-353)に対応する。
-enum GitComparisonTarget: Sendable, Equatable, CaseIterable {
+enum GitComparisonTarget: Sendable, Hashable, CaseIterable {
     /// このブランチの変更。`merge-base(HEAD, 親ブランチ)`。親が分からなければデフォルトブランチへ縮退する。
     case parentBranch
     /// スタック全体の変更。`merge-base(HEAD, デフォルトブランチ)`(従来の挙動)。
     case defaultBranch
     /// 作業中の変更。`HEAD` そのもの。
     case head
+
+    /// 新しい窓の出発点。基準は窓ごとのライブ値で永続化しない(TASK-353)。
+    static let windowDefault = GitComparisonTarget.parentBranch
 }
 
 /// 起点の解決結果。メニューやラベルはこの値を読む(開く瞬間に main で再解決しない)。

@@ -1,6 +1,8 @@
 @testable import befold
 import BefoldKit
+import BefoldTestSupport
 import Foundation
+import Testing
 
 // 差分テストで共有する取得器のスタブと、提示状態を作るヘルパー。
 // コントローラ単体(ViewerWindowControllerDiffTests)とウィンドウ生成経路
@@ -10,7 +12,7 @@ import Foundation
 struct StubDiffReader: GitDiffReading {
     let result: GitFileDiff?
 
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+    func diff(forFileAt _: URL, in _: URL, target _: GitComparisonTarget) -> GitFileDiff? {
         result
     }
 }
@@ -21,6 +23,7 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
     private let lock = NSLock()
     private var calls = 0
     private var requested: [URL] = []
+    private var targets: [GitComparisonTarget] = []
     private let result: GitFileDiff?
 
     init(result: GitFileDiff? = .noChanges) {
@@ -37,12 +40,35 @@ final class RecordingDiffReader: GitDiffReading, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return requested
     }
 
-    func diff(forFileAt url: URL, in _: URL) -> GitFileDiff? {
+    /// 取得を要求された基準(呼び出し順)。
+    var requestedTargets: [GitComparisonTarget] {
+        lock.lock(); defer { lock.unlock() }; return targets
+    }
+
+    func diff(forFileAt url: URL, in _: URL, target: GitComparisonTarget) -> GitFileDiff? {
         lock.lock()
         calls += 1
         requested.append(url)
+        targets.append(target)
         lock.unlock()
         return result
+    }
+}
+
+/// 基準ごとに違う本文(`DIFF-<target>`)を返す取得器。`held` の基準だけ、ゲートが開くまで止める。
+/// 「基準を変えた後に旧基準の取得が着地する」順序を、待ち時間に頼らず作るために使う。
+final class TargetEchoDiffReader: GitDiffReading, @unchecked Sendable {
+    private let held: GitComparisonTarget?
+    private let gate: BlockingGate
+
+    init(held: GitComparisonTarget? = nil, gate: BlockingGate = BlockingGate(isOpen: true)) {
+        self.held = held
+        self.gate = gate
+    }
+
+    func diff(forFileAt _: URL, in _: URL, target: GitComparisonTarget) -> GitFileDiff? {
+        if target == held { gate.waitUntilOpen() }
+        return .diff("DIFF-\(target)")
     }
 }
 
@@ -68,7 +94,7 @@ final class SequenceDiffReader: GitDiffReading, @unchecked Sendable {
         self.results = results
     }
 
-    func diff(forFileAt _: URL, in _: URL) -> GitFileDiff? {
+    func diff(forFileAt _: URL, in _: URL, target _: GitComparisonTarget) -> GitFileDiff? {
         lock.lock()
         defer { lock.unlock() }
         let result = results[min(index, results.count - 1)]

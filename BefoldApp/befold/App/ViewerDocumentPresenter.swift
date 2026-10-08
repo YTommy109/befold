@@ -37,6 +37,8 @@ final class ViewerDocumentPresenter {
     private let refreshToolbar: () -> Void
     /// 表示モードが変わったときの差分の取り直し。
     private let refreshDiff: () -> Void
+    /// サイドバーの git 状態の取り直し(比較基準の変更で新基準のバッジを取るため)。
+    private let refreshGitStatuses: () -> Void
 
     /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
     /// レンダリング表示中しか値を持たない（ソース系モードへ入った時点で setDisplayMode が捨てる）。
@@ -52,7 +54,8 @@ final class ViewerDocumentPresenter {
         currentDocument: CurrentDocumentRef,
         canSelect: @escaping (ViewerDisplayMode) -> Bool,
         refreshToolbar: @escaping () -> Void,
-        refreshDiff: @escaping () -> Void
+        refreshDiff: @escaping () -> Void,
+        refreshGitStatuses: @escaping () -> Void
     ) {
         self.store = store
         self.perFileState = perFileState
@@ -61,6 +64,7 @@ final class ViewerDocumentPresenter {
         self.canSelect = canSelect
         self.refreshToolbar = refreshToolbar
         self.refreshDiff = refreshDiff
+        self.refreshGitStatuses = refreshGitStatuses
     }
 
     /// 表示中ファイル・表示モードを書き換える前に、退場側（現在の URL・現在のモード）の
@@ -209,6 +213,20 @@ final class ViewerDocumentPresenter {
             }
         }
         refreshToolbar()
+    }
+
+    /// 差分の比較基準を変える**唯一の入口**(TASK-353.2)。
+    ///
+    /// やることは「store へ書く」「旧基準の差分を `.pending` に落とす」「サイドバーの git 状態を
+    /// 新基準で取り直す」の 3 つだけ。再描画・差分の取り直し・ツールバーの再同期は、取り直した
+    /// 状態の反映(`SidebarNavigatorHost.gitContextDidChange`)が既存の経路で運ぶ。
+    /// 差分を `.pending` に落とすのは、確定差分を表示中は降格しない既存規則(TASK-407)が
+    /// 「基準が変わったのに旧基準の差分が新しいラベルの下に出る」ことを許してしまうため。
+    func setComparisonTarget(_ target: GitComparisonTarget) {
+        guard store.comparisonTarget != target else { return }
+        store.comparisonTarget = target
+        if store.showsDiff { store.diffContent = .pending }
+        refreshGitStatuses()
     }
 
     /// CLI の `--source` / `--preview` を適用する。オープン時（init）と、既に開いている

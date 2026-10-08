@@ -25,7 +25,7 @@ struct GitStatusReaderIntegrationTests {
         try GitTestRepo.modifyWithoutStaging("unstaged.swift", in: temp.url)
         try GitTestRepo.addUntrackedFile(named: "new.swift", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         func status(_ name: String) -> GitFileStatus? {
             snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
@@ -64,7 +64,7 @@ struct GitStatusReaderIntegrationTests {
         GitTestRepo.initRepository(at: nested)
         try GitTestRepo.commitFile(named: "b.txt", in: nested)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.indeterminateRoots.contains(
             temp.url.appendingPathComponent("sub").normalizedPathKey
@@ -106,7 +106,7 @@ struct GitStatusReaderIntegrationTests {
         // clean な gitlink は status に出ないため、サブモジュール側を汚してエントリを立てる。
         try GitTestRepo.modifyWithoutStaging("a.txt", in: temp.url.appendingPathComponent("sub"))
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.indeterminateRoots.contains(
             temp.url.appendingPathComponent("sub").normalizedPathKey
@@ -129,7 +129,7 @@ struct GitStatusReaderIntegrationTests {
         try GitTestRepo.stageChange(to: "both.md", contents: "staged", in: temp.url)
         try GitTestRepo.modifyWithoutStaging("both.md", contents: "worktree", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.statuses[temp.url.appendingPathComponent("both.md").normalizedPathKey]
             == GitFileStatus(indexChange: .added, worktreeChange: .modified))
@@ -145,7 +145,7 @@ struct GitStatusReaderIntegrationTests {
         GitTestRepo.run(["rm", "gone.md"], in: temp.url)
         GitTestRepo.run(["mv", "old.md", "new.md"], in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         func status(_ name: String) -> GitFileStatus? {
             snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
@@ -169,7 +169,7 @@ struct GitStatusReaderIntegrationTests {
         try GitTestRepo.commitChange(to: "conflict.md", contents: "ours", in: temp.url)
         GitTestRepo.run(["merge", "other"], in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         let status = snapshot.statuses[temp.url.appendingPathComponent("conflict.md").normalizedPathKey]
         #expect(status?.indexChange == .unmerged)
@@ -185,7 +185,7 @@ struct GitStatusReaderIntegrationTests {
         try GitTestRepo.commitFile(named: ".gitignore", contents: "ignored.md\n", in: temp.url)
         try GitTestRepo.addUntrackedFile(named: "ignored.md", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.statuses.isEmpty, "余計なエントリ: \(snapshot.statuses.keys.sorted())")
     }
@@ -218,7 +218,7 @@ struct GitStatusReaderIntegrationTests {
         try GitTestRepo.addUntrackedFile(named: "excluded.md", in: temp.url)
         try GitTestRepo.addUntrackedFile(named: "visible.md", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
         let names = Set(snapshot.statuses.keys.map { URL(fileURLWithPath: $0).lastPathComponent })
         #expect(!names.contains("excluded.md"), "除外されるはず: \(names.sorted())")
         #expect(names.contains("visible.md"), "出るはず: \(names.sorted())")
@@ -251,7 +251,7 @@ struct GitStatusReaderIntegrationTests {
             ),
             directoryLister: { _, _, _ in .empty },
             git: SidebarGitReadingStub(statuses: { directory, policy in
-                await store.statuses(forDirectoryAt: directory, policy: policy)
+                await store.statuses(forDirectoryAt: directory, target: .defaultBranch, policy: policy)
             })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
@@ -292,7 +292,7 @@ struct GitStatusReaderIntegrationTests {
             ),
             directoryLister: { _, _, _ in .empty },
             git: SidebarGitReadingStub(statuses: { directory, policy in
-                await store.statuses(forDirectoryAt: directory, policy: policy)
+                await store.statuses(forDirectoryAt: directory, target: .defaultBranch, policy: policy)
             })
         )
         let host = SidebarNavigatorStubHost(currentFileURL: temp.url.appendingPathComponent("a.md"))
@@ -331,8 +331,8 @@ struct GitStatusReaderIntegrationTests {
         let reader = makeReader()
         let before = reader.indexFingerprint(forRepositoryAt: temp.url)
 
-        _ = reader.status(forRepositoryAt: temp.url)
-        _ = reader.status(forRepositoryAt: temp.url)
+        _ = reader.status(forRepositoryAt: temp.url, target: .defaultBranch)
+        _ = reader.status(forRepositoryAt: temp.url, target: .defaultBranch)
 
         #expect(reader.indexFingerprint(forRepositoryAt: temp.url) == before)
     }
@@ -344,7 +344,7 @@ struct GitStatusReaderIntegrationTests {
         GitTestRepo.initRepository(at: temp.url)
         try GitTestRepo.commitFile(in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.statuses.isEmpty)
     }
@@ -356,7 +356,7 @@ struct GitStatusReaderIntegrationTests {
         let temp = try TempDir()
         defer { withExtendedLifetime(temp) {} }
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         #expect(snapshot.statuses.isEmpty)
     }

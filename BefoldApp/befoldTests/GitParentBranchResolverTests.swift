@@ -234,14 +234,6 @@ struct GitParentBranchIntegrationTests {
 
 /// 比較の起点がバッジと差分で揃っていること(`GitDiffComparisonBaseIntegrationTests` の基準別版)。
 struct GitComparisonTargetAgreementTests {
-    /// 3 基準を固定して解決するリゾルバ(バッジと差分に同じ基準を渡すため)。
-    private struct FixedTarget: GitComparisonBaseResolving {
-        let target: GitComparisonTarget
-        func comparisonBase(forRepositoryAt root: URL, target _: GitComparisonTarget) -> GitComparisonResolution? {
-            GitComparisonBaseResolver().comparisonBase(forRepositoryAt: root, target: target)
-        }
-    }
-
     /// AC#5: バッジと差分の一致。バッジが「ブランチで変えた」と言うファイルには
     /// 必ず差分があり、言わないファイルには差分が無い。片方だけ基準を変えるとここが落ちる。
     /// 基準(親ブランチ / デフォルトブランチ / HEAD)ごとに同じ関係が成り立つこと(TASK-353.1)。
@@ -262,10 +254,7 @@ struct GitComparisonTargetAgreementTests {
         try GitTestRepo.writeGhStack(
             trunk: trunk, branches: ["feat-a", "feat-b"], toGitDirectory: temp.url.appendingPathComponent(".git")
         )
-        let resolver = FixedTarget(target: target)
-        let statusReader = GitStatusReader(comparisonBase: resolver)
-        let diffReader = GitDiffReader(comparisonBase: resolver)
-        let snapshot = try #require(statusReader.status(forRepositoryAt: temp.url))
+        let snapshot = try #require(GitStatusReader().status(forRepositoryAt: temp.url, target: target))
 
         // 親基準では b.swift だけ、デフォルト基準では両方、HEAD 基準ではどちらも空。
         let expectChanged: [String: Bool] = switch target {
@@ -276,7 +265,8 @@ struct GitComparisonTargetAgreementTests {
         for (name, expected) in expectChanged {
             let file = temp.url.appendingPathComponent(name)
             let badge = snapshot.statuses[file.normalizedPathKey]?.branchChange != nil
-            let hasDiff = if case .diff = diffReader.diff(forFileAt: file, in: temp.url) { true } else { false }
+            let diff = GitDiffReader().diff(forFileAt: file, in: temp.url, target: target)
+            let hasDiff = if case .diff = diff { true } else { false }
             #expect(badge == expected, "\(target) \(name): バッジ")
             #expect(hasDiff == expected, "\(target) \(name): 差分")
         }

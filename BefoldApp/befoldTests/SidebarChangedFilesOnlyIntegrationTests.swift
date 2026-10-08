@@ -69,7 +69,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             _ = try temp.file(atPath: "newdir/c.md", contents: "untracked")
         }
         // 前提の確認: 実 git が畳んでいる(配下のファイル個別のレコードは出ない)。
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
         #expect(snapshot.statuses[newDirectory.appendingPathComponent("b.md").normalizedPathKey] == nil)
         let entries = [
             FileListEntry(url: newDirectory.appendingPathComponent("b.md"), kind: .file),
@@ -175,7 +175,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: entries) },
             git: SidebarGitReadingStub(statuses: { directory, policy in
-                await store.statuses(forDirectoryAt: directory, policy: policy)
+                await store.statuses(forDirectoryAt: directory, target: .defaultBranch, policy: policy)
             })
         )
         navigator.attach(to: host)

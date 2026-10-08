@@ -10,12 +10,32 @@ struct GitDiffLoaderTests {
     private let root = URL(fileURLWithPath: "/tmp/repo")
     private let file = URL(fileURLWithPath: "/tmp/repo/a.swift")
 
+    /// 基準は窓ごとに違うので、同じファイルでも基準が違う要求は合流させない。パスだけで
+    /// 合流すると、窓 A の基準で取った差分を窓 B が受け取る(TASK-353.2)。
+    @Test("同じ契機でも基準が違う要求は別々に取得する")
+    func doesNotFoldRequestsWithDifferentTargets() async {
+        let reader = RecordingDiffReader(result: .noChanges)
+        let loader = GitDiffLoader(reader: reader)
+
+        let parent = loader.diff(forFileAt: file, target: .parentBranch, resolvingRootWith: resolving(root))
+        let head = loader.diff(forFileAt: file, target: .head, resolvingRootWith: resolving(root))
+        let siblingOfHead = loader.diff(forFileAt: file, target: .head, resolvingRootWith: resolving(root))
+        _ = await parent.value
+        _ = await head.value
+        _ = await siblingOfHead.value
+
+        // 同じ基準の兄弟は合流する(2 回)。基準が違うものは合流しない。
+        #expect(reader.callCount == 2)
+        #expect(reader.requestedTargets.sorted { "\($0)" < "\($1)" } == [.head, .parentBranch])
+    }
+
     @Test("読み取り結果をそのまま返す")
     func returnsReaderResult() async {
         let reader = RecordingDiffReader(result: .diff("@@ -1 +1 @@\n"))
         let loader = GitDiffLoader(reader: reader)
 
-        let result = await loader.diff(forFileAt: file, resolvingRootWith: resolving(root)).value
+        let result = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
+            .value
 
         #expect(result == .diff("@@ -1 +1 @@\n"))
         #expect(reader.callCount == 1)
@@ -32,7 +52,7 @@ struct GitDiffLoaderTests {
 
         // 3 窓が同じファイル変更イベントを受け取った状態。登録はこの 1 ターンで終わる。
         let fetches = (0 ..< 3).map { _ in
-            loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
+            loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
         }
         var results: [GitFileDiff?] = []
         for fetch in fetches {
@@ -53,8 +73,8 @@ struct GitDiffLoaderTests {
         let loader = GitDiffLoader(reader: reader)
 
         // 2 窓が同じファイル変更イベントを受け取った状態。登録はこの 1 ターン。
-        let first = loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
-        let second = loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
+        let first = loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
+        let second = loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
         // 1 件目を完走させてから 2 件目を待つ。TSan や高負荷でメインアクターが詰まると
         // 実際にこの順序になる(TASK-327 の実測では 5〜8 秒到達しない)。
         _ = await first.value
@@ -71,13 +91,13 @@ struct GitDiffLoaderTests {
         let reader = SequenceDiffReader(results: [.diff("旧"), .diff("新")])
         let loader = GitDiffLoader(reader: reader)
 
-        let running = loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
+        let running = loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
         // ツリーを読み始めるまで待つ。読み始める前に登録すると兄弟要求(上のテスト)に
         // なってしまい、測りたい状況と別物になる。
         while reader.calls == 0 {
             await Task.yield()
         }
-        let later = loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
+        let later = loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
 
         #expect(await running.value == .diff("旧"))
         #expect(await later.value == .diff("新"))
@@ -92,8 +112,8 @@ struct GitDiffLoaderTests {
         let loader = GitDiffLoader(reader: reader)
 
         // 別々の契機。1 件目を待ってから 2 件目を登録するので合流しない。
-        _ = await loader.diff(forFileAt: file, resolvingRootWith: resolving(root)).value
-        _ = await loader.diff(forFileAt: file, resolvingRootWith: resolving(root)).value
+        _ = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root)).value
+        _ = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root)).value
 
         #expect(reader.callCount == 2)
     }
@@ -103,7 +123,8 @@ struct GitDiffLoaderTests {
         let reader = RecordingDiffReader(result: nil)
         let loader = GitDiffLoader(reader: reader)
 
-        let result = await loader.diff(forFileAt: file, resolvingRootWith: resolving(root)).value
+        let result = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
+            .value
 
         #expect(result == nil)
     }
@@ -115,7 +136,7 @@ struct GitDiffLoaderTests {
         let reader = RecordingDiffReader(result: .noChanges)
         let loader = GitDiffLoader(reader: reader)
 
-        let result = await loader.diff(forFileAt: file, resolvingRootWith: { nil }).value
+        let result = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: { nil }).value
 
         #expect(result == nil)
         #expect(reader.callCount == 0)
@@ -128,8 +149,9 @@ struct GitDiffLoaderTests {
         let reader = RecordingDiffReader(result: .noChanges)
         let loader = GitDiffLoader(reader: reader)
 
-        _ = await loader.diff(forFileAt: file, resolvingRootWith: { nil }).value
-        let result = await loader.diff(forFileAt: file, resolvingRootWith: resolving(root)).value
+        _ = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: { nil }).value
+        let result = await loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
+            .value
 
         #expect(result == .noChanges)
         #expect(reader.callCount == 1)
@@ -142,8 +164,8 @@ struct GitDiffLoaderTests {
         let loader = GitDiffLoader(reader: reader)
         let other = URL(fileURLWithPath: "/tmp/repo/b.swift")
 
-        let first = loader.diff(forFileAt: file, resolvingRootWith: resolving(root))
-        let second = loader.diff(forFileAt: other, resolvingRootWith: resolving(root))
+        let first = loader.diff(forFileAt: file, target: .defaultBranch, resolvingRootWith: resolving(root))
+        let second = loader.diff(forFileAt: other, target: .defaultBranch, resolvingRootWith: resolving(root))
         _ = await first.value
         _ = await second.value
 

@@ -33,15 +33,15 @@ struct ViewerWindowControllerToolbarTests {
         defer { controller.close() }
         let toolbar = try #require(controller.window?.toolbar)
 
-        // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/モード切替/
-        // ブックマーク の順。差分レイアウトの切替は独立アイテムを持たず、モード切替
+        // 既定アイテムは サイドバー開閉/仕切り/戻る/進む/可変スペース/行番号/差分の比較基準/
+        // モード切替/ブックマーク の順。差分レイアウトの切替は独立アイテムを持たず、モード切替
         // セグメントの差分セグメント再クリックが担うため、構成はゲートで変わらない。
         let toolbarController = try #require(controller.toolbarController)
         let identifiers = toolbarController.toolbarDefaultItemIdentifiers(toolbar)
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
+            .flexibleSpace, .init("lineNumbers"), .init("diffComparison"), .init("modeToggle"), .init("bookmark"),
         ])
 
         for identifier in ["historyBack", "historyForward"] {

@@ -27,6 +27,9 @@ struct GitStatusSnapshot: Equatable, Sendable {
     /// 監視対象にする `.git/index` の実パス。worktree では `.git` がファイルで実 gitdir を
     /// 指すため、呼び出し側が自力で組み立てられない。取得できなければ nil。
     var indexURL: URL?
+    /// 取得に使った比較基準の解決結果(ラベルとメニューの出し分けの材料)。
+    /// 基準を解決できなかった(デフォルトブランチが分からない等)・git 管理外では nil。
+    var comparison: GitComparisonResolution?
 
     static let empty = GitStatusSnapshot()
 
@@ -34,12 +37,14 @@ struct GitStatusSnapshot: Equatable, Sendable {
         statuses: [String: GitFileStatus] = [:],
         indeterminateRoots: Set<String> = [],
         indexFingerprint: Date? = nil,
-        indexURL: URL? = nil
+        indexURL: URL? = nil,
+        comparison: GitComparisonResolution? = nil
     ) {
         self.statuses = statuses
         self.indeterminateRoots = indeterminateRoots
         self.indexFingerprint = indexFingerprint
         self.indexURL = indexURL
+        self.comparison = comparison
     }
 }
 
@@ -51,7 +56,10 @@ protocol GitStatusReading: Sendable {
     /// - Returns: 取得できたスナップショット。リポジトリを開けなかった場合は nil。
     ///   「動いた結果、変更が無い/リポジトリではない」は空のスナップショットで返る。
     ///   呼び出し側はこの区別でキャッシュの可否を決める(nil はキャッシュしてはならない)。
-    func status(forRepositoryAt root: URL) -> GitStatusSnapshot?
+    ///
+    /// `target` は**必須引数**。既定値を持たせると渡し忘れが黙って既定の基準になり、
+    /// 窓ごとの基準が効かなくなる(TASK-319 と同型)。
+    func status(forRepositoryAt root: URL, target: GitComparisonTarget) -> GitStatusSnapshot?
     /// `.git/index` の最終更新日時。git を起動せずファイル stat だけで得られるため、
     /// 「index が動いたときだけ status を取り直す」判定に使う。
     func indexFingerprint(forRepositoryAt root: URL) -> Date?
@@ -82,7 +90,7 @@ struct GitStatusReader: GitStatusReading {
     /// この経路はサイドバーの `.git/index` 監視コールバックごとに走る最頻経路であり、
     /// 3 つを別々に開くと 1 回の更新でオープンが 3 倍になる。ヘルパーが URL ではなく
     /// 開いたリポジトリを受け取る形にしてあるのは、開き直す実装を書けなくするため。
-    func status(forRepositoryAt root: URL) -> GitStatusSnapshot? {
+    func status(forRepositoryAt root: URL, target: GitComparisonTarget) -> GitStatusSnapshot? {
         let outcome = GitLibrary.withRepository(at: root) { repository -> GitStatusSnapshot in
             var statuses: [String: GitFileStatus] = [:]
             var boundaries = Set<String>()
@@ -93,8 +101,8 @@ struct GitStatusReader: GitStatusReading {
             // base ブランチからのコミット済み変更。検出できない場合(デフォルトブランチが
             // 分からない・履歴が繋がっていない)はブランチ内変更だけを諦め、
             // staged / unstaged / untracked の表示は続ける。
-            let base = comparisonBase.comparisonBase(forRepositoryAt: root, target: .defaultBranch)?.baseID
-            for (relativePath, change) in Self.branchChanges(in: repository, base: base) {
+            let comparison = comparisonBase.comparisonBase(forRepositoryAt: root, target: target)
+            for (relativePath, change) in Self.branchChanges(in: repository, base: comparison?.baseID) {
                 let key = root.appendingPathComponent(relativePath).normalizedPathKey
                 statuses[key, default: GitFileStatus()].branchChange = change
             }
@@ -102,7 +110,8 @@ struct GitStatusReader: GitStatusReading {
                 statuses: statuses,
                 indeterminateRoots: boundaries,
                 indexFingerprint: self.repository.indexFingerprint(at: root),
-                indexURL: self.repository.indexURL(at: root)
+                indexURL: self.repository.indexURL(at: root),
+                comparison: comparison
             )
         }
         switch outcome {

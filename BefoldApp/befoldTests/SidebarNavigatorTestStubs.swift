@@ -35,7 +35,9 @@ struct SidebarGitReadingStub: SidebarGitReading {
         await rootLookup(url)
     }
 
-    func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult {
+    func statuses(
+        forDirectoryAt url: URL, target _: GitComparisonTarget, policy: GitStatusRefreshPolicy
+    ) async -> GitStatusResult {
         await statuses(url, policy)
     }
 }
@@ -68,6 +70,8 @@ final class SidebarNavigatorStubHost: SidebarNavigatorHost {
 
     /// git 状態が反映された回数。バッジの更新契機を数えるテストで使う。
     private(set) var gitContextDidChangeCallCount = 0
+    /// 窓の比較基準。コーディネータが取得の発行時に読む。
+    var comparisonTarget: GitComparisonTarget = .windowDefault
 
     func gitContextDidChange() {
         gitContextDidChangeCallCount += 1

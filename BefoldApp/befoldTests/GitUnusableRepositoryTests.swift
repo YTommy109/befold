@@ -35,9 +35,9 @@ struct GitUnusableRepositoryTests {
         // ルート解決: 不明（キャッシュ不可）。管理外と確定させない。
         #expect(GitRepository().root(forFileAt: file) == .undetermined)
         // ステータス: nil（キャッシュ不可）。空スナップショットは「確定して変更なし」を意味する。
-        #expect(GitStatusReader().status(forRepositoryAt: temp.url) == nil)
+        #expect(GitStatusReader().status(forRepositoryAt: temp.url, target: .defaultBranch) == nil)
         // 差分: nil（キャッシュ不可）。
-        #expect(GitDiffReader().diff(forFileAt: file, in: temp.url) == nil)
+        #expect(GitDiffReader().diff(forFileAt: file, in: temp.url, target: .defaultBranch) == nil)
         // 比較起点: nil（起点が分からない）。
         #expect(GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url, target: .defaultBranch) == nil)
         // 追跡ファイル索引・worktree 一覧も空へ縮退する（Quick Open はディレクトリ走査へ落ちる）。
@@ -75,8 +75,8 @@ struct GitUnusableRepositoryTests {
         try "# a\n".write(to: file, atomically: true, encoding: .utf8)
 
         for _ in 0 ..< 20 {
-            #expect(GitStatusReader().status(forRepositoryAt: temp.url) == nil)
-            #expect(GitDiffReader().diff(forFileAt: file, in: temp.url) == nil)
+            #expect(GitStatusReader().status(forRepositoryAt: temp.url, target: .defaultBranch) == nil)
+            #expect(GitDiffReader().diff(forFileAt: file, in: temp.url, target: .defaultBranch) == nil)
         }
     }
 }
