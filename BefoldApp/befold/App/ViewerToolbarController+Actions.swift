@@ -21,12 +21,6 @@ extension ViewerToolbarController {
         }
     }
 
-    /// 比較基準ポップアップの項目選択。host へ委譲する(git はここでは触らない)。
-    @objc func comparisonTargetChosen(_ sender: NSMenuItem) {
-        guard let target = sender.representedObject as? GitComparisonTarget else { return }
-        host?.setComparisonTarget(target)
-    }
-
     /// 行番号ボタン・メニュー表現の共通アクション。host へトグルを委譲する。
     @objc func lineNumbersItemClicked(_ sender: Any?) {
         host?.toggleLineNumbers(sender)

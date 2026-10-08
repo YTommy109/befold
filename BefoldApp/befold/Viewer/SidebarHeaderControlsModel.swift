@@ -44,6 +44,20 @@ struct SidebarOverflowItem: Equatable {
     }
 }
 
+/// 「変更のあるファイルのみ」の ▾ メニュー 1 項目分の記述。
+///
+/// identity は選ぶと切り替わる基準そのもの。`isChecked` は init で現在値から導く
+/// (`SidebarOverflowItem` と同じ理由で、渡せる形にしない)。
+struct SidebarComparisonItem: Equatable {
+    let target: GitComparisonTarget
+    let isChecked: Bool
+
+    init(target: GitComparisonTarget, current: GitComparisonTarget) {
+        self.target = target
+        isChecked = target == current
+    }
+}
+
 /// サイドバーヘッダーの操作行の構成を決める値型。
 ///
 /// **左群は「一覧の形」、右群は「絞り込み」**という分割が設計上の判断で、位置がその
@@ -61,6 +75,10 @@ struct SidebarHeaderControlsModel: Equatable {
     let trailing: [SidebarHeaderControl]
     /// ⋯ を開いたときの項目。
     let overflowItems: [SidebarOverflowItem]
+    /// 「変更のあるファイルのみ」の ▾ を開いたときの項目。
+    let comparisonItems: [SidebarComparisonItem]
+    /// いまの比較基準。ボタンのツールチップに出す。
+    let comparisonTarget: GitComparisonTarget
 
     /// - Parameters:
     ///   - settings: この窓のサイドバー表示 4 値(`FileListModel.display.settings`)。
@@ -70,8 +88,12 @@ struct SidebarHeaderControlsModel: Equatable {
     ///   - canFilterChangedFiles: git 管理下で「変更のあるファイルのみ」を出して
     ///     よいか(`FileListModel.canFilterChangedFiles`)。**既定値を持たせない。**
     ///     渡し忘れが「git 管理外でもボタンが出る」へ静かに倒れる形を作らないため。
+    ///   - comparisonTarget / comparisonResolution: 窓の比較基準と、取得済みの解決結果。
+    ///     選択肢(スタック全体を出すか)は解決結果から導く。**既定値を持たせない**。
     init(
         settings: SidebarDisplaySettings,
+        comparisonTarget: GitComparisonTarget,
+        comparisonResolution: GitComparisonResolution?,
         canFilterChangedFiles: Bool,
         isFilterActive: Bool,
         isFilterTextEmpty: Bool
@@ -85,6 +107,9 @@ struct SidebarHeaderControlsModel: Equatable {
             isFilterTextEmpty: isFilterTextEmpty
         )
         overflowItems = Self.overflowItems(settings)
+        comparisonItems = ComparisonTargetPresentation.selectableTargets(resolution: comparisonResolution)
+            .map { SidebarComparisonItem(target: $0, current: comparisonTarget) }
+        self.comparisonTarget = comparisonTarget
     }
 
     private static func leadingControls(layoutMode: SidebarLayoutMode) -> [SidebarHeaderControl] {

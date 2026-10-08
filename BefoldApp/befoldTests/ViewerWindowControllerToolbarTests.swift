@@ -41,7 +41,7 @@ struct ViewerWindowControllerToolbarTests {
         #expect(identifiers == [
             .toggleSidebar, .sidebarTrackingSeparator,
             .init("historyBack"), .init("historyForward"),
-            .flexibleSpace, .init("lineNumbers"), .init("diffComparison"), .init("modeToggle"), .init("bookmark"),
+            .flexibleSpace, .init("lineNumbers"), .init("modeToggle"), .init("bookmark"),
         ])
 
         for identifier in ["historyBack", "historyForward"] {

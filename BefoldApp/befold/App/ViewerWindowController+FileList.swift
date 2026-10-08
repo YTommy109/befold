@@ -35,4 +35,9 @@ extension ViewerWindowController: FileListViewDelegate {
     func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange) {
         sidebar.applyDisplayChange(change)
     }
+
+    /// 比較基準の変更(表示 4 値ではない)。書き込み口は `setComparisonTarget` の 1 本のまま。
+    func fileListDidRequestComparisonTarget(_ target: GitComparisonTarget) {
+        documentPresenter.setComparisonTarget(target)
+    }
 }

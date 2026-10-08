@@ -23,9 +23,6 @@ final class ViewerDiffPresenter {
     private let currentURL: () -> URL?
     /// いま何ができるか。差分の種別ゲート（ADR 0002 段 2）もここから引く。
     private let capabilities: () -> ViewerCapabilities
-    /// `refresh()` が `store.diffContent` を書いた直後に呼ぶ。ツールバーのラベル
-    /// 「(変更なし)」が `diffContent` から導かれるため、書き換えのたびに再同期する(TASK-676)。
-    private let diffContentDidChange: () -> Void
 
     /// 直近の `refresh()` が起こした「取得結果を store へ書き戻すタスク」。
     ///
@@ -41,8 +38,7 @@ final class ViewerDiffPresenter {
         store: ViewerStore,
         displayPreference: DiffDisplayPreference,
         currentURL: @escaping () -> URL?,
-        capabilities: @escaping () -> ViewerCapabilities,
-        diffContentDidChange: @escaping () -> Void
+        capabilities: @escaping () -> ViewerCapabilities
     ) {
         self.loader = loader
         self.gitFileIndex = gitFileIndex
@@ -50,7 +46,6 @@ final class ViewerDiffPresenter {
         self.displayPreference = displayPreference
         self.currentURL = currentURL
         self.capabilities = capabilities
-        self.diffContentDidChange = diffContentDidChange
     }
 
     /// 差分表示モードかどうか（メニューのチェック表示に使う）。
@@ -87,7 +82,6 @@ final class ViewerDiffPresenter {
     func refresh() {
         guard let loader, let url = currentURL(), isDiffShown, capabilities().canSelectDiffMode else {
             store.diffContent = .unavailable
-            diffContentDidChange()
             // 取得を起こさなかった契機で直前のタスクを残すと、待つ側が古い取得の完了を
             // 「この契機の完了」と取り違える。
             refreshTask = nil
@@ -106,7 +100,6 @@ final class ViewerDiffPresenter {
         // 表示中の取り直し(保存などによる再取得)では降格しない — 従来どおり古い差分を
         // 出したまま着地を待つ(降格すると差分ハイライトが 1 サイクル消える)。
         if case .diff = store.diffContent {} else { store.diffContent = .pending }
-        diffContentDidChange()
         // 反映タスクは保持する。取得完了はここでしか観測できないため、捨てると呼び出し側
         // （テスト）は `store.diffContent` をポーリングで待つしかなくなる（TASK-437）。
         refreshTask = Task { @MainActor [weak self] in
@@ -119,7 +112,6 @@ final class ViewerDiffPresenter {
             // URL もモードも一致したまま旧基準の差分が着地しうる。
             guard let self, currentURL() == url, isDiffShown, store.comparisonTarget == target else { return }
             store.diffContent = Self.displayableDiff(result)
-            diffContentDidChange()
         }
     }
 

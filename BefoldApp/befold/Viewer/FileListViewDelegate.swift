@@ -36,4 +36,9 @@ protocol FileListViewDelegate: AnyObject {
     /// 混ぜないために要ったもので、スライドモードが専用ウィンドウへ移った今、
     /// ここを通るのは `SidebarDisplayChange` だけになった。
     func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange)
+    /// いまの比較基準(窓ごとのライブ値)。「変更のあるファイルのみ」メニューのチェックと
+    /// ツールチップが読む。FileListModel へ写しを持たない(真実の源を 2 つにしない)。
+    var comparisonTarget: GitComparisonTarget { get }
+    /// 比較基準の変更要求。基準は表示 4 値ではないので `SidebarDisplayChange` に載せない。
+    func fileListDidRequestComparisonTarget(_ target: GitComparisonTarget)
 }

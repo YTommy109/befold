@@ -89,7 +89,7 @@ struct ViewerWindowManagerDiffTests {
         }
         let before = controllers[1].store.diffContent
 
-        controllers[0].setComparisonTarget(.head)
+        controllers[0].fileListDidRequestComparisonTarget(.head)
         await settleDiffTestController(controllers[0])
 
         #expect(controllers[0].comparisonTarget == .head)

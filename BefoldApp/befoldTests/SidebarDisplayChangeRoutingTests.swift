@@ -45,6 +45,19 @@ struct SidebarDisplayChangeRoutingTests {
         #expect(spy.displayChanges == [expected])
     }
 
+    /// 比較基準は表示 4 値ではないので、専用の口で届き、表示切り替えには混ざらない。
+    @Test("比較基準の選択は delegate の専用の口へ届き、表示切り替えには混ざらない")
+    func comparisonTargetReachesDelegate() {
+        let store = FileListViewDelegateStore()
+        let spy = store.makeSpy()
+        let header = makeHeader(delegate: spy)
+
+        header.selectComparisonTarget(.head)
+
+        #expect(spy.comparisonTargets == [.head])
+        #expect(spy.displayChanges.isEmpty)
+    }
+
     /// 名前フィルターは窓の一時状態で、表示 4 値ではない。delegate へ上げず、
     /// ヘッダー内で開閉だけが動く。
     @Test("フィルターのボタンは delegate へ届かず、フィルター欄の開閉だけを動かす")

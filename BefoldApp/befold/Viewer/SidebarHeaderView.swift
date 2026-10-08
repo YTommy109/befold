@@ -8,7 +8,8 @@ import SwiftUI
 /// 一覧行の描画ではないため(TASK-443)。表示設定のトグルを増やすときに触るのはこの型だけで、
 /// 行・コンテキストメニュー・キー操作には影響しない。
 ///
-/// 各トグルの真実の源は `SidebarDisplayDefaults` で、`model` の値はその写し。
+/// 各トグルの値は窓ごとのライブ値(`FileListModel.display`)で、`SidebarDisplayDefaults` は
+/// 次に開く窓の出発点にすぎない。比較基準は表示 4 値に属さず、delegate から読む。
 /// ここは写しを読んで見た目を決め、切り替えの実行は `FileListViewDelegate` で
 /// 上位(ViewerWindowController)へ返す。**トグルごとにクロージャを注入しない**
 /// ——種別は `SidebarDisplayChange` の値で表す(TASK-586)。
@@ -70,6 +71,8 @@ struct SidebarHeaderView: View {
     private var controls: SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
             settings: model.display.settings,
+            comparisonTarget: delegate?.comparisonTarget ?? .windowDefault,
+            comparisonResolution: model.gitStatus?.comparison,
             canFilterChangedFiles: model.canFilterChangedFiles,
             isFilterActive: model.transient.isFilterActive,
             isFilterTextEmpty: model.transient.filterText.isEmpty
@@ -99,7 +102,8 @@ struct SidebarHeaderView: View {
             controls: controls,
             placement: placement,
             onSelectControl: selectControl,
-            onSelectOverflowItem: perform
+            onSelectOverflowItem: perform,
+            onSelectComparisonTarget: selectComparisonTarget
         )
     }
 
@@ -116,6 +120,11 @@ struct SidebarHeaderView: View {
         // ⋯ は Menu が自前で開き、項目の選択は selectOverflowItem が受ける。
         case .overflow: break
         }
+    }
+
+    /// 比較基準の選択を delegate へ配る唯一の口。テストから呼べるよう internal。
+    func selectComparisonTarget(_ target: GitComparisonTarget) {
+        delegate?.fileListDidRequestComparisonTarget(target)
     }
 
     private func toggleFilter() {

@@ -16,8 +16,6 @@ struct ToolbarItemSpec {
         case historyButton(symbol: String, offset: Int)
         /// レンダリング/ソース/差分のモード切替セグメント。
         case modeSegments
-        /// 差分の比較基準を示すラベル兼ポップアップ(差分モードのときだけ見える)。
-        case comparisonMenu
     }
 
     let identifier: NSToolbarItem.Identifier

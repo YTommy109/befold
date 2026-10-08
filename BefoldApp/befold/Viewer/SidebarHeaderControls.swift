@@ -25,12 +25,16 @@ struct SidebarHeaderControls: View {
     /// ⋯ の項目が選ばれた。項目は自分が起こす切り替えを持っているので、**ここでも
     /// 対応表を挟まない**(TASK-592)。
     let onSelectOverflowItem: (SidebarDisplayChange) -> Void
+    /// 「変更のあるファイルのみ」の ▾ で比較基準が選ばれた。
+    let onSelectComparisonTarget: (GitComparisonTarget) -> Void
 
     var body: some View {
         ForEach(items, id: \.kind) { control in
             switch control.kind {
             case .overflow:
                 overflowMenu(control)
+            case .changedFilesOnly:
+                changedFilesOnlyMenu(control)
             default:
                 button(control)
             }
@@ -41,14 +45,18 @@ struct SidebarHeaderControls: View {
         placement == .leading ? controls.leading : controls.trailing
     }
 
-    private func button(_ control: SidebarHeaderControl) -> some View {
+    /// - Parameter helpDetail: ツールチップの 2 行目(あれば)。
+    private func button(_ control: SidebarHeaderControl, helpDetail: String? = nil) -> some View {
         Button {
             onSelectControl(control.kind)
         } label: {
             icon(control)
         }
         .buttonStyle(.borderless)
-        .help(String(localized: String.LocalizationValue(control.helpKey), bundle: .l10n))
+        .help(
+            String(localized: String.LocalizationValue(control.helpKey), bundle: .l10n)
+                + (helpDetail.map { "\n" + $0 } ?? "")
+        )
     }
 
     private func overflowMenu(_ control: SidebarHeaderControl) -> some View {
@@ -73,6 +81,40 @@ struct SidebarHeaderControls: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help(String(localized: String.LocalizationValue(control.helpKey), bundle: .l10n))
+    }
+
+    /// クリックで絞り込みの ON/OFF、▾ で比較基準を選ぶ。
+    ///
+    /// `Menu(primaryAction:)` は使わない: borderlessButton 風の描画ではアイコンの色(絞り込み
+    /// 中のアクセント)が反映されず、項目のチェックも出なかった(TASK-678 の実機確認)。
+    /// 本体は他と同じ `button()`、▾ は独立した `Menu` で、色とチェックは標準の経路に乗せる。
+    private func changedFilesOnlyMenu(_ control: SidebarHeaderControl) -> some View {
+        let basis = ComparisonTargetPresentation.title(for: controls.comparisonTarget)
+        return HStack(spacing: 0) {
+            button(control, helpDetail: basis)
+            Menu {
+                Picker(selection: Binding(
+                    get: { controls.comparisonTarget },
+                    set: onSelectComparisonTarget
+                )) {
+                    ForEach(controls.comparisonItems, id: \.target) { item in
+                        Text(ComparisonTargetPresentation.title(for: item.target)).tag(item.target)
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(basis)
+            .accessibilityLabel(basis)
+        }
     }
 
     private func icon(_ control: SidebarHeaderControl) -> some View {
