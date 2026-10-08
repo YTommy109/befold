@@ -4,7 +4,7 @@ title: 比較基準の切り替えをサイドバーの「変更のあるファ�
 status: Done
 assignee: []
 created_date: '2026-10-08 07:18'
-updated_date: '2026-10-08 08:16'
+updated_date: '2026-10-08 08:49'
 labels:
   - feature
 dependencies:
@@ -74,6 +74,8 @@ ViewerWindowController 932/932(+FileList を含む合算)。delegate 実装で +
 未検証: AC #1/#3/#4/#8 は GUI 実機(クリックで ON/OFF、基準変更でバッジ・差分が追従、チェック/ツールチップ、VoiceOver)の確認が必要。コードとテストは完了済み。ユーザーの手元確認待ち。
 
 実機確認(2026-10-08): クリックで ON/OFF、基準変更でバッジ・差分が追従、ツールチップ OK。確認で見つかった 2 件(絞り込み中のアイコン色が出ない/メニューのチェックが出ない)は Menu(primaryAction:) をやめ、Button + 独立した ▾ Menu + Picker(inline) に変えて解消。AC #8(VoiceOver)はユーザー判断で外した(VoiceOver を使わない運用。ラベル/値の付与は残してある)。メニューバーに基準切替が無い点は AC 外で、必要なら別タスク。
+
+2026-10-08 /code-review high: Implementation Plan 項目 5(ツールチップを resolution.baseBranch から組む)と項目 6(Menu の accessibilityLabel にコントロール名)が未実装のまま Done になっていた → TASK-681 へ起票。Final Summary の「Menu(primaryAction:) へ移し」は実装(button + 独立 Menu)と食い違う → docs ごと TASK-683 で直す。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

@@ -4,7 +4,7 @@ title: 比較基準の切り替えをメニューバー(表示メニュー)に�
 status: Done
 assignee: []
 created_date: '2026-10-08 08:17'
-updated_date: '2026-10-08 08:25'
+updated_date: '2026-10-08 08:49'
 labels:
   - feature
 dependencies:
@@ -25,6 +25,12 @@ TASK-678 でツールバーの比較基準ポップアップを撤去し、切�
 - [x] #2 選択肢は selectableTargets を使い、スタック全体は親ブランチがデフォルトと異なるときだけ出る
 - [x] #3 git 管理外では項目が無効化(または出ない)で、メニュー項目の配線漏れを測るテストがある(/menu-audit で実測)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-08 /code-review high: 新しい状態型(ComparisonMenuState)・validate 述語・プロトコル要件を 5 ファイルにまたがって足したが /review-design を回していない(SECTION:PLAN 0 件)。現在の基準が selectable から外れる不具合(TASK-680)は設計文の突き合わせで導ける型だった。validate 内の isHidden 書き換えの可否は TASK-682 で実測する。docs(viewer-ui.md)への表示メニュー入口の追記は TASK-683。
+<!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
