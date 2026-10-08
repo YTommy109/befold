@@ -4,7 +4,7 @@ title: サイドバーの git バッジを窓の比較基準に追従させる
 status: To Do
 assignee: []
 created_date: '2026-10-08 02:00'
-updated_date: '2026-10-08 02:07'
+updated_date: '2026-10-08 02:19'
 labels: []
 milestone: m-11
 dependencies:
@@ -31,3 +31,18 @@ TASK-352 で、差分ビューアとサイドバーのバッジの基準を `Git
 - [ ] #3 「変更のみ表示」の絞り込みも同じ基準に従う
 - [ ] #4 基準を切り替えたときにバッジが再計算される
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## /review-design の結果（2026-10-08）
+
+353.1 / 353.2 の設計を取ると、このタスクで新しく書くものはほぼ無い。実装前に次を確かめ、足りないものだけ足す。
+
+- AC#1: `GitStatusReader.status(forRepositoryAt:target:)` が 353.2 で target を受けるので、`branchChanges(in:base:)` に渡る base が target の解決結果になる。新しい分岐は無い
+- AC#2: `.head` は base = HEAD で `git_diff_tree_to_tree(HEAD, HEAD)` が空になる。**「作業中なら branchChanges を飛ばす」という if を足さない**（チェック 1: 事実で判定。特別扱いを足すと 3 基準目で同型の穴が出る）
+- AC#3: 絞り込みは `SidebarGitStatus.hasChange(at:)` がバッジの引き当てに委ねている（TASK-345）ので、スナップショットが基準に追従すれば自動で揃う。新コード無し。テストは `SidebarChangedFilesOnlyIntegrationTests` に target 引数のケースを 1 つ足す
+- AC#4: 353.2 の `setComparisonTarget → refreshGitStatuses(.always)` が再計算の契機。ここで確かめるのは、`GitStatusStore` の `.onlyIfIndexChanged` キャッシュが target 違いで再利用されないこと（353.2 のテスト）と、`FileListGitStatusGate` が旧 target のスナップショットを捨てること
+- `SidebarNavigator`（425/425）と `FileListModel`（400/400）は余裕ゼロ。どちらにも行を足さない。足す必要が出たらこのタスクで分割せず、設計へ戻る
+- 空状態の文言（"No Changed Files"）は 3 基準とも事実と一致するので変えない
+<!-- SECTION:PLAN:END -->
