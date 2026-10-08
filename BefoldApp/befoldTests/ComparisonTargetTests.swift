@@ -58,11 +58,30 @@ struct ComparisonTargetTests {
 
     @Test("スタック全体の変更は親ブランチがデフォルトと異なるときだけ選べる")
     func stackTargetAppearsOnlyWhenParentDiffers() {
-        let same = ComparisonTargetPresentation.selectableTargets(resolution: resolution(differs: false))
-        let stacked = ComparisonTargetPresentation.selectableTargets(resolution: resolution(differs: true))
+        let same = ComparisonTargetPresentation.selectableTargets(
+            current: .parentBranch, resolution: resolution(differs: false)
+        )
+        let stacked = ComparisonTargetPresentation.selectableTargets(
+            current: .parentBranch, resolution: resolution(differs: true)
+        )
 
         #expect(same == [.parentBranch, .head])
         #expect(stacked == [.parentBranch, .defaultBranch, .head])
-        #expect(ComparisonTargetPresentation.selectableTargets(resolution: nil) == [.parentBranch, .head])
+        #expect(
+            ComparisonTargetPresentation.selectableTargets(current: .parentBranch, resolution: nil)
+                == [.parentBranch, .head]
+        )
+    }
+
+    /// 窓の基準は別リポジトリへ移っても戻らない。現在の基準が選択肢から落ちると、
+    /// サイドバーは選択無し・メニューは項目ごと消える(TASK-680)。
+    @Test("現在の基準は解決結果によらず必ず選択肢に含まれる", arguments: GitComparisonTarget.allCases)
+    func currentTargetIsAlwaysSelectable(current: GitComparisonTarget) {
+        for resolution in [resolution(differs: false), resolution(differs: true), nil] {
+            #expect(
+                ComparisonTargetPresentation.selectableTargets(current: current, resolution: resolution)
+                    .contains(current)
+            )
+        }
     }
 }

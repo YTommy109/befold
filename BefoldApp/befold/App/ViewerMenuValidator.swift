@@ -208,6 +208,7 @@ extension ViewerWindowController: ViewerMenuValidationSource {
         ComparisonMenuState(
             current: comparisonTarget,
             selectable: ComparisonTargetPresentation.selectableTargets(
+                current: comparisonTarget,
                 resolution: fileListModel.gitStatus?.comparison
             ),
             isAvailable: kind.allowsSidebar && fileListModel.canFilterChangedFiles

@@ -43,19 +43,19 @@ struct SidebarHeaderControlsModelTests {
         #expect(outsideGit.leading.map(\.kind) == [.layoutMode])
     }
 
-    /// 項目は `selectableTargets` から作り(スタック全体は親がデフォルトと異なるときだけ)、
-    /// チェックは現在の基準にだけ付く。
-    @Test("比較基準の項目は選択肢に一致し、現在の基準にだけチェックが付く", arguments: GitComparisonTarget.allCases)
+    /// 項目は `selectableTargets` から作り、現在の基準は常に含まれる(落ちると Picker が選択無しになる)。
+    @Test("比較基準の項目は選択肢に一致し、現在の基準を必ず含む", arguments: GitComparisonTarget.allCases)
     func comparisonItemsFollowSelectableTargets(current: GitComparisonTarget) {
         for stacked in [false, true] {
             let items = makeModel(comparisonTarget: current, stacked: stacked).comparisonItems
             let expected = ComparisonTargetPresentation.selectableTargets(
+                current: current,
                 resolution: GitComparisonResolution(
                     baseID: "abc", baseBranch: "main", parentDiffersFromDefault: stacked, degraded: false
                 )
             )
-            #expect(items.map(\.target) == expected)
-            #expect(items.filter(\.isChecked).map(\.target) == expected.filter { $0 == current })
+            #expect(items == expected)
+            #expect(items.contains(current))
         }
     }
 

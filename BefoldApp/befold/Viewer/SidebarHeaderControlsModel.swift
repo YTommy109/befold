@@ -44,20 +44,6 @@ struct SidebarOverflowItem: Equatable {
     }
 }
 
-/// 「変更のあるファイルのみ」の ▾ メニュー 1 項目分の記述。
-///
-/// identity は選ぶと切り替わる基準そのもの。`isChecked` は init で現在値から導く
-/// (`SidebarOverflowItem` と同じ理由で、渡せる形にしない)。
-struct SidebarComparisonItem: Equatable {
-    let target: GitComparisonTarget
-    let isChecked: Bool
-
-    init(target: GitComparisonTarget, current: GitComparisonTarget) {
-        self.target = target
-        isChecked = target == current
-    }
-}
-
 /// サイドバーヘッダーの操作行の構成を決める値型。
 ///
 /// **左群は「一覧の形」、右群は「絞り込み」**という分割が設計上の判断で、位置がその
@@ -76,7 +62,7 @@ struct SidebarHeaderControlsModel: Equatable {
     /// ⋯ を開いたときの項目。
     let overflowItems: [SidebarOverflowItem]
     /// 「変更のあるファイルのみ」の ▾ を開いたときの項目。
-    let comparisonItems: [SidebarComparisonItem]
+    let comparisonItems: [GitComparisonTarget]
     /// いまの比較基準。ボタンのツールチップに出す。
     let comparisonTarget: GitComparisonTarget
 
@@ -107,8 +93,9 @@ struct SidebarHeaderControlsModel: Equatable {
             isFilterTextEmpty: isFilterTextEmpty
         )
         overflowItems = Self.overflowItems(settings)
-        comparisonItems = ComparisonTargetPresentation.selectableTargets(resolution: comparisonResolution)
-            .map { SidebarComparisonItem(target: $0, current: comparisonTarget) }
+        comparisonItems = ComparisonTargetPresentation.selectableTargets(
+            current: comparisonTarget, resolution: comparisonResolution
+        )
         self.comparisonTarget = comparisonTarget
     }
 

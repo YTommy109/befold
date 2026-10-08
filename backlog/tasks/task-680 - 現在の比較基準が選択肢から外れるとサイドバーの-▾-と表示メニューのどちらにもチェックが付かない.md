@@ -1,9 +1,10 @@
 ---
 id: TASK-680
 title: 現在の比較基準が選択肢から外れるとサイドバーの ▾ と表示メニューのどちらにもチェックが付かない
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 08:47'
+updated_date: '2026-10-08 10:52'
 labels:
   - bug
 dependencies: []
@@ -32,9 +33,15 @@ ordinal: 869000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 「スタック全体の変更」を選んだ状態で親ブランチ == デフォルトのブランチ(または git 管理外)へ移っても、サイドバーの ▾ と表示メニューの両方で現在の基準にチェックが付き、項目が消えない
-- [ ] #2 現在の基準と選べる基準の対を導く場所が 1 箇所で、サイドバーと表示メニューがその同じ値を読む(現在の基準が選択肢に含まれないと落ちるテストがある)
-- [ ] #3 ComparisonMenuState.isAvailable の allowsSidebar 条件は、意図した制限なら理由を doc に書き、そうでなければ落として canFilterChangedFiles 1 本にする
-- [ ] #4 menuItemTag(for:) の ?? 0 を precondition か強制アンラップへ変え、列挙漏れが静かに別の基準へ写らない
-- [ ] #5 本番コードが読まない isChecked(SidebarComparisonItem)とそのテストを残さない
+- [x] #1 「スタック全体の変更」を選んだ状態で親ブランチ == デフォルトのブランチ(または git 管理外)へ移っても、サイドバーの ▾ と表示メニューの両方で現在の基準にチェックが付き、項目が消えない
+- [x] #2 現在の基準と選べる基準の対を導く場所が 1 箇所で、サイドバーと表示メニューがその同じ値を読む(現在の基準が選択肢に含まれないと落ちるテストがある)
+- [x] #3 ComparisonMenuState.isAvailable の allowsSidebar 条件は、意図した制限なら理由を doc に書き、そうでなければ落として canFilterChangedFiles 1 本にする
+- [x] #4 menuItemTag(for:) の ?? 0 を precondition か強制アンラップへ変え、列挙漏れが静かに別の基準へ写らない
+- [x] #5 本番コードが読まない isChecked(SidebarComparisonItem)とそのテストを残さない
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+selectableTargets(current:resolution:) に現在の基準を必ず含める規則を置き、サイドバー(comparisonItems)と表示メニュー(ViewerMenuValidationSource.comparisonMenuState)が同じ導出を読む形にした。SidebarComparisonItem(未使用の isChecked)は廃止して [GitComparisonTarget] に畳み、menuItemTag の ?? 0 は強制アンラップへ、isAvailable の allowsSidebar 条件は理由を doc に明記。currentTargetIsAlwaysSelectable(全 current × 解決結果)で担保。swift test(関連 54 件)通過、swiftlint 0 件。
+<!-- SECTION:FINAL_SUMMARY:END -->

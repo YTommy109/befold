@@ -97,8 +97,8 @@ struct SidebarHeaderControls: View {
                     get: { controls.comparisonTarget },
                     set: onSelectComparisonTarget
                 )) {
-                    ForEach(controls.comparisonItems, id: \.target) { item in
-                        Text(ComparisonTargetPresentation.title(for: item.target)).tag(item.target)
+                    ForEach(controls.comparisonItems, id: \.self) { target in
+                        Text(ComparisonTargetPresentation.title(for: target)).tag(target)
                     }
                 } label: {
                     EmptyView()
