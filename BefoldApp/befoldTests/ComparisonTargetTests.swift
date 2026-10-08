@@ -66,19 +66,34 @@ struct ComparisonTargetTests {
         #expect(ComparisonTargetPresentation.selectableTargets(resolution: nil) == [.parentBranch, .head])
     }
 
+    /// 翻訳が解決される環境でもキーのままの環境(SPM テストの一部)でも成り立つよう、
+    /// 文言の中身ではなく「同じ置換で作った期待値」と比べる。名前が文言へ差し込まれる
+    /// ことは `baseLabelTemplateTakesTheBranchName` がカタログで担保する。
+    private static func expectedBaseLabel(_ name: String) -> String {
+        String(format: String(localized: "toolbar.mode.diff.base", bundle: .l10n), name)
+    }
+
+    @Test("基準ラベルの文言はブランチ名の差し込み位置を持つ")
+    func baseLabelTemplateTakesTheBranchName() throws {
+        let catalog = try LocalizableCatalog.load(bundle: .l10n)
+        for language in ["ja", "en"] {
+            #expect(catalog["toolbar.mode.diff.base"]?[language]?.contains("%@") == true, "\(language) に %@ がありません")
+        }
+    }
+
     @Test("ラベルは解決された基準ブランチ名を出す")
     func labelShowsResolvedBaseBranch() {
         let label = ComparisonTargetPresentation.label(
             target: .parentBranch, resolution: resolution(branch: "feature-a"), isUnchanged: false
         )
-        #expect(label.contains("feature-a"))
+        #expect(label == Self.expectedBaseLabel("feature-a"))
 
         let head = ComparisonTargetPresentation.label(
             target: .head,
             resolution: resolution(branch: nil),
             isUnchanged: false
         )
-        #expect(head.contains("HEAD"))
+        #expect(head == Self.expectedBaseLabel("HEAD"))
 
         let unchanged = ComparisonTargetPresentation.label(
             target: .parentBranch, resolution: resolution(), isUnchanged: true
