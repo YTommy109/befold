@@ -19,10 +19,19 @@ const CONTENT_LOADER_SWIFT = path.join(KIT, 'ContentLoader.swift')
 const NORMALIZED_TEXT_CACHE_SWIFT = path.join(KIT, 'NormalizedTextCache.swift')
 
 /**
- * 集計クエリ本体。ボット除外の条件が 1 箇所に集約されているかを、実行結果では
- * なくソースの形で検査するために渡す（新しい集計を足したときに検知する）。
+ * 集計クエリ本体（src/analytics/ の全モジュール）。ボット除外の条件が 1 箇所に
+ * 集約されているかを、実行結果ではなくソースの形で検査するために連結して渡す
+ * （新しい集計を足したときに検知する）。
  */
-const ANALYTICS_TS = path.join(import.meta.dirname, 'src', 'analytics.ts')
+const ANALYTICS_DIR = path.join(import.meta.dirname, 'src', 'analytics')
+
+async function readAnalyticsSource(): Promise<string> {
+  const names = (await readdir(ANALYTICS_DIR)).filter((name) => name.endsWith('.ts')).toSorted()
+  const sources = await Promise.all(
+    names.map((name) => readFile(path.join(ANALYTICS_DIR, name), 'utf8')),
+  )
+  return sources.join('\n')
+}
 
 /**
  * Worker の公開面（Custom Domain と workers.dev）の設定そのもの。routes を
@@ -72,7 +81,7 @@ export default defineConfig({
       const bookmarkShortcutSwift = await readFile(BOOKMARK_SHORTCUT_SWIFT, 'utf8')
       const viewerDisplayModeSwift = await readFile(VIEWER_DISPLAY_MODE_SWIFT, 'utf8')
       const modeSegmentsSwift = await readFile(MODE_SEGMENTS_SWIFT, 'utf8')
-      const analyticsSource = await readFile(ANALYTICS_TS, 'utf8')
+      const analyticsSource = await readAnalyticsSource()
       const wranglerToml = await readFile(WRANGLER_TOML, 'utf8')
 
       return {

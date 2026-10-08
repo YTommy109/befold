@@ -12,7 +12,7 @@
 
 配布サイトの計測は User-Agent のトークンでボットを分類している（ADR 0004）。
 判定は `summarizeUA`（`site/src/lib/visitor.ts`）が記録時に行う。集計側は
-`ua_summary` の `bot:` 接頭辞だけを見る（`site/src/analytics.ts` の `BOT_MATCH`）。
+`ua_summary` の `bot:` 接頭辞だけを見る（`site/src/analytics/access-class.ts` の `BOT_MATCH`）。
 
 この方式では捕まらない自動アクセスが、実データで無視できない量に達している。
 2026-08-16 時点の本番 D1 で、visit として記録された 372 件を接続元組織
@@ -83,7 +83,7 @@ ADR 0004 のトリップワイヤ 1 の条件は次のいずれかだった。�
 ### 2. 判定は 1 箇所に集約する
 
 パターンの列挙と SQL 断片の生成は `site/src/lib/network.ts` だけに置く
-（`DATACENTER_ORG_PATTERNS` と `datacenterOrgMatch`）。`analytics.ts` は
+（`DATACENTER_ORG_PATTERNS` と `datacenterOrgMatch`）。`analytics/access-class.ts` は
 `BOT_MATCH`（UA 軸）と `DATACENTER_MATCH`（接続元軸）を `NON_HUMAN_MATCH` へ束ねる。
 その上で `HUMAN_ONLY = NOT NON_HUMAN_MATCH` とする。集計クエリはこれまでどおり
 `HUMAN_ONLY` だけを見る。

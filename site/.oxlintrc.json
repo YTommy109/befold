@@ -85,8 +85,8 @@
     },
     {
       // TASK-684 の一時除外。外しても通る状態にするのが後続タスクの AC。
-      // 実測 analytics.ts 1726 / dashboard.tsx 1126 行 → TASK-685 / TASK-686。
-      "files": ["src/analytics.ts", "src/views/dashboard.tsx"],
+      // 実測 dashboard.tsx 1126 行 → TASK-686（analytics.ts は TASK-685 で分割済み）。
+      "files": ["src/views/dashboard.tsx"],
       "rules": { "eslint/max-lines": "off" }
     },
     {

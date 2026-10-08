@@ -109,7 +109,7 @@ dashboardRoutes.use('*', async (c, next) => {
 /**
  * 面ごとの描画。**面の追加はここへ 1 エントリ足すだけで済ませない。**
  *
- * 実体は `DASHBOARD_PAGES`（analytics.ts）で、ルートの生成もナビゲーションも
+ * 実体は `DASHBOARD_PAGES`（analytics/shared.ts）で、ルートの生成もナビゲーションも
  * クエリ本数の上限テストもその配列を読む。ここは `Record<DashboardPageKey, ...>`
  * なので、面を足して描画を書き忘れると型で落ちる。
  */

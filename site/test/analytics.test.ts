@@ -569,7 +569,7 @@ describe('集計からのロボット除外', () => {
     // 条件そのものは軸ごとに 1 箇所だけで定義される。
     expect(analyticsSource.match(/LIKE '\$\{BOT_PREFIX\}%'/gu)).toHaveLength(1)
     expect(analyticsSource.match(/datacenterOrgMatch\(/gu)).toHaveLength(1)
-    // 接続元組織の判定を analytics.ts に手書きしない（定義元は lib/network.ts）。
+    // 接続元組織の判定を analytics/ に手書きしない（定義元は lib/network.ts）。
     expect(analyticsSource).not.toMatch(/as_org.*LIKE '%/u)
   })
 
@@ -740,7 +740,7 @@ describe('ページの分離', () => {
 
 describe('指標の述語の定義元', () => {
   /**
-   * `analytics.ts` からコメントを落としたソース。構造ガードが doc コメント中の
+   * `src/analytics/` からコメントを落としたソース。構造ガードが doc コメント中の
    * 例示（`kind = 'visit'` のような説明）を数えないようにするため。
    */
   function analyticsCode(): string {
@@ -795,7 +795,7 @@ describe('指標の述語の定義元', () => {
     // 除外してよいもの: UNIQUE_SOURCE_FILTERS の 3 行。あちらは指標（延べ件数）
     // ではなく母集団（異なり数）の述語で、範囲がたまたま一致しているだけの別物。
     // `METRIC_FILTERS.visit` に page 条件が戻っても母集団はサイト全体のままで
-    // なければならないので、導出させない（analytics.ts の doc を参照）。
+    // なければならないので、導出させない（analytics/sources.ts の doc を参照）。
     expect(code.match(/kind = '/gu)).toHaveLength(4)
   })
 })

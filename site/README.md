@@ -389,7 +389,7 @@ visit / download / update_check の全イベントで記録する。追加のサ
     消すと「LP 経由しか無い」と読み違えるため。
   - 2 つの表は 1 本のクエリ（`referrerBreakdowns`）から取る。流入面のクエリ
     本数は上限ちょうどで、表を足すたびにクエリが増える形にはしない。
-- 指標の並び順と表示名は `src/analytics.ts` の `KIND_LABELS` が唯一の定義で、
+- 指標の並び順と表示名は `src/analytics/metrics.ts` の `KIND_LABELS` が唯一の定義で、
   カード・表の両方がこの順に従う。
 
 ## 日別のユニークアクセス元（利用規模の近似）
@@ -434,7 +434,7 @@ visit / download / update_check の全イベントで記録する。追加のサ
 - **`page` が NULL の行には 2 つの意味がある。** 列の導入前に記録された `visit`
   （当時計上していたのは LP だけなので `/` と読んでよい）と、ページの概念が無い
   `download` / `update_check`。このため `COALESCE(page, '/')` は
-  `kind = 'visit'` と同じ条件節の中でしか使えない。`src/analytics.ts` の
+  `kind = 'visit'` と同じ条件節の中でしか使えない。`src/analytics/metrics.ts` の
   `metricExpression` が両者を必ず一緒に組み立てる形になっている。
 - **「ページビュー」指標はサイト全体の訪問を数える**（LP・features・releases・
   usecases・記事）。LP 単独の数は指標として持たず、流入面「ページ別の訪問」の
@@ -655,7 +655,7 @@ JS ビーコンを使わないサーバ側計測なので、クローラの巡�
 | ロボット | `ua_summary` の `bot:` 接頭辞 | 2026-08-09 以降のみ | 0004 |
 | データセンター由来 | `as_org`（接続元組織） | 2026-07-30 以降の全期間 | 0008 |
 
-集計クエリは `analytics.ts` の `HUMAN_ONLY`（= `NOT (BOT_MATCH OR DATACENTER_MATCH)`）
+集計クエリは `analytics/access-class.ts` の `HUMAN_ONLY`（= `NOT (BOT_MATCH OR DATACENTER_MATCH)`）
 だけを見る。2 軸を OR で束ねる形はそこ以外に書かない——片方だけを見る箇所ができると、
 人間側から引かれたぶんが自動アクセス側にも出ず、画面上で総和が合わなくなる。
 

@@ -1,9 +1,10 @@
 ---
 id: TASK-685
 title: site/src/analytics.ts（1726 行）を役割ごとのモジュールに分ける
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 09:35'
+updated_date: '2026-10-08 10:12'
 labels:
   - site
   - refactor
@@ -41,9 +42,21 @@ import しているのは `src/routes/dashboard.tsx`、`src/views/dashboard.tsx`
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 TASK-684 が決めた閾値に対し、analytics.ts 由来のモジュールを override の一時除外から外しても `npm run lint` が通る
-- [ ] #2 `routes/dashboard.tsx` と `views/dashboard.tsx` の import 先が変わるだけで、ダッシュボード各ページの表示内容と集計値は変わらない（`test/dashboard.test.ts` と `test/analytics.test.ts` が変更なしに通る、または import パスの書き換えだけで通る）
-- [ ] #3 D1 へのクエリ発行回数が分割前後で変わらない（`test/query-count.test.ts` が通る）
-- [ ] #4 各モジュールの先頭コメントに「何を置くか／置かないか」が 1〜2 行で書かれている
-- [ ] #5 site/.oxlintrc.json の override から analytics.ts のエントリが消えている
+- [x] #1 TASK-684 が決めた閾値に対し、analytics.ts 由来のモジュールを override の一時除外から外しても `npm run lint` が通る
+- [x] #2 `routes/dashboard.tsx` と `views/dashboard.tsx` の import 先が変わるだけで、ダッシュボード各ページの表示内容と集計値は変わらない（`test/dashboard.test.ts` と `test/analytics.test.ts` が変更なしに通る、または import パスの書き換えだけで通る）
+- [x] #3 D1 へのクエリ発行回数が分割前後で変わらない（`test/query-count.test.ts` が通る）
+- [x] #4 各モジュールの先頭コメントに「何を置くか／置かないか」が 1〜2 行で書かれている
+- [x] #5 site/.oxlintrc.json の override から analytics.ts のエントリが消えている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+分割: site/src/analytics.ts を site/src/analytics/ の 11 モジュール（shared / metrics / sources / access-class / totals / breakdowns / routes / delivery / users / events / summaries）と index.ts（公開名の再エクスポートのみ）へ。最大 227 行。import パスは変わらない。構造ガードのテストは vitest.config.ts が analytics/ 全モジュールを連結して読む形へ変更し、docs/dev/development.md の「1 ファイルに置く」記述を改めた。検証: npm run lint / format:check / tsc 通過、npm test 13 ファイル 440 件通過（analytics / dashboard / query-count はテスト変更なし）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+analytics.ts（1726 行）を役割別 11 モジュールに分割し、override の一時除外を撤去。lint・typecheck・site の全テスト（440 件）で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -94,7 +94,7 @@ export const DATACENTER_ORG_PATTERNS: string[] = [
  * **`COALESCE` を外さないこと。** `as_org` は NULL 許容で、`NULL LIKE ...` は
  * NULL を返す。素の LIKE を WHERE に置くと、`request.cf` が無い経路で記録された行
  * （ローカル・テストなど）が人間でもデータセンターでもなく黙って全集計から消える。
- * `BOT_MATCH`（`analytics.ts`）が同じ理由で COALESCE を持っている。
+ * `BOT_MATCH`（`analytics/access-class.ts`）が同じ理由で COALESCE を持っている。
  *
  * 判定できない（as_org が NULL の）行は人間側に残す。NULL は「データセンターでは
  * ない」ではなく「不明」だが、不明を自動アクセスへ寄せると人間を落とす向きの

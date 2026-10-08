@@ -9,7 +9,7 @@ import { RECORDED_HOSTS } from './lib/hosts'
  * `github_fallback` と `legacy_redirect` は製品の指標ではなく運用の観測
  * （ADR 0007 の「旧ホストと GitHub 経路を止めてよいか」の判断材料）。
  * ダッシュボードのカード・グラフには出さず、専用のセクションで見る
- * （`src/analytics.ts` の `OPERATIONAL_KINDS`）。
+ * （`src/analytics/metrics.ts` の `OPERATIONAL_KINDS`）。
  *
  * `legacy_redirect` を visit として記録しない。旧ホストの HTML ページは新ドメインへ
  * 301 で送るため、visit にすると 301 を追った先の正規ホスト側の visit と二重に
@@ -33,7 +33,7 @@ export type EventKind = z.infer<typeof eventKindSchema>
  * 成果物を R2 へ移して enclosure を Worker 配下に
  * すると、両者が同じ kind='download' として記録されるようになる。
  * 新規獲得・既存ユーザの更新・旧版への退避は性質が違うので、集計時に分離できる
- * ようにする。値を足したら `analytics.ts` の `METRIC_FILTERS` にも系列を足す
+ * ようにする。値を足したら `analytics/metrics.ts` の `METRIC_FILTERS` にも系列を足す
  * ——足し忘れは型では捕まらないので、`analytics.test.ts` が全値の被覆を検査する。
  */
 export const downloadSourceSchema = z.enum(['lp', 'sparkle', 'archive'])
