@@ -1,9 +1,10 @@
 ---
 id: TASK-683
 title: docs/dev/viewer-ui.md「差分の比較基準」節を TASK-678/679 の実装に追随させる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 08:49'
+updated_date: '2026-10-08 11:06'
 labels:
   - docs
 dependencies:
@@ -28,7 +29,13 @@ ordinal: 872000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 viewer-ui.md の当該節が、サイドバーの ▾(button + 独立 Menu)と表示メニューの両入口、選択肢の規則(スタック全体は親≠デフォルトのときだけ)、縮退の見せ方(TASK-681 の決定)を現状どおりに記述している
-- [ ] #2 Menu(primaryAction:) と「ラベルにその名前が出る」の記述が残っていない
-- [ ] #3 markdownlint-cli2 と scripts/check-doc-citations.sh が通る
+- [x] #1 viewer-ui.md の当該節が、サイドバーの ▾(button + 独立 Menu)と表示メニューの両入口、選択肢の規則(スタック全体は親≠デフォルトのときだけ)、縮退の見せ方(TASK-681 の決定)を現状どおりに記述している
+- [x] #2 Menu(primaryAction:) と「ラベルにその名前が出る」の記述が残っていない
+- [x] #3 markdownlint-cli2 と scripts/check-doc-citations.sh が通る
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+viewer-ui.md「差分の比較基準」節を実装に合わせた: 入口 2 つ(サイドバー button + 独立 Menu / 表示メニュー)、primaryAction 形は不採用の理由つきで記述(字面の Menu(primaryAction:) は残していない)、ラベル記述を撤去しツールチップへ、選択肢の規則、縮退の見せ方(TASK-681)。markdownlint-cli2 / check-doc-citations.sh pass。
+<!-- SECTION:FINAL_SUMMARY:END -->

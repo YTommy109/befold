@@ -4,7 +4,7 @@ title: 比較基準の切り替えをメニューバー(表示メニュー)に�
 status: Done
 assignee: []
 created_date: '2026-10-08 08:17'
-updated_date: '2026-10-08 08:49'
+updated_date: '2026-10-08 11:05'
 labels:
   - feature
 dependencies:
@@ -30,6 +30,8 @@ TASK-678 でツールバーの比較基準ポップアップを撤去し、切�
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-08 /code-review high: 新しい状態型(ComparisonMenuState)・validate 述語・プロトコル要件を 5 ファイルにまたがって足したが /review-design を回していない(SECTION:PLAN 0 件)。現在の基準が selectable から外れる不具合(TASK-680)は設計文の突き合わせで導ける型だった。validate 内の isHidden 書き換えの可否は TASK-682 で実測する。docs(viewer-ui.md)への表示メニュー入口の追記は TASK-683。
+
+docs(viewer-ui.md)の更新は必要と判断し、TASK-683 で実施(表示メニュー入口を「差分の比較基準」節へ追記)。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
