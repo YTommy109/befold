@@ -1,11 +1,11 @@
 ---
 id: TASK-353.3
 title: サイドバーの git バッジを窓の比較基準に追従させる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-10-08 02:00'
-updated_date: '2026-10-08 04:52'
+updated_date: '2026-10-08 04:54'
 labels: []
 milestone: m-11
 dependencies:
@@ -53,3 +53,9 @@ TASK-352 で、差分ビューアとサイドバーのバッジの基準を `Git
 <!-- SECTION:NOTES:BEGIN -->
 新コードなし。AC#1〜#4 は 353.2 の経路(GitStatusReader.status(target:) → branchChanges(base:)、setComparisonTarget → refreshGitStatuses(.always)、SidebarGitStatus.hasChange)で成立していることをコードと実 git のテストで確認した。「作業中なら branchChanges を飛ばす」分岐は足していない(.head は base..HEAD が空になる帰結)。追加テスト: SidebarChangedFilesOnlyIntegrationTests に target 別 3 件(defaultBranch で残る / head で空 / 切替後に取り直し)。FileListGitStatusGate 自体は target を知らない。旧 target のスナップショットを捨てるのは SidebarGitStatusCoordinator.apply の request.target 照合で、SidebarNavigatorGitStatusTests.discardsStatusesFetchedUnderOldTarget で担保(照合を外すと落ちることを確認)。Reader が target を無視する変異でも 3 件 + AC#5 のテストが落ちる。全 swift test 2032 件 pass(既知 known issue 1 件は BlockingWaitTests)、swiftformat --lint ゼロ、swiftlint は変更ファイルに指摘なし、xcodebuild build 成功。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+バッジ・絞り込みは 353.2 の target 経路で追従。テストで固定。
+<!-- SECTION:FINAL_SUMMARY:END -->

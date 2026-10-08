@@ -4,7 +4,7 @@ title: 差分の比較基準を「このブランチ／スタック全体／作�
 status: To Do
 assignee: []
 created_date: '2026-08-07 05:24'
-updated_date: '2026-10-08 02:19'
+updated_date: '2026-10-08 04:54'
 labels:
   - diff
 milestone: m-11
@@ -58,9 +58,9 @@ stacked PR（gh-stack）で作業すると、この基準はスタックの根�
 <!-- AC:BEGIN -->
 - [ ] #1 3 つの比較基準を、差分モードの窓ごとに切り替えられる
 - [ ] #2 差分モードの間、何との差分かが常に画面に表示される
-- [ ] #3 stacked PR のブランチでは、既定で一つ前のブランチからの変更だけが表示される
-- [ ] #4 サイドバーのバッジと差分ビューアの基準が食い違わない（TASK-352 の一貫性が保たれる）
-- [ ] #5 比較基準の仕様が docs/dev/viewer-ui.md に反映されている
+- [x] #3 stacked PR のブランチでは、既定で一つ前のブランチからの変更だけが表示される
+- [x] #4 サイドバーのバッジと差分ビューアの基準が食い違わない（TASK-352 の一貫性が保たれる）
+- [x] #5 比較基準の仕様が docs/dev/viewer-ui.md に反映されている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -81,4 +81,6 @@ m-3 との関係: m-3 は「基準切り替えの設定を新設せず、コミ�
 ## /review-design（2026-10-08、親で 1 回。各サブタスクの Plan に反映済み）
 
 最大の指摘は、`GitStatusStore`（root キー）と `GitDiffLoader`（ファイルパス キー）が app 全体共有で合流・キャッシュしている点。基準を窓ごとにするならキーに基準を含めないと、窓 A の基準で取った結果を窓 B が受け取る。詳細は 353.2 の Plan。gh-stack のスタックファイルは v0.1.1 が worktree ごとの admin dir、新版が common dir に置く（上流ソースで確認、353.1 の Plan）。
+
+swiftlint は origin/main との差分ゼロ(45件=45件)。残り: 353.2 AC#1 と親 AC#1/#2 はツールバー操作の目視確認待ち(自動化不可)。
 <!-- SECTION:NOTES:END -->
