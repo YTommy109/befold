@@ -4,7 +4,7 @@ title: 差分の比較基準を窓ごとに切り替える UI を足す
 status: To Do
 assignee: []
 created_date: '2026-10-08 02:00'
-updated_date: '2026-10-08 02:07'
+updated_date: '2026-10-08 02:19'
 labels: []
 milestone: m-11
 dependencies:
@@ -32,4 +32,40 @@ TASK-353 の仕様のうち、差分ビューア側を担う。現状は何と�
 - [ ] #4 新しい窓は常に「このブランチの変更」から始まる（永続化しない）
 - [ ] #5 選んだ基準で差分が空になるファイルでは、差分モードの選択可否が基準に合わせて変わる
 - [ ] #6 メニュー・ラベルの文字列が en/ja で揃っている
+- [ ] #7 GitStatusStore / GitDiffLoader の合流とキャッシュが比較基準をキーに含み、基準の違う窓同士が結果を共有しない（テストで担保）
+- [ ] #8 差分取得の着地時に取得開始時の基準と窓の現在の基準を照合し、基準切替直後に旧基準の差分が着地しない（テストで担保）
+- [ ] #9 ラベルは解決された基準ブランチ名（縮退時はデフォルトブランチ名）を表示する
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## /review-design の結果（2026-10-08）
+
+### 窓ごとの値の置き場（チェック 9・10）
+- `ViewerStore.comparisonTarget: GitComparisonTarget = .parentBranch`（371/400 行、`displayMode` / `diffContent` と同じ窓ごとのライブ値）。永続化しない。`WindowPresentationMemory` には載せない（基準は窓の設定でファイルの設定ではない）
+- 書き込み口は `ViewerDocumentPresenter.setComparisonTarget(_:)` の 1 本（253 行、`setDisplayMode` と並べる）。やることは store へ書く → `sidebar.refreshGitStatuses(policy: .always)` の 1 つだけ。再描画・差分取り直し・capabilities 再同期は既存の `applyGitStatus → gitContextDidChange → refreshDiff / refreshUIState` が運ぶ（新しい経路を増やさない。チェック 3）
+- `ViewerWindowController` グループは 921/931 行で余裕 10 行。メニューのアクションを `+MenuActions` に足さない。ラベル兼ポップアップは `HistoryButtonView` と同じく自分で NSMenu/SwiftUI Menu を組み、presenter を直接呼ぶ
+
+### 共有キャッシュの衝突（チェック 3・5・9、最重要）
+基準を窓ごとにすると、次の 3 つの app 全体共有が「同じルート／同じファイルなら同じ結果」を前提にしているため破れる。**すべてキーに target を含める。**
+- `GitStatusStore.cache` / `inFlight`（キー = rootKey）→ rootKey + target。`.onlyIfIndexChanged` の再利用判定（index fingerprint）も target が同じときだけ
+- `GitDiffLoader` の合流（キー = ファイルの normalizedPathKey）→ + target。窓 A（parent）と窓 B（head）が同じファイルを開くと互いの差分を受け取る
+- `GitStatusReading.status(forRepositoryAt:)` / `GitDiffReading.diff(forFileAt:in:)` に `target:` を必須引数で足す（既定引数にしない。渡し忘れが黙って既定基準になる = TASK-319 型）
+- 担保: `foldsConcurrentRequestsForSameRoot` の逆（target が違えば合流しない）、`skipsGitWhenIndexFingerprintIsUnchanged` の逆（target が変われば取り直す）、`ViewerWindowManagerDiffTests` に「基準は窓ごと」（2 窓で切り替え → もう一方の store.comparisonTarget と diffContent が動かない）
+
+### 着地時の照合（チェック 8）
+- `ViewerDiffPresenter.refresh` の着地 guard は `currentURL() == url && isDiffShown` だけ。**`store.comparisonTarget == 取得時の target` を足す**。無いと切替直後に旧基準の差分が着地する
+- 開始時: 基準を変えたら `diffContent` は `.pending` に落とす（TASK-407 の「確定差分を表示中は降格しない」は保存による取り直し向け。基準が変わったのに旧差分を新ラベルの下に出す方が誤り）
+- バッジ側: `GitStatusResult` / `SidebarGitStatus` に `GitComparisonResolution`（353.1）を載せ、`SidebarGitStatusCoordinator` は snapshot の target が窓の現在値と違えば捨てる（既存の sequence ゲートと同じ場所）
+
+### 表示（チェック 4）
+- ラベルは 353.1 の `GitComparisonResolution.baseBranchName` を出す（「このブランチの変更」の抽象名ではなく "main から" / "feature-a から" / "HEAD から"）。縮退して main に落ちたことが利用者に見える
+- 「スタック全体の変更」の出し分けは snapshot の `parentDiffersFromDefault` を読む。メニューを開く瞬間に git を触らない
+- 基準を変えて現在ファイルの差分が空になると、既存どおり `.unavailable` → 通常のソース表示へ黙って戻る（`DocumentSurfaceStack` の `.none`）。新しい状態は作らず、ラベルに「(変更なし)」を付ける（`showsDiff && diffContent == .unavailable` から導出、新しい stored property は無し）
+- 基準メニュー自体は `GitDiffAvailability` でゲートしない（窓の設定なので現在ファイルが unchanged でも切り替えられる）
+
+### UI の置き場（決定事項）
+- 既存の差分専用領域は無い（ツールバー 5 項目＋View メニューのみ）。**ツールバー項目**として足し、差分モード以外は `isHidden`。本文内のバー（viewer.html）は `BefoldRenderKit` 経由で QuickLook まで波及するので採らない
+- 文字列: `Localizable.xcstrings` の `toolbar.mode.diff*` の直後に挿入（ソートしない）
+<!-- SECTION:PLAN:END -->

@@ -4,7 +4,7 @@ title: 差分の親ブランチを gh-stack のスタックファイルから解
 status: To Do
 assignee: []
 created_date: '2026-10-08 01:59'
-updated_date: '2026-10-08 02:07'
+updated_date: '2026-10-08 02:18'
 labels: []
 milestone: m-11
 dependencies: []
@@ -31,8 +31,35 @@ TASK-353 の「このブランチの変更」は `merge-base(HEAD, 親ブラン�
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 gh-stack のスタックに属するブランチでは、一つ前のブランチ（先頭なら trunk）を親として返す
-- [ ] #2 スタックファイルが無い・読めない・未知の schemaVersion・現在ブランチがどのスタックにも無い場合は、デフォルトブランチへ縮退する
-- [ ] #3 親ブランチがローカルに存在しない場合（削除済み・マージ済み）もデフォルトブランチへ縮退する
-- [ ] #4 worktree で作業しているときもスタックファイルが見つかる（保存場所を実物で確認した結果を Notes に残す）
-- [ ] #5 上記の各ケースをユニットテストで担保する
+- [ ] #2 スタックファイルが無い・読めない・未知の schemaVersion・現在ブランチがどのスタックにも無い・detached HEAD の場合は、デフォルトブランチへ縮退し、縮退したことが解決結果から分かる
+- [ ] #3 親ブランチが refs/heads にも refs/remotes/origin にも無い場合もデフォルトブランチへ縮退する
+- [ ] #4 スタックファイルを common dir と worktree ごとの admin dir の両方から探す（gh-stack v0.1.1 は後者、新版は前者に置く）。実物で確認した結果を Notes に残す
+- [ ] #5 解決結果に基準ブランチ名と「親がデフォルトブランチと異なるか」が含まれ、メニューとラベルが main 上で再解決せずに読める
+- [ ] #6 上記の各ケースをユニットテストで担保し、既存の badgeAndDiffAgreeOnBranchChange を 3 基準に引数化する
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## /review-design の結果（2026-10-08）
+
+### 置き場と形
+- `GitComparisonTarget` enum（`.parentBranch` / `.defaultBranch` / `.head`）を `GitComparisonBase.swift`（111 行）に足し、`GitComparisonBaseResolving.comparisonBase(forRepositoryAt:)` を `comparisonBase(forRepositoryAt:target:)` に広げる。`.head` は libgit2 で "HEAD" を revparse するだけで特別扱いしない（バッジ側は HEAD..HEAD が空になるので「ブランチで変更」バッジが自然に消える = 353.3 AC#2 は無料で満たす）
+- 解決結果は base の oid だけでなく **表示用の基準ブランチ名**と **親ブランチがデフォルトブランチと異なるか** を含む値型 `GitComparisonResolution` で返す。353.2 のラベル・メニューの出し分けはこの値を status スナップショットに載せて読む（メニューを開く瞬間に main で解決させない。チェック 5・6）
+- 親ブランチの読み取りは新ファイル `GitParentBranchResolver.swift` に切る。JSON の解釈は `(Data, currentBranch) -> String?` の純粋関数にしてフィクスチャでテストする
+
+### スタックファイルの場所（裏取り済み）
+- gh-stack v0.1.1（手元で `gh extension list` 確認）は go-gh の `GitDir()` の結果に `gh-stack` を置く（cmd/utils.go v0.1.1 `loadStackOptional`）。gh-stack main は `git.CommonDir()` へ統合し、`internal/stack/migration.go` の `HasLegacyState` が「linked-worktree catalogs」を legacy として common dir へ移す。つまり **v0.1.1 は worktree ごとの admin dir（`.git/worktrees/<名前>/gh-stack`）、新版は common dir**
+- 読み順: `git_repository_commondir` → `git_repository_path`（per-worktree）。両方試す。lock ファイル（`gh-stack.lock`）は無視
+- 未確認: go-gh `GitDir()` が `rev-parse --git-dir` 相当であること（legacy 移行コードの記述から推定）。AC#4 の実測でスタックを 1 本作って `find "$(git rev-parse --git-common-dir)" -name gh-stack` で確かめる
+
+### 縮退の判定（チェック 1）
+- 「親が分からない」は事実で判定する: ファイル無し／JSON 不正／schemaVersion ≠ 1／現在ブランチが無い／detached HEAD／親 ref を revparse できない。いずれも `.defaultBranch` と同じ解決に落とし、`GitComparisonResolution` に「縮退した」ことを持たせる（ラベルが "main から" と出れば利用者に見える）
+- 親 ref の解決は `refs/heads/<親>` → 無ければ `refs/remotes/origin/<親>`。ローカル削除済みでもリモートに残っていれば使う（AC#3 を「どちらにも無ければ縮退」に読み替える）
+- `branches[i].base` フィールドは使わない（omitempty で空の可能性が未確認。隣接要素＋trunk で決める）。実物を見て base が常に入っているなら簡略化してよい
+
+### テスト（チェック 7・9）
+- 純粋関数: スタックに属する／先頭（trunk）／属さない／schemaVersion 2／壊れた JSON
+- 統合: 実リポジトリに `gh-stack` を手書きして common dir と per-worktree dir の両方で解決できること、親ブランチ削除時の縮退
+- 既存 `GitDiffComparisonBaseIntegrationTests.badgeAndDiffAgreeOnBranchChange` を target ごとに引数化し、3 基準でバッジと差分が一致することを守らせる
+<!-- SECTION:PLAN:END -->
