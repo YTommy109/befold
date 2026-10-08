@@ -283,4 +283,30 @@ struct SidebarNavigatorGitStatusTests {
 
         #expect(watchers.get().isEmpty)
     }
+
+    /// 比較基準(TASK-353.2)が発行後に変わった取得の結果は、バッジに反映しない。
+    /// 新基準の取得が別に発行される前提なので、旧基準のバッジが先に着地すると
+    /// 基準ラベルと食い違う範囲にバッジが付く。照合(`request.target == 窓の現在値`)を
+    /// 外すと落ちる。
+    @Test("基準を変えた後に旧基準の git 状態が着地しても反映しない")
+    func discardsStatusesFetchedUnderOldTarget() async {
+        let base = Self.home.appendingPathComponent("SidebarNavigatorGitStatusTests-oldTarget")
+        let gate = AsyncGate()
+        let statuses = ["\(base.path)/a.md": status(.modified)]
+        let (navigator, host) = makeNavigator(currentDirectory: base) { _, _ in
+            await gate.wait()
+            return GitStatusResult(
+                snapshot: GitStatusSnapshot(statuses: statuses, indexURL: nil), repositoryRoot: base
+            )
+        }
+        defer { withExtendedLifetime(host) {} }
+
+        navigator.refreshGitStatuses()
+        let task = navigator.pendingGitStatusTask
+        host.comparisonTarget = .head
+        gate.open()
+        await task?.value
+
+        #expect(navigator.fileListModel.gitStatus == nil)
+    }
 }
