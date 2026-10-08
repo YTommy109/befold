@@ -1,9 +1,11 @@
 ---
 id: TASK-677
 title: 比較基準ラベルがデフォルトブランチを「origin/main」と表示する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-10-08 05:08'
+updated_date: '2026-10-08 05:19'
 labels:
   - diff
 milestone: m-11

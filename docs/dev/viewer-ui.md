@@ -261,7 +261,7 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
 差分モードの間だけ、ツールバーに「何と比べているか」を示すラベル兼ポップアップが出る
 （差分モード以外は隠す）。ラベルは解決された基準ブランチ名（「main から」「feature-a から」）、
 作業中の変更は「HEAD から」。差分が空で通常のソース表示へ戻っているときは「（変更なし）」を足す
-（`ViewerStore.showsDiff` かつ `diffContent == .unavailable` から導出。専用の状態は持たない）。
+（`ViewerStore.showsDiff` かつ `diffContent == .unavailable` から導出。専用の状態は持たない）。取得の飛行中（`.pending`）は付けない。導出元が変わるたびにツールバーを再同期するため、`ViewerDiffPresenter.refresh()` は `diffContent` を書くたびに `diffContentDidChange` を呼ぶ（TASK-676）。
 
 | 選択肢 | 基準 | 出す条件 |
 |---|---|---|
