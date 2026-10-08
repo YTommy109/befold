@@ -1,10 +1,10 @@
 ---
 id: TASK-353
 title: 差分の比較基準を「このブランチ／スタック全体／作業中」で切り替えられるようにする
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-07 05:24'
-updated_date: '2026-10-08 04:54'
+updated_date: '2026-10-08 04:59'
 labels:
   - diff
 milestone: m-11
@@ -56,8 +56,8 @@ stacked PR（gh-stack）で作業すると、この基準はスタックの根�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 3 つの比較基準を、差分モードの窓ごとに切り替えられる
-- [ ] #2 差分モードの間、何との差分かが常に画面に表示される
+- [x] #1 3 つの比較基準を、差分モードの窓ごとに切り替えられる
+- [x] #2 差分モードの間、何との差分かが常に画面に表示される
 - [x] #3 stacked PR のブランチでは、既定で一つ前のブランチからの変更だけが表示される
 - [x] #4 サイドバーのバッジと差分ビューアの基準が食い違わない（TASK-352 の一貫性が保たれる）
 - [x] #5 比較基準の仕様が docs/dev/viewer-ui.md に反映されている
@@ -84,3 +84,9 @@ m-3 との関係: m-3 は「基準切り替えの設定を新設せず、コミ�
 
 swiftlint は origin/main との差分ゼロ(45件=45件)。残り: 353.2 AC#1 と親 AC#1/#2 はツールバー操作の目視確認待ち(自動化不可)。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+3 基準(このブランチ/スタック全体/作業中)の切替を実装。親ブランチは gh-stack から解決、バッジと差分は同じ基準に追従。swiftlint 差分ゼロ、全テスト通過、GUI 実測済み。
+<!-- SECTION:FINAL_SUMMARY:END -->
