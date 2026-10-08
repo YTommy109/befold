@@ -77,7 +77,11 @@ struct GitComparisonBaseResolver: GitComparisonBaseResolving {
                 fallthrough
             case .defaultBranch:
                 guard let base = Self.mergeBase(in: repository, with: defaultBranch) else { return nil }
-                return resolution(base: base, branch: defaultBranch, degraded: target == .parentBranch)
+                return resolution(
+                    base: base,
+                    branch: Self.localName(of: defaultBranch),
+                    degraded: target == .parentBranch
+                )
             }
         }
         return (try? outcome.get()) ?? nil
@@ -94,7 +98,7 @@ struct GitComparisonBaseResolver: GitComparisonBaseResolving {
         return nil
     }
 
-    /// `origin/main` → `main`。親ブランチ名との比較用。
+    /// `origin/main` → `main`。親ブランチ名との比較と、ラベル用の表示名(TASK-677)。merge-base の revision には使わない。
     private static func localName(of branch: String) -> String {
         branch.hasPrefix("origin/") ? String(branch.dropFirst("origin/".count)) : branch
     }

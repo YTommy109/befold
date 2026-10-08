@@ -190,6 +190,27 @@ struct GitParentBranchIntegrationTests {
         #expect(parent.parentDiffersFromDefault == false)
     }
 
+    @Test("origin/HEAD があっても表示名は origin/ を落とし、merge-base は origin 側を使う(TASK-677)")
+    func displayNameDropsOriginPrefixButMergeBaseUsesRemote() throws {
+        let repo = try makeStackedRepository()
+        let temp = repo.temp
+        let trunk = repo.trunk
+        defer { withExtendedLifetime(temp) {} }
+        // origin/<trunk> を feat-a の先頭に置く。ローカルの trunk は最初のコミットのままなので、基準が origin 側かどうかが baseID で分かる。
+        GitTestRepo.run(["update-ref", "refs/remotes/origin/\(trunk)", repo.aHead], in: temp.url)
+        GitTestRepo.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/\(trunk)"], in: temp.url)
+
+        let whole = try #require(GitComparisonBaseResolver().comparisonBase(
+            forRepositoryAt: temp.url, target: .defaultBranch
+        ))
+        #expect(whole.baseBranch == trunk)
+        #expect(whole.baseID == repo.aHead)
+        let degraded = try #require(GitComparisonBaseResolver().comparisonBase(
+            forRepositoryAt: temp.url, target: .parentBranch
+        ))
+        #expect(degraded.baseBranch == trunk)
+    }
+
     @Test("親ブランチがローカルに無くても refs/remotes/origin に残っていれば使う")
     func usesRemoteTrackingParent() throws {
         let repo = try makeStackedRepository()
