@@ -12,16 +12,36 @@ import libgit2
 ///
 /// 実装はファイルシステムを走査するため、必ずメインアクターの外で呼ぶこと。
 protocol GitComparisonBaseResolving: Sendable {
-    /// - Returns: 比較の起点にするコミット。特定できなければ nil。
+    /// - Returns: 比較の起点。特定できなければ nil。
     ///   nil は「分からない」であって「HEAD と同じ」ではない。縮退のしかたは
     ///   呼び出し側が決める(バッジはブランチ差分を諦め、差分ビューアは HEAD へ落とす)。
-    ///
-    ///   返すのはコミット ID の 16 進表記。呼び出し側は
-    ///   `git_revparse_single` に食わせられる文字列として扱う。
-    func comparisonBase(forRepositoryAt root: URL) -> String?
+    func comparisonBase(forRepositoryAt root: URL, target: GitComparisonTarget) -> GitComparisonResolution?
 }
 
-/// デフォルトブランチとの merge-base を起点にする本番実装。
+/// 何を起点に比べるか。窓ごとの選択肢(TASK-353)に対応する。
+enum GitComparisonTarget: Sendable, Equatable, CaseIterable {
+    /// このブランチの変更。`merge-base(HEAD, 親ブランチ)`。親が分からなければデフォルトブランチへ縮退する。
+    case parentBranch
+    /// スタック全体の変更。`merge-base(HEAD, デフォルトブランチ)`(従来の挙動)。
+    case defaultBranch
+    /// 作業中の変更。`HEAD` そのもの。
+    case head
+}
+
+/// 起点の解決結果。メニューやラベルはこの値を読む(開く瞬間に main で再解決しない)。
+struct GitComparisonResolution: Sendable, Equatable {
+    /// 起点コミットの 16 進表記。`git_revparse_single` に渡せる。
+    let baseID: String
+    /// 表示用の基準ブランチ名。`.head` では nil。縮退したときはデフォルトブランチ名。
+    let baseBranch: String?
+    /// 親ブランチが分かっていて、デフォルトブランチと異なる(=「スタック全体」を出す意味がある)。
+    /// どの target で解決しても同じ値になる。
+    let parentDiffersFromDefault: Bool
+    /// `.parentBranch` を求められたが親が分からず、デフォルトブランチへ落とした。
+    let degraded: Bool
+}
+
+/// デフォルトブランチ / 親ブランチとの merge-base を起点にする本番実装。
 ///
 /// ブランチで作業している間は「このブランチが base から変えたもの」全体が対象になり、
 /// コミット済みの変更も差分に出る。main の上ではデフォルトブランチとの merge-base が
@@ -30,12 +50,50 @@ struct GitComparisonBaseResolver: GitComparisonBaseResolving {
     /// merge-base はコミット・チェックアウトのたびに動くため**キャッシュしない**。
     /// 保持すると、コミット直後に「さっきまでの base」で比べ続けることになり、
     /// `GitStatusStore` が fingerprint で無効化しているのと同じ陳腐化を持ち込む。
-    func comparisonBase(forRepositoryAt root: URL) -> String? {
-        let outcome = GitLibrary.withRepository(at: root) { repository -> String? in
+    func comparisonBase(forRepositoryAt root: URL, target: GitComparisonTarget) -> GitComparisonResolution? {
+        let outcome = GitLibrary.withRepository(at: root) { repository -> GitComparisonResolution? in
             guard let defaultBranch = Self.defaultBranch(in: repository) else { return nil }
-            return Self.mergeBase(in: repository, with: defaultBranch)
+            let parent = GitParentBranchResolver.parentBranch(in: repository).flatMap {
+                Self.usableRef(for: $0, in: repository)
+            }
+            let differs = parent.map { $0.name != Self.localName(of: defaultBranch) } ?? false
+            func resolution(base: String, branch: String?, degraded: Bool = false) -> GitComparisonResolution {
+                GitComparisonResolution(
+                    baseID: base, baseBranch: branch, parentDiffersFromDefault: differs, degraded: degraded
+                )
+            }
+            switch target {
+            case .head:
+                let headOID = Self.commitID(in: repository, revision: "HEAD")
+                guard let headOID, let head = Self.hexString(of: headOID) else { return nil }
+                return resolution(base: head, branch: nil)
+            case .parentBranch:
+                if let parent, let base = Self.mergeBase(in: repository, with: parent.ref) {
+                    return resolution(base: base, branch: parent.name)
+                }
+                fallthrough
+            case .defaultBranch:
+                guard let base = Self.mergeBase(in: repository, with: defaultBranch) else { return nil }
+                return resolution(base: base, branch: defaultBranch, degraded: target == .parentBranch)
+            }
         }
         return (try? outcome.get()) ?? nil
+    }
+
+    /// 親ブランチ名を revparse できる ref へ解く。ローカルに無くてもリモートに残っていれば使う。
+    private static func usableRef(for name: String, in repository: OpaquePointer) -> (name: String, ref: String)? {
+        for ref in ["refs/heads/\(name)", "refs/remotes/origin/\(name)"] {
+            var reference: OpaquePointer?
+            guard git_reference_lookup(&reference, repository, ref) == 0 else { continue }
+            git_reference_free(reference)
+            return (name, ref)
+        }
+        return nil
+    }
+
+    /// `origin/main` → `main`。親ブランチ名との比較用。
+    private static func localName(of branch: String) -> String {
+        branch.hasPrefix("origin/") ? String(branch.dropFirst("origin/".count)) : branch
     }
 
     /// HEAD と `revision` の merge-base の 16 進表記。

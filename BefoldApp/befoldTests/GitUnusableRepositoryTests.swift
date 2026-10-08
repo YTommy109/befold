@@ -39,7 +39,7 @@ struct GitUnusableRepositoryTests {
         // 差分: nil（キャッシュ不可）。
         #expect(GitDiffReader().diff(forFileAt: file, in: temp.url) == nil)
         // 比較起点: nil（起点が分からない）。
-        #expect(GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url) == nil)
+        #expect(GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url, target: .defaultBranch) == nil)
         // 追跡ファイル索引・worktree 一覧も空へ縮退する（Quick Open はディレクトリ走査へ落ちる）。
         #expect(GitRepository().trackedFiles(at: temp.url) == nil)
         #expect(GitRepository().worktrees(forRoot: temp.url).isEmpty)

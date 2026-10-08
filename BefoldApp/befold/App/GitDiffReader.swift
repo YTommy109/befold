@@ -46,7 +46,7 @@ struct GitDiffReader: GitDiffReading {
         //
         // 起点が分からないとき(デフォルトブランチを特定できない・リモートが無い・
         // detached HEAD)だけ HEAD へ落とす。差分が空だったから落とす、ではない。
-        let base = comparisonBase.comparisonBase(forRepositoryAt: root) ?? "HEAD"
+        let base = comparisonBase.comparisonBase(forRepositoryAt: root, target: .defaultBranch)?.baseID ?? "HEAD"
         let outcome = GitLibrary.withRepository(at: root) { repository -> GitFileDiff in
             // コミットが 1 つも無いリポジトリでは比較の相手が存在しない。
             // 出力の有無からは区別できないため、HEAD が未生成かという事実で判定する。
