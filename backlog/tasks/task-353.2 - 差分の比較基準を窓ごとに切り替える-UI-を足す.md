@@ -4,7 +4,9 @@ title: 差分の比較基準を窓ごとに切り替える UI を足す
 status: To Do
 assignee: []
 created_date: '2026-10-08 02:00'
+updated_date: '2026-10-08 02:07'
 labels: []
+milestone: m-11
 dependencies:
   - TASK-353.1
 parent_task_id: TASK-353

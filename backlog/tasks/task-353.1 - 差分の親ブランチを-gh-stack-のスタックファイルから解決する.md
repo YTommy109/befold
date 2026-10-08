@@ -4,7 +4,9 @@ title: 差分の親ブランチを gh-stack のスタックファイルから解
 status: To Do
 assignee: []
 created_date: '2026-10-08 01:59'
+updated_date: '2026-10-08 02:07'
 labels: []
+milestone: m-11
 dependencies: []
 parent_task_id: TASK-353
 priority: medium

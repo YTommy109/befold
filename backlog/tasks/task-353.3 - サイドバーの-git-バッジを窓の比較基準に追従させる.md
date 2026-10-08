@@ -4,7 +4,9 @@ title: サイドバーの git バッジを窓の比較基準に追従させる
 status: To Do
 assignee: []
 created_date: '2026-10-08 02:00'
+updated_date: '2026-10-08 02:07'
 labels: []
+milestone: m-11
 dependencies:
   - TASK-353.2
 parent_task_id: TASK-353

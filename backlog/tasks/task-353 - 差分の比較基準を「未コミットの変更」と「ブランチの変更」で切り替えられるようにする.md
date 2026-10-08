@@ -4,9 +4,10 @@ title: 差分の比較基準を「このブランチ／スタック全体／作�
 status: To Do
 assignee: []
 created_date: '2026-08-07 05:24'
-updated_date: '2026-10-08 01:59'
+updated_date: '2026-10-08 02:07'
 labels:
   - diff
+milestone: m-11
 dependencies: []
 priority: medium
 type: feature
@@ -74,4 +75,6 @@ TASK-435(git 連携の libgit2 移行)の後段に置いた(ordinal 113000)。�
 stacked PR で基準がスタックの根元になる問題を受けて、2 択（ブランチ／未コミット）から 3 択（このブランチ／スタック全体／作業中）に作り直した。上の「優先順位の整理」で待っていた TASK-435（libgit2 移行）は完了済みで、`GitComparisonBase` は libgit2 実装になっている。旧版にあった `FeatureGate.isSourceDiffEnabled` 配下という制約は、ゲートがコードから無くなっている（`rg isSourceDiffEnabled BefoldApp` で 0 件）ため削除した。
 
 m-3 との関係: m-3 は「基準切り替えの設定を新設せず、コミット一覧の先頭エントリで両方の見方を出す」としていた。本タスクは窓ごとのライブ値（永続化しない、`DiffDisplayPreference` に値を足さない）として先に出し、m-3 ではこの 3 基準を一覧の先頭エントリとして再利用する想定。そのため milestone から外した。
+
+マイルストーンの差し替え（2026-10-08）: m-3 の説明文は CLI で編集できないため m-3 をアーカイブし、本タスクを第 1 段階に置いた m-11「比較対象を選んで変更を追えるようにする」を新設した。サブタスクも含め m-11 に入れた。
 <!-- SECTION:NOTES:END -->
