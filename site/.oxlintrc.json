@@ -84,12 +84,6 @@
       "rules": { "eslint/no-undef": "off" }
     },
     {
-      // TASK-684 の一時除外。外しても通る状態にするのが後続タスクの AC。
-      // 実測 dashboard.tsx 1126 行 → TASK-686（analytics.ts は TASK-685 で分割済み）。
-      "files": ["src/views/dashboard.tsx"],
-      "rules": { "eslint/max-lines": "off" }
-    },
-    {
       // 実測 249 行のコンポーネント 1 関数 → TASK-689。
       "files": ["src/views/landing.tsx"],
       "rules": { "eslint/max-lines-per-function": "off" }

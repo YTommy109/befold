@@ -1,10 +1,10 @@
 ---
 id: TASK-686
 title: site/src/views/dashboard.tsx（1126 行）を描画部品とページ別セクションに分ける
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 09:35'
-updated_date: '2026-10-08 09:35'
+updated_date: '2026-10-08 10:22'
 labels:
   - site
   - refactor
@@ -40,15 +40,23 @@ import しているのは `src/routes/dashboard.tsx` と `test/dashboard.test.ts
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 TASK-684 が決めた閾値に対し、views/dashboard.tsx 由来のモジュールを override の一時除外から外しても `npm run lint` が通る
-- [ ] #2 `routes/dashboard.tsx` の import 先が変わるだけで、各ページの HTML 出力は変わらない（`test/dashboard.test.ts` が変更なしに通る、または import パスの書き換えだけで通る）
-- [ ] #3 ページに依存しない描画部品（表・チャート・カード）が、ページ別セクションとは別のモジュールにある
-- [ ] #4 各モジュールの先頭コメントに「何を置くか／置かないか」が 1〜2 行で書かれている
-- [ ] #5 site/.oxlintrc.json の override から views/dashboard.tsx のエントリが消えている
+- [x] #1 TASK-684 が決めた閾値に対し、views/dashboard.tsx 由来のモジュールを override の一時除外から外しても `npm run lint` が通る
+- [x] #2 `routes/dashboard.tsx` の import 先が変わるだけで、各ページの HTML 出力は変わらない（`test/dashboard.test.ts` が変更なしに通る、または import パスの書き換えだけで通る）
+- [x] #3 ページに依存しない描画部品（表・チャート・カード）が、ページ別セクションとは別のモジュールにある
+- [x] #4 各モジュールの先頭コメントに「何を置くか／置かないか」が 1〜2 行で書かれている
+- [x] #5 site/.oxlintrc.json の override から views/dashboard.tsx のエントリが消えている
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 着手順: TASK-685（analytics.ts）が型・ラベルの置き場を動かすと、こちらの import 先が変わる。付け替えを 1 回で済ませるため TASK-685 を先に片付ける（依存で表現済み）。
+
+分割: site/src/views/dashboard/ 配下に shell / parts / chart / overview / users / traffic / delivery / events と index.ts（公開 7 名のみ再エクスポート。import パス '../views/dashboard' は不変）。最大 users.tsx 226 行。検証: npm run lint・typecheck・format:check 通過、vitest 440 件通過（test/dashboard.test.ts 無変更）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+dashboard.tsx(1126 行)を views/dashboard/ の 8 モジュール+index.ts に分割し、oxlint の一時除外 override を撤去。lint/typecheck/vitest 全通過、test は無変更で通る。
+<!-- SECTION:FINAL_SUMMARY:END -->
