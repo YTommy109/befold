@@ -65,6 +65,9 @@ struct SidebarHeaderControlsModel: Equatable {
     let comparisonItems: [GitComparisonTarget]
     /// いまの比較基準。ボタンのツールチップに出す。
     let comparisonTarget: GitComparisonTarget
+    /// 親ブランチを解決できずデフォルトブランチへ縮退しているとき、その比較先の名前。
+    /// 縮退していなければ nil。ツールチップで「実際は何と比べているか」を伝える。
+    let degradedComparisonBranch: String?
 
     /// - Parameters:
     ///   - settings: この窓のサイドバー表示 4 値(`FileListModel.display.settings`)。
@@ -97,6 +100,7 @@ struct SidebarHeaderControlsModel: Equatable {
             current: comparisonTarget, resolution: comparisonResolution
         )
         self.comparisonTarget = comparisonTarget
+        degradedComparisonBranch = comparisonResolution?.degraded == true ? comparisonResolution?.baseBranch : nil
     }
 
     private static func leadingControls(layoutMode: SidebarLayoutMode) -> [SidebarHeaderControl] {

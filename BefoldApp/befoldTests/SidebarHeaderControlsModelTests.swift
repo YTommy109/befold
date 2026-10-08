@@ -59,6 +59,22 @@ struct SidebarHeaderControlsModelTests {
         }
     }
 
+    /// 縮退(親ブランチ不明→デフォルト)のときだけ比較先の名前を持つ(TASK-681)。
+    @Test("縮退したときだけ比較先ブランチ名を持つ", arguments: [true, false])
+    func degradedBranchOnlyWhenDegraded(degraded: Bool) {
+        let model = SidebarHeaderControlsModel(
+            settings: SidebarDisplaySettings(
+                showHiddenFiles: false, showChangedFilesOnly: false, layoutMode: .tree, sortOrder: .foldersFirst
+            ),
+            comparisonTarget: .parentBranch,
+            comparisonResolution: GitComparisonResolution(
+                baseID: "abc", baseBranch: "main", parentDiffersFromDefault: false, degraded: degraded
+            ),
+            canFilterChangedFiles: true, isFilterActive: false, isFilterTextEmpty: true
+        )
+        #expect(model.degradedComparisonBranch == (degraded ? "main" : nil))
+    }
+
     /// 左右分割そのものを固定する。doc コメントだけでは次のボタン追加で崩れるため、
     /// 並びを配列比較で押さえる（設計「テスト」節の 4 番）。
     @Test("左が表示形式、右が変更のみ・フィルター・⋯ の順になる")

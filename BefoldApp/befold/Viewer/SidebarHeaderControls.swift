@@ -90,8 +90,12 @@ struct SidebarHeaderControls: View {
     /// 本体は他と同じ `button()`、▾ は独立した `Menu` で、色とチェックは標準の経路に乗せる。
     private func changedFilesOnlyMenu(_ control: SidebarHeaderControl) -> some View {
         let basis = ComparisonTargetPresentation.title(for: controls.comparisonTarget)
+        let degradedNote = controls.degradedComparisonBranch.map {
+            String(format: String(localized: "toolbar.mode.diff.degraded", bundle: .l10n), $0)
+        }
+        let basisHelp = ([basis] + [degradedNote].compactMap(\.self)).joined(separator: "\n")
         return HStack(spacing: 0) {
-            button(control, helpDetail: basis)
+            button(control, helpDetail: basisHelp)
             Menu {
                 Picker(selection: Binding(
                     get: { controls.comparisonTarget },
@@ -112,8 +116,9 @@ struct SidebarHeaderControls: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help(basis)
-            .accessibilityLabel(basis)
+            .help(basisHelp)
+            .accessibilityLabel(String(localized: "menu.view.comparisonTarget", bundle: .l10n))
+            .accessibilityValue(([basis] + [degradedNote].compactMap(\.self)).joined(separator: ". "))
         }
     }
 

@@ -1,9 +1,10 @@
 ---
 id: TASK-681
 title: 「変更のあるファイルのみ」の ▾ のラベルとツールチップが縮退(親ブランチ不明→デフォルト)とコントロール名を伝えない
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-08 08:48'
+updated_date: '2026-10-08 10:57'
 labels:
   - bug
 dependencies:
@@ -26,7 +27,13 @@ TASK-680 と同じ SidebarHeaderControls.swift を触るので、そちらの後
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 親ブランチを解決できずデフォルトブランチへ縮退しているとき、▾ のツールチップまたは項目名からそのこと(どのブランチと比べているか)が分かる。あるいは「出さない」と決めて baseBranch / degraded の dead フィールドを落とし、判断を Notes と docs に残す
-- [ ] #2 ▾ Menu の VoiceOver 読み上げが「コントロール名 → 現在の基準」の順になる(accessibilityLabel に名前、accessibilityValue に基準)
-- [ ] #3 accessibility-reviewer を回し、後退が無いことを Notes に残す
+- [x] #1 親ブランチを解決できずデフォルトブランチへ縮退しているとき、▾ のツールチップまたは項目名からそのこと(どのブランチと比べているか)が分かる。あるいは「出さない」と決めて baseBranch / degraded の dead フィールドを落とし、判断を Notes と docs に残す
+- [x] #2 ▾ Menu の VoiceOver 読み上げが「コントロール名 → 現在の基準」の順になる(accessibilityLabel に名前、accessibilityValue に基準)
+- [x] #3 accessibility-reviewer を回し、後退が無いことを Notes に残す
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+AC1: 縮退時(degraded)に ▾ とボタンのツールチップへ「親ブランチが不明なため main と比較しています」を出す(SidebarHeaderControlsModel.degradedComparisonBranch)。baseBranch/degraded は読み手が付いたので残す。AC2: ▾ の accessibilityLabel=メニュー名「比較基準」(menu.view.comparisonTarget を流用)、accessibilityValue=基準(縮退注記付き)。AC3: accessibility-reviewer 実施。読み上げ順の後退なし。指摘の value/help 重複は Value を .help と別文字列(改行なし)にして対応。実機 VoiceOver は未確認。
+<!-- SECTION:NOTES:END -->

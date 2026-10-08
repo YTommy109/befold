@@ -3538,6 +3538,23 @@
         }
       }
     },
+    "toolbar.mode.diff.degraded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parent branch not found; comparing against %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "親ブランチが不明なため %@ と比較しています"
+          }
+        }
+      }
+    },
     "toolbar.mode.diff.target.defaultBranch": {
       "extractionState": "manual",
       "localizations": {
