@@ -154,27 +154,6 @@
       }
     },
     {
-      // TASK-684 の一時除外。外しても通る状態にするのが後続タスク TASK-687 の AC。
-      // 実測: diff-html.ts 578 / find.ts 587 / jump.ts 448 / jump-providers.ts 454 行。
-      "files": [
-        "viewer-src/diff-html.ts",
-        "viewer-src/find.ts",
-        "viewer-src/jump.ts",
-        "viewer-src/jump-providers.ts"
-      ],
-      "rules": { "eslint/max-lines": "off" }
-    },
-    {
-      // 実測の関数長 find.ts 389 / jump.ts 248 行 → TASK-687。
-      "files": ["viewer-src/find.ts", "viewer-src/jump.ts"],
-      "rules": { "eslint/max-lines-per-function": "off" }
-    },
-    {
-      // 実測 appendChunk の complexity 30・ネスト 5 → TASK-687。
-      "files": ["viewer-src/render.ts"],
-      "rules": { "eslint/complexity": "off", "eslint/max-depth": "off" }
-    },
-    {
       "files": ["viewer-test/**"],
       "plugins": ["jest"],
       "env": { "jest": true, "node": true },

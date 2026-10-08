@@ -2,207 +2,18 @@
 // 既存のソース表示と同じ <table class="code-table"> 構造に載せるため、行番号・
 // インデントガイド・シンタックスハイライト・検索がそのまま効く。
 
-import { highlightCode, lineContentCell, reflowSpanBalancedLines } from './code-html.js';
+import { lineContentCell } from './code-html.js';
+import { highlightedDiffLines } from './diff-highlight.js';
+import type { CodeHighlighter } from './diff-highlight.js';
+import {
+  assignChangeBlockIndexes,
+  nextChangeBlockIndex,
+  pairDiffLines,
+  parseUnifiedDiff,
+} from './diff-parse.js';
+import type { DiffLine, DiffLineType, DiffHunk, DiffFile, DiffLinePair } from './diff-parse.js';
 import { markWordRanges, wordDiffRanges } from './diff-words.js';
 import type { WordRange } from './diff-words.js';
-import { escapeHtml } from './encoding.js';
-
-/// 依存注入される highlight.js の最小インターフェース。code-html.ts が
-/// highlightCode に定めているものと同一で、そこから引き写す
-/// (同じ形の interface をこちらで二重に定義すると片方だけずれる)。
-type CodeHighlighter = Parameters<typeof highlightCode>[0];
-
-/// 差分行の種別。旧側・新側のどちらに現れるかを決める。
-type DiffLineType = 'context' | 'add' | 'del';
-
-/// unified diff の 1 行。oldNumber / newNumber は片側にしか無い行では null。
-interface DiffLine {
-  type: DiffLineType;
-  text: string;
-  oldNumber: number | null;
-  newNumber: number | null;
-}
-
-/// unified diff の 1 ハンク。oldStart / newStart は `@@ -a,b +c,d @@` の開始行番号。
-interface DiffHunk {
-  oldStart: number;
-  newStart: number;
-  lines: DiffLine[];
-}
-
-/// unified diff の 1 ファイル分。パスはヘッダが無ければ null のまま。
-interface DiffFile {
-  oldPath: string | null;
-  newPath: string | null;
-  isBinary: boolean;
-  hunks: DiffHunk[];
-}
-
-/// 左右分割で 1 行に並べる旧側 / 新側の対。値は `hunk.lines` の添字で、
-/// 対応する行が無い側は null。
-interface DiffLinePair {
-  left: number | null;
-  right: number | null;
-}
-
-// unified diff の 1 ハンクのヘッダー。`@@ -12,7 +12,9 @@ ...` の数値部だけを見る。
-var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
-
-// unified diff をファイル → ハンク → 行の構造へ分解する。
-// 行の種別は 'context' / 'add' / 'del' の 3 つで、旧側・新側の行番号を各行に付ける
-// (描画側で 2 本のガターに出すため。片側にしか無い行はもう一方が null)。
-// `\ No newline at end of file` は直前の行に対する注記であり、行としては数えない。
-function parseUnifiedDiff(text: string | null | undefined): DiffFile[] {
-  var files: DiffFile[] = [];
-  var file: DiffFile | null = null;
-  var hunk: DiffHunk | null = null;
-  var oldNumber = 0;
-  var newNumber = 0;
-  var lines = (text ?? '').split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i]!;
-    if (line.indexOf('diff --git ') === 0) {
-      file = { oldPath: null, newPath: null, isBinary: false, hunks: [] };
-      files.push(file);
-      hunk = null;
-      continue;
-    }
-    if (file === null) {
-      continue;
-    }
-    // ヘッダ類はハンクが始まる前にしか現れない。ハンク内で同じ接頭辞を持つ行は
-    // 本文（`-- ` で始まる SQL コメントの削除など）なので、ここで消費しない。
-    if (hunk === null) {
-      if (line.indexOf('--- ') === 0) {
-        file.oldPath = diffPath(line.slice(4));
-        continue;
-      }
-      if (line.indexOf('+++ ') === 0) {
-        file.newPath = diffPath(line.slice(4));
-        continue;
-      }
-      if (line.indexOf('Binary files ') === 0 || line.indexOf('GIT binary patch') === 0) {
-        file.isBinary = true;
-        continue;
-      }
-    }
-    var header = line.match(DIFF_HUNK_HEADER);
-    if (header) {
-      // ハンクヘッダーの数値部は 10 進固定で読む。Number() + Math.trunc は
-      // 先頭 0 や空文字の扱いが変わるうえ、基数を明示しない形になる。
-      // oxlint-disable-next-line unicorn/prefer-number-coercion
-      oldNumber = parseInt(header[1]!, 10);
-      // oxlint-disable-next-line unicorn/prefer-number-coercion
-      newNumber = parseInt(header[3]!, 10);
-      hunk = { oldStart: oldNumber, newStart: newNumber, lines: [] };
-      file.hunks.push(hunk);
-      continue;
-    }
-    if (hunk === null) {
-      continue;
-    }
-    if (line.indexOf('\\') === 0) {
-      continue;
-    }
-    var marker = line.charAt(0);
-    var body = line.slice(1);
-    if (marker === '+') {
-      hunk.lines.push({ type: 'add', text: body, oldNumber: null, newNumber: newNumber });
-      newNumber += 1;
-    } else if (marker === '-') {
-      hunk.lines.push({ type: 'del', text: body, oldNumber: oldNumber, newNumber: null });
-      oldNumber += 1;
-    } else if (marker === ' ') {
-      // 空文字列の行は本文ではない(git は空の文脈行も先頭 1 文字の空白を付けて出す)。
-      // 末尾の改行で生じる空要素を文脈行として数えると、以降の行番号が 1 つずれる。
-      hunk.lines.push({ type: 'context', text: body, oldNumber: oldNumber, newNumber: newNumber });
-      oldNumber += 1;
-      newNumber += 1;
-    }
-  }
-  return files;
-}
-
-// `a/path/to/file.swift` の接頭辞を落とす。`/dev/null` はそのまま返す(新規・削除の印)。
-function diffPath(raw: string): string {
-  var path = raw.split('\t')[0]!;
-  if (path === '/dev/null') {
-    return path;
-  }
-  return path.replace(/^[ab]\//u, '');
-}
-
-// 添字の並び(旧側 or 新側)の本文をまとめてハイライトし、行ごとの HTML 配列で返す。
-// 1 行ずつ hljs へ渡すとブロックコメントや複数行文字列で字句状態が切れるため、
-// 片側分をまとめて 1 ブロックとして扱う(行をまたぐトークンは側の中で閉じる)。
-// reflowSpanBalancedLines は highlight.js が付ける末尾の \n を落とす作りなので、
-// 最終行が空行(末尾が空行のファイル)だと本物の行まで消える。足りない分は空で埋める。
-function highlightedSideLines(
-  hljs: CodeHighlighter,
-  lines: DiffLine[],
-  indexes: number[],
-  lang: string | undefined,
-): string[] {
-  var texts: string[] = [];
-  for (var i = 0; i < indexes.length; i++) {
-    texts.push(lines[indexes[i]!]!.text);
-  }
-  var joined = texts.join('\n');
-  var lineHtmls: string[] | null = null;
-  var highlighted = highlightCode(hljs, joined, lang);
-  if (highlighted) {
-    var match = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/u);
-    if (match) {
-      lineHtmls = reflowSpanBalancedLines(match[1]!);
-    }
-  }
-  if (lineHtmls === null) {
-    lineHtmls = reflowSpanBalancedLines(escapeHtml(joined));
-  }
-  while (lineHtmls.length < indexes.length) {
-    lineHtmls.push('');
-  }
-  return lineHtmls.slice(0, indexes.length);
-}
-
-// ハンク 1 つ分をハイライトし、行ごとの HTML 配列で返す。
-// 旧版(文脈行 + 削除行)と新版(文脈行 + 追加行)を別々にハイライトする。
-// 両者を 1 ブロックに連結すると、変更行の旧版と新版が隣接して字句状態が壊れ
-// (文字列リテラルやコメントの開始・終了が二重になる)、以降の行の色が総崩れになる。
-// GitDiffReader は -U1000000 でファイル全体を 1 ハンクにするため、崩れは末尾まで及ぶ。
-// 戻り値は必ず hunk.lines と同じ長さにする。呼び出し側は行 HTML を添字で引く
-// (左右分割は対の添字で引く)ため、長さがずれると undefined を掴んで落ちる。
-// 文脈行は両側に現れるが、色は同じになるので新版側の結果を採用する。
-function highlightedDiffLines(
-  hljs: CodeHighlighter,
-  hunk: DiffHunk,
-  lang: string | undefined,
-): string[] {
-  var lines = hunk.lines;
-  var oldIndexes: number[] = [];
-  var newIndexes: number[] = [];
-  for (var i = 0; i < lines.length; i++) {
-    if (lines[i]!.type !== 'add') {
-      oldIndexes.push(i);
-    }
-    if (lines[i]!.type !== 'del') {
-      newIndexes.push(i);
-    }
-  }
-  var result: string[] = [];
-  for (var n = 0; n < lines.length; n++) {
-    result.push('');
-  }
-  var oldHtmls = highlightedSideLines(hljs, lines, oldIndexes, lang);
-  for (var o = 0; o < oldIndexes.length; o++) {
-    result[oldIndexes[o]!] = oldHtmls[o]!;
-  }
-  var newHtmls = highlightedSideLines(hljs, lines, newIndexes, lang);
-  for (var w = 0; w < newIndexes.length; w++) {
-    result[newIndexes[w]!] = newHtmls[w]!;
-  }
-  return result;
-}
 
 // ハンクの行ごとに、行内で実際に変わった語の強調範囲を求める(TASK-528)。
 // 戻り値は必ず hunk.lines と同じ長さで、添字で引ける(highlightedDiffLines と同じ
@@ -249,54 +60,6 @@ function diffLineHtml(
     return '';
   }
   return markWordRanges(lineHtmls[index]!, lines[index]!.text, wordRanges[index]!);
-}
-
-// 連続する変更行を 1 つの「変更ブロック」へまとめ、行ごとのブロック番号を返す。
-// 番号は文書順の通し番号で、`startIndex` から始める(ファイル・ハンクをまたいで
-// 続けるため、呼び出し側が次の開始値を持ち回る)。文脈行は null。
-//
-// 削除の連なりと、その直後に続く追加の連なりは 1 ブロックとして数える
-// (左右分割が `pairDiffLines` で同じ畳み方をしており、そこと数え方を変えると
-// 同じ差分がレイアウトによって違う件数になる)。ハンクの境目をまたいでは
-// 続けない: 呼び出し側がハンクごとに呼ぶため、境目で必ず切れる。
-//
-// **ハンク単位では数えられない。** GitDiffReader は -U1000000 を使うため
-// ファイル全体が 1 ハンクになりうる(BefoldKit/GitDiffReader.swift:101)。
-function assignChangeBlockIndexes(lines: DiffLine[], startIndex: number): (number | null)[] {
-  var result: (number | null)[] = [];
-  var next = startIndex;
-  var i = 0;
-  while (i < lines.length) {
-    if (lines[i]!.type === 'context') {
-      result.push(null);
-      i += 1;
-      continue;
-    }
-    var block = next;
-    next += 1;
-    while (i < lines.length && lines[i]!.type === 'del') {
-      result.push(block);
-      i += 1;
-    }
-    while (i < lines.length && lines[i]!.type === 'add') {
-      result.push(block);
-      i += 1;
-    }
-  }
-  return result;
-}
-
-// 次のハンクへ持ち越す通し番号。ブロックを 1 つも含まないハンク(文脈行だけ)でも
-// 正しく据え置くため、割り当て結果から最大値を読む(呼び出し側が数え直さない)。
-function nextChangeBlockIndex(blocks: (number | null)[], startIndex: number): number {
-  var next = startIndex;
-  for (var i = 0; i < blocks.length; i++) {
-    var block = blocks[i];
-    if (block !== null && block !== undefined && block + 1 > next) {
-      next = block + 1;
-    }
-  }
-  return next;
 }
 
 // 行に付ける変更ブロックの属性。文脈行(null)では何も付けない。
@@ -407,40 +170,6 @@ function renderInlineDiffHtml(
   return (
     '<pre><code class="hljs"><table class="code-table diff-table">' + rows + '</table></code></pre>'
   );
-}
-
-// 左右分割表示のために、ハンクの行を「旧側 / 新側」の対へ畳む。
-// 連続する削除と追加は同じ行に並べる(エディタの差分表示と同じ見え方)。
-// 返すのは行オブジェクトではなく `hunk.lines` の添字。ハイライト済み HTML を
-// 添字で引くため(ハンク単位でまとめてハイライトする方針を崩さない)。
-function pairDiffLines(lines: DiffLine[]): DiffLinePair[] {
-  var pairs: DiffLinePair[] = [];
-  var i = 0;
-  while (i < lines.length) {
-    if (lines[i]!.type === 'context') {
-      pairs.push({ left: i, right: i });
-      i += 1;
-      continue;
-    }
-    var dels: number[] = [];
-    var adds: number[] = [];
-    while (i < lines.length && lines[i]!.type === 'del') {
-      dels.push(i);
-      i += 1;
-    }
-    while (i < lines.length && lines[i]!.type === 'add') {
-      adds.push(i);
-      i += 1;
-    }
-    var count = Math.max(dels.length, adds.length);
-    for (var k = 0; k < count; k++) {
-      pairs.push({
-        left: k < dels.length ? dels[k]! : null,
-        right: k < adds.length ? adds[k]! : null,
-      });
-    }
-  }
-  return pairs;
 }
 
 // 左右分割の片側 1 マス分(行番号・記号・内容)。行が無い側は空マスで埋める
