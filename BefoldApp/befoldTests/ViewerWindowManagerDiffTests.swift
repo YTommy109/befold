@@ -68,6 +68,36 @@ struct ViewerWindowManagerDiffTests {
         #expect(controllers[1].store.diffContent == .unavailable)
     }
 
+    /// 比較基準は窓ごとのライブ値。片方の窓で変えても、もう一方の基準も差分も動かない
+    /// (全窓連動やアプリ全体の設定に変わったら落ちる / TASK-353.2)。
+    @Test("比較基準は窓ごとに独立している")
+    func comparisonTargetIsPerWindow() async {
+        let fixture = MockedViewerWindowManager(
+            files: [first, second], prefix: "DiffTests.perWindowTarget",
+            contents: "let a = 1", repositoryRoot: URL(fileURLWithPath: "/mock"),
+            diffReader: TargetEchoDiffReader()
+        )
+        defer { fixture.closeAll() }
+        fixture.manager.openViewer(for: first)
+        fixture.manager.openViewer(for: second)
+        let controllers = fixture.manager.allControllers
+        #expect(controllers.count == 2)
+        // 新しい窓は常に「このブランチの変更」から始まる(永続化しない)。
+        #expect(controllers.allSatisfy { $0.comparisonTarget == .parentBranch })
+        for controller in controllers {
+            await presentDocument(in: controller, file: controller.fileURL)
+        }
+        let before = controllers[1].store.diffContent
+
+        controllers[0].setComparisonTarget(.head)
+        await settleDiffTestController(controllers[0])
+
+        #expect(controllers[0].comparisonTarget == .head)
+        #expect(controllers[0].store.diffContent.text == "DIFF-head")
+        #expect(controllers[1].comparisonTarget == .parentBranch)
+        #expect(controllers[1].store.diffContent == before)
+    }
+
     /// 生成経路が共有インスタンスを渡していることの固定。
     /// 窓をまたぐ設定なのでコントローラ単体テストでは捕まえられない。
     /// レイアウトはアプリ全体の粒度のままなので、ここで共有が切れると 2 窓で

@@ -18,6 +18,9 @@ protocol ViewerToolbarHost: AnyObject {
     func setDisplayMode(_ newValue: ViewerDisplayMode)
     /// そのモードをいま選べるか(セグメントごとの有効/無効に使う)。
     func canSelect(_ mode: ViewerDisplayMode) -> Bool
+    /// 差分の比較基準(ラベル兼ポップアップの選択位置)と、その変更の入口。
+    var comparisonTarget: GitComparisonTarget { get }
+    func setComparisonTarget(_ target: GitComparisonTarget)
     /// 差分レイアウト(インライン/左右分割)の切替。差分表示中に差分セグメントを
     /// 再クリックしたときに呼ばれる。
     func toggleDiffLayout(_ sender: Any?)

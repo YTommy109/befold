@@ -37,12 +37,17 @@ struct SidebarGitStatus: Equatable, Sendable {
     ///
     /// 境界の行そのものは対象外。親から見た `sub` / `child/` の状態は親が答えられる。
     let indeterminateRoots: Set<String>
+    /// この状態を取ったときの比較基準の解決結果。ツールバーのラベル(基準ブランチ名)と
+    /// 「スタック全体の変更」の出し分けが読む。解決できなければ nil。
+    let comparison: GitComparisonResolution?
 
     init(
         repositoryRootKey: String,
         statuses: [String: GitFileStatus],
-        indeterminateRoots: Set<String> = []
+        indeterminateRoots: Set<String> = [],
+        comparison: GitComparisonResolution? = nil
     ) {
+        self.comparison = comparison
         self.repositoryRootKey = repositoryRootKey
         files = statuses
         folders = GitFolderStatus.aggregate(statuses: statuses)
@@ -60,7 +65,8 @@ struct SidebarGitStatus: Equatable, Sendable {
         self.init(
             repositoryRootKey: root.normalizedPathKey,
             statuses: result.statuses,
-            indeterminateRoots: result.indeterminateRoots
+            indeterminateRoots: result.indeterminateRoots,
+            comparison: result.comparison
         )
     }
 

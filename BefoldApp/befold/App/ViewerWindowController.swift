@@ -121,7 +121,8 @@ final class ViewerWindowController: NSWindowController {
         currentDocument: currentDocument,
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
         refreshToolbar: { [weak self] in self?.refreshUIState() },
-        refreshDiff: { [weak self] in self?.refreshDiff() }
+        refreshDiff: { [weak self] in self?.refreshDiff() },
+        refreshGitStatuses: { [weak self] in self?.sidebar.refreshGitStatuses(policy: .always) }
     )
 
     // MARK: - 提示状態の遷移(実体は documentPresenter。ここは外から呼ばれる入口)
@@ -129,6 +130,15 @@ final class ViewerWindowController: NSWindowController {
     /// 表示モードを変える唯一の入口(ViewerToolbarHost の要求。メニュー ⌘1〜⌘3 も通る)。
     func setDisplayMode(_ newValue: ViewerDisplayMode) {
         documentPresenter.setDisplayMode(newValue)
+    }
+
+    /// 差分の比較基準(ViewerToolbarHost / SidebarNavigatorHost の要求)。実体は store、書き込み口は presenter。
+    var comparisonTarget: GitComparisonTarget {
+        store.comparisonTarget
+    }
+
+    func setComparisonTarget(_ target: GitComparisonTarget) {
+        documentPresenter.setComparisonTarget(target)
     }
 
     /// 永続化を伴わない表示モードの反映(復元・リネーム追随)。

@@ -1,10 +1,11 @@
 ---
 id: TASK-353.2
 title: 差分の比較基準を窓ごとに切り替える UI を足す
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-10-08 02:00'
-updated_date: '2026-10-08 02:19'
+updated_date: '2026-10-08 04:44'
 labels: []
 milestone: m-11
 dependencies:
@@ -27,14 +28,14 @@ TASK-353 の仕様のうち、差分ビューア側を担う。現状は何と�
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 差分モードの間、現在の基準をラベルで表示し、そこから基準を切り替えられる
-- [ ] #2 「スタック全体の変更」は、親ブランチがデフォルトブランチと異なるときだけ選択肢に出る
-- [ ] #3 基準は窓ごとに独立し、別の窓の基準を変えても影響しない。窓ごとであることが破れたら落ちるテストがある
-- [ ] #4 新しい窓は常に「このブランチの変更」から始まる（永続化しない）
+- [x] #2 「スタック全体の変更」は、親ブランチがデフォルトブランチと異なるときだけ選択肢に出る
+- [x] #3 基準は窓ごとに独立し、別の窓の基準を変えても影響しない。窓ごとであることが破れたら落ちるテストがある
+- [x] #4 新しい窓は常に「このブランチの変更」から始まる（永続化しない）
 - [ ] #5 選んだ基準で差分が空になるファイルでは、差分モードの選択可否が基準に合わせて変わる
-- [ ] #6 メニュー・ラベルの文字列が en/ja で揃っている
-- [ ] #7 GitStatusStore / GitDiffLoader の合流とキャッシュが比較基準をキーに含み、基準の違う窓同士が結果を共有しない（テストで担保）
-- [ ] #8 差分取得の着地時に取得開始時の基準と窓の現在の基準を照合し、基準切替直後に旧基準の差分が着地しない（テストで担保）
-- [ ] #9 ラベルは解決された基準ブランチ名（縮退時はデフォルトブランチ名）を表示する
+- [x] #6 メニュー・ラベルの文字列が en/ja で揃っている
+- [x] #7 GitStatusStore / GitDiffLoader の合流とキャッシュが比較基準をキーに含み、基準の違う窓同士が結果を共有しない（テストで担保）
+- [x] #8 差分取得の着地時に取得開始時の基準と窓の現在の基準を照合し、基準切替直後に旧基準の差分が着地しない（テストで担保）
+- [x] #9 ラベルは解決された基準ブランチ名（縮退時はデフォルトブランチ名）を表示する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -69,3 +70,14 @@ TASK-353 の仕様のうち、差分ビューア側を担う。現状は何と�
 - 既存の差分専用領域は無い（ツールバー 5 項目＋View メニューのみ）。**ツールバー項目**として足し、差分モード以外は `isHidden`。本文内のバー（viewer.html）は `BefoldRenderKit` 経由で QuickLook まで波及するので採らない
 - 文字列: `Localizable.xcstrings` の `toolbar.mode.diff*` の直後に挿入（ソートしない）
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装メモ(2026-10-08)
+- 実装: store.comparisonTarget(既定 .parentBranch、非永続)、書き込み口は ViewerDocumentPresenter.setComparisonTarget。GitStatusReading.status / GitDiffReading.diff / SidebarGitReading.statuses に target: 必須引数。GitStatusStore の cache/inFlight と GitDiffLoader の合流キーに target を含めた(Key 構造体)。GitStatusSnapshot/GitStatusResult/SidebarGitStatus に GitComparisonResolution を載せ、ツールバーのポップアップ(ComparisonTargetPresentation)が読む。
+- バッジ側の照合は GitStatusResult に target を持たせず、StatusRequest が発行時の target を持ち、apply で窓の現在値(SidebarNavigatorHost.comparisonTarget)と照合する形にした(結果側に載せるより状態が増えない)。
+- 実測(修正を戻すと落ちること): GitStatusStore のキーから target を外す → doesNotFoldRequestsWithDifferentTargets / refetchesWhenTargetChangedDespiteSameFingerprint が落ちる。GitDiffLoader のキーから外す → doesNotFoldRequestsWithDifferentTargets と comparisonTargetIsPerWindow が落ちる。着地 guard の store.comparisonTarget == target を外す → oldTargetDiffDoesNotLand が落ちる。comparisonTarget を静的共有にする → newWindowStartsFromParentBranch / comparisonTargetIsPerWindow が落ちる。
+- 全 swift test: 2027 件 pass(既知の known issue 1 件は BlockingWaitTests の既存)。swiftformat --lint ゼロ、swiftlint は HEAD との差分ゼロ、xcodebuild build -scheme befold 成功。
+- 未確認: AC#1(ツールバーのラベル表示と切替)と AC#5(基準ごとの選択可否)は実機の GUI で目視していない。AC#5 は status が target 付きで取られ GitDiffAvailability がその snapshot を読む構造に依存しており、基準を変えて unchanged になる専用テストは無い。
+<!-- SECTION:NOTES:END -->

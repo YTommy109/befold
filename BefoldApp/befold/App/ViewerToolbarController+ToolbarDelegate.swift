@@ -52,6 +52,12 @@ extension ViewerToolbarController {
             )
         case .modeSegments:
             return makeModeSegmentedControl()
+        case .comparisonMenu:
+            // 先頭項目をラベルにするプルダウン。中身は applyComparisonState が毎回合わせる。
+            let popUp = NSPopUpButton(frame: .zero, pullsDown: true)
+            popUp.bezelStyle = .texturedRounded
+            popUp.setAccessibilityLabel(label)
+            return popUp
         }
     }
 

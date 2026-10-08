@@ -15,6 +15,8 @@ struct GitStatusResult: Equatable, Sendable {
     /// 親リポジトリの `git status` では配下を答えられない境界のルート。
     /// 詳細は `GitStatusSnapshot.indeterminateRoots`。
     var indeterminateRoots: Set<String> = []
+    /// 取得に使った比較基準の解決結果。ツールバーのラベルとメニューの出し分けが読む。
+    var comparison: GitComparisonResolution?
 
     static let empty = GitStatusResult()
 
@@ -28,6 +30,7 @@ struct GitStatusResult: Equatable, Sendable {
         indexURL = snapshot.indexURL
         self.repositoryRoot = repositoryRoot
         indeterminateRoots = snapshot.indeterminateRoots
+        comparison = snapshot.comparison
     }
 
     /// 取得できなかった場合(ルートだけ分かっている・git 管理外)に使う。
@@ -55,11 +58,19 @@ enum GitStatusRefreshPolicy: Sendable {
 @MainActor
 @Observable
 final class GitStatusStore {
-    /// ルートの正規化パスキー → 直近のスナップショット。
-    private var cache: [String: GitStatusSnapshot] = [:]
-    /// 実行中の取得タスク。同じルートへの要求はここへ相乗りする。
+    /// キャッシュと合流の単位。**ルートだけでは足りない**: 比較基準が窓ごとに違うため、
+    /// 窓 A の基準で取ったスナップショットを窓 B へ返してしまう
+    /// (`GitStatusStoreTests.doesNotFoldRequestsWithDifferentTargets` ほかが守る)。
+    private struct Key: Hashable {
+        let root: String
+        let target: GitComparisonTarget
+    }
+
+    /// (ルート, 基準) → 直近のスナップショット。
+    private var cache: [Key: GitStatusSnapshot] = [:]
+    /// 実行中の取得タスク。同じ (ルート, 基準) への要求はここへ相乗りする。
     @ObservationIgnored
-    private var inFlight: [String: Task<GitStatusSnapshot?, Never>] = [:]
+    private var inFlight: [Key: Task<GitStatusSnapshot?, Never>] = [:]
     /// git 状態の取得元。テストは実 subprocess を避けるため差し替える。
     @ObservationIgnored
     private let reader: any GitStatusReading
@@ -84,18 +95,18 @@ final class GitStatusStore {
     /// ルート解決と git 実行はどちらもメインアクターの外で行い、結果だけを戻す。
     /// 呼び出し側(SidebarNavigator)は世代ガードで古い結果を捨てる。
     func statuses(
-        forDirectoryAt directory: URL, policy: GitStatusRefreshPolicy = .always
+        forDirectoryAt directory: URL, target: GitComparisonTarget, policy: GitStatusRefreshPolicy = .always
     ) async -> GitStatusResult {
         let resolveRepositoryRoot = resolveRepositoryRoot
         guard let root = await withBlockingWork({ resolveRepositoryRoot(directory) })
         else { return .empty }
         // index が動いていないなら git を起こす理由がない。`.git` 配下への index 以外の
         // 書き込み(参照更新・一時ファイル)で status を連打しないための門番。
-        if let reusable = await cachedResultIfIndexUnchanged(at: root, policy: policy) {
+        if let reusable = await cachedResultIfIndexUnchanged(at: root, target: target, policy: policy) {
             return reusable
         }
         // ルートは解決できているため、status が空でも(取得失敗でも)リポジトリの事実は返す。
-        guard let snapshot = await snapshot(forRepositoryAt: root) else {
+        guard let snapshot = await snapshot(forRepositoryAt: root, target: target) else {
             return GitStatusResult(repositoryRoot: root)
         }
         return GitStatusResult(snapshot: snapshot, repositoryRoot: root)
@@ -106,9 +117,11 @@ final class GitStatusStore {
     /// fingerprint の取得は stat 1 回だけだが、ネットワークボリュームでも詰まらないよう
     /// 他の git 呼び出しと同じくメインアクターの外で行う。
     private func cachedResultIfIndexUnchanged(
-        at root: URL, policy: GitStatusRefreshPolicy
+        at root: URL, target: GitComparisonTarget, policy: GitStatusRefreshPolicy
     ) async -> GitStatusResult? {
-        guard policy == .onlyIfIndexChanged, let cached = cache[root.normalizedPathKey] else {
+        guard policy == .onlyIfIndexChanged,
+              let cached = cache[Key(root: root.normalizedPathKey, target: target)]
+        else {
             return nil
         }
         let reader = reader
@@ -118,12 +131,12 @@ final class GitStatusStore {
     }
 
     /// ルート単位のスナップショットを取り直す。取得できなければ(git を動かせなければ)nil。
-    private func snapshot(forRepositoryAt root: URL) async -> GitStatusSnapshot? {
-        let key = root.normalizedPathKey
+    private func snapshot(forRepositoryAt root: URL, target: GitComparisonTarget) async -> GitStatusSnapshot? {
+        let key = Key(root: root.normalizedPathKey, target: target)
         if let running = inFlight[key] { return await running.value }
         let reader = reader
         let task = Task<GitStatusSnapshot?, Never> {
-            await withBlockingWork { reader.status(forRepositoryAt: root) }
+            await withBlockingWork { reader.status(forRepositoryAt: root, target: target) }
         }
         inFlight[key] = task
         let snapshot = await task.value

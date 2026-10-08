@@ -28,7 +28,7 @@ struct ViewerWindowControllerGitStatusTests {
             return calls
         }
 
-        func status(forRepositoryAt _: URL) -> GitStatusSnapshot? {
+        func status(forRepositoryAt _: URL, target _: GitComparisonTarget) -> GitStatusSnapshot? {
             lock.lock()
             calls += 1
             lock.unlock()

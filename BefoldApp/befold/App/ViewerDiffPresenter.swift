@@ -89,11 +89,12 @@ final class ViewerDiffPresenter {
         }
         let directory = url.deletingLastPathComponent()
         let index = gitFileIndex
+        let target = store.comparisonTarget
         // 取得の登録は契機のここで**同期に**行う。await を挟んだ後に登録すると、同じ
         // ファイル変更イベントから出た他ウィンドウの要求が別のターンへ散り、合流できずに
         // 窓の数だけ git が起動する（TASK-325 / TASK-346）。ルート解決はローダーが
         // 取得タスクの中（メインアクターの外）で行う。
-        let fetch = loader.diff(forFileAt: url) { index.repositoryRoot(forDirectoryAt: directory) }
+        let fetch = loader.diff(forFileAt: url, target: target) { index.repositoryRoot(forDirectoryAt: directory) }
         // 取得を実際に起こした契機で「未確定」を立てる(未確定の間、レンダラは
         // モード切替だけの再描画を見送って前の表示を残す = TASK-407)。ただし確定差分を
         // 表示中の取り直し(保存などによる再取得)では降格しない — 従来どおり古い差分を
@@ -107,7 +108,9 @@ final class ViewerDiffPresenter {
             // ゲートで隠れるが、store.diffContent に古い本文が残ると次に ON にした瞬間だけ
             // 取り直し前の差分が見える。未確定(.pending)の解消は、この 3 つの bail 経路の
             // いずれでも別の書き手(モード離脱の applyDisplayMode / 切替の openFile)が先行する。
-            guard let self, currentURL() == url, isDiffShown else { return }
+            // 比較基準も照合する。基準を変えた直後は旧基準の取得がまだ飛んでいて、
+            // URL もモードも一致したまま旧基準の差分が着地しうる。
+            guard let self, currentURL() == url, isDiffShown, store.comparisonTarget == target else { return }
             store.diffContent = Self.displayableDiff(result)
         }
     }

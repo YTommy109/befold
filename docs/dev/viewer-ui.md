@@ -256,6 +256,37 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
 - **戻る / 進むナビゲーション**: タブごとの履歴（`NavigationHistory`）。ツールバーボタン・
   履歴メニュー・トラックパッドスワイプ（`SwipeHistoryNavigation`）に対応する
 
+### 差分の比較基準（TASK-353）
+
+差分モードの間だけ、ツールバーに「何と比べているか」を示すラベル兼ポップアップが出る
+（差分モード以外は隠す）。ラベルは解決された基準ブランチ名（「main から」「feature-a から」）、
+作業中の変更は「HEAD から」。差分が空で通常のソース表示へ戻っているときは「（変更なし）」を足す
+（`ViewerStore.showsDiff` かつ `diffContent == .unavailable` から導出。専用の状態は持たない）。
+
+| 選択肢 | 基準 | 出す条件 |
+|---|---|---|
+| このブランチの変更（既定） | `merge-base(HEAD, 親ブランチ)` | 常時。親が分からなければデフォルトブランチへ縮退し、ラベルにその名前が出る |
+| スタック全体の変更 | `merge-base(HEAD, デフォルトブランチ)` | 親ブランチがデフォルトブランチと異なるときだけ |
+| 作業中の変更 | `HEAD` | 常時（ステージ済みと未ステージは分けない） |
+
+- **粒度は窓ごとのライブ値で、永続化しない。** `ViewerStore.comparisonTarget`（既定
+  `GitComparisonTarget.windowDefault` = このブランチの変更）が持つ。ファイル単位の記憶
+  （`WindowPresentationMemory`）にも載せない——基準は窓の設定であってファイルの設定ではない
+- **書き込み口は `ViewerDocumentPresenter.setComparisonTarget(_:)` の 1 本。** store へ書き、
+  表示中の差分を `.pending` に落とし、サイドバーの git 状態を新基準で取り直す。再描画・差分の
+  取り直し・ツールバーの再同期は、取り直した状態の反映（`gitContextDidChange`）が既存の経路で運ぶ
+- **サイドバーのバッジも同じ基準で取る。** バッジと差分で基準がずれない（TASK-352 の一貫性）よう、
+  `GitStatusReading.status` と `GitDiffReading.diff` はどちらも `target:` を必須引数に持つ
+- **共有キャッシュは基準をキーに含める。** `GitStatusStore` のキャッシュ・合流（ルート + 基準）、
+  `.onlyIfIndexChanged` の再利用判定、`GitDiffLoader` の合流（ファイル + 基準）。含めないと、
+  窓 A の基準で取った結果を窓 B が受け取る
+- **着地時に基準を照合する。** `ViewerDiffPresenter.refresh` は取得開始時の基準と窓の現在値が
+  違えば書き戻さない。バッジ側も `SidebarGitStatusCoordinator.apply` が同じ照合で捨てる
+- 「スタック全体の変更」の出し分けとラベルのブランチ名は、取得済みの
+  `SidebarGitStatus.comparison`（`GitComparisonResolution`）から読む。メニューを開く瞬間に git は触らない
+- 基準メニューは `GitDiffAvailability` でゲートしない（窓の設定なので、表示中のファイルが
+  その基準で未変更でも切り替えられる）
+
 ### 差分表示の見え方
 
 行は追加 `.diff-add` / 削除 `.diff-del` の地色で塗り、色を見分けられなくても種別が

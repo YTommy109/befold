@@ -41,7 +41,7 @@ struct GitStatusBranchDiffIntegrationTests {
         GitTestRepo.commitAll(message: "change", in: temp.url)
         try GitTestRepo.modifyWithoutStaging("dirty.md", contents: "dirty", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
 
         func status(_ name: String) -> GitFileStatus? {
             snapshot.statuses[temp.url.appendingPathComponent(name).normalizedPathKey]
@@ -66,7 +66,7 @@ struct GitStatusBranchDiffIntegrationTests {
         try GitTestRepo.commitChange(to: "a.md", contents: "committed", in: temp.url)
         try GitTestRepo.modifyWithoutStaging("a.md", contents: "dirty", in: temp.url)
 
-        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url))
+        let snapshot = try #require(makeReader().status(forRepositoryAt: temp.url, target: .defaultBranch))
         let status = snapshot.statuses[temp.url.appendingPathComponent("a.md").normalizedPathKey]
 
         #expect(status?.worktreeChange == .modified)

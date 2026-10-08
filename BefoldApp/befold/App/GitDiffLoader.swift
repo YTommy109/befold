@@ -30,8 +30,10 @@ import Foundation
 /// - **契機の時点で同期に呼ぶこと。** リポジトリルートの解決などを await した後に
 ///   呼ぶと、同じ契機の兄弟要求どうしが別ターンに散り、合流できなくなる。
 ///   ルート解決はこのクラスが取得タスクの中で行う(引数のクロージャ)。
-/// - 走行中の取得の管理はファイルの正規化パスだけをキーにする。**同じファイルには
-///   常に同じリポジトリルートが対応すること**を前提にしている(本番ではルートを
+/// - 走行中の取得の管理はファイルの正規化パスと**比較基準**(`GitComparisonTarget`)をキーにする。
+///   基準が窓ごとに違うため、パスだけで合流すると窓 A の基準で取った差分を窓 B が受け取る
+///   (`GitDiffLoaderTests.doesNotFoldRequestsWithDifferentTargets` が守る)。
+///   **同じファイルには常に同じリポジトリルートが対応すること**を前提にしている(本番ではルートを
 ///   ファイルの所在ディレクトリから解決しており、`GitCommandFileIndex` が
 ///   無効化しないキャッシュを持つため一意)。ルートをファイル以外から決める
 ///   呼び出し元を足す場合は、キーにルートを戻すこと。
@@ -50,9 +52,15 @@ final class GitDiffLoader {
         let task: Task<GitFileDiff?, Never>
     }
 
+    /// 合流の単位。同じファイルでも基準が違えば別の取得。
+    private struct Key: Hashable {
+        let path: String
+        let target: GitComparisonTarget
+    }
+
     private let reader: any GitDiffReading
-    /// ファイルごとの直近のバッチ。
-    private var batches: [String: Batch] = [:]
+    /// (ファイル, 基準) ごとの直近のバッチ。
+    private var batches: [Key: Batch] = [:]
     private var nextGeneration = 0
 
     init(reader: any GitDiffReading = GitDiffReader()) {
@@ -63,15 +71,17 @@ final class GitDiffLoader {
     ///
     /// - Parameters:
     ///   - url: 差分を見たいファイル。
+    ///   - target: 何と比べるか。窓の現在値を契機の時点で渡す。
     ///   - resolveRoot: リポジトリルートの解決。メインアクターの外で呼ばれる。
     ///     nil を返した場合は取得せず nil を返す。
     /// - Returns: 取得結果を待てるタスク。同じ契機の兄弟要求には同じタスクを返す。
     @discardableResult
     func diff(
         forFileAt url: URL,
+        target: GitComparisonTarget,
         resolvingRootWith resolveRoot: @escaping @Sendable () -> URL?
     ) -> Task<GitFileDiff?, Never> {
-        let key = url.normalizedPathKey
+        let key = Key(path: url.normalizedPathKey, target: target)
         if let batch = batches[key], batch.isAcceptingRequests { return batch.task }
         return start(key: key, url: url, resolveRoot: resolveRoot)
     }
@@ -81,7 +91,7 @@ final class GitDiffLoader {
     /// 直前のバッチがまだ走行中なら、その完了を待ってから読む。git を同じファイルに
     /// 対して二重に走らせないためで、待った結果はより新しいツリーのものになる。
     private func start(
-        key: String,
+        key: Key,
         url: URL,
         resolveRoot: @escaping @Sendable () -> URL?
     ) -> Task<GitFileDiff?, Never> {
@@ -97,7 +107,7 @@ final class GitDiffLoader {
             if let previous { _ = await previous.value }
             let result = await withBlockingWork { () -> GitFileDiff? in
                 guard let root = resolveRoot() else { return nil }
-                return reader.diff(forFileAt: url, in: root)
+                return reader.diff(forFileAt: url, in: root, target: key.target)
             }
             self?.forgetBatch(key: key, generation: generation)
             return result
@@ -107,13 +117,13 @@ final class GitDiffLoader {
     }
 
     /// 自分の世代の登録だけを閉じる。後続が既に別のバッチを登録していることがある。
-    private func closeBatch(key: String, generation: Int) {
+    private func closeBatch(key: Key, generation: Int) {
         guard batches[key]?.generation == generation else { return }
         batches[key]?.isAcceptingRequests = false
     }
 
     /// 自分の世代の登録だけを取り下げる。
-    private func forgetBatch(key: String, generation: Int) {
+    private func forgetBatch(key: Key, generation: Int) {
         guard batches[key]?.generation == generation else { return }
         batches[key] = nil
     }

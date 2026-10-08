@@ -25,6 +25,7 @@ struct GitStatusStoreTests {
         private let lock = NSLock()
         private var results: [GitStatusSnapshot?]
         private var calls = 0
+        private var targets: [GitComparisonTarget] = []
         /// 呼び出しの開始を通知する。nil なら通知しない。
         private let onCall: (@Sendable (Int) -> Void)?
         /// 呼び出しの中で待機する(nil なら待たない)。
@@ -51,6 +52,12 @@ struct GitStatusStoreTests {
             return calls
         }
 
+        /// 取得を要求された基準(呼び出し順)。
+        var requestedTargets: [GitComparisonTarget] {
+            lock.lock(); defer { lock.unlock() }
+            return targets
+        }
+
         func setFingerprint(_ date: Date?) {
             lock.lock(); defer { lock.unlock() }
             fingerprint = date
@@ -62,9 +69,10 @@ struct GitStatusStoreTests {
             return fingerprint
         }
 
-        func status(forRepositoryAt _: URL) -> GitStatusSnapshot? {
+        func status(forRepositoryAt _: URL, target: GitComparisonTarget) -> GitStatusSnapshot? {
             lock.lock()
             calls += 1
+            targets.append(target)
             let index = min(calls - 1, results.count - 1)
             let result = results.isEmpty ? nil : results[index]
             let calls = calls
@@ -103,7 +111,7 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader, resolvesRoot: false)
 
-        let statuses = await store.statuses(forDirectoryAt: directory).statuses
+        let statuses = await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses
 
         #expect(statuses.isEmpty)
         #expect(reader.callCount == 0)
@@ -114,7 +122,7 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader)
 
-        let statuses = await store.statuses(forDirectoryAt: directory).statuses
+        let statuses = await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses
 
         #expect(statuses == modifiedStatus)
     }
@@ -127,8 +135,8 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus), snapshot(updated)])
         let store = makeStore(reader)
 
-        _ = await store.statuses(forDirectoryAt: directory)
-        let second = await store.statuses(forDirectoryAt: directory).statuses
+        _ = await store.statuses(forDirectoryAt: directory, target: .defaultBranch)
+        let second = await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses
 
         #expect(second == updated)
         #expect(reader.callCount == 2)
@@ -141,8 +149,8 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus), nil])
         let store = makeStore(reader)
 
-        _ = await store.statuses(forDirectoryAt: directory)
-        let afterFailure = await store.statuses(forDirectoryAt: directory).statuses
+        _ = await store.statuses(forDirectoryAt: directory, target: .defaultBranch)
+        let afterFailure = await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses
 
         #expect(afterFailure == modifiedStatus)
     }
@@ -152,7 +160,7 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [nil])
         let store = makeStore(reader)
 
-        let statuses = await store.statuses(forDirectoryAt: directory).statuses
+        let statuses = await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses
 
         #expect(statuses.isEmpty)
     }
@@ -164,9 +172,13 @@ struct GitStatusStoreTests {
         let stamp = Date(timeIntervalSince1970: 1000)
         let reader = FakeReader(results: [snapshot(modifiedStatus, indexFingerprint: stamp)], fingerprint: stamp)
         let store = makeStore(reader)
-        _ = await store.statuses(forDirectoryAt: directory)
+        _ = await store.statuses(forDirectoryAt: directory, target: .defaultBranch)
 
-        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+        let result = await store.statuses(
+            forDirectoryAt: directory,
+            target: .defaultBranch,
+            policy: .onlyIfIndexChanged
+        )
 
         #expect(result.statuses == modifiedStatus)
         #expect(result.indexURL == testIndexURL)
@@ -183,10 +195,14 @@ struct GitStatusStoreTests {
             fingerprint: first
         )
         let store = makeStore(reader)
-        _ = await store.statuses(forDirectoryAt: directory)
+        _ = await store.statuses(forDirectoryAt: directory, target: .defaultBranch)
         reader.setFingerprint(second)
 
-        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+        let result = await store.statuses(
+            forDirectoryAt: directory,
+            target: .defaultBranch,
+            policy: .onlyIfIndexChanged
+        )
 
         #expect(result.statuses == staged)
         #expect(reader.callCount == 2)
@@ -198,7 +214,11 @@ struct GitStatusStoreTests {
         let reader = FakeReader(results: [snapshot(modifiedStatus)])
         let store = makeStore(reader)
 
-        let result = await store.statuses(forDirectoryAt: directory, policy: .onlyIfIndexChanged)
+        let result = await store.statuses(
+            forDirectoryAt: directory,
+            target: .defaultBranch,
+            policy: .onlyIfIndexChanged
+        )
 
         #expect(result.statuses == modifiedStatus)
         #expect(reader.callCount == 1)
@@ -233,14 +253,68 @@ struct GitStatusStoreTests {
             }
         )
 
-        let first = Task { await store.statuses(forDirectoryAt: directory).statuses }
+        let first = Task { await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses }
         await readerEntered.wait()
-        let second = Task { await store.statuses(forDirectoryAt: directory).statuses }
+        let second = Task { await store.statuses(forDirectoryAt: directory, target: .defaultBranch).statuses }
         await secondRootResolved.wait()
         release.open()
 
         #expect(await first.value == modifiedStatus)
         #expect(await second.value == modifiedStatus)
         #expect(reader.callCount == 1)
+    }
+
+    // MARK: - 比較基準(TASK-353.2)
+
+    /// 基準が窓ごとに違うので、キャッシュ・合流のキーに基準を含める。含めないと、窓 A の基準で
+    /// 取ったスナップショットを窓 B が受け取り、B のバッジと差分が A の基準で描かれる。
+    @Test("基準が違えば同時要求でも git 実行は畳み込まれない", testTimeLimit())
+    func doesNotFoldRequestsWithDifferentTargets() async {
+        let readerEntered = AsyncGate()
+        let secondRootResolved = AsyncGate()
+        let release = BlockingGate()
+        defer { release.open() }
+        let reader = FakeReader(
+            results: [snapshot(modifiedStatus)],
+            onCall: { _ in readerEntered.open() },
+            block: release
+        )
+        let rootResolutions = LockedBox(0)
+        let store = GitStatusStore(
+            reader: reader,
+            resolveRepositoryRoot: { _ in
+                rootResolutions.update { $0 += 1 }
+                if rootResolutions.get() == 2 { secondRootResolved.open() }
+                return testRepositoryRoot
+            }
+        )
+
+        let first = Task { await store.statuses(forDirectoryAt: directory, target: .parentBranch).statuses }
+        await readerEntered.wait()
+        let second = Task { await store.statuses(forDirectoryAt: directory, target: .head).statuses }
+        await secondRootResolved.wait()
+        release.open()
+
+        _ = await first.value
+        _ = await second.value
+        #expect(reader.callCount == 2)
+        #expect(reader.requestedTargets.sorted { "\($0)" < "\($1)" } == [.head, .parentBranch])
+    }
+
+    /// `.onlyIfIndexChanged` の再利用は同じ基準のときだけ。index が動いていなくても、
+    /// 基準が変われば前の基準のスナップショットは答えにならない。
+    @Test("onlyIfIndexChanged: 基準が変われば fingerprint が同じでも取り直す")
+    func refetchesWhenTargetChangedDespiteSameFingerprint() async {
+        let stamp = Date(timeIntervalSince1970: 1000)
+        let reader = FakeReader(results: [snapshot(modifiedStatus, indexFingerprint: stamp)], fingerprint: stamp)
+        let store = makeStore(reader)
+        _ = await store.statuses(forDirectoryAt: directory, target: .parentBranch)
+
+        _ = await store.statuses(forDirectoryAt: directory, target: .head, policy: .onlyIfIndexChanged)
+        #expect(reader.callCount == 2)
+
+        // 同じ基準なら従来どおり再利用する(上の取り直しが「常に取り直す」ではないことの対)。
+        _ = await store.statuses(forDirectoryAt: directory, target: .head, policy: .onlyIfIndexChanged)
+        #expect(reader.callCount == 2)
     }
 }

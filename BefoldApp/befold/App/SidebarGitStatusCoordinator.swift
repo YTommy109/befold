@@ -114,6 +114,9 @@ final class SidebarGitStatusCoordinator {
     /// FileListModel.applyGitStatus が一括判定する(ADR 0003)。受け付けられたときだけ
     /// index の監視対象を合わせる(古い結果で監視を張り直してはならない)。
     func apply(_ result: GitStatusResult, for request: StatusRequest) {
+        // 発行後に窓の比較基準が変わっていたら、旧基準のバッジを反映しない
+        // (基準を変えた契機で新基準の取得が別に発行されている)。
+        guard request.target == currentTarget else { return }
         let accepted = fileListModel.applyGitStatus(
             SidebarGitStatus(result: result), for: request.directory, sequence: request.sequence
         )
@@ -159,6 +162,8 @@ final class SidebarGitStatusCoordinator {
     /// 型で守る。**このファイルの外へ移さないこと**(`fileprivate` はファイルスコープ)。
     struct StatusRequest {
         let directory: URL
+        /// 発行時点の窓の比較基準。反映時に窓の現在値と照合する。
+        let target: GitComparisonTarget
         fileprivate let sequence: Int
         fileprivate let task: Task<GitStatusResult, Never>
     }
@@ -167,11 +172,18 @@ final class SidebarGitStatusCoordinator {
         for directory: URL, policy: GitStatusRefreshPolicy
     ) -> StatusRequest {
         sequence += 1
+        let target = currentTarget
         return StatusRequest(
             directory: directory,
+            target: target,
             sequence: sequence,
-            task: Task { await self.git.statuses(forDirectoryAt: directory, policy: policy) }
+            task: Task { await self.git.statuses(forDirectoryAt: directory, target: target, policy: policy) }
         )
+    }
+
+    /// 窓の比較基準。host が未接続の間(init 直後)は出発点の値。
+    private var currentTarget: GitComparisonTarget {
+        host?.comparisonTarget ?? .windowDefault
     }
 
     private static func awaitingCancellable(

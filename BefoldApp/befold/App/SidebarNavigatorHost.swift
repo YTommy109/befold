@@ -18,4 +18,6 @@ protocol SidebarNavigatorHost: AnyObject {
     /// 「バッジと差分の更新契機を 1 つにする」判断を、コンパイル時に守らせるための必須メソッド。
     /// 呼び分けを増やすと、契機がまた片方だけに増える(TASK-330)。
     func gitContextDidChange()
+    /// この窓の差分の比較基準。git 状態の取得に使う(窓ごとに違うため、取得の発行時に読む)。
+    var comparisonTarget: GitComparisonTarget { get }
 }

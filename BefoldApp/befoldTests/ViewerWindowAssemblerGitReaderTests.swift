@@ -9,7 +9,7 @@ private let fakeRepositoryRoot = URL(fileURLWithPath: "/repos/befold")
 
 /// リポジトリを開けなかったことにする reader。実 git を起動しない。
 private struct UnopenableGitStatusReader: GitStatusReading {
-    func status(forRepositoryAt _: URL) -> GitStatusSnapshot? {
+    func status(forRepositoryAt _: URL, target _: GitComparisonTarget) -> GitStatusSnapshot? {
         nil
     }
 
@@ -36,7 +36,7 @@ struct ViewerWindowAssemblerGitReaderTests {
             )
         )
 
-        let result = await reader.statuses(forDirectoryAt: fakeRepositoryRoot, policy: .always)
+        let result = await reader.statuses(forDirectoryAt: fakeRepositoryRoot, target: .defaultBranch, policy: .always)
         // store まで届いていればルートが載る（届かなければ .empty のまま）。
         #expect(result.repositoryRoot == fakeRepositoryRoot)
         #expect(result != .empty)

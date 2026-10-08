@@ -76,6 +76,43 @@ extension ViewerToolbarController {
         return image
     }
 
+    /// 比較基準ポップアップを現在の基準・解決結果に合わせる。差分モード以外では隠す。
+    /// ラベル(先頭項目)と選択肢は、取得済みの git 状態(`SidebarGitStatus.comparison`)だけから
+    /// 作る。**メニューを開く瞬間に git を触らない**ための構成で、解決はバッジの取得時に済んでいる。
+    func applyComparisonState(to item: NSToolbarItem) {
+        guard let host, let popUp = item.view as? NSPopUpButton else { return }
+        let isShown = host.store.showsDiff
+        popUp.isHidden = !isShown
+        if #available(macOS 15.0, *) { item.isHidden = !isShown }
+        guard isShown else { return }
+        let resolution = host.fileListModel.gitStatus?.comparison
+        let label = ComparisonTargetPresentation.label(
+            target: host.comparisonTarget, resolution: resolution,
+            isUnchanged: host.store.diffContent == .unavailable
+        )
+        let targets = ComparisonTargetPresentation.selectableTargets(resolution: resolution)
+        let titles = [label] + targets.map(ComparisonTargetPresentation.title(for:))
+        // メニューを開いている最中に作り直さない。中身が同じなら触らない。
+        if popUp.itemTitles != titles {
+            popUp.removeAllItems()
+            popUp.addItem(withTitle: label)
+            for target in targets {
+                let menuItem = NSMenuItem(
+                    title: ComparisonTargetPresentation.title(for: target),
+                    action: #selector(comparisonTargetChosen(_:)), keyEquivalent: ""
+                )
+                menuItem.target = self
+                menuItem.representedObject = target
+                popUp.menu?.addItem(menuItem)
+            }
+            popUp.sizeToFit()
+        }
+        for menuItem in popUp.menu?.items.dropFirst() ?? [] {
+            menuItem.state = (menuItem.representedObject as? GitComparisonTarget) == host.comparisonTarget ? .on : .off
+        }
+        item.toolTip = ComparisonTargetPresentation.title(for: host.comparisonTarget)
+    }
+
     /// 行番号アイテムの有効/無効・オンオフ表示・ツールチップを現在の表示状態に合わせて反映する。
     func applyLineNumbersState(to item: NSToolbarItem) {
         guard let host, let button = item.view as? NSButton else { return }

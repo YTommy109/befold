@@ -245,7 +245,7 @@ BefoldApp/
 | `RemoteForge` | リモートを Web で見せるホスティング（GitHub / GitLab / Bitbucket）。ホスト名の判定・メニューへ差し込む表示名・ファイルを指す URL の形式（`/blob/` ・ `/-/blob/` ・ `/src/`）をこの 1 型に集める。ブランチ名で指し permalink は作らない。自建て（GitHub Enterprise / self-managed GitLab）はホスト名で判別できないため対象外 |
 | `GitCommandFileIndex` | 追跡ファイル索引のキャッシュ。全ウィンドウ・Quick Open で 1 個を共有し `git ls-files` の重複実行を防ぐ |
 | `WorktreeCatalog` | 本体リポジトリごとの worktree 一覧キャッシュ（「最近使ったリポジトリ」メニューの階層表示用） |
-| `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルート単位のキャッシュ（サイドバーの状態バッジの供給元） |
+| `GitStatusReader` / `GitStatusStore` | `git status --porcelain=v2` によるファイル状態の取得と、リポジトリルートと比較基準（`GitComparisonTarget`、窓ごと。[ビューアの操作 UI](./viewer-ui.md) 参照）単位のキャッシュ（サイドバーの状態バッジの供給元） |
 | `GitFolderStatus` | ファイル単位の状態から、フォルダー配下（再帰的）の変更有無を集約する純関数と値型（フォルダー行のバッジ用。git は呼ばない） |
 
 ---

@@ -22,8 +22,10 @@ protocol SidebarGitReading {
     /// 扱えない」を表示側で区別するため(TASK-438.1)。`URL?` へ潰すとサイドバーが
     /// 後者を「Plain folder」と表示してしまう。
     func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup
-    /// ディレクトリ内のファイルの git 状態。
-    func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult
+    /// ディレクトリ内のファイルの git 状態。`target` は窓の比較基準(必須引数)。
+    func statuses(
+        forDirectoryAt url: URL, target: GitComparisonTarget, policy: GitStatusRefreshPolicy
+    ) async -> GitStatusResult
 }
 
 /// git を一切見ない既定実装。`SidebarNavigator.init` の既定値。
@@ -34,7 +36,9 @@ struct DisabledSidebarGitReading: SidebarGitReading {
         .notARepository
     }
 
-    func statuses(forDirectoryAt _: URL, policy _: GitStatusRefreshPolicy) async -> GitStatusResult {
+    func statuses(
+        forDirectoryAt _: URL, target _: GitComparisonTarget, policy _: GitStatusRefreshPolicy
+    ) async -> GitStatusResult {
         .empty
     }
 }
@@ -57,7 +61,9 @@ struct SidebarGitReader: SidebarGitReading {
         return await withBlockingWork { fileIndex.repositoryRootLookup(forDirectoryAt: url) }
     }
 
-    func statuses(forDirectoryAt url: URL, policy: GitStatusRefreshPolicy) async -> GitStatusResult {
-        await statusStore.statuses(forDirectoryAt: url, policy: policy)
+    func statuses(
+        forDirectoryAt url: URL, target: GitComparisonTarget, policy: GitStatusRefreshPolicy
+    ) async -> GitStatusResult {
+        await statusStore.statuses(forDirectoryAt: url, target: target, policy: policy)
     }
 }

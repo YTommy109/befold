@@ -6,7 +6,7 @@ import Testing
 
 /// ルート解決を即座に成功させる索引。既定のフィクスチャ索引は /mock 配下で
 /// リポジトリルートを返さず、取得へ到達しない。
-private final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
+final class ImmediateRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
         nil
     }
@@ -35,7 +35,9 @@ private struct SlowRootSidebarGitReading: SidebarGitReading {
         return .root(url)
     }
 
-    func statuses(forDirectoryAt _: URL, policy _: GitStatusRefreshPolicy) async -> GitStatusResult {
+    func statuses(
+        forDirectoryAt _: URL, target _: GitComparisonTarget, policy _: GitStatusRefreshPolicy
+    ) async -> GitStatusResult {
         .empty
     }
 }
