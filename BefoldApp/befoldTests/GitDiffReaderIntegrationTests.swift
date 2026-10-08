@@ -207,7 +207,8 @@ struct GitDiffReaderIntegrationTests {
             return
         }
         // 起点は libgit2 実装と同じものを使う(ここがずれると比較そのものが無意味になる)。
-        let base = GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url) ?? "HEAD"
+        let base = GitComparisonBaseResolver().comparisonBase(forRepositoryAt: temp.url, target: .defaultBranch)?
+            .baseID ?? "HEAD"
         let expected = try #require(realGitDiff(base: base, path: "a.swift", in: temp.url))
 
         #expect(text == expected)
@@ -289,28 +290,6 @@ struct GitDiffComparisonBaseIntegrationTests {
         }
         #expect(text.contains("-let a = 1"))
         #expect(text.contains("+let a = 2"))
-    }
-
-    /// AC#5: バッジと差分の一致。バッジが「ブランチで変えた」と言うファイルには
-    /// 必ず差分がある。片方だけ基準を変えるとここが落ちる。
-    @Test("バッジがブランチ変更を示すファイルには差分がある")
-    func badgeAndDiffAgreeOnBranchChange() throws {
-        let temp = try TempDir()
-        defer { withExtendedLifetime(temp) {} }
-        GitTestRepo.initRepository(at: temp.url)
-        try GitTestRepo.commitFile(named: "a.swift", contents: "let a = 1\n", in: temp.url)
-        GitTestRepo.createBranch(named: "feature", in: temp.url)
-        try GitTestRepo.commitChange(to: "a.swift", contents: "let a = 2\n", in: temp.url)
-        let file = temp.url.appendingPathComponent("a.swift")
-
-        let snapshot = try #require(makeStatusReader().status(forRepositoryAt: temp.url))
-        let status = try #require(snapshot.statuses[file.normalizedPathKey])
-        #expect(status.branchChange != nil)
-
-        let result = makeReader().diff(forFileAt: file, in: temp.url)
-        if case .diff = result {} else {
-            Issue.record("バッジは変更ありなのに差分が空: \(String(describing: result))")
-        }
     }
 
     /// AC#2: デフォルトブランチの上では merge-base が HEAD 自身になるため、

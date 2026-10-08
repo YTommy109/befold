@@ -1,10 +1,11 @@
 ---
 id: TASK-353.1
 title: 差分の親ブランチを gh-stack のスタックファイルから解決する
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-10-08 01:59'
-updated_date: '2026-10-08 02:18'
+updated_date: '2026-10-08 04:23'
 labels: []
 milestone: m-11
 dependencies: []
@@ -30,12 +31,12 @@ TASK-353 の「このブランチの変更」は `merge-base(HEAD, 親ブラン�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 gh-stack のスタックに属するブランチでは、一つ前のブランチ（先頭なら trunk）を親として返す
-- [ ] #2 スタックファイルが無い・読めない・未知の schemaVersion・現在ブランチがどのスタックにも無い・detached HEAD の場合は、デフォルトブランチへ縮退し、縮退したことが解決結果から分かる
-- [ ] #3 親ブランチが refs/heads にも refs/remotes/origin にも無い場合もデフォルトブランチへ縮退する
-- [ ] #4 スタックファイルを common dir と worktree ごとの admin dir の両方から探す（gh-stack v0.1.1 は後者、新版は前者に置く）。実物で確認した結果を Notes に残す
-- [ ] #5 解決結果に基準ブランチ名と「親がデフォルトブランチと異なるか」が含まれ、メニューとラベルが main 上で再解決せずに読める
-- [ ] #6 上記の各ケースをユニットテストで担保し、既存の badgeAndDiffAgreeOnBranchChange を 3 基準に引数化する
+- [x] #1 gh-stack のスタックに属するブランチでは、一つ前のブランチ（先頭なら trunk）を親として返す
+- [x] #2 スタックファイルが無い・読めない・未知の schemaVersion・現在ブランチがどのスタックにも無い・detached HEAD の場合は、デフォルトブランチへ縮退し、縮退したことが解決結果から分かる
+- [x] #3 親ブランチが refs/heads にも refs/remotes/origin にも無い場合もデフォルトブランチへ縮退する
+- [x] #4 スタックファイルを common dir と worktree ごとの admin dir の両方から探す（gh-stack v0.1.1 は後者、新版は前者に置く）。実物で確認した結果を Notes に残す
+- [x] #5 解決結果に基準ブランチ名と「親がデフォルトブランチと異なるか」が含まれ、メニューとラベルが main 上で再解決せずに読める
+- [x] #6 上記の各ケースをユニットテストで担保し、既存の badgeAndDiffAgreeOnBranchChange を 3 基準に引数化する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -63,3 +64,20 @@ TASK-353 の「このブランチの変更」は `merge-base(HEAD, 親ブラン�
 - 統合: 実リポジトリに `gh-stack` を手書きして common dir と per-worktree dir の両方で解決できること、親ブランチ削除時の縮退
 - 既存 `GitDiffComparisonBaseIntegrationTests.badgeAndDiffAgreeOnBranchChange` を target ごとに引数化し、3 基準でバッジと差分が一致することを守らせる
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 実装結果（2026-10-08）
+
+- 追加: GitComparisonTarget / GitComparisonResolution（GitComparisonBase.swift）、GitParentBranchResolver.swift（JSON 解釈は (Data, currentBranch) -> String? の純粋関数）。GitDiffReader / GitStatusReader は target: .defaultBranch を渡す（窓ごとの切替は 353.2）。
+- 解決結果は baseID / baseBranch / parentDiffersFromDefault / degraded。parentDiffersFromDefault は target によらず同じ値。.head は baseBranch nil。
+- テスト: swift test 全体 2018 件 + 72 件パス（known issue 1 件は既存）。純粋関数 5 件、実リポジトリ統合 7 件（common dir / per-worktree dir / 親削除 / origin 残存 / schemaVersion 2 / スタック外 / detached HEAD）、badgeAndDiffAgreeOnBranchChange を 3 基準に引数化（GitComparisonTargetAgreementTests へ移動。file_length 超過のため）。親の選択を trunk 固定に壊すと純粋関数・統合テストが落ちることを確認済み。
+
+## AC#4 の実物確認（gh-stack v0.1.1、使い捨てリポジトリ、外部 push なし）
+
+- 通常のチェックアウトで gh stack init --base main feat-a feat-b: <repo>/.git/gh-stack（JSON）と gh-stack.lock が生成。
+- linked worktree（git worktree add）内で gh stack init: <common>/.git/worktrees/<名前>/gh-stack が生成され、common dir には書かれない。つまり v0.1.1 は per-worktree admin dir（Plan の推定どおり）。
+- JSON は {schemaVersion:1, repository, stacks:[{trunk:{branch,head}, branches:[{branch, base}]}]}。実物では base が常に入っていたが、pullRequest は PR 作成前なので無かった。base は使わない方針のまま（隣接要素＋trunk で決まる）。
+- 未確認: gh-stack 新版（common dir へ統合）の実物。上流ソースの記述（HasLegacyState）からの推定で、common dir も読む実装にしてある。
+<!-- SECTION:NOTES:END -->

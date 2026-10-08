@@ -114,4 +114,15 @@ public enum GitTestRepo {
         run(["add", name], in: dir)
         run(["commit", "-m", message], in: dir)
     }
+
+    /// gh-stack のスタックファイルを手書きする(gh-stack v0.1.1 の実出力と同じ形)。
+    /// `branches` は下から上の順。`gitDir` は `.git` か `.git/worktrees/<名前>`。
+    public static func writeGhStack(
+        trunk: String, branches: [String], schemaVersion: Int = 1, toGitDirectory gitDir: URL
+    ) throws {
+        let entries = branches.map { "{\"branch\": \"\($0)\"}" }.joined(separator: ",")
+        let json = "{\"schemaVersion\": \(schemaVersion), \"stacks\": "
+            + "[{\"trunk\": {\"branch\": \"\(trunk)\"}, \"branches\": [\(entries)]}]}"
+        try json.write(to: gitDir.appendingPathComponent("gh-stack"), atomically: true, encoding: .utf8)
+    }
 }

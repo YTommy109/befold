@@ -93,7 +93,7 @@ struct GitStatusReader: GitStatusReading {
             // base ブランチからのコミット済み変更。検出できない場合(デフォルトブランチが
             // 分からない・履歴が繋がっていない)はブランチ内変更だけを諦め、
             // staged / unstaged / untracked の表示は続ける。
-            let base = comparisonBase.comparisonBase(forRepositoryAt: root)
+            let base = comparisonBase.comparisonBase(forRepositoryAt: root, target: .defaultBranch)?.baseID
             for (relativePath, change) in Self.branchChanges(in: repository, base: base) {
                 let key = root.appendingPathComponent(relativePath).normalizedPathKey
                 statuses[key, default: GitFileStatus()].branchChange = change
