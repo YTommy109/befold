@@ -26,6 +26,9 @@ struct ViewerMenuValidatorTests {
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
         var allowsSidebar = true
+        var comparisonMenuState = ComparisonMenuState(
+            current: .parentBranch, selectable: [.parentBranch, .head], isAvailable: true
+        )
     }
 
     private func makeItem(_ action: Selector, tag: Int = 0) -> NSMenuItem {

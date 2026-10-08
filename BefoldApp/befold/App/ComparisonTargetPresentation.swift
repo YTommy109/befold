@@ -20,4 +20,23 @@ enum ComparisonTargetPresentation {
         let showsStack = resolution?.parentDiffersFromDefault ?? false
         return GitComparisonTarget.allCases.filter { $0 != .defaultBranch || showsStack }
     }
+
+    /// メニュー項目のタグ。`NSMenuItem.tag` の既定値 0 と区別するため 1 から振る。
+    static func menuItemTag(for target: GitComparisonTarget) -> Int {
+        (GitComparisonTarget.allCases.firstIndex(of: target) ?? 0) + 1
+    }
+
+    /// タグから基準を復元する。該当が無ければ nil(他の項目のタグ)。
+    static func target(menuItemTag tag: Int) -> GitComparisonTarget? {
+        GitComparisonTarget.allCases.first { menuItemTag(for: $0) == tag }
+    }
+}
+
+/// View メニューの比較基準項目が読む窓の状態。サイドバーの▾と同じ選択肢・同じ git 判定
+/// (`FileListModel.canFilterChangedFiles`)を使い、メニュー側に別の条件を持たない。
+struct ComparisonMenuState: Equatable {
+    let current: GitComparisonTarget
+    let selectable: [GitComparisonTarget]
+    /// git 管理外では選べない(比較する先が無い)。
+    let isAvailable: Bool
 }

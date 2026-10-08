@@ -26,6 +26,8 @@ protocol ViewerMenuValidationSource: AnyObject {
     var isSidebarCollapsed: Bool { get }
     /// サイドバーを開ける窓か。⌘S(サイドバーの表示切替)の有効判定に使う(TASK-593.2)。
     var allowsSidebar: Bool { get }
+    /// 比較基準項目の現在値・選択肢・有効可否(TASK-679)。
+    var comparisonMenuState: ComparisonMenuState { get }
 }
 
 /// メインメニュー・ツールバー項目の有効判定と表示名を決める対応表。
@@ -119,6 +121,14 @@ enum ViewerMenuValidator {
             menuItem.state = source.isDiffLayoutSideBySide ? .on : .off
             return source.capabilities.canToggleDiffLayout
         }
+        if menuItem.action == #selector(ViewerWindowController.selectComparisonTarget(_:)) {
+            let state = source.comparisonMenuState
+            let target = ComparisonTargetPresentation.target(menuItemTag: menuItem.tag)
+            // スタック全体は選択肢に無いときは項目ごと隠す(サイドバーの▾と同じ規則)。
+            menuItem.isHidden = target.map { !state.selectable.contains($0) } ?? true
+            menuItem.state = target == state.current ? .on : .off
+            return target != nil && state.isAvailable
+        }
         return nil
     }
 
@@ -192,5 +202,15 @@ extension ViewerWindowController: ViewerMenuValidationSource {
     /// 「開ける」に倒すと、スライド窓の生成途中の一瞬だけ ⌘S が有効になる形ができる。
     var allowsSidebar: Bool {
         kind.allowsSidebar
+    }
+
+    var comparisonMenuState: ComparisonMenuState {
+        ComparisonMenuState(
+            current: comparisonTarget,
+            selectable: ComparisonTargetPresentation.selectableTargets(
+                resolution: fileListModel.gitStatus?.comparison
+            ),
+            isAvailable: kind.allowsSidebar && fileListModel.canFilterChangedFiles
+        )
     }
 }

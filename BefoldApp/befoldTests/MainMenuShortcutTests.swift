@@ -49,6 +49,9 @@ struct ViewMenuValidationTests {
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
         var allowsSidebar = true
+        var comparisonMenuState = ComparisonMenuState(
+            current: .parentBranch, selectable: [.parentBranch, .head], isAvailable: true
+        )
     }
 
     /// PDF を見ている状態 / それ以外（markdown 相当）を見ている状態。

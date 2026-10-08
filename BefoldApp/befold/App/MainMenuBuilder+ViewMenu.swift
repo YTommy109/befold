@@ -14,6 +14,7 @@ extension MainMenuBuilder {
         addZoomItems(to: menu)
         menu.addItem(.separator())
         addDisplayModeItems(to: menu)
+        addComparisonTargetMenu(to: menu)
         menu.addLocalizedItem(
             "menu.view.toggleSource",
             action: #selector(ViewerWindowController.toggleSourceView(_:)),
@@ -161,5 +162,24 @@ extension MainMenuBuilder {
             keyEquivalent: "\\",
             modifiers: [.command]
         )
+    }
+
+    /// 差分の比較基準の選択(サブメニュー)。サイドバーを畳むと▾に届かなくなるための入口(TASK-679)。
+    /// 項目は全種類を置き、出すかどうか・チェック・有効可否は `ViewerMenuValidator` が決める。
+    static func addComparisonTargetMenu(to menu: NSMenu) {
+        let title = String(localized: "menu.view.comparisonTarget", bundle: .l10n)
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: title)
+        for target in GitComparisonTarget.allCases {
+            let item = NSMenuItem(
+                title: ComparisonTargetPresentation.title(for: target),
+                action: #selector(ViewerWindowController.selectComparisonTarget(_:)),
+                keyEquivalent: ""
+            )
+            item.tag = ComparisonTargetPresentation.menuItemTag(for: target)
+            submenu.addItem(item)
+        }
+        parent.submenu = submenu
+        menu.addItem(parent)
     }
 }

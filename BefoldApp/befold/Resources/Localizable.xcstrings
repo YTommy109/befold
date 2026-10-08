@@ -1890,6 +1890,23 @@
         }
       }
     },
+    "menu.view.comparisonTarget": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare Against"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比較基準"
+          }
+        }
+      }
+    },
     "menu.view.diffSideBySide": {
       "extractionState": "manual",
       "localizations": {
