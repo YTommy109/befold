@@ -228,7 +228,7 @@ staging の存在意義は「本番にしか存在しない条件を本番の前
   `/download` をリダイレクト対象から外した意図と同じ向きで、`source:'lp'` の
   計測は従来どおり記録される。
 - ホスト名を固定値で期待しているテストの更新が必要になる
-  （`site/test/public.test.ts`、`site/test/referrer.test.ts`、
+  （`site/test/public-routes.test.ts`、`site/test/public-pages-hosts.test.ts`、`site/test/referrer.test.ts`、
   `BefoldApp/befoldTests/AppLinksTests.swift`、
   `BefoldApp/befoldTests/UpdateChannelTests.swift`）。
 

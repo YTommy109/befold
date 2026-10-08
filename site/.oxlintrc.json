@@ -117,11 +117,6 @@
       "plugins": ["node"],
       "env": { "node": true },
       "rules": { "eslint/no-await-in-loop": "off" }
-    },
-    {
-      // TASK-684 の一時除外。実測 1693 / 1452 / 1342 行 → TASK-688。
-      "files": ["test/analytics.test.ts", "test/public.test.ts", "test/dashboard.test.ts"],
-      "rules": { "eslint/max-lines": "off" }
     }
   ]
 }
