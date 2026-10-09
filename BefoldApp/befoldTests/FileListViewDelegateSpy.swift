@@ -17,6 +17,8 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
     private(set) var expandedEntries: [FileListEntry] = []
     private(set) var collapsedEntries: [FileListEntry] = []
     private(set) var displayChanges: [SidebarDisplayChange] = []
+    var comparisonTarget: GitComparisonTarget = .windowDefault
+    private(set) var comparisonTargets: [GitComparisonTarget] = []
 
     func fileListDidSelectFile(_ url: URL) {
         selectedFiles.append(url)
@@ -42,6 +44,10 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
 
     func fileListDidRequestDisplayChange(_ change: SidebarDisplayChange) {
         displayChanges.append(change)
+    }
+
+    func fileListDidRequestComparisonTarget(_ target: GitComparisonTarget) {
+        comparisonTargets.append(target)
     }
 }
 

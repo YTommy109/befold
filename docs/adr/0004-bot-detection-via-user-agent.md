@@ -16,7 +16,7 @@ JavaScript を実行しないクローラの訪問も**既に記録されてい�
 
 しかし記録内容からはボットの**種類**が分からない。完全な User-Agent は保存していない。
 `summarizeUA`（`site/src/lib/visitor.ts`）が Sparkle / 主要ブラウザ / curl 以外を
-すべて `'other'` へ丸めるためである。`summarizeTraffic`（`site/src/analytics.ts`）の doc コメントは、
+すべて `'other'` へ丸めるためである。`summarizeTraffic`（`site/src/analytics/summaries.ts`）の doc コメントは、
 内訳を持つ目的を明記している。「`ua_summary` の内訳は AI クローラ（GPTBot / ClaudeBot 等）の到来量を実測するために持つ」。
 意図はあるが実装が追いついていない。
 
@@ -45,7 +45,7 @@ Cloudflare Access すら使えず、ダッシュボードは Worker 側 Basic �
    場合は設計をやり直す必要が生じる。
 2. **目的に対して精度が足りている。** この計測の目的は「AI クローラの到来量を実測して
    llms.txt の要否を判断する」ことである。この目的は `summarizeTraffic`
-   （`site/src/analytics.ts`）が定め、TASK-360 で見送った判断の再検討材料でもある。
+   （`site/src/analytics/summaries.ts`）が定め、TASK-360 で見送った判断の再検討材料でもある。
    詐称を排除した厳密なアクセス制御ではないため、
    UA を詐称してまで LP を巡回する主体は、この判断材料としては無視してよい。
 3. **裏取り材料が既にある。** `as_org`（`request.cf.asOrganization`、`insertEvent`、`site/src/events.ts`）に

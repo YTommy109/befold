@@ -258,15 +258,32 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
 
 ### 差分の比較基準（TASK-353）
 
-差分モードの間だけ、ツールバーに「何と比べているか」を示すラベル兼ポップアップが出る
-（差分モード以外は隠す）。ラベルは解決された基準ブランチ名（「main から」「feature-a から」）、
-作業中の変更は「HEAD から」。差分が空で通常のソース表示へ戻っているときは「（変更なし）」を足す
-（`ViewerStore.showsDiff` かつ `diffContent == .unavailable` から導出。専用の状態は持たない）。取得の飛行中（`.pending`）は付けない。導出元が変わるたびにツールバーを再同期するため、`ViewerDiffPresenter.refresh()` は `diffContent` を書くたびに `diffContentDidChange` を呼ぶ（TASK-676）。
+比較基準の切り替えには入口が 2 つあり、どちらも同じ書き込み口（下記）へ届く。
+
+- **サイドバーヘッダーの「変更のあるファイルのみ」**（git 管理下でだけ出る）。本体は他のボタンと
+  同じ `button()` で絞り込みの ON/OFF、右隣の ▾ は独立した `Menu`（`Picker` の `.inline`）で基準を選ぶ。
+  本体と ▾ を 1 つの `Menu` にまとめる形（primaryAction 付き）は採らない——borderlessButton 風の描画ではアイコンの色（絞り込み中の
+  アクセント）が反映されず、項目のチェックも出なかった（TASK-678 の実機確認。
+  `SidebarHeaderControls.changedFilesOnlyMenu` の doc コメントも参照）
+- **表示メニュー > 比較基準**（TASK-679）。`MainMenuBuilder+ViewMenu.addComparisonTargetMenu` が作る
+  サブメニューで、選択は `ViewerWindowController.selectComparisonTarget(_:)` から届く。
+  git 管理外とサイドバーを持たない窓（スライド）では無効
+
+現在の基準は、▾ のチェックと表示メニューのチェックで示す。ツールバーには比較基準のアイテムも
+ラベルも置かない（TASK-678）。基準はサイドバーのバッジと差分の両方に効くので、差分モードに
+入っていなくても切り替えられる。差分が無いことは、差分セグメントの無効表示
+（`GitDiffAvailability.unchanged`）で伝わる。
+
+**縮退の見せ方（TASK-681）。** 親ブランチを解決できずデフォルトブランチと比べているときは、
+基準の名前は「このブランチの変更」のまま、ボタンと ▾ のツールチップに
+「親ブランチが不明なため main と比較しています」を足す（`SidebarHeaderControlsModel.degradedComparisonBranch`）。
+▾ の VoiceOver は `accessibilityLabel` = コントロール名（「比較基準」）、`accessibilityValue` =
+現在の基準（縮退の注記つき）の順で読む。表示メニュー側には注記を出さない。
 
 | 選択肢 | 基準 | 出す条件 |
 |---|---|---|
-| このブランチの変更（既定） | `merge-base(HEAD, 親ブランチ)` | 常時。親が分からなければデフォルトブランチへ縮退し、ラベルにその名前が出る |
-| スタック全体の変更 | `merge-base(HEAD, デフォルトブランチ)` | 親ブランチがデフォルトブランチと異なるときだけ |
+| このブランチの変更（既定） | `merge-base(HEAD, 親ブランチ)` | 常時。親が分からなければデフォルトブランチへ縮退し、ツールチップにその名前が出る |
+| スタック全体の変更 | `merge-base(HEAD, デフォルトブランチ)` | 親ブランチがデフォルトブランチと異なるときだけ（現在の基準がこれなら、親が変わっても残す） |
 | 作業中の変更 | `HEAD` | 常時（ステージ済みと未ステージは分けない） |
 
 - **粒度は窓ごとのライブ値で、永続化しない。** `ViewerStore.comparisonTarget`（既定
@@ -274,7 +291,8 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
   （`WindowPresentationMemory`）にも載せない——基準は窓の設定であってファイルの設定ではない
 - **書き込み口は `ViewerDocumentPresenter.setComparisonTarget(_:)` の 1 本。** store へ書き、
   表示中の差分を `.pending` に落とし、サイドバーの git 状態を新基準で取り直す。再描画・差分の
-  取り直し・ツールバーの再同期は、取り直した状態の反映（`gitContextDidChange`）が既存の経路で運ぶ
+  取り直し・ツールバーの再同期は、取り直した状態の反映（`gitContextDidChange`）が既存の経路で運ぶ。
+  サイドバーからは `FileListViewDelegate.fileListDidRequestComparisonTarget(_:)` がこの口へ届く
 - **サイドバーのバッジも同じ基準で取る。** バッジと差分で基準がずれない（TASK-352 の一貫性）よう、
   `GitStatusReading.status` と `GitDiffReading.diff` はどちらも `target:` を必須引数に持つ
 - **共有キャッシュは基準をキーに含める。** `GitStatusStore` のキャッシュ・合流（ルート + 基準）、
@@ -282,8 +300,11 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
   窓 A の基準で取った結果を窓 B が受け取る
 - **着地時に基準を照合する。** `ViewerDiffPresenter.refresh` は取得開始時の基準と窓の現在値が
   違えば書き戻さない。バッジ側も `SidebarGitStatusCoordinator.apply` が同じ照合で捨てる
-- 「スタック全体の変更」の出し分けとラベルのブランチ名は、取得済みの
-  `SidebarGitStatus.comparison`（`GitComparisonResolution`）から読む。メニューを開く瞬間に git は触らない
+- **選択肢の導出は `ComparisonTargetPresentation.selectableTargets(current:resolution:)` の 1 本。**
+  サイドバーの ▾ と表示メニューはどちらもここから得る。「スタック全体の変更」の出し分けは、
+  取得済みの `SidebarGitStatus.comparison`（`GitComparisonResolution`）から読み、メニューを開く瞬間に
+  git は触らない。**現在の基準は常に含める**（落とすと ▾ は選択無し、表示メニューは現在の項目ごと消え、
+  UI と実体がずれる。TASK-680）
 - 基準メニューは `GitDiffAvailability` でゲートしない（窓の設定なので、表示中のファイルが
   その基準で未変更でも切り替えられる）
 

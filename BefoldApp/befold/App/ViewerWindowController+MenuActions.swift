@@ -79,6 +79,14 @@ extension ViewerWindowController {
         setDisplayMode(mode)
     }
 
+    /// View メニュー > 比較基準。どの基準かは NSMenuItem.tag が運ぶ。
+    /// 書き込み口はサイドバーの▾と同じ `setComparisonTarget` の 1 本。
+    @objc func selectComparisonTarget(_ sender: Any?) {
+        guard let tag = (sender as? NSMenuItem)?.tag,
+              let target = ComparisonTargetPresentation.target(menuItemTag: tag) else { return }
+        documentPresenter.setComparisonTarget(target)
+    }
+
     /// View メニュー > 差分を左右に並べる(⌘\\)。インラインと左右分割を切り替える。
     @objc func toggleDiffLayout(_ sender: Any?) {
         guard capabilities.canToggleDiffLayout else { return }

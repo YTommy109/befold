@@ -93,6 +93,9 @@
         // いるメッセージが全部エラーになる（実測 20 件）。
         // ベース側にも同じ指定があるが、override で vitest プラグインを有効化すると
         // そちらのルール設定が引き継がれないため、ここにも書く。
+        // サイズ上限（TASK-684）。行数は 1000、関数長は無制限（根拠はルート設定）。
+        "eslint/max-lines": ["error", 1000],
+        "eslint/max-lines-per-function": "off",
         "vitest/valid-expect": ["error", { "maxArgs": 2 }],
         // テストは「この入力ならこう」を並べる場所で、テーブル駆動の for ループと
         // 逐次 await（D1 へ順に INSERT するなど）が既存の書き方。並列化すると

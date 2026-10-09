@@ -33,8 +33,7 @@ final class ViewerWindowController: NSWindowController {
         loader: diffLoader, gitFileIndex: gitFileIndex, store: store,
         displayPreference: diffDisplayPreference,
         currentURL: { [weak self] in self?.fileURL },
-        capabilities: { [weak self] in self?.capabilities ?? .none },
-        diffContentDidChange: { [weak self] in self?.refreshUIState() }
+        capabilities: { [weak self] in self?.capabilities ?? .none }
     )
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     /// 判断は diffPresenter が持ち、ここは生成時の受け渡しと共有インスタンスの照合のために保つ。
@@ -133,13 +132,9 @@ final class ViewerWindowController: NSWindowController {
         documentPresenter.setDisplayMode(newValue)
     }
 
-    /// 差分の比較基準(ViewerToolbarHost / SidebarNavigatorHost の要求)。実体は store、書き込み口は presenter。
+    /// 差分の比較基準(SidebarNavigatorHost / FileListViewDelegate の要求)。実体は store、書き込み口は presenter。
     var comparisonTarget: GitComparisonTarget {
         store.comparisonTarget
-    }
-
-    func setComparisonTarget(_ target: GitComparisonTarget) {
-        documentPresenter.setComparisonTarget(target)
     }
 
     /// 永続化を伴わない表示モードの反映(復元・リネーム追随)。

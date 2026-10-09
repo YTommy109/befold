@@ -42,7 +42,7 @@ export function summarizeOS(ua: string): string | null {
 /**
  * ボットとして分類した ua_summary に付ける接頭辞。
  *
- * 集計側（analytics.ts）は既知のボット名を列挙せず `LIKE 'bot:%'` だけで
+ * 集計側（analytics/access-class.ts）は既知のボット名を列挙せず `LIKE 'bot:%'` だけで
  * 人間の訪問と分離する。トークンを増やしても集計側の同期漏れが起きない。
  */
 export const BOT_PREFIX = 'bot:'

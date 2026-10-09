@@ -9,7 +9,6 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     static let backItemIdentifier = NSToolbarItem.Identifier("historyBack")
     static let forwardItemIdentifier = NSToolbarItem.Identifier("historyForward")
     static let lineNumbersItemIdentifier = NSToolbarItem.Identifier("lineNumbers")
-    static let comparisonItemIdentifier = NSToolbarItem.Identifier("diffComparison")
     static let bookmarkItemIdentifier = NSToolbarItem.Identifier("bookmark")
 
     /// ツールバー構成。この並びが既定の表示順になり、生成・再同期・許可アイテム一覧は
@@ -48,13 +47,6 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
             view: .button(symbol: "list.number", action: #selector(lineNumbersItemClicked(_:))),
             menuAction: #selector(lineNumbersItemClicked(_:)),
             applyState: { $0.applyLineNumbersState(to: $1) }
-        )),
-        .item(ToolbarItemSpec(
-            identifier: comparisonItemIdentifier,
-            labelKey: "toolbar.mode.diff.base.group",
-            view: .comparisonMenu,
-            menuAction: nil,
-            applyState: { $0.applyComparisonState(to: $1) }
         )),
         .item(ToolbarItemSpec(
             identifier: modeToggleItemIdentifier,

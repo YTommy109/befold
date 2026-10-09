@@ -14382,22 +14382,6 @@
     }
   }
 
-  // viewer-src/bar-controls.ts
-  function wireBarControls(config2) {
-    var prevButton = document.getElementById(config2.prevId);
-    var nextButton = document.getElementById(config2.nextId);
-    var closeButton = document.getElementById(config2.closeId);
-    if (prevButton) {
-      prevButton.addEventListener("click", config2.onPrev);
-    }
-    if (nextButton) {
-      nextButton.addEventListener("click", config2.onNext);
-    }
-    if (closeButton) {
-      closeButton.addEventListener("click", config2.onClose);
-    }
-  }
-
   // viewer-src/bridge.ts
   var _MSG_ZOOM_CHANGED = "zoomChanged";
   var _MSG_REFERENCE_ACTIVATED = "referenceActivated";
@@ -14420,59 +14404,23 @@
     return hostFeatures[key] !== false;
   }
 
-  // viewer-src/ime.ts
-  var IME_KEY_CODE = 229;
-  function isComposingKeyEvent(event) {
-    return event.isComposing || event.keyCode === IME_KEY_CODE;
-  }
-
-  // viewer-src/navigation.ts
-  function nextMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
+  // viewer-src/bar-controls.ts
+  function wireBarControls(config2) {
+    var prevButton = document.getElementById(config2.prevId);
+    var nextButton = document.getElementById(config2.nextId);
+    var closeButton = document.getElementById(config2.closeId);
+    if (prevButton) {
+      prevButton.addEventListener("click", config2.onPrev);
     }
-    return (currentIndex + 1) % count;
-  }
-  function prevMatchIndex(currentIndex, count) {
-    if (count <= 0) {
-      return -1;
+    if (nextButton) {
+      nextButton.addEventListener("click", config2.onNext);
     }
-    return (currentIndex - 1 + count) % count;
-  }
-  function keptMatchIndex(previousIndex, count) {
-    if (count <= 0) {
-      return -1;
-    }
-    return Math.min(Math.max(previousIndex, 0), count - 1);
-  }
-  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
-    var current = count === 0 ? 0 : currentIndex + 1;
-    var text3 = current + "/" + count;
-    if (truncated) {
-      text3 += " (" + truncatedLabel + ")";
-    }
-    return text3;
-  }
-  function moveCurrentHighlight(previous, next, className, anchor) {
-    previous.forEach(function(element) {
-      element.classList.remove(className);
-    });
-    next.forEach(function(element) {
-      element.classList.add(className);
-    });
-    if (anchor) {
-      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (closeButton) {
+      closeButton.addEventListener("click", config2.onClose);
     }
   }
 
-  // viewer-src/find.ts
-  function findInputElement() {
-    var el = document.getElementById("mmd-find-input");
-    if (!(el instanceof HTMLInputElement)) {
-      throw new TypeError("#mmd-find-input is missing");
-    }
-    return el;
-  }
+  // viewer-src/find-scan.ts
   function buildFindRegExp(query2, options) {
     if (!query2) {
       return null;
@@ -14524,6 +14472,262 @@
       node = parent;
     }
   }
+  var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
+  var bridgeTags = [
+    "SPAN",
+    "A",
+    "CODE",
+    "EM",
+    "STRONG",
+    "B",
+    "I",
+    "U",
+    "S",
+    "DEL",
+    "INS",
+    "SMALL",
+    "SUB",
+    "SUP",
+    "ABBR",
+    "KBD",
+    "SAMP",
+    "VAR",
+    "Q",
+    "CITE",
+    "TIME",
+    "LABEL"
+  ];
+  function isBridgeable(node) {
+    return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
+  }
+  function collectScopes(root) {
+    var scopes = [];
+    var current = [];
+    function flush() {
+      if (current.length > 0) {
+        scopes.push(current);
+        current = [];
+      }
+    }
+    function recurse(node) {
+      var children = node.childNodes;
+      for (var i = 0; i < children.length; i++) {
+        var child = children[i];
+        if (child instanceof Text) {
+          current.push(child);
+        } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
+          if (isBridgeable(child)) {
+            recurse(child);
+          } else {
+            flush();
+            recurse(child);
+            flush();
+          }
+        }
+      }
+    }
+    recurse(root);
+    flush();
+    return scopes;
+  }
+  function matchScope(root, textNodeList, regex, found, domRange) {
+    var starts = [];
+    var text3 = "";
+    textNodeList.forEach(function(node) {
+      starts.push(text3.length);
+      text3 += node.textContent;
+    });
+    regex.lastIndex = 0;
+    var ranges = [];
+    var match2;
+    while ((match2 = regex.exec(text3)) !== null) {
+      if (match2[0].length === 0) {
+        regex.lastIndex++;
+        if (regex.lastIndex > text3.length) break;
+        continue;
+      }
+      ranges.push({ start: match2.index, end: match2.index + match2[0].length });
+    }
+    if (ranges.length === 0) return;
+    var scopeFound = [];
+    ranges.toReversed().forEach(function(range) {
+      var start = locate(textNodeList, starts, range.start, true);
+      var end = locate(textNodeList, starts, range.end, false);
+      var startAncestor = start.node.parentNode;
+      var endAncestor = end.node.parentNode;
+      domRange.setStart(start.node, start.localOffset);
+      domRange.setEnd(end.node, end.localOffset);
+      var mark = document.createElement("mark");
+      mark.className = "mmd-find-match";
+      mark.append(domRange.extractContents());
+      domRange.insertNode(mark);
+      scopeFound.unshift(mark);
+      pruneEmptyAncestors(startAncestor, root);
+      pruneEmptyAncestors(endAncestor, root);
+    });
+    found.push.apply(found, scopeFound);
+  }
+  function walk(root, regex, found) {
+    var domRange = document.createRange();
+    collectScopes(root).forEach(function(textNodeList) {
+      matchScope(root, textNodeList, regex, found, domRange);
+    });
+  }
+
+  // viewer-src/ime.ts
+  var IME_KEY_CODE = 229;
+  function isComposingKeyEvent(event) {
+    return event.isComposing || event.keyCode === IME_KEY_CODE;
+  }
+
+  // viewer-src/navigation.ts
+  function nextMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex + 1) % count;
+  }
+  function prevMatchIndex(currentIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return (currentIndex - 1 + count) % count;
+  }
+  function keptMatchIndex(previousIndex, count) {
+    if (count <= 0) {
+      return -1;
+    }
+    return Math.min(Math.max(previousIndex, 0), count - 1);
+  }
+  function formatNavigationCount(currentIndex, count, truncated, truncatedLabel) {
+    var current = count === 0 ? 0 : currentIndex + 1;
+    var text3 = current + "/" + count;
+    if (truncated) {
+      text3 += " (" + truncatedLabel + ")";
+    }
+    return text3;
+  }
+  function moveCurrentHighlight(previous, next, className, anchor) {
+    previous.forEach(function(element) {
+      element.classList.remove(className);
+    });
+    next.forEach(function(element) {
+      element.classList.add(className);
+    });
+    if (anchor) {
+      anchor.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  // viewer-src/find-host.ts
+  function findInputElement() {
+    var el = document.getElementById("mmd-find-input");
+    if (!(el instanceof HTMLInputElement)) {
+      throw new TypeError("#mmd-find-input is missing");
+    }
+    return el;
+  }
+  function renderFindCount(query2, currentIndex, total, truncated) {
+    var countEl = document.getElementById("mmd-find-count");
+    var input = findInputElement();
+    if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
+      countEl.textContent = "";
+    } else {
+      var strings = window._mmdFindStrings || {};
+      countEl.textContent = formatNavigationCount(
+        currentIndex,
+        total,
+        truncated,
+        strings.withinDisplayedRange || "Displayed range"
+      );
+    }
+  }
+  function applyFindHostSettings(options) {
+    var opts = window._mmdInitialFindOptions || {};
+    options.caseSensitive = !!opts.caseSensitive;
+    options.wholeWord = !!opts.wholeWord;
+    options.useRegex = !!opts.useRegex;
+    document.getElementById("mmd-find-case").classList.toggle("active", options.caseSensitive);
+    document.getElementById("mmd-find-word").classList.toggle("active", options.wholeWord);
+    document.getElementById("mmd-find-regex").classList.toggle("active", options.useRegex);
+    var strings = window._mmdFindStrings || {};
+    var input = findInputElement();
+    if (strings.placeholder) {
+      input.placeholder = strings.placeholder;
+    }
+    if (strings.previous) {
+      document.getElementById("mmd-find-prev").title = strings.previous;
+    }
+    if (strings.next) {
+      document.getElementById("mmd-find-next").title = strings.next;
+    }
+    if (strings.matchCase) {
+      document.getElementById("mmd-find-case").title = strings.matchCase;
+    }
+    if (strings.matchWholeWord) {
+      document.getElementById("mmd-find-word").title = strings.matchWholeWord;
+    }
+    if (strings.useRegularExpression) {
+      document.getElementById("mmd-find-regex").title = strings.useRegularExpression;
+    }
+    if (strings.close) {
+      document.getElementById("mmd-find-close").title = strings.close;
+    }
+  }
+  function wireFindControls(h) {
+    document.getElementById("mmd-find-input").addEventListener("input", function() {
+      h.run();
+    });
+    document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        if (isComposingKeyEvent(e)) {
+          return;
+        }
+        e.preventDefault();
+        if (e.shiftKey) {
+          h.prev();
+        } else {
+          h.next();
+        }
+      }
+    });
+    wireBarControls({
+      prevId: "mmd-find-prev",
+      nextId: "mmd-find-next",
+      closeId: "mmd-find-close",
+      onPrev: h.prev,
+      onNext: h.next,
+      onClose: h.close
+    });
+    document.getElementById("mmd-find-case").addEventListener("click", function() {
+      h.toggleOption("caseSensitive", "mmd-find-case");
+    });
+    document.getElementById("mmd-find-word").addEventListener("click", function() {
+      h.toggleOption("wholeWord", "mmd-find-word");
+    });
+    document.getElementById("mmd-find-regex").addEventListener("click", function() {
+      h.toggleOption("useRegex", "mmd-find-regex");
+    });
+  }
+  function moveFindHighlight(previous, current) {
+    moveCurrentHighlight(
+      previous ? [previous] : [],
+      current ? [current] : [],
+      "mmd-find-match-current",
+      current
+    );
+  }
+  function searchDocument(query2, options) {
+    var regex = buildFindRegExp(query2, options);
+    findInputElement().classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
+    var found = [];
+    if (regex) {
+      walk(document.getElementById("diagram-wrap"), regex, found);
+    }
+    return found;
+  }
+
+  // viewer-src/find.ts
   function isFindBarOpen() {
     return isBarOpen("find");
   }
@@ -14537,130 +14741,12 @@
     var currentIndex = -1;
     var currentHighlight;
     var truncated = false;
-    var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
-    var bridgeTags = [
-      "SPAN",
-      "A",
-      "CODE",
-      "EM",
-      "STRONG",
-      "B",
-      "I",
-      "U",
-      "S",
-      "DEL",
-      "INS",
-      "SMALL",
-      "SUB",
-      "SUP",
-      "ABBR",
-      "KBD",
-      "SAMP",
-      "VAR",
-      "Q",
-      "CITE",
-      "TIME",
-      "LABEL"
-    ];
-    function isBridgeable(node) {
-      return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
-    }
-    function collectScopes(root) {
-      var scopes = [];
-      var current = [];
-      function flush() {
-        if (current.length > 0) {
-          scopes.push(current);
-          current = [];
-        }
-      }
-      function recurse(node) {
-        var children = node.childNodes;
-        for (var i = 0; i < children.length; i++) {
-          var child = children[i];
-          if (child instanceof Text) {
-            current.push(child);
-          } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
-            if (isBridgeable(child)) {
-              recurse(child);
-            } else {
-              flush();
-              recurse(child);
-              flush();
-            }
-          }
-        }
-      }
-      recurse(root);
-      flush();
-      return scopes;
-    }
-    function matchScope(root, textNodeList, regex, found, domRange) {
-      var starts = [];
-      var text3 = "";
-      textNodeList.forEach(function(node) {
-        starts.push(text3.length);
-        text3 += node.textContent;
-      });
-      regex.lastIndex = 0;
-      var ranges = [];
-      var match2;
-      while ((match2 = regex.exec(text3)) !== null) {
-        if (match2[0].length === 0) {
-          regex.lastIndex++;
-          if (regex.lastIndex > text3.length) break;
-          continue;
-        }
-        ranges.push({ start: match2.index, end: match2.index + match2[0].length });
-      }
-      if (ranges.length === 0) return;
-      var scopeFound = [];
-      ranges.toReversed().forEach(function(range) {
-        var start = locate(textNodeList, starts, range.start, true);
-        var end = locate(textNodeList, starts, range.end, false);
-        var startAncestor = start.node.parentNode;
-        var endAncestor = end.node.parentNode;
-        domRange.setStart(start.node, start.localOffset);
-        domRange.setEnd(end.node, end.localOffset);
-        var mark = document.createElement("mark");
-        mark.className = "mmd-find-match";
-        mark.append(domRange.extractContents());
-        domRange.insertNode(mark);
-        scopeFound.unshift(mark);
-        pruneEmptyAncestors(startAncestor, root);
-        pruneEmptyAncestors(endAncestor, root);
-      });
-      found.push.apply(found, scopeFound);
-    }
-    function walk(root, regex, found) {
-      var domRange = document.createRange();
-      collectScopes(root).forEach(function(textNodeList) {
-        matchScope(root, textNodeList, regex, found, domRange);
-      });
-    }
     function updateCount() {
-      var countEl = document.getElementById("mmd-find-count");
-      var input = findInputElement();
-      if (query2.length === 0 || input.classList.contains("mmd-find-error")) {
-        countEl.textContent = "";
-      } else {
-        var strings = window._mmdFindStrings || {};
-        countEl.textContent = formatNavigationCount(
-          currentIndex,
-          matches.length,
-          truncated,
-          strings.withinDisplayedRange || "Displayed range"
-        );
-      }
+      renderFindCount(query2, currentIndex, matches.length, truncated);
     }
     function highlightCurrent() {
       var current = matches[currentIndex];
-      moveCurrentHighlight(
-        currentHighlight ? [currentHighlight] : [],
-        current ? [current] : [],
-        "mmd-find-match-current",
-        current
-      );
+      moveFindHighlight(currentHighlight, current);
       currentHighlight = current;
     }
     function moveTo(index) {
@@ -14669,17 +14755,11 @@
       updateCount();
     }
     function run(suppressAutoHighlight) {
-      var input = findInputElement();
-      query2 = input.value;
+      query2 = findInputElement().value;
       clearMarks();
-      matches = [];
       currentIndex = -1;
       currentHighlight = void 0;
-      var regex = buildFindRegExp(query2, options);
-      input.classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
-      if (regex) {
-        walk(document.getElementById("diagram-wrap"), regex, matches);
-      }
+      matches = searchDocument(query2, options);
       if (matches.length > 0) {
         currentIndex = 0;
         if (!suppressAutoHighlight) {
@@ -14714,70 +14794,15 @@
       run();
     }
     function applyHostSettings() {
-      var opts = window._mmdInitialFindOptions || {};
-      options.caseSensitive = !!opts.caseSensitive;
-      options.wholeWord = !!opts.wholeWord;
-      options.useRegex = !!opts.useRegex;
-      document.getElementById("mmd-find-case").classList.toggle("active", options.caseSensitive);
-      document.getElementById("mmd-find-word").classList.toggle("active", options.wholeWord);
-      document.getElementById("mmd-find-regex").classList.toggle("active", options.useRegex);
-      var strings = window._mmdFindStrings || {};
-      var input = findInputElement();
-      if (strings.placeholder) {
-        input.placeholder = strings.placeholder;
-      }
-      if (strings.previous) {
-        document.getElementById("mmd-find-prev").title = strings.previous;
-      }
-      if (strings.next) {
-        document.getElementById("mmd-find-next").title = strings.next;
-      }
-      if (strings.matchCase) {
-        document.getElementById("mmd-find-case").title = strings.matchCase;
-      }
-      if (strings.matchWholeWord) {
-        document.getElementById("mmd-find-word").title = strings.matchWholeWord;
-      }
-      if (strings.useRegularExpression) {
-        document.getElementById("mmd-find-regex").title = strings.useRegularExpression;
-      }
-      if (strings.close) {
-        document.getElementById("mmd-find-close").title = strings.close;
-      }
+      applyFindHostSettings(options);
     }
     function initControls() {
-      document.getElementById("mmd-find-input").addEventListener("input", function() {
-        run();
-      });
-      document.getElementById("mmd-find-input").addEventListener("keydown", function(e) {
-        if (e.key === "Enter") {
-          if (isComposingKeyEvent(e)) {
-            return;
-          }
-          e.preventDefault();
-          if (e.shiftKey) {
-            prev();
-          } else {
-            next();
-          }
-        }
-      });
-      wireBarControls({
-        prevId: "mmd-find-prev",
-        nextId: "mmd-find-next",
-        closeId: "mmd-find-close",
-        onPrev: prev,
-        onNext: next,
-        onClose: close
-      });
-      document.getElementById("mmd-find-case").addEventListener("click", function() {
-        toggleOption("caseSensitive", "mmd-find-case");
-      });
-      document.getElementById("mmd-find-word").addEventListener("click", function() {
-        toggleOption("wholeWord", "mmd-find-word");
-      });
-      document.getElementById("mmd-find-regex").addEventListener("click", function() {
-        toggleOption("useRegex", "mmd-find-regex");
+      wireFindControls({
+        run,
+        next,
+        prev,
+        close,
+        toggleOption
       });
     }
     function open() {
@@ -14834,7 +14859,7 @@
     _mmdFind.refresh(resetToFirst);
   }
 
-  // viewer-src/jump.ts
+  // viewer-src/jump-view.ts
   var CURRENT_CLASS = "mmd-jump-current";
   var TARGET_CLASS = "mmd-jump-target";
   function markTargets(targets) {
@@ -14844,6 +14869,54 @@
       });
     });
   }
+  function unmarkTargets(targets) {
+    targets.forEach(function(target) {
+      target.highlight.forEach(function(element) {
+        element.classList.remove(TARGET_CLASS);
+      });
+    });
+  }
+  function moveCurrent(previous, current, scroll) {
+    var highlight = current ? current.highlight : [];
+    moveCurrentHighlight(previous, highlight, CURRENT_CLASS, scroll ? current?.anchor : void 0);
+    return highlight;
+  }
+  function updateJumpCount(provider, currentIndex, total, truncated) {
+    var countEl = document.getElementById("mmd-jump-count");
+    if (!countEl) return;
+    var strings = window._mmdJumpStrings || {};
+    var showsTruncatedLabel = truncated && provider?.isSelectionEmpty?.() !== true && provider?.ignoresTruncation !== true;
+    countEl.textContent = formatNavigationCount(
+      currentIndex,
+      total,
+      showsTruncatedLabel,
+      strings.withinDisplayedRange || "Displayed range"
+    );
+  }
+  function updateOptionsVisibility(providers, activeKind) {
+    Object.keys(providers).forEach(function(id) {
+      var elementId = providers[id]?.optionsElementId;
+      if (!elementId) return;
+      var element = document.getElementById(elementId);
+      if (!element) return;
+      element.style.display = id === activeKind ? "flex" : "none";
+    });
+  }
+  function collectJumpTargets(provider) {
+    var root = document.getElementById("diagram-wrap");
+    if (!provider || !root) {
+      return [];
+    }
+    return provider.collect(root);
+  }
+  function setPanelDisplay(display) {
+    var bar = document.getElementById("mmd-jump-panel");
+    if (bar) {
+      bar.style.display = display;
+    }
+  }
+
+  // viewer-src/jump.ts
   function isJumpBarOpen() {
     return isBarOpen("jump");
   }
@@ -14859,71 +14932,23 @@
       providers[provider.id] = provider;
     }
     function updateCount() {
-      var countEl = document.getElementById("mmd-jump-count");
-      if (!countEl) return;
-      var strings = window._mmdJumpStrings || {};
-      var showsTruncatedLabel = truncated && !isFilteredEmpty() && !ignoresTruncation();
-      countEl.textContent = formatNavigationCount(
-        currentIndex,
-        targets.length,
-        showsTruncatedLabel,
-        strings.withinDisplayedRange || "Displayed range"
-      );
+      updateJumpCount(providers[activeKind], currentIndex, targets.length, truncated);
     }
     function highlightCurrent(scroll) {
-      var current = targets[currentIndex];
-      moveCurrentHighlight(
-        currentHighlight,
-        current ? current.highlight : [],
-        CURRENT_CLASS,
-        scroll ? current?.anchor : void 0
-      );
-      currentHighlight = current ? current.highlight : [];
-    }
-    function clearCurrent() {
-      moveCurrentHighlight(currentHighlight, [], CURRENT_CLASS);
-      currentHighlight = [];
+      currentHighlight = moveCurrent(currentHighlight, targets[currentIndex], scroll);
     }
     function clearHighlight() {
-      clearCurrent();
-      targets.forEach(function(target) {
-        target.highlight.forEach(function(element) {
-          element.classList.remove(TARGET_CLASS);
-        });
-      });
+      currentHighlight = moveCurrent(currentHighlight, void 0, false);
+      unmarkTargets(targets);
     }
     function moveTo(index, scroll) {
       currentIndex = index;
       highlightCurrent(scroll);
       updateCount();
     }
-    function collectTargets() {
-      var provider = providers[activeKind];
-      var root = document.getElementById("diagram-wrap");
-      if (!provider || !root) {
-        return [];
-      }
-      return provider.collect(root);
-    }
-    function isFilteredEmpty() {
-      var provider = providers[activeKind];
-      return provider?.isSelectionEmpty?.() === true;
-    }
-    function ignoresTruncation() {
-      return providers[activeKind]?.ignoresTruncation === true;
-    }
-    function updateOptionsVisibility() {
-      Object.keys(providers).forEach(function(id) {
-        var elementId = providers[id]?.optionsElementId;
-        if (!elementId) return;
-        var element = document.getElementById(elementId);
-        if (!element) return;
-        element.style.display = id === activeKind ? "flex" : "none";
-      });
-    }
     function run(scroll) {
       clearHighlight();
-      targets = collectTargets();
+      targets = collectJumpTargets(providers[activeKind]);
       markTargets(targets);
       currentIndex = targets.length > 0 ? 0 : -1;
       highlightCurrent(scroll);
@@ -14932,20 +14957,14 @@
     function open(kind) {
       activeKind = kind;
       claimBar("jump");
-      var bar = document.getElementById("mmd-jump-panel");
-      if (bar) {
-        bar.style.display = "flex";
-      }
-      updateOptionsVisibility();
+      setPanelDisplay("flex");
+      updateOptionsVisibility(providers, activeKind);
       run(true);
       updateOuterVisibility();
     }
     function close() {
       releaseBar("jump");
-      var bar = document.getElementById("mmd-jump-panel");
-      if (bar) {
-        bar.style.display = "none";
-      }
+      setPanelDisplay("none");
       clearHighlight();
       targets = [];
       currentIndex = -1;
@@ -14965,7 +14984,7 @@
       }
       var previousIndex = resetToFirst ? 0 : currentIndex;
       clearHighlight();
-      targets = collectTargets();
+      targets = collectJumpTargets(providers[activeKind]);
       markTargets(targets);
       currentIndex = -1;
       if (targets.length > 0) {
@@ -15560,6 +15579,190 @@
     return str.slice(idx + 1);
   }
 
+  // viewer-src/diff-highlight.ts
+  function highlightedSideLines(hljs, lines, indexes, lang) {
+    var texts = [];
+    for (var i = 0; i < indexes.length; i++) {
+      texts.push(lines[indexes[i]].text);
+    }
+    var joined = texts.join("\n");
+    var lineHtmls = null;
+    var highlighted = highlightCode(hljs, joined, lang);
+    if (highlighted) {
+      var match2 = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/u);
+      if (match2) {
+        lineHtmls = reflowSpanBalancedLines(match2[1]);
+      }
+    }
+    if (lineHtmls === null) {
+      lineHtmls = reflowSpanBalancedLines(escapeHtml(joined));
+    }
+    while (lineHtmls.length < indexes.length) {
+      lineHtmls.push("");
+    }
+    return lineHtmls.slice(0, indexes.length);
+  }
+  function highlightedDiffLines(hljs, hunk, lang) {
+    var lines = hunk.lines;
+    var oldIndexes = [];
+    var newIndexes = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].type !== "add") {
+        oldIndexes.push(i);
+      }
+      if (lines[i].type !== "del") {
+        newIndexes.push(i);
+      }
+    }
+    var result = [];
+    for (var n = 0; n < lines.length; n++) {
+      result.push("");
+    }
+    var oldHtmls = highlightedSideLines(hljs, lines, oldIndexes, lang);
+    for (var o = 0; o < oldIndexes.length; o++) {
+      result[oldIndexes[o]] = oldHtmls[o];
+    }
+    var newHtmls = highlightedSideLines(hljs, lines, newIndexes, lang);
+    for (var w = 0; w < newIndexes.length; w++) {
+      result[newIndexes[w]] = newHtmls[w];
+    }
+    return result;
+  }
+
+  // viewer-src/diff-parse.ts
+  var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
+  function parseUnifiedDiff(text3) {
+    var files = [];
+    var file = null;
+    var hunk = null;
+    var oldNumber = 0;
+    var newNumber = 0;
+    var lines = (text3 ?? "").split("\n");
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.indexOf("diff --git ") === 0) {
+        file = { oldPath: null, newPath: null, isBinary: false, hunks: [] };
+        files.push(file);
+        hunk = null;
+        continue;
+      }
+      if (file === null) {
+        continue;
+      }
+      if (hunk === null) {
+        if (line.indexOf("--- ") === 0) {
+          file.oldPath = diffPath(line.slice(4));
+          continue;
+        }
+        if (line.indexOf("+++ ") === 0) {
+          file.newPath = diffPath(line.slice(4));
+          continue;
+        }
+        if (line.indexOf("Binary files ") === 0 || line.indexOf("GIT binary patch") === 0) {
+          file.isBinary = true;
+          continue;
+        }
+      }
+      var header = line.match(DIFF_HUNK_HEADER);
+      if (header) {
+        oldNumber = parseInt(header[1], 10);
+        newNumber = parseInt(header[3], 10);
+        hunk = { oldStart: oldNumber, newStart: newNumber, lines: [] };
+        file.hunks.push(hunk);
+        continue;
+      }
+      if (hunk === null) {
+        continue;
+      }
+      if (line.indexOf("\\") === 0) {
+        continue;
+      }
+      var marker = line.charAt(0);
+      var body = line.slice(1);
+      if (marker === "+") {
+        hunk.lines.push({ type: "add", text: body, oldNumber: null, newNumber });
+        newNumber += 1;
+      } else if (marker === "-") {
+        hunk.lines.push({ type: "del", text: body, oldNumber, newNumber: null });
+        oldNumber += 1;
+      } else if (marker === " ") {
+        hunk.lines.push({ type: "context", text: body, oldNumber, newNumber });
+        oldNumber += 1;
+        newNumber += 1;
+      }
+    }
+    return files;
+  }
+  function diffPath(raw) {
+    var path2 = raw.split("	")[0];
+    if (path2 === "/dev/null") {
+      return path2;
+    }
+    return path2.replace(/^[ab]\//u, "");
+  }
+  function assignChangeBlockIndexes(lines, startIndex) {
+    var result = [];
+    var next = startIndex;
+    var i = 0;
+    while (i < lines.length) {
+      if (lines[i].type === "context") {
+        result.push(null);
+        i += 1;
+        continue;
+      }
+      var block2 = next;
+      next += 1;
+      while (i < lines.length && lines[i].type === "del") {
+        result.push(block2);
+        i += 1;
+      }
+      while (i < lines.length && lines[i].type === "add") {
+        result.push(block2);
+        i += 1;
+      }
+    }
+    return result;
+  }
+  function nextChangeBlockIndex(blocks, startIndex) {
+    var next = startIndex;
+    for (var i = 0; i < blocks.length; i++) {
+      var block2 = blocks[i];
+      if (block2 !== null && block2 !== void 0 && block2 + 1 > next) {
+        next = block2 + 1;
+      }
+    }
+    return next;
+  }
+  function pairDiffLines(lines) {
+    var pairs = [];
+    var i = 0;
+    while (i < lines.length) {
+      if (lines[i].type === "context") {
+        pairs.push({ left: i, right: i });
+        i += 1;
+        continue;
+      }
+      var dels = [];
+      var adds = [];
+      while (i < lines.length && lines[i].type === "del") {
+        dels.push(i);
+        i += 1;
+      }
+      while (i < lines.length && lines[i].type === "add") {
+        adds.push(i);
+        i += 1;
+      }
+      var count = Math.max(dels.length, adds.length);
+      for (var k = 0; k < count; k++) {
+        pairs.push({
+          left: k < dels.length ? dels[k] : null,
+          right: k < adds.length ? adds[k] : null
+        });
+      }
+    }
+    return pairs;
+  }
+
   // viewer-src/diff-words.ts
   var WORD_OPEN = '<span class="diff-word">';
   var WORD_CLOSE = "</span>";
@@ -15687,124 +15890,6 @@
   }
 
   // viewer-src/diff-html.ts
-  var DIFF_HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
-  function parseUnifiedDiff(text3) {
-    var files = [];
-    var file = null;
-    var hunk = null;
-    var oldNumber = 0;
-    var newNumber = 0;
-    var lines = (text3 ?? "").split("\n");
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (line.indexOf("diff --git ") === 0) {
-        file = { oldPath: null, newPath: null, isBinary: false, hunks: [] };
-        files.push(file);
-        hunk = null;
-        continue;
-      }
-      if (file === null) {
-        continue;
-      }
-      if (hunk === null) {
-        if (line.indexOf("--- ") === 0) {
-          file.oldPath = diffPath(line.slice(4));
-          continue;
-        }
-        if (line.indexOf("+++ ") === 0) {
-          file.newPath = diffPath(line.slice(4));
-          continue;
-        }
-        if (line.indexOf("Binary files ") === 0 || line.indexOf("GIT binary patch") === 0) {
-          file.isBinary = true;
-          continue;
-        }
-      }
-      var header = line.match(DIFF_HUNK_HEADER);
-      if (header) {
-        oldNumber = parseInt(header[1], 10);
-        newNumber = parseInt(header[3], 10);
-        hunk = { oldStart: oldNumber, newStart: newNumber, lines: [] };
-        file.hunks.push(hunk);
-        continue;
-      }
-      if (hunk === null) {
-        continue;
-      }
-      if (line.indexOf("\\") === 0) {
-        continue;
-      }
-      var marker = line.charAt(0);
-      var body = line.slice(1);
-      if (marker === "+") {
-        hunk.lines.push({ type: "add", text: body, oldNumber: null, newNumber });
-        newNumber += 1;
-      } else if (marker === "-") {
-        hunk.lines.push({ type: "del", text: body, oldNumber, newNumber: null });
-        oldNumber += 1;
-      } else if (marker === " ") {
-        hunk.lines.push({ type: "context", text: body, oldNumber, newNumber });
-        oldNumber += 1;
-        newNumber += 1;
-      }
-    }
-    return files;
-  }
-  function diffPath(raw) {
-    var path2 = raw.split("	")[0];
-    if (path2 === "/dev/null") {
-      return path2;
-    }
-    return path2.replace(/^[ab]\//u, "");
-  }
-  function highlightedSideLines(hljs, lines, indexes, lang) {
-    var texts = [];
-    for (var i = 0; i < indexes.length; i++) {
-      texts.push(lines[indexes[i]].text);
-    }
-    var joined = texts.join("\n");
-    var lineHtmls = null;
-    var highlighted = highlightCode(hljs, joined, lang);
-    if (highlighted) {
-      var match2 = highlighted.match(/^<pre><code[^>]*>([\s\S]*)<\/code><\/pre>$/u);
-      if (match2) {
-        lineHtmls = reflowSpanBalancedLines(match2[1]);
-      }
-    }
-    if (lineHtmls === null) {
-      lineHtmls = reflowSpanBalancedLines(escapeHtml(joined));
-    }
-    while (lineHtmls.length < indexes.length) {
-      lineHtmls.push("");
-    }
-    return lineHtmls.slice(0, indexes.length);
-  }
-  function highlightedDiffLines(hljs, hunk, lang) {
-    var lines = hunk.lines;
-    var oldIndexes = [];
-    var newIndexes = [];
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].type !== "add") {
-        oldIndexes.push(i);
-      }
-      if (lines[i].type !== "del") {
-        newIndexes.push(i);
-      }
-    }
-    var result = [];
-    for (var n = 0; n < lines.length; n++) {
-      result.push("");
-    }
-    var oldHtmls = highlightedSideLines(hljs, lines, oldIndexes, lang);
-    for (var o = 0; o < oldIndexes.length; o++) {
-      result[oldIndexes[o]] = oldHtmls[o];
-    }
-    var newHtmls = highlightedSideLines(hljs, lines, newIndexes, lang);
-    for (var w = 0; w < newIndexes.length; w++) {
-      result[newIndexes[w]] = newHtmls[w];
-    }
-    return result;
-  }
   function wordRangesForHunk(lines) {
     var result = [];
     for (var n = 0; n < lines.length; n++) {
@@ -15834,39 +15919,6 @@
       return "";
     }
     return markWordRanges(lineHtmls[index], lines[index].text, wordRanges[index]);
-  }
-  function assignChangeBlockIndexes(lines, startIndex) {
-    var result = [];
-    var next = startIndex;
-    var i = 0;
-    while (i < lines.length) {
-      if (lines[i].type === "context") {
-        result.push(null);
-        i += 1;
-        continue;
-      }
-      var block2 = next;
-      next += 1;
-      while (i < lines.length && lines[i].type === "del") {
-        result.push(block2);
-        i += 1;
-      }
-      while (i < lines.length && lines[i].type === "add") {
-        result.push(block2);
-        i += 1;
-      }
-    }
-    return result;
-  }
-  function nextChangeBlockIndex(blocks, startIndex) {
-    var next = startIndex;
-    for (var i = 0; i < blocks.length; i++) {
-      var block2 = blocks[i];
-      if (block2 !== null && block2 !== void 0 && block2 + 1 > next) {
-        next = block2 + 1;
-      }
-    }
-    return next;
   }
   function changeBlockAttribute(blockIndex) {
     if (blockIndex === null || blockIndex === void 0) {
@@ -15922,35 +15974,6 @@
       return "";
     }
     return '<pre><code class="hljs"><table class="code-table diff-table">' + rows + "</table></code></pre>";
-  }
-  function pairDiffLines(lines) {
-    var pairs = [];
-    var i = 0;
-    while (i < lines.length) {
-      if (lines[i].type === "context") {
-        pairs.push({ left: i, right: i });
-        i += 1;
-        continue;
-      }
-      var dels = [];
-      var adds = [];
-      while (i < lines.length && lines[i].type === "del") {
-        dels.push(i);
-        i += 1;
-      }
-      while (i < lines.length && lines[i].type === "add") {
-        adds.push(i);
-        i += 1;
-      }
-      var count = Math.max(dels.length, adds.length);
-      for (var k = 0; k < count; k++) {
-        pairs.push({
-          left: k < dels.length ? dels[k] : null,
-          right: k < adds.length ? adds[k] : null
-        });
-      }
-    }
-    return pairs;
   }
   function diffSideCells(line, lineHtml, showLineNumbers, side) {
     var numberClass = side === "left" ? "diff-old" : "diff-new";
@@ -16658,6 +16681,89 @@
     el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
   }
 
+  // viewer-src/jump-function-provider.ts
+  function sourceLineText(row) {
+    return row.querySelector(".line-content")?.textContent ?? "";
+  }
+  var FUNCTION_JUMP_LANGUAGES = [
+    "swift",
+    "python",
+    "javascript",
+    "typescript",
+    "go",
+    "rust",
+    "java",
+    "kotlin"
+  ];
+  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
+  var DEFINITION_PATTERNS = {
+    // `class func` のように修飾子として現れる語も定義キーワードなので、
+    // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。
+    swift: /^\s*(?:(?:public|private|fileprivate|internal|open|package|static|class|final|override|mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|indirect|nonisolated|isolated)\s+)*(?:func|class|struct|enum|protocol|extension|actor|init|deinit|subscript)\b/u,
+    // デコレータは別の行にあるので def / class そのものに錨を下ろす。
+    python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
+    javascript: JS_DEFINITION,
+    typescript: JS_DEFINITION,
+    // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
+    go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
+    // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
+    rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
+    // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
+    // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
+    // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
+    // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
+    java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
+    kotlin: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u
+  };
+  function definitionPattern() {
+    if (_mmdDocument.shape() !== "code") {
+      return null;
+    }
+    var lang = _mmdDocument.lang();
+    if (lang === void 0 || !FUNCTION_JUMP_LANGUAGES.includes(lang)) {
+      return null;
+    }
+    return DEFINITION_PATTERNS[lang] ?? null;
+  }
+  function codeTextOf(cell) {
+    var text3 = "";
+    cell.childNodes.forEach(function(node) {
+      if (node instanceof HTMLElement && node.matches(".hljs-comment, .hljs-string")) {
+        return;
+      }
+      text3 += node.textContent ?? "";
+    });
+    return text3;
+  }
+  function collectFunctionDefinitions(root) {
+    const pattern = definitionPattern();
+    if (!pattern) {
+      return [];
+    }
+    var targets = [];
+    root.querySelectorAll("tr").forEach(function(row) {
+      if (!pattern.test(sourceLineText(row))) {
+        return;
+      }
+      var cell = row.querySelector(".line-content");
+      if (!cell) {
+        return;
+      }
+      if (cell.querySelector(".hljs-comment, .hljs-string") && !pattern.test(codeTextOf(cell))) {
+        return;
+      }
+      targets.push({ anchor: cell, highlight: [cell] });
+    });
+    return targets;
+  }
+  var functionDefinitionJumpProvider = {
+    id: "functionDefinition",
+    collect: collectFunctionDefinitions
+    // ignoresTruncation は付けない。差分表示と違いソース表示は appendChunk で
+    // 実際に追記が起きるため、未読み込み範囲の定義は DOM に存在しない。
+    // 「表示範囲内」ラベルはその事実をユーザーへ伝えるもので、消してはいけない。
+  };
+
   // viewer-src/jump-providers.ts
   var HEADING_LEVELS = [1, 2, 3];
   var selectedLevels = HEADING_LEVELS.slice();
@@ -16674,9 +16780,6 @@
   }
   var ATX_HEADING = /^ {0,3}(#{1,6})(?: |$)/u;
   var CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/u;
-  function sourceLineText(row) {
-    return row.querySelector(".line-content")?.textContent ?? "";
-  }
   function collectSourceHeadings(root) {
     var rows = root.querySelectorAll("tr");
     var targets = [];
@@ -16764,84 +16867,6 @@
     // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
     // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
     ignoresTruncation: true
-  };
-  var FUNCTION_JUMP_LANGUAGES = [
-    "swift",
-    "python",
-    "javascript",
-    "typescript",
-    "go",
-    "rust",
-    "java",
-    "kotlin"
-  ];
-  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
-  var DEFINITION_PATTERNS = {
-    // `class func` のように修飾子として現れる語も定義キーワードなので、
-    // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。
-    swift: /^\s*(?:(?:public|private|fileprivate|internal|open|package|static|class|final|override|mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|indirect|nonisolated|isolated)\s+)*(?:func|class|struct|enum|protocol|extension|actor|init|deinit|subscript)\b/u,
-    // デコレータは別の行にあるので def / class そのものに錨を下ろす。
-    python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
-    javascript: JS_DEFINITION,
-    typescript: JS_DEFINITION,
-    // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
-    go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
-    // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
-    rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
-    // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
-    // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
-    // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
-    // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
-    java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
-    kotlin: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u
-  };
-  function definitionPattern() {
-    if (_mmdDocument.shape() !== "code") {
-      return null;
-    }
-    var lang = _mmdDocument.lang();
-    if (lang === void 0 || !FUNCTION_JUMP_LANGUAGES.includes(lang)) {
-      return null;
-    }
-    return DEFINITION_PATTERNS[lang] ?? null;
-  }
-  function codeTextOf(cell) {
-    var text3 = "";
-    cell.childNodes.forEach(function(node) {
-      if (node instanceof HTMLElement && node.matches(".hljs-comment, .hljs-string")) {
-        return;
-      }
-      text3 += node.textContent ?? "";
-    });
-    return text3;
-  }
-  function collectFunctionDefinitions(root) {
-    const pattern = definitionPattern();
-    if (!pattern) {
-      return [];
-    }
-    var targets = [];
-    root.querySelectorAll("tr").forEach(function(row) {
-      if (!pattern.test(sourceLineText(row))) {
-        return;
-      }
-      var cell = row.querySelector(".line-content");
-      if (!cell) {
-        return;
-      }
-      if (cell.querySelector(".hljs-comment, .hljs-string") && !pattern.test(codeTextOf(cell))) {
-        return;
-      }
-      targets.push({ anchor: cell, highlight: [cell] });
-    });
-    return targets;
-  }
-  var functionDefinitionJumpProvider = {
-    id: "functionDefinition",
-    collect: collectFunctionDefinitions
-    // ignoresTruncation は付けない。差分表示と違いソース表示は appendChunk で
-    // 実際に追記が起きるため、未読み込み範囲の定義は DOM に存在しない。
-    // 「表示範囲内」ラベルはその事実をユーザーへ伝えるもので、消してはいけない。
   };
   function selectedHeadingLevels() {
     return selectedLevels.slice();
@@ -24929,6 +24954,87 @@
     _mmdCsvNumberFormat.adopt(window._mmdCsvGrouping, window._mmdCsvNegativeStyle);
     _mmdRerenderCurrent();
   }
+  function appendMarkdownChunk(diagramWrap, text3) {
+    diagramWrap.insertAdjacentHTML("beforeend", markdownRenderer().render(text3));
+    _annotatePathRefs();
+    void _mmdRunMermaid(diagramWrap, true);
+    return true;
+  }
+  function appendCsvChunk(diagramWrap, text3, lang) {
+    var csvRows = parseCsv(text3, lang || ",");
+    var tbody = diagramWrap.querySelector("tbody");
+    if (!tbody) {
+      return false;
+    }
+    var table2 = tbody.parentElement;
+    if (!(table2 instanceof HTMLTableElement)) {
+      return false;
+    }
+    var headRow = table2.tHead && table2.tHead.rows[0];
+    var minCols = headRow ? headRow.cells.length : 0;
+    var maxNewCols = 0;
+    for (var r = 0; r < csvRows.length; r++) {
+      var csvRow = csvRows[r];
+      if (csvRow.length > maxNewCols) {
+        maxNewCols = csvRow.length;
+      }
+    }
+    if (maxNewCols > minCols && headRow) {
+      for (var c = minCols; c < maxNewCols; c++) {
+        headRow.insertAdjacentHTML("beforeend", "<th></th>");
+      }
+      minCols = maxNewCols;
+    }
+    var firstNew = tbody.rows.length;
+    tbody.insertAdjacentHTML("beforeend", csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
+    for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
+      _walkTextNodes(tbody.rows[r2], false);
+    }
+    installCsvResize(table2);
+    return true;
+  }
+  function joinContinuationRow(codeTable, rowsHtml) {
+    var pendingRows = document.createElement("tbody");
+    pendingRows.innerHTML = rowsHtml;
+    var continuationRow = pendingRows.rows[0];
+    if (!continuationRow) {
+      return rowsHtml;
+    }
+    var lastRow = codeTable.rows[codeTable.rows.length - 1];
+    var lastContentCell = lastRow.querySelector(".line-content");
+    var continuationContentCell = continuationRow.querySelector(".line-content");
+    if (lastContentCell && continuationContentCell) {
+      lastContentCell.insertAdjacentHTML("beforeend", continuationContentCell.innerHTML);
+    }
+    continuationRow.remove();
+    _walkTextNodes(lastRow, false);
+    return pendingRows.innerHTML;
+  }
+  function appendCodeChunk(diagramWrap, text3, lang, highlightContext, isCsvSource) {
+    var codeEl = diagramWrap.querySelector("pre code");
+    if (!codeEl) {
+      return false;
+    }
+    var inner = isCsvSource ? csvSourceInnerHtml(text3, lang || ",") : codeChunkInnerHtml(common_default, text3, lang, highlightContext);
+    var codeTable = codeEl.querySelector("table.code-table");
+    if (!codeTable) {
+      codeEl.insertAdjacentHTML("beforeend", inner);
+      _annotatePathRefs();
+      return true;
+    }
+    var endedWithNewline = _mmdChunkTail.endedWithNewline();
+    var startLine = codeTable.rows.length + (endedWithNewline ? 1 : 0);
+    var rowsHtml = buildLineNumberRows(inner, startLine, _mmdViewOptions.lineNumbers());
+    if (!endedWithNewline && codeTable.rows.length > 0) {
+      rowsHtml = joinContinuationRow(codeTable, rowsHtml);
+    }
+    var firstNewRow = codeTable.rows.length;
+    codeTable.insertAdjacentHTML("beforeend", rowsHtml);
+    for (var i = firstNewRow; i < codeTable.rows.length; i++) {
+      _walkTextNodes(codeTable.rows[i], false);
+    }
+    return true;
+  }
   function appendChunk(text3, type, lang) {
     if (!text3) {
       return;
@@ -24943,77 +25049,10 @@
     if (_mmdDocument.shape() === "diff") {
       return;
     }
-    if (_mmdDocument.shape() === "markdown") {
-      diagramWrap.insertAdjacentHTML("beforeend", markdownRenderer().render(text3));
-      _annotatePathRefs();
-      void _mmdRunMermaid(diagramWrap, true);
-    } else if (_mmdDocument.shape() === "csv-table") {
-      var csvRows = parseCsv(text3, lang || ",");
-      var tbody = diagramWrap.querySelector("tbody");
-      if (!tbody) {
-        return;
-      }
-      var table2 = tbody.parentElement;
-      if (!(table2 instanceof HTMLTableElement)) {
-        return;
-      }
-      var headRow = table2.tHead && table2.tHead.rows[0];
-      var minCols = headRow ? headRow.cells.length : 0;
-      var maxNewCols = 0;
-      for (var r = 0; r < csvRows.length; r++) {
-        var csvRow = csvRows[r];
-        if (csvRow.length > maxNewCols) {
-          maxNewCols = csvRow.length;
-        }
-      }
-      if (maxNewCols > minCols && headRow) {
-        for (var c = minCols; c < maxNewCols; c++) {
-          headRow.insertAdjacentHTML("beforeend", "<th></th>");
-        }
-        minCols = maxNewCols;
-      }
-      var firstNew = tbody.rows.length;
-      tbody.insertAdjacentHTML("beforeend", csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
-      for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
-        _walkTextNodes(tbody.rows[r2], false);
-      }
-      installCsvResize(table2);
-    } else {
-      var isCsvSource = _mmdDocument.shape() === "csv-source";
-      var codeEl = diagramWrap.querySelector("pre code");
-      if (!codeEl) {
-        return;
-      }
-      var inner = isCsvSource ? csvSourceInnerHtml(text3, lang || ",") : codeChunkInnerHtml(common_default, text3, lang, highlightContext);
-      var codeTable = codeEl.querySelector("table.code-table");
-      if (codeTable) {
-        var startLine = codeTable.rows.length + (_mmdChunkTail.endedWithNewline() ? 1 : 0);
-        var rowsHtml = buildLineNumberRows(inner, startLine, _mmdViewOptions.lineNumbers());
-        if (!_mmdChunkTail.endedWithNewline() && codeTable.rows.length > 0) {
-          var pendingRows = document.createElement("tbody");
-          pendingRows.innerHTML = rowsHtml;
-          var continuationRow = pendingRows.rows[0];
-          if (continuationRow) {
-            var lastRow = codeTable.rows[codeTable.rows.length - 1];
-            var lastContentCell = lastRow.querySelector(".line-content");
-            var continuationContentCell = continuationRow.querySelector(".line-content");
-            if (lastContentCell && continuationContentCell) {
-              lastContentCell.insertAdjacentHTML("beforeend", continuationContentCell.innerHTML);
-            }
-            continuationRow.remove();
-            rowsHtml = pendingRows.innerHTML;
-            _walkTextNodes(lastRow, false);
-          }
-        }
-        var firstNewRow = codeTable.rows.length;
-        codeTable.insertAdjacentHTML("beforeend", rowsHtml);
-        for (var i = firstNewRow; i < codeTable.rows.length; i++) {
-          _walkTextNodes(codeTable.rows[i], false);
-        }
-      } else {
-        codeEl.insertAdjacentHTML("beforeend", inner);
-        _annotatePathRefs();
-      }
+    var shape = _mmdDocument.shape();
+    var appended = shape === "markdown" ? appendMarkdownChunk(diagramWrap, text3) : shape === "csv-table" ? appendCsvChunk(diagramWrap, text3, lang) : appendCodeChunk(diagramWrap, text3, lang, highlightContext, shape === "csv-source");
+    if (!appended) {
+      return;
     }
     _mmdChunkTail.record(text3);
     _mmdResolveReferences();

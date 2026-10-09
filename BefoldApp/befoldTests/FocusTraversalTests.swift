@@ -96,6 +96,9 @@ struct FocusTraversalTests {
         var isDiffLayoutSideBySide = false
         var isSidebarCollapsed = false
         var allowsSidebar = true
+        var comparisonMenuState = ComparisonMenuState(
+            current: .parentBranch, selectable: [.parentBranch, .head], isAvailable: true
+        )
     }
 
     private func item(for selector: Selector) -> NSMenuItem {

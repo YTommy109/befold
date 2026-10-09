@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx'
 
-import { pathFor, type SitePage } from '../lib/pages'
+import { pathFor, type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
 import {
   DOWNLOAD_PATH,
@@ -116,6 +116,249 @@ function structuredData(origin: string, entry: SitePage): string {
   })
 }
 
+const Hero: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    <section class="hero">
+      {lang === 'ja' ? (
+        <>
+          <h2>Markdown を行き来する。快適に。</h2>
+          <p>
+            Markdown や Mermaid そしてソースコードも軽快に読める
+            <strong>Mac 専用</strong>の軽量ビューア。
+          </p>
+        </>
+      ) : (
+        <>
+          <h2>Move through Markdown, comfortably.</h2>
+          <p>
+            A lightweight <strong>Mac-only</strong> viewer that reads Markdown, Mermaid and source
+            code without slowing down.
+          </p>
+        </>
+      )}
+      <a href={downloadHref('/')} class="btn-primary">
+        <T lang={lang} ja="Mac 版をダウンロード" en="Download for Mac" />
+      </a>
+      {/* ダウンロード前に対象 OS が伝わるよう、ボタン直下にも動作要件を置く。 */}
+      <p class="hero-note">
+        {lang === 'ja' ? (
+          <>{REQUIRED_OS.ja}が必要です。Windows / Linux 版はありません。</>
+        ) : (
+          <>Requires {REQUIRED_OS.en}. There is no Windows or Linux version.</>
+        )}
+      </p>
+    </section>
+  </>
+)
+
+const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    {/* ふたつの読み手を同格に並べる。片方を従属させないため、
+            両セクションは同じ .philosophy を使い、ラベルだけで宛先を分ける。 */}
+    <section class="philosophy">
+      {lang === 'ja' ? (
+        <>
+          <p class="philosophy-audience">コードを書く人へ</p>
+          <p class="philosophy-lead">Claude が設計する。私は befold でレビューする。</p>
+          <p class="philosophy-body">
+            Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために befold
+            を作りました。
+            <br />
+            編集機能は思い切って削り、読むことに特化したツールです。Quick Look にも対応してます。
+          </p>
+        </>
+      ) : (
+        <>
+          <p class="philosophy-audience">For people who write code</p>
+          <p class="philosophy-lead">Claude designs. I review in befold.</p>
+          <p class="philosophy-body">
+            I built befold to review the piles of documents that Claude Code and Codex generate.
+            <br />
+            Editing was deliberately left out — befold is a tool built purely for reading. It
+            supports Quick Look, too.
+          </p>
+        </>
+      )}
+    </section>
+
+    <section class="philosophy">
+      {lang === 'ja' ? (
+        <>
+          <p class="philosophy-audience">Markdown を読む人へ</p>
+          <p class="philosophy-lead">読むだけなら、詳しくなくていい。</p>
+          <p class="philosophy-body">
+            ファイルを開くだけ。覚えることも、決めておく設定もありません。
+            <br />
+            GitHub と同じ見た目で表示され、Mermaid のコードブロックは図として描かれます。
+            <br />
+            LLM がファイルを更新すると、0.2 秒で最新の内容に反映されます。
+          </p>
+        </>
+      ) : (
+        <>
+          <p class="philosophy-audience">For people who read Markdown</p>
+          <p class="philosophy-lead">You don&apos;t have to be technical to read it.</p>
+          <p class="philosophy-body">
+            Just open the file. Nothing to learn, nothing to configure beforehand.
+            <br />
+            It renders with the same look as GitHub, and Mermaid code blocks are drawn as diagrams.
+            <br />
+            When an LLM updates the file, the view catches up in 0.2 seconds.
+          </p>
+        </>
+      )}
+    </section>
+
+    <section class="philosophy">
+      {lang === 'ja' ? (
+        <>
+          <p class="philosophy-audience">安全に読みたい人へ</p>
+          <p class="philosophy-lead">開いた文書は、どこにも行きません。</p>
+          <p class="philosophy-body">
+            描画はすべて手元で行います。文書の中身もファイル名もパスも送信しません。
+            <br />
+            文書の側からも外へ出させません。埋め込まれたリモート画像・トラッキング用の画像・
+            外部スクリプトは、ネットワーク層で遮断されるため読み込まれません。
+            <br />
+            アプリが出す通信は、アップデートの確認だけです。
+          </p>
+        </>
+      ) : (
+        <>
+          <p class="philosophy-audience">For people who need it to stay private</p>
+          <p class="philosophy-lead">What you open stays on your Mac.</p>
+          <p class="philosophy-body">
+            Everything is rendered locally. No document contents, file names or paths are ever sent
+            anywhere.
+            <br />
+            The reverse is blocked too: remote images, tracking pixels and external scripts embedded
+            in a file are stopped at the network layer and never fetched.
+            <br />
+            The only request befold makes is the update check.
+          </p>
+        </>
+      )}
+    </section>
+  </>
+)
+
+const Screenshots: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    <section class="screenshot">
+      <div class="carousel">
+        <div class="carousel-track">
+          {SCREENSHOTS.map((shot) => (
+            <div class="carousel-slide">
+              {/* loading="lazy" は付けない。スライドは overflow:hidden の中を
+                      transform で動かすため、Chrome がビューポート付近と判定せず
+                      2 枚目以降が永久に読み込まれない。 */}
+              <img src={shot.src} alt={t(lang, shot.alt)} decoding="async" />
+              <p class={shot.kind === 'feature' ? 'carousel-caption feature' : 'carousel-caption'}>
+                {shot.caption}
+              </p>
+            </div>
+          ))}
+        </div>
+        <button
+          class="carousel-prev"
+          type="button"
+          aria-label={t(lang, { ja: '前のスクリーンショット', en: 'Previous screenshot' })}
+        >
+          ‹
+        </button>
+        <button
+          class="carousel-next"
+          type="button"
+          aria-label={t(lang, { ja: '次のスクリーンショット', en: 'Next screenshot' })}
+        >
+          ›
+        </button>
+        <div class="carousel-dots" />
+      </div>
+    </section>
+  </>
+)
+
+const FeatureSection: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    <section class="features">
+      <h3>
+        <T lang={lang} ja="機能" en="Features" />
+      </h3>
+      <div class="feature-grid">
+        {FEATURES.map((feature) => (
+          <div class="feature-card">
+            <h4>
+              <T lang={lang} ja={feature.ja[0]} en={feature.en[0]} />
+            </h4>
+            <p>
+              <T lang={lang} ja={feature.ja[1]} en={feature.en[1]} />
+            </p>
+          </div>
+        ))}
+      </div>
+      <ul class="feature-list">
+        {MORE_FEATURES.map((feature) => (
+          <li>
+            <strong>
+              <T lang={lang} ja={feature.ja[0]} en={feature.en[0]} />
+            </strong>{' '}
+            — <T lang={lang} ja={feature.ja[1]} en={feature.en[1]} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  </>
+)
+
+const Requirements: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    <section class="requirements">
+      <h3>
+        <T lang={lang} ja="動作要件" en="Requirements" />
+      </h3>
+      <p>{t(lang, REQUIRED_OS)}</p>
+    </section>
+  </>
+)
+
+const Install: FC<{ lang: PageLang }> = ({ lang }) => (
+  <>
+    <section class="install">
+      <h3>
+        <T lang={lang} ja="インストール" en="Installation" />
+      </h3>
+      {lang === 'ja' ? (
+        <ol>
+          <li>
+            <a href={downloadHref('/')}>最新版をダウンロード</a>
+          </li>
+          <li>
+            DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動
+          </li>
+        </ol>
+      ) : (
+        <ol>
+          <li>
+            <a href={downloadHref('/')}>Download the latest version</a>
+          </li>
+          <li>
+            Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to launch
+          </li>
+        </ol>
+      )}
+      {/* 過去バージョンへの唯一の動線。ヘッダーのナビには出さない（`FIXED_PAGES`
+              の `nav: false`）——勧めたいのは最新版で、ここは最新版で困った人の
+              逃げ道として補足の大きさで置く。 */}
+      <p class="install-note">
+        <a href={pathFor('/releases', lang)}>
+          <T lang={lang} ja="※ 過去バージョンが必要な方はこちら" en="* Need an older version?" />
+        </a>
+      </p>
+    </section>
+  </>
+)
+
 /**
  * 配布 LP。ダウンロードは計測用の /download 経由にする。
  *
@@ -138,235 +381,12 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
       jsonLd={structuredData(origin, entry)}
     >
       <main>
-        <section class="hero">
-          {lang === 'ja' ? (
-            <>
-              <h2>Markdown を行き来する。快適に。</h2>
-              <p>
-                Markdown や Mermaid そしてソースコードも軽快に読める
-                <strong>Mac 専用</strong>の軽量ビューア。
-              </p>
-            </>
-          ) : (
-            <>
-              <h2>Move through Markdown, comfortably.</h2>
-              <p>
-                A lightweight <strong>Mac-only</strong> viewer that reads Markdown, Mermaid and
-                source code without slowing down.
-              </p>
-            </>
-          )}
-          <a href={downloadHref('/')} class="btn-primary">
-            <T lang={lang} ja="Mac 版をダウンロード" en="Download for Mac" />
-          </a>
-          {/* ダウンロード前に対象 OS が伝わるよう、ボタン直下にも動作要件を置く。 */}
-          <p class="hero-note">
-            {lang === 'ja' ? (
-              <>{REQUIRED_OS.ja}が必要です。Windows / Linux 版はありません。</>
-            ) : (
-              <>Requires {REQUIRED_OS.en}. There is no Windows or Linux version.</>
-            )}
-          </p>
-        </section>
-
-        {/* ふたつの読み手を同格に並べる。片方を従属させないため、
-            両セクションは同じ .philosophy を使い、ラベルだけで宛先を分ける。 */}
-        <section class="philosophy">
-          {lang === 'ja' ? (
-            <>
-              <p class="philosophy-audience">コードを書く人へ</p>
-              <p class="philosophy-lead">Claude が設計する。私は befold でレビューする。</p>
-              <p class="philosophy-body">
-                Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために befold
-                を作りました。
-                <br />
-                編集機能は思い切って削り、読むことに特化したツールです。Quick Look
-                にも対応してます。
-              </p>
-            </>
-          ) : (
-            <>
-              <p class="philosophy-audience">For people who write code</p>
-              <p class="philosophy-lead">Claude designs. I review in befold.</p>
-              <p class="philosophy-body">
-                I built befold to review the piles of documents that Claude Code and Codex generate.
-                <br />
-                Editing was deliberately left out — befold is a tool built purely for reading. It
-                supports Quick Look, too.
-              </p>
-            </>
-          )}
-        </section>
-
-        <section class="philosophy">
-          {lang === 'ja' ? (
-            <>
-              <p class="philosophy-audience">Markdown を読む人へ</p>
-              <p class="philosophy-lead">読むだけなら、詳しくなくていい。</p>
-              <p class="philosophy-body">
-                ファイルを開くだけ。覚えることも、決めておく設定もありません。
-                <br />
-                GitHub と同じ見た目で表示され、Mermaid のコードブロックは図として描かれます。
-                <br />
-                LLM がファイルを更新すると、0.2 秒で最新の内容に反映されます。
-              </p>
-            </>
-          ) : (
-            <>
-              <p class="philosophy-audience">For people who read Markdown</p>
-              <p class="philosophy-lead">You don&apos;t have to be technical to read it.</p>
-              <p class="philosophy-body">
-                Just open the file. Nothing to learn, nothing to configure beforehand.
-                <br />
-                It renders with the same look as GitHub, and Mermaid code blocks are drawn as
-                diagrams.
-                <br />
-                When an LLM updates the file, the view catches up in 0.2 seconds.
-              </p>
-            </>
-          )}
-        </section>
-
-        <section class="philosophy">
-          {lang === 'ja' ? (
-            <>
-              <p class="philosophy-audience">安全に読みたい人へ</p>
-              <p class="philosophy-lead">開いた文書は、どこにも行きません。</p>
-              <p class="philosophy-body">
-                描画はすべて手元で行います。文書の中身もファイル名もパスも送信しません。
-                <br />
-                文書の側からも外へ出させません。埋め込まれたリモート画像・トラッキング用の画像・
-                外部スクリプトは、ネットワーク層で遮断されるため読み込まれません。
-                <br />
-                アプリが出す通信は、アップデートの確認だけです。
-              </p>
-            </>
-          ) : (
-            <>
-              <p class="philosophy-audience">For people who need it to stay private</p>
-              <p class="philosophy-lead">What you open stays on your Mac.</p>
-              <p class="philosophy-body">
-                Everything is rendered locally. No document contents, file names or paths are ever
-                sent anywhere.
-                <br />
-                The reverse is blocked too: remote images, tracking pixels and external scripts
-                embedded in a file are stopped at the network layer and never fetched.
-                <br />
-                The only request befold makes is the update check.
-              </p>
-            </>
-          )}
-        </section>
-
-        <section class="screenshot">
-          <div class="carousel">
-            <div class="carousel-track">
-              {SCREENSHOTS.map((shot) => (
-                <div class="carousel-slide">
-                  {/* loading="lazy" は付けない。スライドは overflow:hidden の中を
-                      transform で動かすため、Chrome がビューポート付近と判定せず
-                      2 枚目以降が永久に読み込まれない。 */}
-                  <img src={shot.src} alt={t(lang, shot.alt)} decoding="async" />
-                  <p
-                    class={
-                      shot.kind === 'feature' ? 'carousel-caption feature' : 'carousel-caption'
-                    }
-                  >
-                    {shot.caption}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <button
-              class="carousel-prev"
-              type="button"
-              aria-label={t(lang, { ja: '前のスクリーンショット', en: 'Previous screenshot' })}
-            >
-              ‹
-            </button>
-            <button
-              class="carousel-next"
-              type="button"
-              aria-label={t(lang, { ja: '次のスクリーンショット', en: 'Next screenshot' })}
-            >
-              ›
-            </button>
-            <div class="carousel-dots" />
-          </div>
-        </section>
-
-        <section class="features">
-          <h3>
-            <T lang={lang} ja="機能" en="Features" />
-          </h3>
-          <div class="feature-grid">
-            {FEATURES.map((feature) => (
-              <div class="feature-card">
-                <h4>
-                  <T lang={lang} ja={feature.ja[0]} en={feature.en[0]} />
-                </h4>
-                <p>
-                  <T lang={lang} ja={feature.ja[1]} en={feature.en[1]} />
-                </p>
-              </div>
-            ))}
-          </div>
-          <ul class="feature-list">
-            {MORE_FEATURES.map((feature) => (
-              <li>
-                <strong>
-                  <T lang={lang} ja={feature.ja[0]} en={feature.en[0]} />
-                </strong>{' '}
-                — <T lang={lang} ja={feature.ja[1]} en={feature.en[1]} />
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section class="requirements">
-          <h3>
-            <T lang={lang} ja="動作要件" en="Requirements" />
-          </h3>
-          <p>{t(lang, REQUIRED_OS)}</p>
-        </section>
-
-        <section class="install">
-          <h3>
-            <T lang={lang} ja="インストール" en="Installation" />
-          </h3>
-          {lang === 'ja' ? (
-            <ol>
-              <li>
-                <a href={downloadHref('/')}>最新版をダウンロード</a>
-              </li>
-              <li>
-                DMG を開き、<code>befold.app</code> を <code>/Applications</code> にコピーして起動
-              </li>
-            </ol>
-          ) : (
-            <ol>
-              <li>
-                <a href={downloadHref('/')}>Download the latest version</a>
-              </li>
-              <li>
-                Open the DMG and copy <code>befold.app</code> to <code>/Applications</code> to
-                launch
-              </li>
-            </ol>
-          )}
-          {/* 過去バージョンへの唯一の動線。ヘッダーのナビには出さない（`FIXED_PAGES`
-              の `nav: false`）——勧めたいのは最新版で、ここは最新版で困った人の
-              逃げ道として補足の大きさで置く。 */}
-          <p class="install-note">
-            <a href={pathFor('/releases', lang)}>
-              <T
-                lang={lang}
-                ja="※ 過去バージョンが必要な方はこちら"
-                en="* Need an older version?"
-              />
-            </a>
-          </p>
-        </section>
+        <Hero lang={lang} />
+        <Audiences lang={lang} />
+        <Screenshots lang={lang} />
+        <FeatureSection lang={lang} />
+        <Requirements lang={lang} />
+        <Install lang={lang} />
       </main>
 
       <script src="/carousel.js" />

@@ -123,7 +123,7 @@ export function articlePath(article: Article, lang: ArticleLang): string {
  * ドラフトのパス。**公開記事とは別の URL に置く。**
  *
  * 分けている理由は計測。アクセスは `events.page` に記録され、ダッシュボードの
- * ページ別内訳は生の page 値を畳んで作る（`src/analytics.ts`）。同じ page 値だと
+ * ページ別内訳は生の page 値を畳んで作る（`src/analytics/routes.ts`）。同じ page 値だと
  * 執筆中に自分で開いた回数が公開後の数字に混ざる。
  */
 export function draftPath(article: Article, lang: ArticleLang): string {

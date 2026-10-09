@@ -25,7 +25,7 @@ export const LEGACY_STAGING_HOST = 'befold-staging.tommy109.workers.dev'
  *
  * 本番・staging の新旧 4 ホストを入れる。移行期は旧ホストの LP から新ドメインへ
  * 遷移するが、これは外部からの流入ではないので参照元の集計
- * （`src/analytics.ts` の `breakdown(db,'referrer')`）に混ぜてはならない。
+ * （`src/analytics/breakdowns.ts` の `breakdown(db,'referrer')`）に混ぜてはならない。
  */
 export const SELF_HOSTS: ReadonlySet<string> = new Set([
   CANONICAL_HOST,

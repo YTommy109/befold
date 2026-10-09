@@ -14,12 +14,18 @@ struct SidebarHeaderControlsModelTests {
         showChangedFilesOnly: Bool = false,
         canFilterChangedFiles: Bool = true,
         isFilterActive: Bool = false,
-        isFilterTextEmpty: Bool = true
+        isFilterTextEmpty: Bool = true,
+        comparisonTarget: GitComparisonTarget = .windowDefault,
+        stacked: Bool = false
     ) -> SidebarHeaderControlsModel {
         SidebarHeaderControlsModel(
             settings: SidebarDisplaySettings(
                 showHiddenFiles: showHiddenFiles, showChangedFilesOnly: showChangedFilesOnly,
                 layoutMode: layoutMode, sortOrder: sortOrder
+            ),
+            comparisonTarget: comparisonTarget,
+            comparisonResolution: GitComparisonResolution(
+                baseID: "abc", baseBranch: "main", parentDiffersFromDefault: stacked, degraded: false
             ),
             canFilterChangedFiles: canFilterChangedFiles,
             isFilterActive: isFilterActive,
@@ -35,6 +41,38 @@ struct SidebarHeaderControlsModelTests {
 
         #expect(outsideGit.trailing.map(\.kind) == [.filter, .overflow])
         #expect(outsideGit.leading.map(\.kind) == [.layoutMode])
+    }
+
+    /// 項目は `selectableTargets` から作り、現在の基準は常に含まれる(落ちると Picker が選択無しになる)。
+    @Test("比較基準の項目は選択肢に一致し、現在の基準を必ず含む", arguments: GitComparisonTarget.allCases)
+    func comparisonItemsFollowSelectableTargets(current: GitComparisonTarget) {
+        for stacked in [false, true] {
+            let items = makeModel(comparisonTarget: current, stacked: stacked).comparisonItems
+            let expected = ComparisonTargetPresentation.selectableTargets(
+                current: current,
+                resolution: GitComparisonResolution(
+                    baseID: "abc", baseBranch: "main", parentDiffersFromDefault: stacked, degraded: false
+                )
+            )
+            #expect(items == expected)
+            #expect(items.contains(current))
+        }
+    }
+
+    /// 縮退(親ブランチ不明→デフォルト)のときだけ比較先の名前を持つ(TASK-681)。
+    @Test("縮退したときだけ比較先ブランチ名を持つ", arguments: [true, false])
+    func degradedBranchOnlyWhenDegraded(degraded: Bool) {
+        let model = SidebarHeaderControlsModel(
+            settings: SidebarDisplaySettings(
+                showHiddenFiles: false, showChangedFilesOnly: false, layoutMode: .tree, sortOrder: .foldersFirst
+            ),
+            comparisonTarget: .parentBranch,
+            comparisonResolution: GitComparisonResolution(
+                baseID: "abc", baseBranch: "main", parentDiffersFromDefault: false, degraded: degraded
+            ),
+            canFilterChangedFiles: true, isFilterActive: false, isFilterTextEmpty: true
+        )
+        #expect(model.degradedComparisonBranch == (degraded ? "main" : nil))
     }
 
     /// 左右分割そのものを固定する。doc コメントだけでは次のボタン追加で崩れるため、

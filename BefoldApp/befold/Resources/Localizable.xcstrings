@@ -1890,6 +1890,23 @@
         }
       }
     },
+    "menu.view.comparisonTarget": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare Against"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比較基準"
+          }
+        }
+      }
+    },
     "menu.view.diffSideBySide": {
       "extractionState": "manual",
       "localizations": {
@@ -3521,53 +3538,19 @@
         }
       }
     },
-    "toolbar.mode.diff.base": {
+    "toolbar.mode.diff.degraded": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "vs %@"
+            "value": "Parent branch not found; comparing against %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ から"
-          }
-        }
-      }
-    },
-    "toolbar.mode.diff.base.group": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diff comparison base"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "差分の比較基準"
-          }
-        }
-      }
-    },
-    "toolbar.mode.diff.base.unchanged": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (no changes)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ (変更なし)"
+            "value": "親ブランチが不明なため %@ と比較しています"
           }
         }
       }

@@ -61,6 +61,13 @@ struct SidebarHeaderControlsModel: Equatable {
     let trailing: [SidebarHeaderControl]
     /// ⋯ を開いたときの項目。
     let overflowItems: [SidebarOverflowItem]
+    /// 「変更のあるファイルのみ」の ▾ を開いたときの項目。
+    let comparisonItems: [GitComparisonTarget]
+    /// いまの比較基準。ボタンのツールチップに出す。
+    let comparisonTarget: GitComparisonTarget
+    /// 親ブランチを解決できずデフォルトブランチへ縮退しているとき、その比較先の名前。
+    /// 縮退していなければ nil。ツールチップで「実際は何と比べているか」を伝える。
+    let degradedComparisonBranch: String?
 
     /// - Parameters:
     ///   - settings: この窓のサイドバー表示 4 値(`FileListModel.display.settings`)。
@@ -70,8 +77,12 @@ struct SidebarHeaderControlsModel: Equatable {
     ///   - canFilterChangedFiles: git 管理下で「変更のあるファイルのみ」を出して
     ///     よいか(`FileListModel.canFilterChangedFiles`)。**既定値を持たせない。**
     ///     渡し忘れが「git 管理外でもボタンが出る」へ静かに倒れる形を作らないため。
+    ///   - comparisonTarget / comparisonResolution: 窓の比較基準と、取得済みの解決結果。
+    ///     選択肢(スタック全体を出すか)は解決結果から導く。**既定値を持たせない**。
     init(
         settings: SidebarDisplaySettings,
+        comparisonTarget: GitComparisonTarget,
+        comparisonResolution: GitComparisonResolution?,
         canFilterChangedFiles: Bool,
         isFilterActive: Bool,
         isFilterTextEmpty: Bool
@@ -85,6 +96,11 @@ struct SidebarHeaderControlsModel: Equatable {
             isFilterTextEmpty: isFilterTextEmpty
         )
         overflowItems = Self.overflowItems(settings)
+        comparisonItems = ComparisonTargetPresentation.selectableTargets(
+            current: comparisonTarget, resolution: comparisonResolution
+        )
+        self.comparisonTarget = comparisonTarget
+        degradedComparisonBranch = comparisonResolution?.degraded == true ? comparisonResolution?.baseBranch : nil
     }
 
     private static func leadingControls(layoutMode: SidebarLayoutMode) -> [SidebarHeaderControl] {

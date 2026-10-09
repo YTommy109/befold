@@ -204,6 +204,22 @@ struct MainMenuBuilderTests {
         #expect(layout.keyEquivalentModifierMask == [.command])
     }
 
+    /// 比較基準の項目が View メニューに全種類並び、実行時に窓の `selectComparisonTarget` へ届く
+    /// 配線であること(TASK-679)。タグが基準を運ぶので、並びと個数は `allCases` が決める。
+    @Test("View メニューに比較基準の項目が基準ごとに並ぶ")
+    func viewMenuListsComparisonTargets() throws {
+        let view = try #require(fixture.submenu(titledKey: "menu.view.title"))
+        let parent = try #require(view.items.first {
+            $0.title == String(localized: "menu.view.comparisonTarget", bundle: .l10n)
+        })
+        let items = try #require(parent.submenu).items
+        #expect(items.map(\.tag) == GitComparisonTarget.allCases.map(ComparisonTargetPresentation.menuItemTag(for:)))
+        for item in items {
+            #expect(item.action == #selector(ViewerWindowController.selectComparisonTarget(_:)))
+            #expect(item.target == nil)
+        }
+    }
+
     /// 差分が ⌘3 へ移ったので ⌘D は空き、ブックマークはビルド種別によらず ⌘D に固定される。
     /// 以前は差分ゲートに応じて ⌘B / ⌘D を切り替えていたが、その分岐は撤去した(TASK-356)。
     /// 置き場は View からトップレベルの Bookmarks へ移した(TASK-535)。

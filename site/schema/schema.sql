@@ -65,7 +65,7 @@ CREATE TABLE events (
   --
   -- **version 列と混同しない。** version は download が「どのタグを取りに来たか」
   -- （`v1.13.2-dev.4` のようにタグそのもの）で、こちらは「今どのバージョンが
-  -- 動いているか」。同じ列に入れると `src/analytics.ts` の byVersion
+  -- 動いているか」。同じ列に入れると `src/analytics/breakdowns.ts` の byVersion
   -- （kind='download' の対象タグ別）の意味が変わるため分けてある。
   --
   -- kind は問わない。UA から一括で導出するので、Sparkle が通る経路

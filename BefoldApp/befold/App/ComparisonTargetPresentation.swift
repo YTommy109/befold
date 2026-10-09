@@ -1,6 +1,6 @@
 import Foundation
 
-/// 差分の比較基準(`GitComparisonTarget`)をツールバーに出すときの文言と選択肢。
+/// 差分の比較基準(`GitComparisonTarget`)をサイドバーのメニューに出すときの文言と選択肢。
 ///
 /// git は呼ばない純粋な写像。基準ブランチ名や「スタック全体」を出してよいかは、
 /// 取得済みの `GitComparisonResolution` から読む(メニューを開く瞬間に git を触らない)。
@@ -16,26 +16,38 @@ enum ComparisonTargetPresentation {
 
     /// 選べる基準。「スタック全体の変更」は親ブランチがデフォルトブランチと異なるときだけ出す
     /// (同じなら「このブランチの変更」と同じ結果になり、選ぶ意味が無い)。
-    static func selectableTargets(resolution: GitComparisonResolution?) -> [GitComparisonTarget] {
+    ///
+    /// **現在の基準は常に含める。** 窓の基準は選んだ後に別リポジトリへ移っても戻らないため、
+    /// 落とすとサイドバーの Picker は選択無しになり、表示メニューは現在の項目ごと消える
+    /// (差分とバッジは現在の基準で取れ続けるので、UI と実体がずれる)。
+    /// サイドバーと表示メニューはどちらもこの 1 本から選択肢を得る。
+    static func selectableTargets(
+        current: GitComparisonTarget, resolution: GitComparisonResolution?
+    ) -> [GitComparisonTarget] {
         let showsStack = resolution?.parentDiffersFromDefault ?? false
-        return GitComparisonTarget.allCases.filter { $0 != .defaultBranch || showsStack }
+        return GitComparisonTarget.allCases.filter { $0 == current || $0 != .defaultBranch || showsStack }
     }
 
-    /// ポップアップに出すラベル。解決された基準ブランチ名("main から")を出し、
-    /// `.head` は "HEAD から"。解決前・解決できないときは基準の見出しで代える。
-    /// `isUnchanged` は差分が空(通常のソース表示へ戻っている)ときで、「(変更なし)」を足す。
-    static func label(
-        target: GitComparisonTarget, resolution: GitComparisonResolution?, isUnchanged: Bool
-    ) -> String {
-        let base = if target == .head {
-            String(format: String(localized: "toolbar.mode.diff.base", bundle: .l10n), "HEAD")
-        } else if let name = resolution?.baseBranch {
-            String(format: String(localized: "toolbar.mode.diff.base", bundle: .l10n), name)
-        } else {
-            title(for: target)
-        }
-        return isUnchanged
-            ? String(format: String(localized: "toolbar.mode.diff.base.unchanged", bundle: .l10n), base)
-            : base
+    /// メニュー項目のタグ。`NSMenuItem.tag` の既定値 0 と区別するため 1 から振る。
+    static func menuItemTag(for target: GitComparisonTarget) -> Int {
+        // 列挙漏れは静かに別の基準へ写さず落とす(`allCases` は自動合成なので到達しない)。
+        GitComparisonTarget.allCases.firstIndex(of: target)! + 1
     }
+
+    /// タグから基準を復元する。該当が無ければ nil(他の項目のタグ)。
+    static func target(menuItemTag tag: Int) -> GitComparisonTarget? {
+        GitComparisonTarget.allCases.first { menuItemTag(for: $0) == tag }
+    }
+}
+
+/// View メニューの比較基準項目が読む窓の状態。選択肢はサイドバーの▾と同じ
+/// `selectableTargets(current:resolution:)` から得る。
+struct ComparisonMenuState: Equatable {
+    let current: GitComparisonTarget
+    let selectable: [GitComparisonTarget]
+    /// 選べるか。git 管理外(`FileListModel.canFilterChangedFiles` が false)では比較する先が無い。
+    /// さらにサイドバーを持たない窓(スライド)では、基準を操作するコントロールの置き場自体が
+    /// 無いので `kind.allowsSidebar` でも塞ぐ。サイドバーの▾はサイドバーの中にあるため
+    /// `canFilterChangedFiles` だけを見ればよく、この条件はメニュー側だけが持つ。
+    let isAvailable: Bool
 }

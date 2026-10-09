@@ -219,7 +219,7 @@ staging の存在意義は「本番にしか存在しない条件を本番の前
   ものになり、テストもホスト非依存であることを前提に書く必要がある。
 - appcast のキャッシュがホストごとに分かれる（`site/src/routes/public.tsx`）。
   内容は同一なのでユーザーへの影響は無いが、オリジンへの到達回数は増える。
-- 計測データに移行前後の断層が残る。参照元の集計（`site/src/analytics.ts` の
+- 計測データに移行前後の断層が残る。参照元の集計（`site/src/analytics/breakdowns.ts` の
   `breakdown(db,'referrer')`）は、自己ホスト集合を入れる前に記録された旧ホスト →
   新ドメインの遷移を外部参照元として含みうる。移行と同じデプロイで 6 を入れ、
   断層が生じない順序にする。
@@ -228,7 +228,7 @@ staging の存在意義は「本番にしか存在しない条件を本番の前
   `/download` をリダイレクト対象から外した意図と同じ向きで、`source:'lp'` の
   計測は従来どおり記録される。
 - ホスト名を固定値で期待しているテストの更新が必要になる
-  （`site/test/public.test.ts`、`site/test/referrer.test.ts`、
+  （`site/test/public-routes.test.ts`、`site/test/public-pages-hosts.test.ts`、`site/test/referrer.test.ts`、
   `BefoldApp/befoldTests/AppLinksTests.swift`、
   `BefoldApp/befoldTests/UpdateChannelTests.swift`）。
 

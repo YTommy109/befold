@@ -199,6 +199,119 @@ function _mmdInitCsvNumberFormat(): void {
   _mmdRerenderCurrent();
 }
 
+// Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
+// いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
+// 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
+// 段階読み込みの意味がなくなる。
+// 以降の append*Chunk は、追記できたら true、DOM が見つからず何もしなかったら false を返す
+// (false のとき appendChunk は _mmdChunkTail の記録も参照解決も行わずに戻る)。
+function appendMarkdownChunk(diagramWrap: HTMLElement, text: string): boolean {
+  diagramWrap.insertAdjacentHTML('beforeend', markdownRenderer().render(text));
+  _annotatePathRefs();
+  // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
+  // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
+  void _mmdRunMermaid(diagramWrap, true);
+  return true;
+}
+
+function appendCsvChunk(diagramWrap: HTMLElement, text: string, lang?: string): boolean {
+  var csvRows = parseCsv(text, lang || ',');
+  var tbody = diagramWrap.querySelector('tbody');
+  if (!tbody) {
+    return false;
+  }
+  // tbody は直前の querySelector で得たものなので、親は必ずその <table>。
+  // instanceof で確かめるのは型を絞るためで、成立しない構成は起きない。
+  var table = tbody.parentElement;
+  if (!(table instanceof HTMLTableElement)) {
+    return false;
+  }
+  var headRow = table.tHead && table.tHead.rows[0];
+  var minCols = headRow ? headRow.cells.length : 0;
+  // 後続チャンクに幅広行があればヘッダを拡張する。
+  var maxNewCols = 0;
+  for (var r = 0; r < csvRows.length; r++) {
+    var csvRow = csvRows[r]!;
+    if (csvRow.length > maxNewCols) {
+      maxNewCols = csvRow.length;
+    }
+  }
+  if (maxNewCols > minCols && headRow) {
+    for (var c = minCols; c < maxNewCols; c++) {
+      headRow.insertAdjacentHTML('beforeend', '<th></th>');
+    }
+    minCols = maxNewCols;
+  }
+  var firstNew = tbody.rows.length;
+  tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
+  for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
+    _walkTextNodes(tbody.rows[r2]!, false);
+  }
+  installCsvResize(table);
+  return true;
+}
+
+// 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行ではなく
+// 前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加せず既存の
+// 最終行セルへ結合する(行番号の重複を防ぐ)。結合後に残る行の HTML を返す。
+function joinContinuationRow(codeTable: HTMLTableElement, rowsHtml: string): string {
+  var pendingRows = document.createElement('tbody');
+  pendingRows.innerHTML = rowsHtml;
+  var continuationRow = pendingRows.rows[0];
+  if (!continuationRow) {
+    return rowsHtml;
+  }
+  // HTMLCollectionOf に Array.prototype.at は無い（実測: .at(-1) へ
+  // 書き換えると「改行で終わらなかったチャンクの続きは前の行に結合される」が落ちる）。
+  // oxlint-disable-next-line unicorn/prefer-at
+  var lastRow = codeTable.rows[codeTable.rows.length - 1]!;
+  var lastContentCell = lastRow.querySelector('.line-content');
+  var continuationContentCell = continuationRow.querySelector('.line-content');
+  if (lastContentCell && continuationContentCell) {
+    lastContentCell.insertAdjacentHTML('beforeend', continuationContentCell.innerHTML);
+  }
+  continuationRow.remove();
+  _walkTextNodes(lastRow, false);
+  return pendingRows.innerHTML;
+}
+
+// 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
+// CSV/TSV のソース表示('csv-source')がここへ来る。前者と後者は 1 行の
+// 組み立て方だけが違う(CSV は列ごとのレインボー着色)。
+function appendCodeChunk(
+  diagramWrap: HTMLElement,
+  text: string,
+  lang: string | undefined,
+  highlightContext: string,
+  isCsvSource: boolean,
+): boolean {
+  var codeEl = diagramWrap.querySelector('pre code');
+  if (!codeEl) {
+    return false;
+  }
+  var inner = isCsvSource
+    ? csvSourceInnerHtml(text, lang || ',')
+    : codeChunkInnerHtml(hljs, text, lang, highlightContext);
+  var codeTable = codeEl.querySelector<HTMLTableElement>('table.code-table');
+  if (!codeTable) {
+    codeEl.insertAdjacentHTML('beforeend', inner);
+    _annotatePathRefs();
+    return true;
+  }
+  var endedWithNewline = _mmdChunkTail.endedWithNewline();
+  var startLine = codeTable.rows.length + (endedWithNewline ? 1 : 0);
+  var rowsHtml = buildLineNumberRows(inner, startLine, _mmdViewOptions.lineNumbers());
+  if (!endedWithNewline && codeTable.rows.length > 0) {
+    rowsHtml = joinContinuationRow(codeTable, rowsHtml);
+  }
+  var firstNewRow = codeTable.rows.length;
+  codeTable.insertAdjacentHTML('beforeend', rowsHtml);
+  for (var i = firstNewRow; i < codeTable.rows.length; i++) {
+    _walkTextNodes(codeTable.rows[i]!, false);
+  }
+  return true;
+}
+
 // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
 // HTML 組み立ては純粋関数(csvRowsHtml / buildLineNumberRows / codeChunkInnerHtml)に
 // 委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを _walkTextNodes で
@@ -240,97 +353,15 @@ function appendChunk(text: string, type: string, lang?: string): void {
   if (_mmdDocument.shape() === 'diff') {
     return;
   }
-  if (_mmdDocument.shape() === 'markdown') {
-    // Markdown はチャンク境界がブロック境界(コードフェンス外の空行)に揃えられて
-    // いるため(StringChunkReader の markdownBlocks)、チャンク単体を描画して
-    // 末尾へ足せる。全文を再描画すると巨大ファイルで DOM を作り直すことになり、
-    // 段階読み込みの意味がなくなる。
-    diagramWrap.insertAdjacentHTML('beforeend', markdownRenderer().render(text));
-    _annotatePathRefs();
-    // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
-    // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
-    void _mmdRunMermaid(diagramWrap, true);
-  } else if (_mmdDocument.shape() === 'csv-table') {
-    var csvRows = parseCsv(text, lang || ',');
-    var tbody = diagramWrap.querySelector('tbody');
-    if (!tbody) {
-      return;
-    }
-    // tbody は直前の querySelector で得たものなので、親は必ずその <table>。
-    // instanceof で確かめるのは型を絞るためで、成立しない構成は起きない。
-    var table = tbody.parentElement;
-    if (!(table instanceof HTMLTableElement)) {
-      return;
-    }
-    var headRow = table.tHead && table.tHead.rows[0];
-    var minCols = headRow ? headRow.cells.length : 0;
-    // 後続チャンクに幅広行があればヘッダを拡張する。
-    var maxNewCols = 0;
-    for (var r = 0; r < csvRows.length; r++) {
-      var csvRow = csvRows[r]!;
-      if (csvRow.length > maxNewCols) {
-        maxNewCols = csvRow.length;
-      }
-    }
-    if (maxNewCols > minCols && headRow) {
-      for (var c = minCols; c < maxNewCols; c++) {
-        headRow.insertAdjacentHTML('beforeend', '<th></th>');
-      }
-      minCols = maxNewCols;
-    }
-    var firstNew = tbody.rows.length;
-    tbody.insertAdjacentHTML('beforeend', csvRowsHtml(csvRows, minCols, _mmdCsvColumns.formats()));
-    for (var r2 = firstNew; r2 < tbody.rows.length; r2++) {
-      _walkTextNodes(tbody.rows[r2]!, false);
-    }
-    installCsvResize(table);
-  } else {
-    // 行番号付きコード表への追記。ソース表示のテキスト種別・コード種別('code')と、
-    // CSV/TSV のソース表示('csv-source')がここへ来る。前者と後者は 1 行の
-    // 組み立て方だけが違う(CSV は列ごとのレインボー着色)。
-    var isCsvSource = _mmdDocument.shape() === 'csv-source';
-    var codeEl = diagramWrap.querySelector('pre code');
-    if (!codeEl) {
-      return;
-    }
-    var inner = isCsvSource
-      ? csvSourceInnerHtml(text, lang || ',')
-      : codeChunkInnerHtml(hljs, text, lang, highlightContext);
-    var codeTable = codeEl.querySelector<HTMLTableElement>('table.code-table');
-    if (codeTable) {
-      // 強制分割(前チャンクが改行で終わらなかった)の場合、継続行は新しい行では
-      // なく前チャンク最終行の続きなので、生成した最初の行分を <tr> ごと追加
-      // せず既存の最終行セルへ結合する(行番号の重複を防ぐ)。
-      var startLine = codeTable.rows.length + (_mmdChunkTail.endedWithNewline() ? 1 : 0);
-      var rowsHtml = buildLineNumberRows(inner, startLine, _mmdViewOptions.lineNumbers());
-      if (!_mmdChunkTail.endedWithNewline() && codeTable.rows.length > 0) {
-        var pendingRows = document.createElement('tbody');
-        pendingRows.innerHTML = rowsHtml;
-        var continuationRow = pendingRows.rows[0];
-        if (continuationRow) {
-          // HTMLCollectionOf に Array.prototype.at は無い（実測: .at(-1) へ
-          // 書き換えると「改行で終わらなかったチャンクの続きは前の行に結合される」が落ちる）。
-          // oxlint-disable-next-line unicorn/prefer-at
-          var lastRow = codeTable.rows[codeTable.rows.length - 1]!;
-          var lastContentCell = lastRow.querySelector('.line-content');
-          var continuationContentCell = continuationRow.querySelector('.line-content');
-          if (lastContentCell && continuationContentCell) {
-            lastContentCell.insertAdjacentHTML('beforeend', continuationContentCell.innerHTML);
-          }
-          continuationRow.remove();
-          rowsHtml = pendingRows.innerHTML;
-          _walkTextNodes(lastRow, false);
-        }
-      }
-      var firstNewRow = codeTable.rows.length;
-      codeTable.insertAdjacentHTML('beforeend', rowsHtml);
-      for (var i = firstNewRow; i < codeTable.rows.length; i++) {
-        _walkTextNodes(codeTable.rows[i]!, false);
-      }
-    } else {
-      codeEl.insertAdjacentHTML('beforeend', inner);
-      _annotatePathRefs();
-    }
+  var shape = _mmdDocument.shape();
+  var appended =
+    shape === 'markdown'
+      ? appendMarkdownChunk(diagramWrap, text)
+      : shape === 'csv-table'
+        ? appendCsvChunk(diagramWrap, text, lang)
+        : appendCodeChunk(diagramWrap, text, lang, highlightContext, shape === 'csv-source');
+  if (!appended) {
+    return;
   }
   _mmdChunkTail.record(text);
   // 追加分のパス参照も解決する。上の各分岐(_annotatePathRefs / _walkTextNodes)が

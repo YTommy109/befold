@@ -158,6 +158,9 @@
       "plugins": ["jest"],
       "env": { "jest": true, "node": true },
       "rules": {
+        // サイズ上限（TASK-684）。行数は 1000、関数長は無制限（根拠はルート設定）。
+        "eslint/max-lines": ["error", 1000],
+        "eslint/max-lines-per-function": "off",
         "jest/valid-expect": ["error", { "maxArgs": 2 }],
         // テーブル駆動の for ループが既存の書き方。
         "jest/no-conditional-in-test": "off",
