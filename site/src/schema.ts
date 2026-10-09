@@ -56,6 +56,7 @@ export const pageSchema = z.enum([
   // （`Article.page` の型がこれなので、足す前はエントリ自体が書けない）。
   '/usecases/medical-expenses',
   '/usecases/ai-code-review',
+  '/usecases/finder-markdown-preview',
   // 全ドラフト共通の 1 つ。記事ごとに分けない（events.ts の doc を参照）。
   '/drafts',
 ])

@@ -87,6 +87,19 @@ export const ARTICLES: readonly Article[] = [
     // 再公開するならこのフラグを消すだけでよい（URL は当時と同じに戻る）。
     draft: true,
   },
+  {
+    page: '/usecases/finder-markdown-preview',
+    slug: 'finder-markdown-preview',
+    title: {
+      ja: 'Finder でスペースキーを押しても、Markdown が素のテキストで出てくる',
+      en: 'Pressing Space in Finder shows Markdown as plain text',
+    },
+    summary: {
+      ja: 'Mac の QuickLook は Markdown を整形せず、Mermaid の図も描きません。スペースキーのまま、整形・描画された状態で読む方法。',
+      en: 'Finder’s QuickLook shows Markdown as raw text and does not draw Mermaid diagrams. How to keep pressing Space and read it rendered.',
+    },
+    publishedAt: '2026-10-09',
+  },
 ]
 
 /** 公開済みの記事だけ。一覧と `SITE_PAGES` の導出はこれを使う。 */

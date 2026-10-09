@@ -38,6 +38,8 @@ import MarkdownIt from 'markdown-it'
 
 import aiCodeReviewEn from '../../content/ai-code-review.en.md'
 import aiCodeReviewJa from '../../content/ai-code-review.ja.md'
+import finderPreviewEn from '../../content/finder-markdown-preview.en.md'
+import finderPreviewJa from '../../content/finder-markdown-preview.ja.md'
 import medicalExpensesEn from '../../content/medical-expenses.en.md'
 import medicalExpensesJa from '../../content/medical-expenses.ja.md'
 import { ARTICLES, articleLangs, type Article, type ArticleLang } from '../lib/articles'
@@ -56,6 +58,7 @@ type Sources = Partial<Record<ArticleLang, string>>
 const SOURCES: Partial<Record<Article['page'], Sources>> = {
   '/usecases/medical-expenses': { ja: medicalExpensesJa, en: medicalExpensesEn },
   '/usecases/ai-code-review': { ja: aiCodeReviewJa, en: aiCodeReviewEn },
+  '/usecases/finder-markdown-preview': { ja: finderPreviewJa, en: finderPreviewEn },
 }
 
 /**
