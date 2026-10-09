@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx'
 
 import { pathFor, type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
+import { SCREENSHOTS } from './landing-screenshots'
 import {
   DOWNLOAD_PATH,
   downloadHref,
@@ -11,67 +12,6 @@ import {
   REQUIRED_OS,
 } from './shared'
 import { PageShell } from './shell'
-
-/** kind: 'feature' はファイル形式ではなく機能の紹介なので、キャプションにラベルを添える。 */
-const SCREENSHOTS: {
-  src: string
-  alt: Localized
-  caption: string
-  kind?: 'feature'
-}[] = [
-  {
-    src: '/images/screenshot-1.png',
-    alt: { ja: 'befold で表示した Mermaid のフローチャート', en: 'Mermaid flowchart in befold' },
-    caption: 'Mermaid',
-  },
-  {
-    src: '/images/screenshot-2.png',
-    alt: { ja: 'befold で表示した SVG の図', en: 'SVG diagram rendering in befold' },
-    caption: 'SVG',
-  },
-  {
-    src: '/images/screenshot-3.png',
-    alt: { ja: 'befold の Markdown プレビュー', en: 'Markdown preview in befold' },
-    caption: 'Markdown',
-  },
-  {
-    src: '/images/screenshot-4.png',
-    alt: { ja: 'befold で表示した CSV の表', en: 'CSV table view in befold' },
-    caption: 'CSV',
-  },
-  {
-    src: '/images/screenshot-5.png',
-    alt: { ja: 'befold のソースコード表示', en: 'Source code view in befold' },
-    caption: 'Source Code',
-  },
-  {
-    src: '/images/screenshot-6.png',
-    alt: {
-      ja: 'befold の Quick Open（あいまい検索）パネル',
-      en: 'Quick Open fuzzy search panel in befold',
-    },
-    caption: 'Quick Open',
-    kind: 'feature',
-  },
-  {
-    src: '/images/screenshot-7.png',
-    alt: {
-      ja: 'befold のソース表示に並べた git の差分',
-      en: 'Side-by-side git diff in the source view of befold',
-    },
-    caption: 'Git Diff',
-    kind: 'feature',
-  },
-  {
-    src: '/images/screenshot-8.png',
-    alt: {
-      ja: 'befold のサイドバーに出る変更ファイルの git ステータス',
-      en: 'Sidebar showing git status badges for changed files in befold',
-    },
-    caption: 'Git Status',
-    kind: 'feature',
-  },
-]
 
 /** og:title / og:description を <title> / description と二重管理しないための定数。 */
 const PAGE_TITLE: Localized = {
