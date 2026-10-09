@@ -209,6 +209,36 @@ export const MORE_FEATURES: Feature[] = [
   },
   {
     ja: [
+      '比較基準の切り替え',
+      'git の差分とバッジの比較基準を「このブランチの変更」「作業中の変更」から選べる（親ブランチが別にあるときは「スタック全体の変更」も）。サイドバーヘッダーのメニューか表示メニューから切り替え、窓ごとに効く',
+    ],
+    en: [
+      'Switchable Comparison Target',
+      'Choose what git diffs and badges compare against: “Changes in this branch” or “Working changes” (plus “Changes in the whole stack” when the branch has a separate parent). Switch from the sidebar header menu or the View menu, per window',
+    ],
+  },
+  {
+    ja: [
+      'スライド窓',
+      'サイドバーで HTML ファイルを右クリックして「スライドモードで開く」と、サイドバーもツールバーも無い 16:9 の窓で映せる。Space や ↓ で次、Shift+Space や ↑ で前のスライドへ。LT に befold 自身を使える',
+    ],
+    en: [
+      'Slide Windows',
+      'Right-click an HTML file in the sidebar and choose “Open in Slide Mode” to show it in a 16:9 window with no sidebar or toolbar. Space or ↓ moves to the next slide, Shift+Space or ↑ to the previous one — handy for giving a talk with befold itself',
+    ],
+  },
+  {
+    ja: [
+      'PDF 内検索',
+      'PDF も ⌘F で文書内を検索できる。一致した語がすべて強調され、件数の表示と前後への移動、大文字小文字の区別の切り替えに対応する',
+    ],
+    en: [
+      'Search Inside PDFs',
+      'Press ⌘F in a PDF to search the document. Every match is highlighted, with a match count, previous/next navigation and a case-sensitivity toggle',
+    ],
+  },
+  {
+    ja: [
       'レンダリング / ソース切替',
       '⌘U でレンダリング表示とソース表示をワンタッチ切替。ソースはシンタックスハイライトと ⌘L の行番号付き。⌘F の検索は正規表現・大文字小文字・単語単位に対応',
     ],
