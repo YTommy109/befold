@@ -150,6 +150,26 @@ const EXPECTED_MENU_ITEMS: {
 ]
 
 /**
+ * サイトの表へ載せない割り当てと、その理由。表 ⊆ 実装 だけでは「実装にあって表に無い」
+ * ものを検知できず、実際 ⇧⌘P と ⌘←/→ が表から漏れていた（TASK-692）。
+ * 実装の割り当てはこの一覧に無い限り表へ載せる必要がある。
+ */
+const NOT_LISTED_ON_SITE: Readonly<Record<string, string>> = {
+  'menu.app.settings': 'macOS 標準の操作（⌘,）。',
+  'menu.app.hide': 'macOS 標準の操作（⌘H）。',
+  'menu.app.hideOthers': 'macOS 標準の操作（⌥⌘H）。',
+  'menu.app.quit': 'macOS 標準の操作（⌘Q）。',
+  'menu.edit.undo': 'macOS 標準の編集系。',
+  'menu.edit.redo': 'macOS 標準の編集系。',
+  'menu.edit.cut': 'macOS 標準の編集系。',
+  'menu.edit.copy': 'macOS 標準の編集系。',
+  'menu.edit.paste': 'macOS 標準の編集系。',
+  'menu.edit.selectAll': 'macOS 標準の編集系。',
+  'menu.window.minimize': 'macOS 標準の操作（⌘M）。',
+  'menu.help.visitWebsite': 'ヘルプメニューへの導線で、ビューアの操作ではない。',
+}
+
+/**
  * AppKit の矢印キー定数を、表記に使う記号へ写す。
  *
  * 矢印は文字リテラルで書けない（`NSLeftArrowFunctionKey` は私用領域のスカラー値）ため、
@@ -257,6 +277,23 @@ describe('ショートカット表', () => {
   it('同じショートカットを 2 行に載せない', () => {
     const listed = tableShortcuts()
     expect(listed.length).toBe(new Set(listed).size)
+  })
+
+  it('実装の割り当てはサイトの表に載っているか、除外一覧に理由つきである', () => {
+    const listed = new Set(tableShortcuts())
+    const unlisted = parsed
+      .filter((item) => !(item.localizationKey in NOT_LISTED_ON_SITE))
+      .flatMap((item) => resolveKeys(item).map((key) => formatShortcut(key, item.modifiers)))
+      .filter((shortcut) => !listed.has(shortcut))
+
+    // ここが落ちたら、割り当てを features.tsx の SHORTCUTS へ足すか、
+    // NOT_LISTED_ON_SITE へ理由つきで足すこと（黙って載せないのは選べない）。
+    expect(unlisted).toEqual([])
+  })
+
+  it('除外一覧のキーが実装に存在する（削除・改名された項目を残さない）', () => {
+    const implemented = new Set(parsed.map((item) => item.localizationKey))
+    expect(Object.keys(NOT_LISTED_ON_SITE).filter((key) => !implemented.has(key))).toEqual([])
   })
 })
 

@@ -2,6 +2,7 @@ import type { FC } from 'hono/jsx'
 
 import { pathFor, type PageLang, type SitePage } from '../lib/pages'
 import { T, t, type Localized } from './i18n'
+import { SCREENSHOTS } from './landing-screenshots'
 import {
   DOWNLOAD_PATH,
   downloadHref,
@@ -11,67 +12,6 @@ import {
   REQUIRED_OS,
 } from './shared'
 import { PageShell } from './shell'
-
-/** kind: 'feature' はファイル形式ではなく機能の紹介なので、キャプションにラベルを添える。 */
-const SCREENSHOTS: {
-  src: string
-  alt: Localized
-  caption: string
-  kind?: 'feature'
-}[] = [
-  {
-    src: '/images/screenshot-1.png',
-    alt: { ja: 'befold で表示した Mermaid のフローチャート', en: 'Mermaid flowchart in befold' },
-    caption: 'Mermaid',
-  },
-  {
-    src: '/images/screenshot-2.png',
-    alt: { ja: 'befold で表示した SVG の図', en: 'SVG diagram rendering in befold' },
-    caption: 'SVG',
-  },
-  {
-    src: '/images/screenshot-3.png',
-    alt: { ja: 'befold の Markdown プレビュー', en: 'Markdown preview in befold' },
-    caption: 'Markdown',
-  },
-  {
-    src: '/images/screenshot-4.png',
-    alt: { ja: 'befold で表示した CSV の表', en: 'CSV table view in befold' },
-    caption: 'CSV',
-  },
-  {
-    src: '/images/screenshot-5.png',
-    alt: { ja: 'befold のソースコード表示', en: 'Source code view in befold' },
-    caption: 'Source Code',
-  },
-  {
-    src: '/images/screenshot-6.png',
-    alt: {
-      ja: 'befold の Quick Open（あいまい検索）パネル',
-      en: 'Quick Open fuzzy search panel in befold',
-    },
-    caption: 'Quick Open',
-    kind: 'feature',
-  },
-  {
-    src: '/images/screenshot-7.png',
-    alt: {
-      ja: 'befold のソース表示に並べた git の差分',
-      en: 'Side-by-side git diff in the source view of befold',
-    },
-    caption: 'Git Diff',
-    kind: 'feature',
-  },
-  {
-    src: '/images/screenshot-8.png',
-    alt: {
-      ja: 'befold のサイドバーに出る変更ファイルの git ステータス',
-      en: 'Sidebar showing git status badges for changed files in befold',
-    },
-    caption: 'Git Status',
-    kind: 'feature',
-  },
-]
 
 /** og:title / og:description を <title> / description と二重管理しないための定数。 */
 const PAGE_TITLE: Localized = {
@@ -164,7 +104,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために befold
             を作りました。
             <br />
-            編集機能は思い切って削り、読むことに特化したツールです。Quick Look にも対応してます。
+            編集機能は思い切って削り、読むことに特化したツールです。
           </p>
         </>
       ) : (
@@ -174,8 +114,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
           <p class="philosophy-body">
             I built befold to review the piles of documents that Claude Code and Codex generate.
             <br />
-            Editing was deliberately left out — befold is a tool built purely for reading. It
-            supports Quick Look, too.
+            Editing was deliberately left out — befold is a tool built purely for reading.
           </p>
         </>
       )}
@@ -191,7 +130,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             <br />
             GitHub と同じ見た目で表示され、Mermaid のコードブロックは図として描かれます。
             <br />
-            LLM がファイルを更新すると、0.2 秒で最新の内容に反映されます。
+            LLM がファイルを更新すると、約 0.2 秒の待ちを置いて最新の内容に反映されます。
           </p>
         </>
       ) : (
@@ -203,7 +142,8 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             <br />
             It renders with the same look as GitHub, and Mermaid code blocks are drawn as diagrams.
             <br />
-            When an LLM updates the file, the view catches up in 0.2 seconds.
+            When an LLM updates the file, the view catches up after a short wait of about 0.2
+            seconds.
           </p>
         </>
       )}
@@ -240,6 +180,53 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
       )}
     </section>
   </>
+)
+
+/**
+ * QuickLook の独立した訴求。機能一覧・FAQ の記述は 1 行の事実だけに留め、
+ * 価値（アプリを開かずに Finder で読める）の説明はここに集約する。
+ * 動画は autoplay するが、reduced-motion のときは /quicklook-demo.js が止めて操作可能にする。
+ */
+const QuickLook: FC<{ lang: PageLang }> = ({ lang }) => (
+  <section class="philosophy quicklook">
+    {lang === 'ja' ? (
+      <>
+        <p class="philosophy-audience">Finder から</p>
+        <p class="philosophy-lead">スペースキーを押すだけで、図まで読める。</p>
+        <p class="philosophy-body">
+          befold を入れると、Finder で Markdown を選んでスペースキーを押した瞬間に、
+          <br />
+          Mermaid の図まで描かれた状態で表示されます。アプリを開く必要はありません。
+        </p>
+      </>
+    ) : (
+      <>
+        <p class="philosophy-audience">From Finder</p>
+        <p class="philosophy-lead">Press Space and read it, diagrams included.</p>
+        <p class="philosophy-body">
+          Once befold is installed, selecting a Markdown file in Finder and pressing Space shows it
+          <br />
+          with its Mermaid diagrams already drawn. No need to open the app.
+        </p>
+      </>
+    )}
+    <video
+      class="quicklook-video"
+      src="/images/quicklook-demo.mp4"
+      poster="/images/quicklook-demo-poster.png"
+      width="960"
+      height="698"
+      autoplay
+      loop
+      muted
+      playsinline
+      preload="metadata"
+      aria-label={t(lang, {
+        ja: 'Finder で Markdown を選んでスペースキーを押すと、QuickLook に Mermaid の図入りで描画される様子',
+        en: 'Selecting a Markdown file in Finder and pressing Space shows it in QuickLook with its Mermaid diagram rendered',
+      })}
+    />
+  </section>
 )
 
 const Screenshots: FC<{ lang: PageLang }> = ({ lang }) => (
@@ -383,6 +370,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
       <main>
         <Hero lang={lang} />
         <Audiences lang={lang} />
+        <QuickLook lang={lang} />
         <Screenshots lang={lang} />
         <FeatureSection lang={lang} />
         <Requirements lang={lang} />
@@ -390,6 +378,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
       </main>
 
       <script src="/carousel.js" />
+      <script src="/quicklook-demo.js" />
     </PageShell>
   )
 }

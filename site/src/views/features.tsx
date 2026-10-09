@@ -59,7 +59,11 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌘L', ja: 'ソース表示の行番号', en: 'Toggle line numbers in source view' },
   { keys: '⌘D', ja: 'ブックマークの追加 / 解除', en: 'Add or remove a bookmark' },
   { keys: '⇧⌘D', ja: 'ブックマークの編集', en: 'Edit bookmarks' },
-  { keys: '⌘F / ⌘G', ja: 'ページ内検索 / 次を検索', en: 'Find in page / find next' },
+  {
+    keys: '⌘F / ⌘G / ⇧⌘G',
+    ja: 'ページ内検索 / 次を検索 / 前を検索',
+    en: 'Find in page / find next / find previous',
+  },
   {
     keys: '⇧⌘F',
     ja: '文書内ジャンプ（見出し・定義・変更箇所を前後に移動）',
@@ -71,6 +75,12 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
   { keys: '⌃⌘T', ja: 'サイドバーのツリー表示切替', en: 'Toggle the sidebar tree view' },
   { keys: '⌃⌘F', ja: 'フルスクリーン', en: 'Enter full screen' },
   { keys: '⌘W', ja: 'ウィンドウを閉じる', en: 'Close the window' },
+  { keys: '⇧⌘P', ja: '印刷 / PDF として保存', en: 'Print or save as PDF' },
+  {
+    keys: '⌘← / ⌘→',
+    ja: 'サイドバーと本文のフォーカスを行き来',
+    en: 'Move focus to the sidebar / the content',
+  },
 ]
 
 type FaqItem = {
@@ -79,8 +89,8 @@ type FaqItem = {
 }
 
 /**
- * FAQ。JSON-LD には英語の文面をそのまま載せる（構造化データの内容は
- * ページ上に見えている必要があるため、本文と同じ文字列を使う）。
+ * FAQ。JSON-LD にはページの言語の文面をそのまま載せる（構造化データの内容は
+ * ページ上に見えている必要があるため、本文と同じ文字列を使う。`faqStructuredData`）。
  */
 export const FAQ: FaqItem[] = [
   {

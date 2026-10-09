@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx'
 
+import { CODE_EXTENSIONS } from '../lib/file-types'
 import { navPagesFor, variantsOf, type FixedPage, type PageLang, type SitePage } from '../lib/pages'
 import type { Page } from '../schema'
 import { t, type Localized } from './i18n'
@@ -85,11 +86,11 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       'Quick Open (⌘P)',
-      'ファイル名のあいまい検索で目的のファイルへ一息で。空欄なら最近開いたファイルとブックマークが並び、./ や ../ のパス入力にも対応',
+      'ファイル名のあいまい検索で目的のファイルへ一息で。空欄なら最近開いたファイルが並び、入力するとブックマークも検索対象になる。./ や ../ のパス入力にも対応',
     ],
     en: [
       'Quick Open (⌘P)',
-      'Fuzzy-search filenames to jump straight to a file. An empty query lists recents and bookmarks, and ./ or ../ path input works too',
+      'Fuzzy-search filenames to jump straight to a file. An empty query lists recent files, and typing also searches your bookmarks. ./ or ../ path input works too',
     ],
   },
   {
@@ -145,7 +146,7 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       '大きなファイルも開ける',
-      'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「さらに読み込む」で',
+      'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「続きを読み込む」で',
     ],
     en: [
       'Large Files, Too',
@@ -199,11 +200,41 @@ export const MORE_FEATURES: Feature[] = [
   {
     ja: [
       '多彩なフォーマット対応',
-      '.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別',
+      `.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（${CODE_EXTENSIONS.length} 種類の拡張子）にも対応。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別`,
     ],
     en: [
       'Wide Format Support',
-      'Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages. Detects UTF-8/16/32, Shift_JIS and EUC-JP automatically',
+      `Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code (${CODE_EXTENSIONS.length} file extensions). Detects UTF-8/16/32, Shift_JIS and EUC-JP automatically`,
+    ],
+  },
+  {
+    ja: [
+      '比較基準の切り替え',
+      'git の差分とバッジの比較基準を「このブランチの変更」「作業中の変更」から選べる（親ブランチが別にあるときは「スタック全体の変更」も）。サイドバーヘッダーのメニューか表示メニューから切り替え、窓ごとに効く',
+    ],
+    en: [
+      'Switchable Comparison Target',
+      'Choose what git diffs and badges compare against: “Changes in this branch” or “Working changes” (plus “Changes in the whole stack” when the branch has a separate parent). Switch from the sidebar header menu or the View menu, per window',
+    ],
+  },
+  {
+    ja: [
+      'スライド窓',
+      'サイドバーで HTML ファイルを右クリックして「スライドモードで開く」と、サイドバーもツールバーも無い 16:9 の窓で映せる。Space や ↓ で次、Shift+Space や ↑ で前のスライドへ。LT に befold 自身を使える',
+    ],
+    en: [
+      'Slide Windows',
+      'Right-click an HTML file in the sidebar and choose “Open in Slide Mode” to show it in a 16:9 window with no sidebar or toolbar. Space or ↓ moves to the next slide, Shift+Space or ↑ to the previous one — handy for giving a talk with befold itself',
+    ],
+  },
+  {
+    ja: [
+      'PDF 内検索',
+      'PDF も ⌘F で文書内を検索できる。一致した語がすべて強調され、件数の表示と前後への移動、大文字小文字の区別の切り替えに対応する',
+    ],
+    en: [
+      'Search Inside PDFs',
+      'Press ⌘F in a PDF to search the document. Every match is highlighted, with a match count, previous/next navigation and a case-sensitivity toggle',
     ],
   },
   {

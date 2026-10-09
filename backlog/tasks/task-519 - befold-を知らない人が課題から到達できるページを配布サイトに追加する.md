@@ -4,9 +4,9 @@ title: befold を知らない人が課題から到達できるページを配布
 status: To Do
 assignee: []
 created_date: '2026-08-18 14:53'
-updated_date: '2026-08-21 07:53'
+updated_date: '2026-10-09 07:38'
 labels: []
-milestone: m-1
+milestone: m-12
 dependencies: []
 priority: medium
 type: feature

@@ -1,12 +1,12 @@
 ---
 id: TASK-520
 title: QuickLook 拡張の価値を配布サイトで独立した訴求として立てる
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 14:54'
-updated_date: '2026-08-21 07:53'
+updated_date: '2026-10-09 08:50'
 labels: []
-milestone: m-1
+milestone: m-12
 dependencies:
   - TASK-518
 priority: medium
@@ -30,8 +30,22 @@ TASK-518 に依存する: この訴求は「スペースキーを押す → そ�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 配布サイトに QuickLook を主題とした独立の訴求ブロック（または節）がある
-- [ ] #2 スペースキーを押してから描画されるまでの動きが、動く素材で示されている
-- [ ] #3 機能一覧側の記述と重複せず、どちらを読んでも矛盾しない
-- [ ] #4 日英どちらの言語でも表示できる
+- [x] #1 配布サイトに QuickLook を主題とした独立の訴求ブロック（または節）がある
+- [x] #2 スペースキーを押してから描画されるまでの動きが、動く素材で示されている
+- [x] #3 機能一覧側の記述と重複せず、どちらを読んでも矛盾しない
+- [x] #4 日英どちらの言語でも表示できる
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-09 着手不可: 依存先 TASK-518（QuickLook 描画の GIF/動画）が To Do。素材の撮影は対話セッションでしか行えない（TCC の画面収録許可が背景ジョブに下りない）ため、TASK-518 の素材が site/public/images 配下に置かれれば着手できる。AC#2 は素材が前提で、先にブロックだけ作ると差し替えの二度手間になる。現状サイトの QuickLook 言及は landing.tsx:107/118（一文）・features.tsx:156（FAQ）・shared.tsx:158（機能一覧 1 項目）の 3 箇所で、着手時に重複しない配置へ整理する。
+
+2026-10-09 実装: landing.tsx に QuickLook 独立ブロック（日英）を追加、mp4 を autoplay/loop/muted で再生。reduced-motion では public/quicklook-demo.js が停止し controls を出す。冒頭文の「Quick Look にも対応してます」は二重訴求になるため削除。機能一覧（shared.tsx）と FAQ（features.tsx）は 1 行の事実のみで、ブロックと矛盾しない。検証: vitest（public-routes 52 件通過。新規テストで日英のブロックと動画 src を確認）、lint/format/tsc 通過、wrangler dev + Chrome で再生を確認。全体 vitest では public-pages-hosts の /releases 系 2〜4 件がタイムアウトするが、外部 appcast 取得の経路で本変更と無関係（単体再実行でも同じ 2 件）。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+LP に QuickLook の独立訴求ブロック（日英）を追加し、TASK-518 の実撮影素材（mp4）を再生。重複していた冒頭の一文を削除。vitest・lint・実ブラウザ再生で確認。
+<!-- SECTION:FINAL_SUMMARY:END -->
