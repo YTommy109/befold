@@ -168,9 +168,8 @@ enum MainMenuBuilder {
     ///
     /// 前後移動はバー内の Enter / Shift+Enter（検索バーと同じ形）。
     ///
-    /// ゲート閉（stable ビルド）では呼び出し側が構築ごとスキップする。構築すると
-    /// 開発中機能の存在が stable のユーザーへ漏れる（TASK-485.8）。紹介サイトの
-    /// ショートカット表への掲載はゲート撤去後（TASK-485.25）。
+    /// フィーチャーゲートは撤去済み（TASK-485.16）で、stable でも常に構築する。
+    /// 紹介サイトのショートカット表にも載せている（TASK-485.25）。
     private static func addDocumentJumpItems(to menu: NSMenu) {
         menu.addItem(.separator())
         menu.addLocalizedItem(

@@ -4,7 +4,7 @@ title: サイト記載のうち未検証の主張を実測で裏取りし、ず�
 status: To Do
 assignee: []
 created_date: '2026-10-09 07:33'
-updated_date: '2026-10-09 07:38'
+updated_date: '2026-10-09 07:47'
 labels: []
 milestone: m-12
 dependencies: []
@@ -26,3 +26,9 @@ ordinal: 882000
 - [ ] #3 記事 Markdown の ja/en で段落が対応しているかを確認し、ずれがあれば直している
 - [ ] #4 サイトの SHORTCUTS が実装のメニュー定義とずれたら落ちるテスト、またはそれが成立しない理由と代替の運用を残している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TASK-692 での発見（2026-10-09）: (1) この worktree は site/node_modules が無く、npm ci（5 秒）後は vitest が通る。止まった原因の第一候補。(2) test/shortcuts.test.ts は「表 ⊆ 実装」の片方向だけを見ており、実装にあって表に無いショートカット（⇧⌘P・⌘←/→ が実例）は検知できない。AC 4 の対象はこの穴。除外する標準操作（⌘, など）の一覧を明示する形が候補。
+<!-- SECTION:NOTES:END -->

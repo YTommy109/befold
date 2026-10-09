@@ -43,7 +43,7 @@ export const SIZE_LIMITS_MB = {
  * highlight.js の言語名ごとにまとめず、拡張子だけを列挙する。
  * 言語名は viewer 側の内部表現であって、ページの読者に意味を持たないため。
  */
-const CODE_EXTENSIONS = [
+export const CODE_EXTENSIONS = [
   'bash',
   'c',
   'cc',

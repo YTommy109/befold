@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx'
 
+import { CODE_EXTENSIONS } from '../lib/file-types'
 import { navPagesFor, variantsOf, type FixedPage, type PageLang, type SitePage } from '../lib/pages'
 import type { Page } from '../schema'
 import { t, type Localized } from './i18n'
@@ -199,11 +200,11 @@ export const MORE_FEATURES: Feature[] = [
   {
     ja: [
       '多彩なフォーマット対応',
-      '.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（50以上の言語）にも対応。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別',
+      `.mmd, .md, .svg, .html, .csv, .tsv のレンダリング表示に加え、.png, .jpg, .gif, .webp, .pdf, ソースコード（${CODE_EXTENSIONS.length} 種類の拡張子）にも対応。文字コードは UTF-8/16/32・Shift_JIS・EUC-JP を自動判別`,
     ],
     en: [
       'Wide Format Support',
-      'Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code in 50+ languages. Detects UTF-8/16/32, Shift_JIS and EUC-JP automatically',
+      `Renders .mmd, .md, .svg, .html, .csv, .tsv — plus displays .png, .jpg, .gif, .webp, .pdf, and source code (${CODE_EXTENSIONS.length} file extensions). Detects UTF-8/16/32, Shift_JIS and EUC-JP automatically`,
     ],
   },
   {
