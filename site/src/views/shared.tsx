@@ -86,11 +86,11 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       'Quick Open (⌘P)',
-      'ファイル名のあいまい検索で目的のファイルへ一息で。空欄なら最近開いたファイルとブックマークが並び、./ や ../ のパス入力にも対応',
+      'ファイル名のあいまい検索で目的のファイルへ一息で。空欄なら最近開いたファイルが並び、入力するとブックマークも検索対象になる。./ や ../ のパス入力にも対応',
     ],
     en: [
       'Quick Open (⌘P)',
-      'Fuzzy-search filenames to jump straight to a file. An empty query lists recents and bookmarks, and ./ or ../ path input works too',
+      'Fuzzy-search filenames to jump straight to a file. An empty query lists recent files, and typing also searches your bookmarks. ./ or ../ path input works too',
     ],
   },
   {
@@ -146,7 +146,7 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       '大きなファイルも開ける',
-      'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「さらに読み込む」で',
+      'Markdown・CSV/TSV・ソースコードは分割して読み込むので、最大 100MB のファイルも待たされずに開ける。続きは「続きを読み込む」で',
     ],
     en: [
       'Large Files, Too',

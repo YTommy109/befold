@@ -131,7 +131,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             <br />
             GitHub と同じ見た目で表示され、Mermaid のコードブロックは図として描かれます。
             <br />
-            LLM がファイルを更新すると、0.2 秒で最新の内容に反映されます。
+            LLM がファイルを更新すると、約 0.2 秒の待ちを置いて最新の内容に反映されます。
           </p>
         </>
       ) : (
@@ -143,7 +143,8 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             <br />
             It renders with the same look as GitHub, and Mermaid code blocks are drawn as diagrams.
             <br />
-            When an LLM updates the file, the view catches up in 0.2 seconds.
+            When an LLM updates the file, the view catches up after a short wait of about 0.2
+            seconds.
           </p>
         </>
       )}
