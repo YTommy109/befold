@@ -104,7 +104,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
             Claude Code や Codex が作る大量のドキュメントをスムーズにレビューするために befold
             を作りました。
             <br />
-            編集機能は思い切って削り、読むことに特化したツールです。Quick Look にも対応してます。
+            編集機能は思い切って削り、読むことに特化したツールです。
           </p>
         </>
       ) : (
@@ -114,8 +114,7 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
           <p class="philosophy-body">
             I built befold to review the piles of documents that Claude Code and Codex generate.
             <br />
-            Editing was deliberately left out — befold is a tool built purely for reading. It
-            supports Quick Look, too.
+            Editing was deliberately left out — befold is a tool built purely for reading.
           </p>
         </>
       )}
@@ -181,6 +180,53 @@ const Audiences: FC<{ lang: PageLang }> = ({ lang }) => (
       )}
     </section>
   </>
+)
+
+/**
+ * QuickLook の独立した訴求。機能一覧・FAQ の記述は 1 行の事実だけに留め、
+ * 価値（アプリを開かずに Finder で読める）の説明はここに集約する。
+ * 動画は autoplay するが、reduced-motion のときは /quicklook-demo.js が止めて操作可能にする。
+ */
+const QuickLook: FC<{ lang: PageLang }> = ({ lang }) => (
+  <section class="philosophy quicklook">
+    {lang === 'ja' ? (
+      <>
+        <p class="philosophy-audience">Finder から</p>
+        <p class="philosophy-lead">スペースキーを押すだけで、図まで読める。</p>
+        <p class="philosophy-body">
+          befold を入れると、Finder で Markdown を選んでスペースキーを押した瞬間に、
+          <br />
+          Mermaid の図まで描かれた状態で表示されます。アプリを開く必要はありません。
+        </p>
+      </>
+    ) : (
+      <>
+        <p class="philosophy-audience">From Finder</p>
+        <p class="philosophy-lead">Press Space and read it, diagrams included.</p>
+        <p class="philosophy-body">
+          Once befold is installed, selecting a Markdown file in Finder and pressing Space shows it
+          <br />
+          with its Mermaid diagrams already drawn. No need to open the app.
+        </p>
+      </>
+    )}
+    <video
+      class="quicklook-video"
+      src="/images/quicklook-demo.mp4"
+      poster="/images/quicklook-demo-poster.png"
+      width="960"
+      height="698"
+      autoplay
+      loop
+      muted
+      playsinline
+      preload="metadata"
+      aria-label={t(lang, {
+        ja: 'Finder で Markdown を選んでスペースキーを押すと、QuickLook に Mermaid の図入りで描画される様子',
+        en: 'Selecting a Markdown file in Finder and pressing Space shows it in QuickLook with its Mermaid diagram rendered',
+      })}
+    />
+  </section>
 )
 
 const Screenshots: FC<{ lang: PageLang }> = ({ lang }) => (
@@ -324,6 +370,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
       <main>
         <Hero lang={lang} />
         <Audiences lang={lang} />
+        <QuickLook lang={lang} />
         <Screenshots lang={lang} />
         <FeatureSection lang={lang} />
         <Requirements lang={lang} />
@@ -331,6 +378,7 @@ export const Landing: FC<{ origin: string; entry: SitePage }> = ({ origin, entry
       </main>
 
       <script src="/carousel.js" />
+      <script src="/quicklook-demo.js" />
     </PageShell>
   )
 }

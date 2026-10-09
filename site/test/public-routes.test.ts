@@ -37,6 +37,22 @@ describe('GET /', () => {
   })
 })
 
+describe('QuickLook の訴求ブロック', () => {
+  it.each([
+    ['/', 'スペースキーを押すだけで'],
+    ['/en', 'Press Space and read it'],
+  ])('%s に動画つきの独立ブロックがあり、機能一覧と同じ文を繰り返さない', async (path, lead) => {
+    const body = await (await call(path)).text()
+
+    expect(body).toContain(lead)
+    expect(body).toContain('src="/images/quicklook-demo.mp4"')
+    expect(body).toContain('src="/quicklook-demo.js"')
+    // 「対応してます」の一文は独立ブロックへ移した。冒頭文に残すと二重の訴求になる。
+    expect(body).not.toContain('Quick Look にも対応してます')
+    expect(body).not.toContain('supports Quick Look, too')
+  })
+})
+
 describe('参照元の記録', () => {
   it('?ref= が付いていればその値を記録する', async () => {
     await call('/?ref=gh-pages')

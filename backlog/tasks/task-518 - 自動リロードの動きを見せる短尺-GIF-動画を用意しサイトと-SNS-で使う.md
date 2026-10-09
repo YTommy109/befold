@@ -1,10 +1,10 @@
 ---
 id: TASK-518
 title: QuickLook で Mermaid 入り Markdown が描画される動きを見せる短尺 GIF/動画を用意しサイトと SNS で使う
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-18 14:52'
-updated_date: '2026-09-27 05:33'
+updated_date: '2026-10-09 08:50'
 labels: []
 milestone: m-10
 dependencies: []
@@ -33,9 +33,21 @@ ordinal: 758000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Finder で Mermaid 入りの .md を選んでスペースキーを押し、QuickLook で描画されるまでの流れが分かる 10 秒前後の素材が site/public/images 配下に置かれている
-- [ ] #2 ランディングページで素材が再生され、静止画カルーセルと役割が重複していない
-- [ ] #3 ファイルサイズが本文の表示を阻害しない範囲に収まっており、実測値をタスクの Notes に記録している
-- [ ] #4 SNS 投稿へそのまま添付できる形式（GIF もしくは mp4）で書き出されている
-- [ ] #5 TASK-520 の QuickLook 訴求ブロックで同じ素材を流用できる（別撮りが不要な）構図・尺になっている
+- [x] #1 Finder で Mermaid 入りの .md を選んでスペースキーを押し、QuickLook で描画されるまでの流れが分かる 10 秒前後の素材が site/public/images 配下に置かれている
+- [x] #2 ランディングページで素材が再生され、静止画カルーセルと役割が重複していない
+- [x] #3 ファイルサイズが本文の表示を阻害しない範囲に収まっており、実測値をタスクの Notes に記録している
+- [x] #4 SNS 投稿へそのまま添付できる形式（GIF もしくは mp4）で書き出されている
+- [x] #5 TASK-520 の QuickLook 訴求ブロックで同じ素材を流用できる（別撮りが不要な）構図・尺になっている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-09 撮影・書き出し済み。QuickLook 拡張入り befold（/Applications 配下、ダーク）で、無地の背景に Finder 窓 1 枚→.md を選択→スペースキー→Mermaid シーケンス図入りで描画、までを録画。実測: mp4 60.7KB / GIF 700KB / 960x698 / 8.2 秒（Finder 1.4 秒 + 表示アニメ + 結果 6 秒の保持）。配置: site/public/images/quicklook-demo.mp4（LP で使用）・quicklook-demo.gif（SNS 添付用。LP では未使用）・quicklook-demo-poster.png。撮影時に背景へ個人情報（ターミナル・Finder サイドバー）が写り込んだため、無地の覆い窓で隠して撮り直した。LP への配置は TASK-520 の QuickLook ブロックで行い、ローカルの wrangler dev で再生（paused=false・currentTime 進行）を確認済み。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+QuickLook でスペースキー→Mermaid 入り Markdown が描画される 8.2 秒の素材（mp4 61KB / GIF 700KB）を撮影し、LP の QuickLook ブロックで再生。
+<!-- SECTION:FINAL_SUMMARY:END -->
