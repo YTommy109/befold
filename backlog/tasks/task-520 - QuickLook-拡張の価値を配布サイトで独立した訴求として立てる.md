@@ -4,9 +4,9 @@ title: QuickLook 拡張の価値を配布サイトで独立した訴求として
 status: To Do
 assignee: []
 created_date: '2026-08-18 14:54'
-updated_date: '2026-08-21 07:53'
+updated_date: '2026-10-09 07:38'
 labels: []
-milestone: m-1
+milestone: m-12
 dependencies:
   - TASK-518
 priority: medium
