@@ -24,9 +24,9 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
 
     private let repository: GitRepositoryReading
     /// キャッシュ本体(rootByDir / entryByRoot / rootsByRecency)だけを守る。
-    /// このロックを握ったまま `git` subprocess を待ってはならない。
+    /// このロックを握ったまま libgit2 の呼び出し(index 列挙など)を待ってはならない。
     private let stateLock = NSLock()
-    /// ディレクトリキーごとの相互排他。同じディレクトリの `rev-parse` を 1 度に畳む。
+    /// ディレクトリキーごとの相互排他。同じディレクトリのルート解決を 1 度に畳む。
     private let dirLocks = KeyedLock()
     /// ルートキーごとの相互排他。同じリポジトリの fingerprint / 列挙 / 索引構築を 1 度に畳む。
     /// `dirLocks` と別インスタンスにするのは、ルート直下のファイルでは dirKey と rootKey が
@@ -34,7 +34,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
     private let rootLocks = KeyedLock()
     /// ディレクトリ → リポジトリルート。entryByRoot と違い意図的に無効化しない。
     /// そのため寿命の間、`git init` でリポジトリになった/リポジトリでなくなったディレクトリは
-    /// 古い答えを返し続ける。無効化には毎回 `rev-parse` の subprocess が要る一方、
+    /// 古い答えを返し続ける。無効化には毎回リポジトリを開いてルートを探し直す必要がある一方、
     /// 表示中の文書のリポジトリ所属が入れ替わるのは稀なため、この staleness を受け入れる。
     /// entryByRoot と違い件数の上限も設けない。1 件はパス文字列 2 本ぶんで、
     /// 抱えるのは「開いたことのあるディレクトリの数」に留まるため、
@@ -64,7 +64,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
         // ルートキーのロックを入れ子で取らないことでロック順序の問題自体を無くす。
         guard let root = resolvedRoot(forFileAt: url).foundRoot else { return nil }
 
-        // root は rev-parse 由来だが、GitRepositoryReading の契約は正規化を保証しない。
+        // root は libgit2 のルート解決由来だが、GitRepositoryReading の契約は正規化を保証しない。
         // dirKey と同じ規約のキーに揃え、別表記の root が別エントリに割れないようにする。
         let rootKey = root.normalizedPathKey
         // このリポジトリの列挙を 1 つに畳む。別リポジトリの呼び出しは別キーなので待たない。
@@ -97,14 +97,14 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
 
     /// url を含むリポジトリの検出結果。
     /// ディレクトリ単位で結果をキャッシュするため、同じファイル(や同ディレクトリの別ファイル)への
-    /// `repositoryRoot` と `trackedFileIndex` は rev-parse を 1 度しか払わない。
+    /// `repositoryRoot` と `trackedFileIndex` はルート解決を 1 度しか払わない。
     private func resolvedRoot(forFileAt url: URL) -> GitRootLookup {
         let dirKey = url.deletingLastPathComponent().normalizedPathKey
         if let cached = cachedLookup(forDirKey: dirKey) { return cached }
 
         return dirLocks.withLock(dirKey) {
             // ロックを待っている間に別の呼び出しが解決を終えているかもしれない。
-            // ここで見直さないと、待っていた人数ぶん rev-parse が重複する。
+            // ここで見直さないと、待っていた人数ぶんルート解決が重複する。
             if let cached = cachedLookup(forDirKey: dirKey) { return cached }
 
             let lookup = repository.root(forFileAt: url)
@@ -148,7 +148,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
 
     /// 開いた/切り替えたタイミングで背景実行し、解決要求時のキャッシュ命中を狙う。
     /// 多重呼び出し(タブの連続切替など)は抑止しないが、同じルートへ重なった場合は
-    /// `rootLocks` が直列化するため `git` の実行自体は 1 度に畳まれる。
+    /// `rootLocks` が直列化するため index の列挙自体は 1 度に畳まれる。
     func warm(forFileAt url: URL) {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             _ = self?.trackedFileIndex(forFileAt: url)
@@ -158,7 +158,7 @@ final class GitCommandFileIndex: GitFileIndexing, @unchecked Sendable {
 
 /// キーごとに相互排他を与える。異なるキーの呼び出しは互いに待たない。
 ///
-/// `git` subprocess を待つ区間を「同じリポジトリ(同じディレクトリ)を見ている呼び出し同士」
+/// libgit2 の呼び出し(リポジトリを開く・index を列挙する)を待つ区間を「同じリポジトリ(同じディレクトリ)を見ている呼び出し同士」
 /// だけに絞るために使う。単一のロックで全体を守ると、遅い 1 リポジトリが無関係な
 /// リポジトリの呼び出しまで止めてしまう。
 ///

@@ -18,7 +18,7 @@ final class QuickOpenCoordinator {
 
     /// - Parameters:
     ///   - gitIndex: ウィンドウと共有する git 追跡ファイルの索引。パネルを開くたびに
-    ///     `git ls-files` をやり直さないため、必ず共有インスタンスを渡す(既定値は持たせない)。
+    ///     index の列挙と照合索引の構築をやり直さないため、必ず共有インスタンスを渡す(既定値は持たせない)。
     ///   - openInNewWindow: 開くべきビューアウィンドウが 1 枚も無いときの開き先。
     init(
         stores: AppStores,
@@ -38,7 +38,7 @@ final class QuickOpenCoordinator {
     }
 
     /// パネルを開いた時点のアプリ状態から候補源を組み立てる。
-    /// 索引はウィンドウと共有し、パネルを開くたびに `git ls-files` をやり直さない。
+    /// 索引はウィンドウと共有し、パネルを開くたびに index の列挙と照合索引の構築をやり直さない。
     private func makeEnvironment() -> AppQuickOpenEnvironment {
         // パネルは canBecomeMain=false のため、表示中でも mainWindow は元のビューアの
         // まま。専用の状態を持たず activeViewer から都度引く。

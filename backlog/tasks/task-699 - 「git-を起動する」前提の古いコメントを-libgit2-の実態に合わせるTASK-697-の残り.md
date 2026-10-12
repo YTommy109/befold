@@ -1,9 +1,10 @@
 ---
 id: TASK-699
 title: 「git を起動する」前提の古いコメントを libgit2 の実態に合わせる(TASK-697 の残り)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-12 11:54'
+updated_date: '2026-10-12 12:48'
 labels:
   - tech-debt
 dependencies: []
@@ -19,6 +20,18 @@ TASK-697 は 'git subprocess' の 7 箇所だけを直した。同じ誤解を�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 rg で『subprocess』『git ls-files』『git rev-parse』『git を起動』を数え、実装の実態と食い違う記述が 0 件になる
-- [ ] #2 各コメントの『待たされる理由』を、コードで確かめた実際の理由に直す(確かめられないものは主張を落とす)
+- [x] #1 rg で『subprocess』『git ls-files』『git rev-parse』『git を起動』を数え、実装の実態と食い違う記述が 0 件になる
+- [x] #2 各コメントの『待たされる理由』を、コードで確かめた実際の理由に直す(確かめられないものは主張を落とす)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+BefoldApp 配下 45 ファイル・約 100 行のコメントを libgit2 の実態(リポジトリを開いてルートを探す同期処理、index 列挙と SuffixPathIndex 構築、git_status_list_new の作業ツリー走査、HEAD との tree 比較)に修正。コード上の変更は #expect の失敗メッセージ文字列 1 行(rev-parse→ルート解決)のみ。外部 git 時代の値だった GitCommandFileIndexConcurrencyTests の『最大 15 秒』は現行コードに timeout が無いため削除。残したヒット: git コマンドとの挙動対応づけ、実 git を使うテスト fixture(GitTestRepo)、CLI の実サブプロセス起動テスト。未改名: @Test 表示名(『rev-parse を共有する』等)は文字列の改名になるため対象外。『ディスク I/O を待つ』『作業ツリー走査』はコード構造からの記述で、遅延の実測はしていない。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+git を起動する前提の古いコメントを 45 ファイルで libgit2 の実態に修正。差分はコメントと失敗メッセージ 1 行のみ(git diff で確認)、swift test の関連 47 件通過、swiftlint 45 件でベースラインと同数、洗い出し rg の残りヒットは全て正当。
+<!-- SECTION:FINAL_SUMMARY:END -->

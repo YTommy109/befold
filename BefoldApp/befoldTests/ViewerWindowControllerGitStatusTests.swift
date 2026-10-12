@@ -9,7 +9,7 @@ import Testing
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowControllerGitStatusTests {
-    /// 呼ばれた回数を数え、決め打ちのスナップショットを返す reader。実 git を起動しない。
+    /// 呼ばれた回数を数え、決め打ちのスナップショットを返す reader。実リポジトリを開かない。
     private final class StubReader: GitStatusReading, @unchecked Sendable {
         private let lock = NSLock()
         private var calls = 0

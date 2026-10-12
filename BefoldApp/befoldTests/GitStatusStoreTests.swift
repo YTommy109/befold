@@ -9,7 +9,7 @@ import Testing
 private let testRepositoryRoot = URL(fileURLWithPath: "/repos/befold")
 private let testIndexURL = URL(fileURLWithPath: "/repos/befold/.git/index")
 
-/// GitStatusStore のキャッシュ・縮退・重複実行の畳み込みを、実 git を起動せずに検証する。
+/// GitStatusStore のキャッシュ・縮退・重複実行の畳み込みを、実リポジトリを開かずに検証する。
 @Suite
 @MainActor
 struct GitStatusStoreTests {

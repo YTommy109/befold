@@ -10,7 +10,7 @@ import BefoldKit
 ///
 /// この型は `ViewerWindowManager` の init が自身の stored property から組み立てる。
 /// 外から組み立てて渡す形にしないのは、`gitFileIndex` が「アプリ全体で 1 つ」の共有索引で、
-/// 別インスタンスを渡せる余地を残すと `git ls-files` と照合索引が二重化するため
+/// 別インスタンスを渡せる余地を残すと index の列挙と照合索引が二重化するため
 /// (デフォルト引数による静かな別インスタンス化: TASK-319)。
 @MainActor
 final class RecentRepositoryRecorder {
@@ -38,7 +38,7 @@ final class RecentRepositoryRecorder {
     /// url が git リポジトリ内なら「最近使ったリポジトリ」に記録し、ウィンドウへ
     /// ルートをキャッシュする(ウィンドウを閉じる際に再度 git を呼ばずに済ませるため)。
     ///
-    /// ルート解決とラベル解決はどちらも git の subprocess を待ち、しかも
+    /// ルート解決とラベル解決はどちらも libgit2 でリポジトリを開く同期処理(ディスク I/O)で、しかも
     /// GitCommandFileIndex の共有ロックの内側で直列化される。MainActor で同期実行すると
     /// ウィンドウを開くたびに UI が止まるため、解決は detached タスクで行い、結果の反映だけ
     /// MainActor へ戻す(SidebarNavigator の resolveGitRoot と同じ方針)。
@@ -48,7 +48,7 @@ final class RecentRepositoryRecorder {
     /// (切替前のリポジトリを現在のリポジトリとして書き込まないため。TASK-461)。
     ///
     /// 履歴に残さない種別の窓では何もしない(TASK-610)。**解決を始める前に弾く**ので、
-    /// スライド窓では git の subprocess も走らない。判定を消費側(`apply`)へ置くと
+    /// スライド窓ではリポジトリを開く処理も走らない。判定を消費側(`apply`)へ置くと
     /// 待ってから捨てることになる。
     func recordIfNeeded(for url: URL, controller: ViewerWindowController) {
         guard controller.kind.recordsUsageHistory else { return }

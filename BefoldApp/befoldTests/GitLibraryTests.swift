@@ -4,7 +4,7 @@ import Foundation
 import libgit2
 import Testing
 
-/// 実 git を起動しない `GitLibrary` の unit テスト。
+/// 実リポジトリを開かない `GitLibrary` の unit テスト。
 ///
 /// 開けないリポジトリのフィクスチャは `.git/` を手で組み立てる(実 git を使わない)。
 /// libgit2 は `core.repositoryformatversion = 1` と未知の `extensions.*` を見た時点で

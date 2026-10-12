@@ -30,7 +30,7 @@ enum ViewerWindowManagerFactory {
             }
         )
         // git 状態の取得は、ルート解決を全ウィンドウ共有の索引へ一本化する
-        // (Store が独自に GitRepository を生成して rev-parse を重ねない)。
+        // (Store が独自に GitRepository を生成してルート解決を重ねない)。
         // 索引の実体は windowManager が握っているため、生成後にここで差し込む。
         windowManager.gitStatusStore = GitStatusStore(
             resolveRepositoryRoot: { [gitFileIndex = windowManager.gitFileIndex] directory in

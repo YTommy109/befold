@@ -92,7 +92,7 @@ struct SidebarEmptyState: View {
     /// **一覧がまだ届いていない間は `nil`(＝何も言わない)。** ウィンドウは一覧を空で作って
     /// 非同期に埋めるため(ViewerWindowAssembler)、届く前に `entries.isEmpty` だけで
     /// 判定すると「対応ファイルがありません」が一瞬出てから一覧に置き換わる。
-    /// 「変更のみ表示」が ON のときは git status の完了まで待つぶん、この誤った空表示が
+    /// 「変更のみ表示」が ON のときは git 状態(作業ツリー走査)の取得完了まで待つぶん、この誤った空表示が
     /// 目に見えて長くなる(TASK-530)。プレビュー側(FolderListingView)は未到着を nil で
     /// 表す形で既に同じ区別を実装しており、サイドバーだけがこの非対称を持っていた。
     static func reason(for context: SidebarEmptyContext) -> SidebarEmptyReason? {

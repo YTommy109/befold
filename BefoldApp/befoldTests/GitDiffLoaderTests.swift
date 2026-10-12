@@ -172,7 +172,7 @@ struct GitDiffLoaderTests {
         #expect(reader.callCount == 2)
     }
 
-    /// ルート解決はメインアクターの外で行う契約(TASK-322)。同期の `git rev-parse` を
+    /// ルート解決はメインアクターの外で行う契約(TASK-322)。同期のルート解決(libgit2 でリポジトリを開く)を
     /// メインアクター上へ戻すと、遅いボリュームで UI が止まる。
     private func resolving(_ root: URL) -> @Sendable () -> URL? {
         { root }

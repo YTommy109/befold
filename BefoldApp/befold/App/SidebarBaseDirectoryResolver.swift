@@ -18,7 +18,7 @@ final class SidebarBaseDirectoryResolver {
     /// 解決結果の書き込み先。`baseDirectory` 以外は書かない。
     private let fileListModel: FileListModel
     /// git の読み取り。使うのは `repositoryRootLookup(forDirectoryAt:)` だけ。
-    /// 未命中時に `git rev-parse` の subprocess を待つため async で、
+    /// 未命中時は libgit2 でリポジトリを開いてルートを探す同期処理(ディスク I/O)になるため async で、
     /// メインスレッド(SwiftUI の body 評価)では解決しない。
     private let git: any SidebarGitReading
     /// 解決タスクの世代番号。一覧取得・git 状態取得とは完了タイミングが独立するため、
@@ -68,7 +68,7 @@ final class SidebarBaseDirectoryResolver {
     }
 
     /// 進行中の解決を破棄する。ウィンドウを閉じるときに呼ぶ。
-    /// 世代を進めるのは、走り出した subprocess が完了して結果を返しうるため
+    /// 世代を進めるのは、走り出したルート解決が完了して結果を返しうるため
     /// (キャンセルは協調的 / TASK-300 と同型)。
     func cancelPending() {
         generation += 1

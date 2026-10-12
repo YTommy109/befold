@@ -80,7 +80,7 @@ final class SidebarListingCoordinator {
     /// - 変更ファイルのみ: 述語が変わるだけなので再列挙しない。ON になったときだけ git 状態を
     ///   取り直す(作業ツリーの編集は index も windowDidBecomeKey も動かさないため / TASK-296)。
     ///   OFF は絞り込みをやめるだけで新しい git 状態を要さず、方向を見ずに取り直すと開いている
-    ///   ウィンドウ数だけ git status が同時に走る(TASK-303)。
+    ///   ウィンドウ数だけ status 取得(作業ツリー走査)が同時に走る(TASK-303)。
     func applyDisplayChange(_ change: SidebarDisplayChange) {
         // 並び順だけは「同じ値なら何もしない」。他の 3 つは反転なので空振りしない。
         if case let .setSortOrder(order) = change, fileListModel.display.sortOrder == order {

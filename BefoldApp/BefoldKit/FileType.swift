@@ -220,7 +220,7 @@ public enum FileType: Sendable, Equatable {
     /// バイナリ(画像・PDF)はそもそもテキストソースを持たないため対象外。
     /// CSV/TSV のソース表示は独自の列構造を持つため viewer 側が差分を描かない
     /// (viewer-main.js の `_renderDiffHtmlIfAvailable` が type === "csv" で空を返す)。
-    /// ここで弾かないと、描かれない差分のために git のサブプロセスだけが走る。
+    /// ここで弾かないと、描かれない差分のために libgit2 の差分取得(HEAD との tree 比較)だけが走る。
     public var supportsDiffDisplay: Bool {
         switch self {
         case .csv, .image, .pdf: false

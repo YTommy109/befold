@@ -11,7 +11,7 @@ import Testing
 /// ステータスと差分は動く」という中間状態が成立しえた（TASK-435.2 の申し送り）。
 /// 全実装が libgit2 へ揃った今、その不整合が無いことをここで担保する。
 ///
-/// 実 git を起動しない。`.git/` を手で組み立てるフィクスチャなので、判定が
+/// 実 git を使わない。`.git/` を手で組み立てるフィクスチャなので、判定が
 /// 手元の git のバージョンや壁時計に左右されない。
 struct GitUnusableRepositoryTests {
     private func makeUnusableRepository(in directory: URL, extensionEntry: String) throws {

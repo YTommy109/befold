@@ -60,7 +60,7 @@ protocol GitStatusReading: Sendable {
     /// `target` は**必須引数**。既定値を持たせると渡し忘れが黙って既定の基準になり、
     /// 窓ごとの基準が効かなくなる(TASK-319 と同型)。
     func status(forRepositoryAt root: URL, target: GitComparisonTarget) -> GitStatusSnapshot?
-    /// `.git/index` の最終更新日時。git を起動せずファイル stat だけで得られるため、
+    /// `.git/index` の最終更新日時。リポジトリを開かずファイル stat だけで得られるため、
     /// 「index が動いたときだけ status を取り直す」判定に使う。
     func indexFingerprint(forRepositoryAt root: URL) -> Date?
 }

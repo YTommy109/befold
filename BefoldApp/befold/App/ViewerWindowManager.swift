@@ -45,9 +45,9 @@ final class ViewerWindowManager {
     /// なる必要があるものをここで 1 つ持ち、openViewer が丸ごとコントローラへ渡す。
     let shared: ViewerWindowDependencies
     /// 全ウィンドウで共有する差分の取得元。ここで 1 つ持つことが、GitDiffLoader の
-    /// 「同じ要求が重なったら git を二重起動しない」を窓をまたいで成立させている。
+    /// 「同じ要求が重なったら差分取得を二重に走らせない」を窓をまたいで成立させている。
     /// 窓ごとに持つと、同じファイルを 2 窓で開いた状態の 1 回の保存で
-    /// `git diff` が窓の数だけ起動する(TASK-325)。
+    /// libgit2 の差分取得が窓の数だけ走る(TASK-325)。
     let diffLoader: GitDiffLoader
     /// 新しいウィンドウの出発点になる寸法。**アプリ全体で 1 個**(AppStores が唯一の
     /// インスタンスを持つ)。既定引数を置かないのは、渡し忘れがコンパイルエラーにならず
@@ -68,12 +68,12 @@ final class ViewerWindowManager {
     let makeContentView: (() -> AnyView)?
     /// 生成する全ウィンドウで共有する git 追跡ファイルの索引。同じリポジトリのファイルを
     /// 全ウィンドウ・Quick Open で共有する追跡ファイル索引。複数ウィンドウで開いても
-    /// `git ls-files` は 1 回で済み、照合索引の実体も 1 つで済む(モノレポでは
+    /// index の列挙は 1 回で済み、照合索引の実体も 1 つで済む(モノレポでは
     /// ウィンドウごとの複製が無視できない大きさになる)。ウィンドウが温めた同じ
     /// インスタンスを Quick Open の候補源もそのまま使う。
     let gitFileIndex: any GitFileIndexing
     /// サイドバーの git 状態バッジの取得元。全ウィンドウで 1 個を共有し、同じリポジトリを
-    /// 開いた複数ウィンドウで `git status` の実行とキャッシュをまとめる。
+    /// 開いた複数ウィンドウで status の取得とキャッシュをまとめる。
     /// 既定は無効化状態(常に空)で、本番のルート解決付きインスタンスは AppDelegate が差し込む。
     var gitStatusStore = GitStatusStore()
     /// アプリ全体の表示設定を全ウィンドウへ配る一括反映。共有設定の実体(preference / store)は
@@ -101,7 +101,7 @@ final class ViewerWindowManager {
     /// - Parameter makeContentView: テスト専用シーム。生成するコントローラのコンテンツペイン
     ///   (実 WKWebView)を差し替える。既定の nil は本番経路(実 WKWebView を生成する)。
     /// - Parameter gitFileIndex: 生成する全ウィンドウで共有する git 追跡ファイルの索引。
-    ///   既定は実 `git` を実行する実装。テストは実 subprocess を避けるため差し替えられる。
+    ///   既定は実リポジトリ(libgit2)を読む実装。テストは実リポジトリを避けるため差し替えられる。
     /// アプリ全体で 1 つの共有物(`AppStores` が持つストア・表示設定)を受け取る引数には
     /// **既定値を付けない**。付けると渡し忘れがコンパイルエラーにならず、静かに別
     /// インスタンスになって「アプリ全体で 1 つ」が破れる(実例: `DiffDisplayPreference` が

@@ -11,7 +11,7 @@ protocol QuickOpenEnvironment: AnyObject {
     /// 隠しファイルを出すか。Quick Open は独自設定を持たず `SidebarDisplayDefaults` に従う。
     var includingHiddenFiles: Bool { get }
     /// fuzzy 検索の候補集合。パネルを開いた時点の索引を使う。
-    /// git サブプロセスとディレクトリ再帰走査を伴うため、実装は MainActor を離れて構築する。
+    /// git index の列挙とディレクトリ再帰走査を伴うため、実装は MainActor を離れて構築する。
     func candidateSet() async -> QuickOpenCandidateSet
     /// ディレクトリ直下のエントリ(隠しファイルを含む全件)。列挙に失敗したら nil。
     /// **空配列へ畳まない。** 「一致なし」と「読み取れない」で利用者の次の一手が
@@ -90,7 +90,7 @@ final class QuickOpenModel {
         candidateSet.isTruncated && !isPathMode
     }
 
-    /// init は同期で完了する。候補集合の構築(git サブプロセス・再帰走査)を待たないため、
+    /// init は同期で完了する。候補集合の構築(git index の列挙・再帰走査)を待たないため、
     /// パネルは即時表示でき、集合の到着後に候補表示だけが差し替わる。
     init(environment: any QuickOpenEnvironment, onOpen: @escaping (URL) -> Void) {
         self.environment = environment

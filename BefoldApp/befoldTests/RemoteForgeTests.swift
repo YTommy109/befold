@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// リモート URL の解釈とホストごとの URL 組み立て（git を起動しない純関数）。
+/// リモート URL の解釈とホストごとの URL 組み立て（リポジトリを開かない純関数）。
 struct RemoteForgeTests {
     /// SSH 形式と HTTPS 形式は同じ owner/repo になる。`.git` の有無・末尾スラッシュ・
     /// ssh:// 形式も同じ結果に畳む。ここが分かれると「同じリポジトリなのに人によって

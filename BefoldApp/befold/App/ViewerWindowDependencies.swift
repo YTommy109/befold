@@ -19,7 +19,7 @@ import Foundation
 /// - `diffLoader`: 両側で型が違う(マネージャは非 Optional = この型が唯一の持ち主、
 ///   コントローラは `GitDiffLoader?` で nil = 差分を取りに行かない)。1 フィールドへ
 ///   畳むとどちらかの性質を捨てることになるため、両側の引数として残す。
-/// - `gitFileIndex` / `gitStatusStore`: 既定が「git を起動しない縮退状態」で、
+/// - `gitFileIndex` / `gitStatusStore`: 既定が「リポジトリを開かない縮退状態」で、
 ///   共有インスタンスの受け渡しではなく実装の選択。
 @MainActor
 struct ViewerWindowDependencies {

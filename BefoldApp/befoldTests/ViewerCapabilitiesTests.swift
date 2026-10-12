@@ -140,7 +140,7 @@ struct ViewerCapabilitiesTests {
     }
 
     /// CSV/TSV は viewer 側が差分を描かない(viewer-main.js の type === "csv" 分岐)。
-    /// ここで許すと、描かれない差分のために git のサブプロセスだけが走る(TASK-324)。
+    /// ここで許すと、描かれない差分のために 差分取得(libgit2)だけが走る(TASK-324)。
     @Test("差分は種別が差分表示に対応しているときだけ選べる")
     func diffFollowsDiffDisplaySupport() {
         #expect(makeCapabilities(supportsDiffDisplay: true).canSelectDiffMode)
