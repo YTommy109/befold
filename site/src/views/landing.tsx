@@ -226,6 +226,15 @@ const QuickLook: FC<{ lang: PageLang }> = ({ lang }) => (
         en: 'Selecting a Markdown file in Finder and pressing Space shows it in QuickLook with its Mermaid diagram rendered',
       })}
     />
+    <p class="listing-note">
+      <a href={pathFor('/usecases/finder-markdown-preview', lang)}>
+        <T
+          lang={lang}
+          ja="なぜ Finder では素のテキストになるのか"
+          en="Why Finder shows Markdown as plain text"
+        />
+      </a>
+    </p>
   </section>
 )
 
