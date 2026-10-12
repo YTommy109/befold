@@ -14,7 +14,7 @@ struct ReferenceActions {
     let open: (URL, OpenDisposition) -> Void
     /// 外部 URL(http/https)をブラウザで開く。
     ///
-    /// `NSWorkspace.shared.open` をここで直に呼ばないのは、解決(git subprocess)を待つ間に
+    /// `NSWorkspace.shared.open` をここで直に呼ばないのは、解決(索引の構築やファイルの実在確認)を待つ間に
     /// ウィンドウが閉じられても、他の分岐と同じく抑止されるようにするため。分岐ごとに
     /// 生存確認を書くのではなく、すべての届け先をウィンドウ弱参照のクロージャに揃えることで
     /// 「閉じた後に効く操作」が構造的に起きない形にする(TASK-449)。
@@ -27,7 +27,7 @@ struct ReferenceActions {
 
 /// git 連携を持たない索引。パス参照は相対解決だけで済ませる。
 ///
-/// ViewerWindowController の既定値として、`git` を起動しないことを保証するために使う。
+/// ViewerWindowController の既定値として、libgit2 を呼ばないことを保証するために使う。
 /// 本番の共有インスタンス(GitCommandFileIndex)は ViewerWindowManager から注入される。
 struct DisabledGitFileIndex: GitFileIndexing {
     func trackedFileIndex(forFileAt _: URL) -> SuffixPathIndex? {
@@ -71,7 +71,7 @@ final class ReferenceResolutionCoordinator {
     }
 
     /// リンク/パス参照のアクティベーションを処理する。
-    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、resolveReferences と
+    /// 解決はキャッシュ未命中時に libgit2 での追跡ファイル列挙と索引構築を待つため、resolveReferences と
     /// 同じ方針で MainActor を離して行い、ウィンドウへの通知だけメインアクターへ戻す。
     func handleOpenReference(href: String, disposition: OpenDisposition) {
         guard let baseURL = baseURL() else { return }
@@ -120,7 +120,7 @@ final class ReferenceResolutionCoordinator {
     /// クリック時の handleOpenReference と同じ resolver を使うため、リンク化した参照は
     /// 必ず同じ URL へ開く(解決の単一情報源)。
     ///
-    /// 解決はキャッシュ未命中時に `git ls-files` の subprocess を待つため、MainActor 上では
+    /// 解決はキャッシュ未命中時に libgit2 での追跡ファイル列挙と索引構築を待つため、MainActor 上では
     /// 走らせない(大きなリポジトリで数百 ms の停止になる)。要求時点の resolver と
     /// baseURL を捕捉してバックグラウンドで解決する。解決中にファイルが切り替わっても、
     /// 捕捉した baseURL は「その要求を出した表示内容」の基準ディレクトリのままなので、

@@ -37,7 +37,7 @@ struct ViewerWindowControllerExternalURLTests {
         #expect(opened.get().map(\.absoluteString) == ["https://example.com"])
     }
 
-    /// 解決(git subprocess を伴いうる)を待つ間にウィンドウが閉じられたら、外部 URL も
+    /// 解決(索引の構築やファイルの実在確認を伴いうる)を待つ間にウィンドウが閉じられたら、外部 URL も
     /// 他の分岐と同じく抑止されなければならない。NSWorkspace を直に呼んでいた頃は、
     /// 閉じたはずのウィンドウの cmd+click が後からブラウザを前面に出していた(TASK-449)。
     @Test("ウィンドウ解放後は、外部 URL の届け先も呼ばれない")

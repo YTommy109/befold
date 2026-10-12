@@ -38,7 +38,7 @@ struct ViewerRendererResolveReferencesTests {
         )
     }
 
-    /// 解決は git subprocess を伴いうるため非同期であり、要求ごとに所要時間が違う。
+    /// 解決は追跡ファイル索引の構築(libgit2 での index 列挙)やファイルの実在確認を伴いうるため非同期であり、要求ごとに所要時間が違う。
     /// 完了順にそのまま応答すると FIFO の対応づけが崩れる。
     /// 直列チェーン (resolveResponseChain) を外すとこのテストが落ちる。
     @Test("解決が遅い要求が先にあっても、応答は要求と同じ順序で評価される")

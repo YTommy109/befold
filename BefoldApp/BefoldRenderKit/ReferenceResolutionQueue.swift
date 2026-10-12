@@ -72,7 +72,7 @@ final class ReferenceResolutionQueue {
                     renderer, resolveReferences: requestedPaths
                 ) ?? [:]
             }
-            // 判定はここ 1 箇所。解決(git subprocess を伴いうる)を待つ間にもページは
+            // 判定はここ 1 箇所。解決(索引の構築やファイルの実在確認を伴いうる)を待つ間にもページは
             // 差し替わるため、要求受付時ではなく評価の直前に見る必要がある。
             guard generation == requestGeneration else { return }
             renderer.surface?.evaluateScript(

@@ -69,7 +69,7 @@ struct SidebarNavigatorListingCoherenceTests {
 
     /// 絞り込みが OFF のときは一覧を git 状態と揃える理由が無い(縮退しようがない)。
     /// それでも待つと、絞り込みを使っていない利用者までフォルダー移動のたびに
-    /// git subprocess の完了を待たされる(TASK-297)。
+    /// git 状態の取得(libgit2 の `git_status_list_new` は作業ツリー全体を走査する)の完了を待たされる(TASK-297)。
     @Test("絞り込み OFF のフォルダー移動は git 状態の完了を待たずに一覧を反映する")
     func appliesListingWithoutWaitingForGitWhenFilterIsOff() async {
         let base = Self.home.appendingPathComponent("SidebarNavigatorListingCoherenceTests-off")
