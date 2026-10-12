@@ -40,7 +40,7 @@ struct ViewerWindowControllerRefResolutionTests {
         #expect(map == ["utils.swift": tracked.path])
     }
 
-    /// 表示時解決はキャッシュ未命中時に `git ls-files` の subprocess を待つ。
+    /// 表示時解決はキャッシュ未命中時に libgit2 の index 列挙(ディスク I/O)を待つ。
     /// MainActor 上で走ると大きなリポジトリで UI が数百 ms 止まるため、
     /// git 索引に触れるのがメインスレッド外であることを索引側から観測して固定する。
     @Test("表示時解決の git 索引アクセスはメインスレッド上で行われない")
@@ -72,7 +72,7 @@ struct ViewerWindowControllerRefResolutionTests {
     }
 
     /// クリック時解決(handleOpenReference)も表示時解決と同じく、キャッシュ未命中時は
-    /// `git ls-files` の subprocess を待つ。resolveReferences と同じ方針で MainActor を
+    /// libgit2 の index 列挙(ディスク I/O)を待つ。resolveReferences と同じ方針で MainActor を
     /// 離して解決することを、git 索引側から観測して固定する(task-222 の回帰テスト)。
     @Test("クリック時解決の git 索引アクセスはメインスレッド上で行われない")
     func handleOpenReferenceTouchesGitIndexOffMainThread() async {

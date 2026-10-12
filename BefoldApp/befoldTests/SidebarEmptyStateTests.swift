@@ -88,7 +88,7 @@ struct SidebarEmptyStateTests {
         #expect(SidebarEmptyState.reason(for: context(hasLoadedEntries: false)) == nil)
     }
 
-    /// 「変更のみ表示」ON では git status サブプロセスの完了まで一覧が届かない
+    /// 「変更のみ表示」ON では git 状態(作業ツリー走査)の取得完了まで一覧が届かない
     /// (SidebarListingCoordinator.performListing)。絞り込みが効いているからといって
     /// 未到着の間に絞り込みの文言を出すと、誤った空表示がそのぶん長く見える。
     @Test("一覧が届いていなければ、絞り込みが効いていても何も言わない")

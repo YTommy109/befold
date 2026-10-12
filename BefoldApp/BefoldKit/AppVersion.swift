@@ -1,4 +1,3 @@
-import BefoldKit
 import Foundation
 
 /// アプリのバージョン文字列。

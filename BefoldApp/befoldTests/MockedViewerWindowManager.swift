@@ -4,8 +4,8 @@ import BefoldKit
 import BefoldTestSupport
 import Foundation
 
-/// 実 `git` を起動せず、温め要求だけを記録する索引。
-/// unit テストの既定として使い、ウィンドウ生成で subprocess が走らないようにする。
+/// 実リポジトリを開かず、温め要求だけを記録する索引。
+/// unit テストの既定として使い、ウィンドウ生成でリポジトリを開く処理が走らないようにする。
 final nonisolated class RecordingGitFileIndex: GitFileIndexing, @unchecked Sendable {
     private let lock = NSLock()
     private var _warmedPaths: [URL] = []
@@ -73,7 +73,7 @@ struct MockedViewerWindowManager {
     /// isAvailable を明示して、dev/stable いずれのビルドでも同じ挙動でテストする。
     let diffDisplayPreference: DiffDisplayPreference
     /// 生成される全ウィンドウが共有する差分の取得元。既定は nil(差分を取りに行かない)で、
-    /// 差分に無関心なテストが実 `git diff` を起こさないことを保証する。
+    /// 差分に無関心なテストが実リポジトリへの差分取得を起こさないことを保証する。
     /// 差分を測るテストは init の diffReader へスタブを渡す。
     let diffLoader: GitDiffLoader
     /// 本番 UserDefaults へ書かないよう、隔離 defaults で明示的に生成して注入する。

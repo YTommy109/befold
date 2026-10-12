@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// CLIRequestForwarder.forward() が使う ACK の待ち受け。

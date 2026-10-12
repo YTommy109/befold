@@ -31,12 +31,12 @@ macOS 向けのドキュメント・ダイアグラムビューアアプリ。
 | `BefoldPDFProbe/` | PDF の解釈（`PDFDocument` の生成）だけを持つ最小の層。PDFKit を要する判定を `BefoldKit` から隔離する（TASK-598） |
 | `BefoldRenderKit/` | 描画エンジン `ViewerRenderer`（WKWebView ドライバ）。本体アプリと QuickLook 拡張で共有 |
 | `BefoldQuickLook/` | QuickLook 拡張（appex）。`ViewerRenderer` を直接使い 1 回描画 |
-| `BefoldCLI/` / `befold-cli/` | CLI 共有ライブラリと `befold` 実行ファイル |
+| `BefoldCLI/` / `befold-cli/` | CLI のコマンド定義（ArgumentParser）と `befold` 実行ファイル。本体は依存しない（本体と共有する型は `BefoldKit`、`CLIInstaller` は本体側） |
 | `BefoldTestSupport/` / `befoldTests/` / `befoldCLITests/` | テスト共有ヘルパーと Swift Testing テスト |
 
 - ファイル変更は `FileWatcher → ViewerStore → ViewerRenderer(evaluateJavaScript)` の
   同一プロセス内伝搬で反映する。
-- CLI 起動は `befold-cli → BefoldCLI → befold.app` で伝搬する。
+- CLI 起動は `befold-cli → BefoldCLI → befold.app` で伝搬する。依存は `befold-cli → BefoldCLI → BefoldKit` の一方向で、本体（`befold`）は `BefoldCLI` / ArgumentParser を import しない（`scripts/check-app-no-cli-dependency.sh` が検査）。
 - 自動アップデートは Sparkle 2（`AppDelegate` が保持する `AppUpdaterController` が `SPUStandardUpdaterController` を持つ）。
 
 ## 技術スタック

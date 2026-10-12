@@ -9,7 +9,7 @@ import Foundation
 @MainActor
 final class ViewerDiffPresenter {
     /// 差分の取得元。全ウィンドウで 1 個を共有する（生成元は ViewerWindowManager 一箇所）。
-    /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
+    /// 機能が無効なビルドでは nil で、差分取得を一切行わない。
     private let loader: GitDiffLoader?
     /// git 追跡ファイルの索引。リポジトリルートの解決に使う。
     private let gitFileIndex: any GitFileIndexing

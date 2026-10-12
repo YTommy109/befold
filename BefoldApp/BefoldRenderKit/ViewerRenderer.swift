@@ -22,7 +22,7 @@ public protocol ViewerRendererDelegate: AnyObject {
     func renderer(_ renderer: ViewerRenderer, didRequestContextMenuFor href: String)
     /// JS が検出したパス参照群の解決を要求した。
     /// 戻り値: 書かれたパス -> 解決済み絶対パス(実在するもののみ)。
-    /// 解決は git subprocess を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
+    /// 解決は追跡ファイル索引の構築(libgit2 での index 列挙)やファイルの実在確認を伴いうるため非同期。実装は MainActor をブロックせずに返すこと。
     func renderer(_ renderer: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String]
     /// JS 側「続きを読み込む」が押された。次チャンクと更新後の表示状態を返す。
     func rendererDidRequestMoreLines(_ renderer: ViewerRenderer) async -> LoadMoreLinesResult?

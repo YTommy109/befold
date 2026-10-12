@@ -1,4 +1,5 @@
 @testable import BefoldCLI
+import BefoldKit
 import Foundation
 import Testing
 
@@ -86,5 +87,42 @@ struct CLIRequestWireTests {
     @Test("requestID がなければ nil")
     func requestIDMissingReturnsNil() {
         #expect(CLIRequestWire.requestID(from: ["request": "{}"]) == nil)
+    }
+
+    // 往復テストはフィールド名や case 名の変更を検知できない(両側が同じ型で追従するため)。
+    // 旧版の CLI と新版の本体(またはその逆)が混在しうるので、固定 JSON を直接デコードして守る。
+
+    @Test("旧形式の固定 JSON(オープン要求・全オプション)をデコードできる")
+    func decodesLegacyOpenRequestJSON() {
+        let json = """
+        {"open":{"paths":["/tmp/a.mmd"],"options":{"showHiddenFiles":true,"sortOrder":"folders-first",\
+        "showLineNumbers":false,"sourceMode":true,"showSidebar":false}}}
+        """
+
+        let decoded = CLIRequestWire.decode(userInfo: ["request": json, "requestID": "id"])
+
+        let options = CLIOpenOptions(
+            showHiddenFiles: true, sortOrder: .foldersFirst, showLineNumbers: false,
+            sourceMode: true, showSidebar: false
+        )
+        #expect(decoded == .open(paths: ["/tmp/a.mmd"], options: options))
+    }
+
+    @Test("旧形式の固定 JSON でオプションの各フィールドを省略すると nil になる")
+    func decodesLegacyOpenRequestJSONWithOmittedOptions() {
+        let json = #"{"open":{"paths":["/tmp/a.mmd"],"options":{"sortOrder":"alphabetical"}}}"#
+
+        let decoded = CLIRequestWire.decode(userInfo: ["request": json, "requestID": "id"])
+
+        #expect(decoded == .open(paths: ["/tmp/a.mmd"], options: CLIOpenOptions(sortOrder: .alphabetical)))
+    }
+
+    @Test("旧形式の固定 JSON(ブックマーク要求)をデコードできる")
+    func decodesLegacyBookmarkRequestJSON() {
+        let json = #"{"bookmark":{"paths":["/tmp/a.mmd","/tmp/b.md"]}}"#
+
+        let decoded = CLIRequestWire.decode(userInfo: ["request": json, "requestID": "id"])
+
+        #expect(decoded == .bookmark(paths: ["/tmp/a.mmd", "/tmp/b.md"]))
     }
 }

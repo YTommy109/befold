@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import BefoldKit
 import UserNotifications
 

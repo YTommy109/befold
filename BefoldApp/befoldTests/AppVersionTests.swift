@@ -1,4 +1,4 @@
-@testable import BefoldCLI
+import BefoldKit
 import Testing
 
 /// AppVersion の解決ロジック(Info.plist優先・定数フォールバック)を検証する。

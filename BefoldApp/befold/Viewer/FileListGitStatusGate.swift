@@ -77,7 +77,7 @@ struct FileListGitStatusGate {
     }
 
     /// `sequence` 以前に発行されたすべての取得結果を無効化する。ウィンドウを閉じるときに呼ぶ
-    /// (TASK-300)。キャンセルは協調的で、走り出した subprocess は完了して結果を返しうる。
+    /// (TASK-300)。キャンセルは協調的で、走り出した libgit2 の呼び出しは完了して結果を返しうる。
     /// 反映済み sequence を発行済みの先頭へ揃えておかないと、その結果が反映ガードを通り抜け、
     /// 閉じたウィンドウのために `.git/index` 監視を張り直してしまう。
     mutating func invalidate(upTo sequence: Int) {

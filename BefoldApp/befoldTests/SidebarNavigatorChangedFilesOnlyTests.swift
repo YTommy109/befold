@@ -32,7 +32,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
     private nonisolated static let changedFilesOnlyApplies: [ChangedFilesOnlyApply] = [
         // 「変更ファイルのみ表示」は手元の一覧と git 状態に対する表示述語でしかない。
         // 不可視ファイル表示と同じ再読み込みを流用すると、トグルのたびに全ウィンドウで
-        // ディレクトリ全列挙と git status が走る(実測でウィンドウ 3 枚 ≒ 380ms / TASK-291)。
+        // ディレクトリ全列挙と status 取得が走る(実測でウィンドウ 3 枚 ≒ 380ms / TASK-291)。
         // 作業ツリーの編集は `.git/index` を動かさないため index 監視では発火せず、キーウィンドウの
         // ままなら windowDidBecomeKey も再発火しない。トグル時に取り直さないと古いスナップショットの
         // まま絞り込まれる(TASK-296)。再列挙が増えないことは TASK-291 の性質の維持を意味する。
@@ -42,7 +42,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
         ),
         // OFF への切り替えは絞り込みをやめるだけで、新しい git 状態を必要としない。バッジは
         // 手元のスナップショットで足りる。方向を見ずに取り直すと、トグルのたびに開いている
-        // ウィンドウ数だけ git status サブプロセスが同時に起動する(TASK-303)。
+        // ウィンドウ数だけ status 取得が同時に走る(TASK-303)。
         ChangedFilesOnlyApply(
             name: "OFF へのトグル適用", key: "toggle-off", initialState: true, targetState: false,
             apply: { $0.applyDisplayChange(.toggleChangedFilesOnly) }, expectedGitCalls: 0

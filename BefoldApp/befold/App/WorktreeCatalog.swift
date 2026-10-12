@@ -3,9 +3,9 @@ import Foundation
 
 /// 本体リポジトリのルートごとの worktree 一覧キャッシュ。
 ///
-/// メニュー表示直前(menuNeedsUpdate)に `git worktree list` を同期実行すると、
-/// subprocess の待ちがそのまま UI の固まりになる(RecentRepositoriesMenuController が
-/// パス毎のアイコン取得を避けているのと同じ理由)。そこで git 呼び出しは
+/// メニュー表示直前(menuNeedsUpdate)に worktree 一覧を libgit2 で同期取得すると、
+/// リポジトリを開くディスク I/O の待ちがそのまま UI の固まりになる(RecentRepositoriesMenuController が
+/// パス毎のアイコン取得を避けているのと同じ理由)。そこで libgit2 の呼び出しは
 /// `refresh(mainRoots:)` の非同期側でまとめて行ってここへ載せ、メニュー構築は
 /// キャッシュを同期で読むだけにする。
 /// まだ解決できていない本体ルートは空配列を返し、呼び出し側が従来どおりの
@@ -28,7 +28,7 @@ final class WorktreeCatalog {
 
     /// 指定した本体ルート群の worktree 一覧を解決し、キャッシュを差し替える。
     /// 既に載っているルートも解決し直す(アプリ起動中に worktree が追加/削除されても追随するため)。
-    /// git の subprocess 待ちが MainActor を止めないよう、解決は detached タスクで行う
+    /// libgit2 の同期呼び出し(ディスク I/O)が MainActor を止めないよう、解決は detached タスクで行う
     /// (RecentRepositoriesStore.pruneMissingAsync と同じ方針)。
     func refresh(mainRoots: [URL]) async {
         guard !mainRoots.isEmpty else { return }

@@ -1,5 +1,5 @@
 import AppKit
-import BefoldCLI
+import BefoldKit
 
 /// 別プロセスの CLI 起動から、起動中の当インスタンスへ転送された要求を受け取る。
 ///

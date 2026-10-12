@@ -41,6 +41,12 @@ struct InfoPlistTests {
         try Set(documentTypes().flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
     }
 
+    /// Finder の「カテゴリ」表示と将来の Mac App Store 申請に必要な LSApplicationCategoryType (TASK-696)。
+    @Test
+    func declaresApplicationCategory() throws {
+        #expect(try loadPlist()["LSApplicationCategoryType"] as? String == "public.app-category.developer-tools")
+    }
+
     /// befold 自身が net.daringfireball.markdown を宣言していること。
     /// 他アプリの宣言に依存すると、宣言アプリがない環境で .md の関連付けが効かない。
     @Test

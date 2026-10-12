@@ -7,7 +7,7 @@ import Testing
 /// Sendable なクロージャから参照するため、MainActor 隔離される型の外に置く。
 private let fakeRepositoryRoot = URL(fileURLWithPath: "/repos/befold")
 
-/// リポジトリを開けなかったことにする reader。実 git を起動しない。
+/// リポジトリを開けなかったことにする reader。実リポジトリを開かない。
 private struct UnopenableGitStatusReader: GitStatusReading {
     func status(forRepositoryAt _: URL, target _: GitComparisonTarget) -> GitStatusSnapshot? {
         nil

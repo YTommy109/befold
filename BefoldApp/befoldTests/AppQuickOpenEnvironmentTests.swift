@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 /// Quick Open の候補源が「メインスレッドを離れて」構築されることを固定する。
-/// git サブプロセス・ディレクトリ再帰走査・`normalizedPathKey` の FS I/O は
+/// git index の列挙・ディレクトリ再帰走査・`normalizedPathKey` の FS I/O は
 /// すべて `gitIndex` の参照より後段に連なるため、索引が呼ばれたスレッドを見れば
 /// 収集全体がどのスレッドで走ったかを判定できる。
 @Suite

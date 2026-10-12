@@ -1,4 +1,4 @@
-@testable import BefoldCLI
+@testable import befold
 import Foundation
 import Testing
 

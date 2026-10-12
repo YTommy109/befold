@@ -3,7 +3,7 @@ import Foundation
 
 /// `QuickOpenModel` を実際のアプリ状態(git 索引・履歴・ブックマーク・実 FS)へ繋ぐ実装。
 ///
-/// 候補集合はパネルを開いた時点で 1 度だけ組み立てる。入力のたびに `git ls-files` や
+/// 候補集合はパネルを開いた時点で 1 度だけ組み立てる。入力のたびに index の列挙や
 /// ディレクトリ走査をやり直さないためで、絞り込みはメモリ上の候補に対して同期で行う。
 @MainActor
 final class AppQuickOpenEnvironment: QuickOpenEnvironment {
@@ -42,7 +42,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
         includesHiddenFiles
     }
 
-    /// 候補集合の構築は `git rev-parse` / `git ls-files` のサブプロセス待ちと
+    /// 候補集合の構築は ルート解決・index 列挙(libgit2 の同期呼び出し)と
     /// ディレクトリ再帰走査、候補ごとの `normalizedPathKey`(FS I/O)を伴うため、
     /// MainActor では走らせない(応答しないボリュームでは秒単位で止まる)。
     /// UserDefaults から取るだけの履歴・ブックマークと設定値は MainActor 上で捕捉し、
@@ -69,7 +69,7 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
             }
         }
         return await withBlockingWork(qos: .userInitiated) {
-            // ルート解決は索引に一本化する。ここで別の GitRepository を new して rev-parse を
+            // ルート解決は索引に一本化する。ここで別の GitRepository を new してルート解決を
             // 重ねず、collect が引く追跡ファイル索引と同じ 1 回の解決結果を共有する。
             let root = gitIndex.repositoryRoot(forFileAt: currentFileURL)
                 ?? currentFileURL.deletingLastPathComponent()

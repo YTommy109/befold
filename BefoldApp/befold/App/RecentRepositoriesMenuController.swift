@@ -10,8 +10,8 @@ import UniformTypeIdentifiers
 /// メニュー表示自体は保存済みリストをそのまま出すだけで FS I/O を伴わない。
 ///
 /// worktree を持つリポジトリは「本体1項目 + 全 worktree のサブメニュー」に畳む。
-/// worktree 一覧は WorktreeCatalog のキャッシュを同期で読むだけで、git は呼ばない
-/// (呼ぶとメニューを開くたびに subprocess を待つことになる)。
+/// worktree 一覧は WorktreeCatalog のキャッシュを同期で読むだけで、リポジトリは開かない
+/// (開くとメニューを開くたびにディスク I/O を待つことになる)。
 @MainActor
 final class RecentRepositoriesMenuController: NSObject, NSMenuDelegate {
     private let entries: () -> [RecentRepositoryEntry]

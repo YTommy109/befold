@@ -3,7 +3,7 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// 実 git を起動しない `GitRepository` の unit テスト。
+/// 実リポジトリを開かない `GitRepository` の unit テスト。
 ///
 /// libgit2 化で「git の出力テキストをパースする純関数」が無くなったため、worktree 列挙の
 /// 網羅は実 git フィクスチャの `GitRepositoryIntegrationTests` が担う。ここに残るのは
@@ -17,7 +17,7 @@ struct GitRepositoryTests {
 
     // MARK: - 開けないリポジトリでの縮退
 
-    /// 「libgit2 が開けないリポジトリ」を作る。実 git を起動せず `.git/` を手で組むため、
+    /// 「libgit2 が開けないリポジトリ」を作る。実 git を使わず `.git/` を手で組むため、
     /// 縮退の検証が git のバージョンや壁時計(タイムアウト)に左右されない。
     /// フィクスチャの中身は `GitLibraryTests` と共有する(同じ失敗を 2 通りに定義しない)。
     private func makeUnopenableRepository(in directory: URL) throws {

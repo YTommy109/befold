@@ -53,7 +53,7 @@ struct SidebarGitReader: SidebarGitReading {
         self.statusStore = statusStore
     }
 
-    /// 未命中時は `git rev-parse` の subprocess を同期で待つため、メインアクターを
+    /// 未命中時は libgit2 でリポジトリを開いてルートを探す同期処理(ディスク I/O)になるため、メインアクターを
     /// 離して解決する(サイドバーのヘッダー表示のためだけにフォルダ移動のたび
     /// メインスレッドを止めないため)。
     func repositoryRootLookup(forDirectoryAt url: URL) async -> GitRootLookup {

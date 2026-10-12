@@ -62,7 +62,7 @@ private final class BlockingRepository: GitRepositoryReading, @unchecked Sendabl
 }
 
 /// ロックの粒度に関する検証。GitCommandFileIndex は全ウィンドウで 1 インスタンスを
-/// 共有するため、`git` subprocess を待つ間にどのロックを握っているかが
+/// 共有するため、libgit2 の呼び出しを待つ間にどのロックを握っているかが
 /// 「無関係なリポジトリのウィンドウまで止まるか」を直接決める。
 struct GitCommandFileIndexConcurrencyTests {
     private func url(_ path: String) -> URL {
@@ -70,8 +70,7 @@ struct GitCommandFileIndexConcurrencyTests {
     }
 
     /// 本番では全ウィンドウが 1 インスタンスを共有するため、ロックの粒度がリポジトリ横断だと
-    /// 1 つの遅い `git ls-files` が無関係なリポジトリのウィンドウまで最大 15 秒
-    /// (timeout 10 秒 + terminationGrace 5 秒)止める。異なるルートの呼び出しが
+    /// 1 つの遅いリポジトリの列挙が無関係なリポジトリのウィンドウまで止める。異なるルートの呼び出しが
     /// 互いに待たないことを固定する。
     @Test("遅いリポジトリの列挙中でも別リポジトリの解決は完了する", testTimeLimit())
     func slowEnumerationDoesNotBlockOtherRepositories() async {
@@ -102,7 +101,7 @@ struct GitCommandFileIndexConcurrencyTests {
         #expect(otherResolved.get(), "別リポジトリの解決が遅いリポジトリに巻き込まれてブロックされている")
     }
 
-    /// 同一ルートへの同時呼び出しが直列化されないと、N ウィンドウぶんの `git ls-files` が
+    /// 同一ルートへの同時呼び出しが直列化されないと、N ウィンドウぶんの index 列挙が
     /// 同時に走り、索引の構築(候補数に比例した正規化)も重複する。
     ///
     /// 1 本目の列挙を止めたまま、残りの呼び出しがルート解決を終える（= ルートキーのロックの

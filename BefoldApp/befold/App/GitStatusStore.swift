@@ -51,10 +51,10 @@ enum GitStatusRefreshPolicy: Sendable {
 
 /// リポジトリルート単位で `GitStatusSnapshot` をキャッシュし、全ウィンドウで共有する。
 ///
-/// 先例は `WorktreeCatalog`(@MainActor キャッシュ + `withBlockingWork` で git 実行 +
+/// 先例は `WorktreeCatalog`(@MainActor キャッシュ + `withBlockingWork` で libgit2 の status 取得 +
 /// 結果だけをメインアクターへ反映)。`GitCommandFileIndex` の `NSLock` 直列化は踏襲しない。
-/// メインアクター上でロックを握って subprocess を待つ形になり噛み合わないため。
-/// 同一ルートへの要求が重なった場合は実行中のタスクへ相乗りして git の重複起動を畳む。
+/// メインアクター上でロックを握って libgit2 の(ディスク I/O を伴う)同期呼び出しを待つ形になり噛み合わないため。
+/// 同一ルートへの要求が重なった場合は実行中のタスクへ相乗りして status 取得の重複を畳む。
 @MainActor
 @Observable
 final class GitStatusStore {
@@ -71,14 +71,14 @@ final class GitStatusStore {
     /// 実行中の取得タスク。同じ (ルート, 基準) への要求はここへ相乗りする。
     @ObservationIgnored
     private var inFlight: [Key: Task<GitStatusSnapshot?, Never>] = [:]
-    /// git 状態の取得元。テストは実 subprocess を避けるため差し替える。
+    /// git 状態の取得元。テストは実リポジトリを避けるため差し替える。
     @ObservationIgnored
     private let reader: any GitStatusReading
     /// ディレクトリが属するリポジトリの作業ツリールートを解決する。
     ///
     /// 本番では全ウィンドウ共有の `gitFileIndex` を渡す(Store が独自に `GitRepository` を
-    /// 生成して rev-parse を重ねない、というリポジトリ規約に従う)。既定は常に nil を返す
-    /// 無効化実装で、注入し忘れたテストが git を起動しないことを保証する。
+    /// 生成してルート解決を重ねない、というリポジトリ規約に従う)。既定は常に nil を返す
+    /// 無効化実装で、注入し忘れたテストが実リポジトリを開かないことを保証する。
     @ObservationIgnored
     private let resolveRepositoryRoot: @Sendable (URL) -> URL?
 

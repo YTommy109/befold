@@ -141,7 +141,7 @@ struct ViewerWindowManagerDiffTests {
     }
 
     /// AC#1(結合): 同じファイルを 2 窓で開いた状態で 1 回のファイル変更イベントが来ても、
-    /// `git diff` の起動は 1 回に合流する。窓ごとの取得元へ戻す・チケットを取得直前に取る、
+    /// 差分取得は 1 回に合流する。窓ごとの取得元へ戻す・チケットを取得直前に取る、
     /// のどちらでも窓の数だけ起動してここが落ちる(TASK-325)。
     @Test("同じファイルを 2 窓で開いても git diff は 1 回に合流する")
     func sharesOneFetchAcrossWindowsShowingTheSameFile() async throws {

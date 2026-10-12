@@ -39,7 +39,7 @@ final class ViewerWindowController: NSWindowController {
     /// 判断は diffPresenter が持ち、ここは生成時の受け渡しと共有インスタンスの照合のために保つ。
     let diffDisplayPreference: DiffDisplayPreference
     /// 差分の取得元。全ウィンドウで 1 個を共有する(生成元は ViewerWindowManager 一箇所)。
-    /// 機能が無効なビルドでは nil で、git diff を一切実行しない。
+    /// 機能が無効なビルドでは nil で、差分取得を一切行わない。
     let diffLoader: GitDiffLoader?
 
     /// 差分表示モードかどうか。実体は diffPresenter(ここは外向きの入口)。
@@ -236,13 +236,13 @@ final class ViewerWindowController: NSWindowController {
     ///   束に入れていないものの理由は `ViewerWindowDependencies` の doc を参照。
     /// - Parameter gitFileIndex: git 追跡ファイルの索引。本番では ViewerWindowManager が持つ
     ///   単一インスタンスを必ず渡し、同じリポジトリを開く複数ウィンドウで照合索引と
-    ///   `git ls-files` の実行を共有する。デフォルトは git を起動しない索引であり、
+    ///   index の列挙を共有する。デフォルトは何も読まない(リポジトリを開かない)索引であり、
     ///   パス解決に無関心なテストが省略できるようにするためのもの。実インスタンスを
     ///   デフォルトにすると、注入を書き忘れたときに共有されない別個体が静かに生まれ、
-    ///   ウィンドウごとに `git ls-files` を重複実行してしまう。
+    ///   ウィンドウごとに index の列挙を重複実行してしまう。
     /// - Parameter gitStatusStore: サイドバーの git 状態バッジの取得元。本番では AppDelegate が
     ///   生成した単一インスタンスを渡す。デフォルトはルート解決が常に nil を返す無効化状態で、
-    ///   注入を省略したテストが git を起動しないことを保証する。
+    ///   注入を省略したテストが実リポジトリを開かないことを保証する。
     /// - Parameter sidebarGit: テスト専用シーム。サイドバーの git 読み取り(基準ディレクトリ解決・
     ///   git 状態)を差し替える。既定の nil は `gitFileIndex` と `gitStatusStore` から作る本番経路。
     ///   解決を async の境界で足止めしたいテストが使う(同期の索引を塞ぐと、待ちに壁時計の

@@ -190,7 +190,7 @@ final class FileListModel {
     let transient = SidebarTransientState()
 
     /// 相対パスコピー・Quick Open の基準ディレクトリ。ヘッダーのインジケータ表示に使う。
-    /// git ルートの解決は subprocess を伴うため View の body では行わず、
+    /// git ルートの解決はリポジトリを開くディスク I/O を伴うため View の body では行わず、
     /// SidebarNavigator が一覧更新と同じ契機でメイン外から解決して書き込む。
     /// 解決前(初回表示直後)は nil でインジケータを出さない。
     var baseDirectory: BaseDirectoryDescriptor?
@@ -214,7 +214,7 @@ final class FileListModel {
     /// nil は「リポジトリを解決できていない」= git 管理外・取得失敗・機能無効・まだ届いて
     /// いない、のいずれか。**空の値と nil を区別すること**が要点で、変更が 1 つも無い
     /// リポジトリは「空の SidebarGitStatus」であって nil ではない(TASK-285)。
-    /// 取得は subprocess を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
+    /// 取得は作業ツリー走査(ディスク I/O)を伴うため SidebarNavigator が一覧更新と同じ契機でメイン外から行う。
     /// 書き込みは setGitStatus(_:) だけを通す(同値なら書かない)。
     private(set) var gitStatus: SidebarGitStatus? {
         didSet { onGitStatusChange?() }

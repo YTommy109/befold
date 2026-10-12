@@ -5,8 +5,8 @@ import BefoldTestSupport
 import Foundation
 import Testing
 
-/// ルート解決を `hold(_:)` で渡したゲートが開くまで止められる索引。`git rev-parse` の
-/// サブプロセスが遅い状況(ネットワークボリューム・応答しない git)を、実 git を起こさずに作る。
+/// ルート解決を `hold(_:)` で渡したゲートが開くまで止められる索引。ルート解決(libgit2 でリポジトリを開く処理)が
+/// 遅い状況(ネットワークボリューム等)を、実リポジトリを開かずに作る。
 /// 既定は足止めしない(提示状態の準備は構築時の解決の着地を待つため、最初から止めると進まない)。
 private final class SlowRootGitFileIndex: GitFileIndexing, @unchecked Sendable {
     private let lock = NSLock()
@@ -172,8 +172,8 @@ struct ViewerWindowControllerDiffTests {
         #expect(controller.store.diffContent == .unavailable)
     }
 
-    /// 差分表示モードでなければ git を起こさない。契機がバッジと同数へ増えたため、
-    /// 表示側で捨てるだけでは `.git` の書き込みごとに subprocess が走る。
+    /// 差分表示モードでなければ差分取得を起こさない。契機がバッジと同数へ増えたため、
+    /// 表示側で捨てるだけでは `.git` の書き込みごとに差分取得が走る。
     /// 併せて、差分表示を離れたときに取得済みの本文が捨てられることも測る(開始時の無効化)。
     @Test("差分表示モードでなければ取得しない")
     func skipsFetchWhenNotInDiffMode() async {
@@ -195,7 +195,7 @@ struct ViewerWindowControllerDiffTests {
 
     /// CSV/TSV は文書を提示していてソース表示中でも差分を描けない(viewer 側が
     /// type === "csv" で空を返す)。ここが true に戻ると、⌘D はチェックだけ付いて
-    /// 表示は変わらないまま、保存のたびに git のサブプロセスが走る(TASK-324)。
+    /// 表示は変わらないまま、保存のたびに差分取得が走る(TASK-324)。
     @Test("CSV のソース表示では差分を取得しない")
     func skipsFetchForCSVSourceView() async {
         let csv = URL(fileURLWithPath: "/mock/table.csv")
@@ -300,7 +300,7 @@ struct ViewerWindowControllerDiffTests {
         #expect(reader.callCount > 0)
     }
 
-    /// ルート解決は差分取得と同じく git のサブプロセスを起こしうるため、メインアクター上で
+    /// ルート解決は差分取得と同じく libgit2 でリポジトリを開く(ディスク I/O)ため、メインアクター上で
     /// 同期に呼ぶとコンテンツ再読込のたびに UI が止まる。ルート解決を閉じたゲートで
     /// 足止めしたまま refreshDiff が戻ることで測る。メインアクター上で解決していれば、
     /// 閉じたゲートをメインスレッドで待つことになり、ゲートが塞がずに失敗を記録する

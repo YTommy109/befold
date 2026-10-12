@@ -2,7 +2,7 @@ import Foundation
 
 /// 協調スレッドプールの外で `work` を実行し、結果を待つ。
 ///
-/// `Task.detached` は協調スレッドプールの上で走るため、subprocess の待ちや
+/// `Task.detached` は協調スレッドプールの上で走るため、libgit2 の同期呼び出し(index 列挙・作業ツリー走査)や
 /// ファイル I/O のように**同期的に長く塞ぐ**処理を置いてはならない。プールの幅は
 /// コア数で固定されており、幅ぶんの同時ブロックでプロセス全体の前進が止まる
 /// (TASK-424 / TASK-427 / TASK-516 で 3 度再発した)。
@@ -11,7 +11,7 @@ import Foundation
 /// 使えない——libdispatch の非 overcommit なワーカープールもコア数で頭打ちになるため、
 /// 塞ぐ処理を並べると同じ枯渇が起きる(実測: 並行キュー実装では全件実行で
 /// `ViewerWindowManagerRecentRepositoriesTests` の 6 テストが待機上限に達した)。
-/// スレッド生成のコスト(数十マイクロ秒)は、ここに置く処理(subprocess 起動・stat・
+/// スレッド生成のコスト(数十マイクロ秒)は、ここに置く処理(libgit2 呼び出し・stat・
 /// ファイル読み込み)のコストに対して無視できる。
 public func withBlockingWork<T: Sendable>(
     qos: DispatchQoS = .utility,

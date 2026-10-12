@@ -23,7 +23,7 @@ import Testing
 @Suite(testTimeLimit())
 @MainActor
 struct ViewerWindowManagerRecentRepositoriesTests {
-    /// 常に固定の root を返すフェイク。実 git を起動しない。
+    /// 常に固定の root を返すフェイク。実リポジトリを開かない。
     /// root 解決の呼び出し回数を数えられるようにして、「何も記録されない」ことの検証で
     /// 解決が済んだ後に判定できるようにする。
     private final class FixedRootGitFileIndex: GitFileIndexing, @unchecked Sendable {

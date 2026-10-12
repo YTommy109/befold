@@ -80,7 +80,7 @@ final class SidebarListingCoordinator {
     /// - 変更ファイルのみ: 述語が変わるだけなので再列挙しない。ON になったときだけ git 状態を
     ///   取り直す(作業ツリーの編集は index も windowDidBecomeKey も動かさないため / TASK-296)。
     ///   OFF は絞り込みをやめるだけで新しい git 状態を要さず、方向を見ずに取り直すと開いている
-    ///   ウィンドウ数だけ git status が同時に走る(TASK-303)。
+    ///   ウィンドウ数だけ status 取得(作業ツリー走査)が同時に走る(TASK-303)。
     func applyDisplayChange(_ change: SidebarDisplayChange) {
         // 並び順だけは「同じ値なら何もしない」。他の 3 つは反転なので空振りしない。
         if case let .setSortOrder(order) = change, fileListModel.display.sortOrder == order {
@@ -148,7 +148,7 @@ final class SidebarListingCoordinator {
     ///
     /// OFF のときは揃える理由が無い(絞り込まないので縮退しようがなく、git 状態はバッジに
     /// しか効かない)。それでも待つと、絞り込みを使っていない利用者までフォルダー移動・
-    /// フォーカス復帰・ソート変更のたびに git subprocess の完了を待たされるため、一覧は
+    /// フォーカス復帰・ソート変更のたびに git 状態の取得(libgit2 の作業ツリー走査)の完了を待たされるため、一覧は
     /// 列挙が終わり次第反映し、git 状態は単発取得と同じ番号のガードで遅れて反映する(TASK-297)。
     /// - Parameters:
     ///   - directory: 列挙対象のディレクトリ。
