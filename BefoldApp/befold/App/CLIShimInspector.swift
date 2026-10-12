@@ -1,4 +1,4 @@
-import BefoldCLI
+import BefoldKit
 import Foundation
 
 /// `/usr/local/bin/befold` の設置状態。

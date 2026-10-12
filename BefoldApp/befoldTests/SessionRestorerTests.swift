@@ -1,6 +1,6 @@
 import AppKit
 @testable import befold
-@testable import BefoldCLI
+import BefoldKit
 import Foundation
 import Testing
 

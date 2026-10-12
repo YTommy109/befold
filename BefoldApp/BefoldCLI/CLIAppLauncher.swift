@@ -1,4 +1,5 @@
 import AppKit
+import BefoldKit
 import Foundation
 
 /// GUI アプリ本体(befold.app)をプロセスとして起動する処理を抽象化する。テストで

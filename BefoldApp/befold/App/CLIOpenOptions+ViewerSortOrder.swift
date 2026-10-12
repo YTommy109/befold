@@ -1,4 +1,4 @@
-import BefoldCLI
+import BefoldKit
 import Foundation
 
 /// CLI 層の `CLIOpenOptions` を Viewer 層の型へ変換する境界アダプタ。

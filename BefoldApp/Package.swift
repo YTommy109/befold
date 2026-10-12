@@ -30,9 +30,9 @@ let package = Package(
                 "BefoldKit",
                 "BefoldPDFProbe",
                 // コマンド定義(BefoldCLICommand / OpenCLIOptions)がここにあるため、
-                // ArgumentParser も framework 側の依存になる。実行ファイルを薄い入口に
-                // 保つ代償で、この依存は本体アプリ(BefoldCLI に依存する)にも乗る。
-                // QuickLook 拡張は BefoldCLI に依存しないため appex には入らない。
+                // ArgumentParser は framework 側の依存になる。本体アプリ(befold)と
+                // QuickLook 拡張は BefoldCLI に依存しないので、ArgumentParser は載らない
+                // (本体と共有する型は BefoldKit にある。TASK-698)。
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "BefoldCLI",
@@ -94,7 +94,6 @@ let package = Package(
             dependencies: [
                 "BefoldKit",
                 "BefoldPDFProbe",
-                "BefoldCLI",
                 "BefoldRenderKit",
                 // git 連携は本体アプリだけが使う。QuickLook 拡張(appex)と CLI へは
                 // 依存を入れない(appex に libgit2 がコンパイルされない構造にしておく)。

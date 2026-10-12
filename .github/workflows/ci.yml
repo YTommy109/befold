@@ -10,6 +10,7 @@ on:
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
       - 'scripts/check-befoldkit-platform-free.sh'
+      - 'scripts/check-app-no-cli-dependency.sh'
       - 'scripts/worktree-reset.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
@@ -24,6 +25,7 @@ on:
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
       - 'scripts/check-befoldkit-platform-free.sh'
+      - 'scripts/check-app-no-cli-dependency.sh'
       - 'scripts/worktree-reset.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
@@ -98,7 +100,7 @@ jobs:
             exit 0
           fi
           files=$(printf '%s' "$compare" | jq -r '.files[]?.filename')
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-befoldkit-platform-free\.sh|worktree-reset\.sh)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -134,6 +136,12 @@ jobs:
         run: |
           scripts/check-befoldkit-platform-free.sh --self-test
           scripts/check-befoldkit-platform-free.sh
+
+      # 本体が BefoldCLI / ArgumentParser を抱えない依存方向の固定(TASK-698)。
+      - name: 本体が BefoldCLI に依存していないことを検査する
+        run: |
+          scripts/check-app-no-cli-dependency.sh --self-test
+          scripts/check-app-no-cli-dependency.sh
 
       # 完了判定が誤って「未マージ」と止めたり、未プッシュコミットを見逃して切り直したり
       # しないこと(TASK-670)。判定が壊れた状態でグリーンになるのを防ぐ。

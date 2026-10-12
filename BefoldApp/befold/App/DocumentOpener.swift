@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import BefoldKit
 
 /// URL をビューアウィンドウで開く唯一の入口。

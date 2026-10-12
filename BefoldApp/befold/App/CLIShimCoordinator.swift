@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import BefoldKit
 
 /// `/usr/local/bin/befold`(CLI シム)の状態チェックと設置、およびその結果案内。

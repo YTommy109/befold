@@ -1,5 +1,4 @@
 import AppKit
-import BefoldCLI
 import BefoldKit
 
 /// ビューアウィンドウを開く経路。新規ウィンドウの生成と、既に開いているウィンドウの

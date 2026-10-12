@@ -89,7 +89,7 @@ ArgumentParser 依存の Flag を、`cliOpenOptions` プロパティで Argument
 
 ## ワイヤプロトコル
 
-要求型 `CLIRequest`（`BefoldCLI/CLIRequest.swift`）:
+要求型 `CLIRequest`（`BefoldKit/CLIRequest.swift`）:
 
 ```swift
 enum CLIRequest: Equatable, Codable, Sendable {
@@ -102,7 +102,7 @@ enum CLIRequest: Equatable, Codable, Sendable {
 `sourceMode` / `showSidebar`、全 Optional な Codable struct）の Codable 適合が
 ワイヤ表現の唯一の情報源。
 
-シリアライズ層 `CLIRequestWire`（`BefoldCLI/CLIRequestWire.swift`）:
+シリアライズ層 `CLIRequestWire`（`BefoldKit/CLIRequestWire.swift`）:
 
 - 通知名: `requestNotificationName = "dev.befold.cli.openRequest"`、
   `ackNotificationName = "dev.befold.cli.openRequestAck"`
@@ -156,7 +156,7 @@ symlink 判定・`FileType`・サイズ・拒否理由を `CLICommandResult` で
 
 ## CLIInstaller が設置する shim
 
-`CLIInstaller`（`BefoldCLI/CLIInstaller.swift`）。shim の実体は**スクリプトでは
+`CLIInstaller`（`befold/App/CLIInstaller.swift`）。shim の実体は**スクリプトでは
 なく symlink**。`defaultInstallPath = /usr/local/bin/befold` を、
 `<bundlePath>/Contents/MacOS/befold-cli` への symlink として設置する。
 

@@ -1,5 +1,5 @@
 import AppKit
-import BefoldCLI
+import BefoldKit
 
 /// CLI 由来の表示オプションを、既に開いているウィンドウ 1 つへ適用する規則。
 ///

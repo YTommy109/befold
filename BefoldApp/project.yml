@@ -26,7 +26,7 @@ settings:
     # CFBundleVersion / CFBundleShortVersionString はアプリ本体と一致している必要があり
     # (不一致だと ValidateEmbeddedBinary が警告し、公証で弾かれる)、
     # ターゲットごとに書くとドリフトする。scripts/bump.sh もこの 1 行を書き換える。
-    # BefoldCLI/AppVersion.swift の `AppVersion.current` と値を一致させる
+    # BefoldKit/AppVersion.swift の `AppVersion.current` と値を一致させる
     # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
     MARKETING_VERSION: "1.23.0"
     CURRENT_PROJECT_VERSION: "1771"
@@ -100,6 +100,7 @@ targets:
       - target: BefoldPDFProbe
       # コマンド定義（BefoldCLICommand / OpenCLIOptions）がこの framework にあるため、
       # ArgumentParser もここの依存になる（Package.swift 側と揃える / TASK-456）。
+      # 本体(befold)はこの framework に依存しない(共有型は BefoldKit / TASK-698)。
       - package: swift-argument-parser
         product: ArgumentParser
     settings:
@@ -171,7 +172,6 @@ targets:
       # ここで同梱が外れると QuickLook 拡張が dyld で静かに起動しなくなる。
       - target: BefoldPDFProbe
       - target: BefoldRenderKit
-      - target: BefoldCLI
       # CLI 実行ファイルを Contents/MacOS へ同梱する。CLIInstaller が設置する
       # /usr/local/bin/befold の symlink 先がここになる (CLIInstaller.targetExecutablePath)。
       # link: false — アプリ本体にリンクするのではなく、成果物として持ち運ぶだけ。
@@ -229,6 +229,9 @@ targets:
       - target: befold
       - target: BefoldKit
       - target: BefoldPDFProbe
+      # CLICheckCommand と GUI の DirectoryLister の判定一致を測るテストが両方を触るため、
+      # テストだけが BefoldCLI に依存する(本体 befold は依存しない / TASK-698)。
+      - target: BefoldCLI
       - target: BefoldRenderKit
       - target: BefoldTestSupport
     settings:

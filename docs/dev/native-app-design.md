@@ -55,6 +55,19 @@ BefoldQuickLook.appex (QuickLook 拡張)
 同一プロセス内の伝搬で反映する（詳細は
 [ビューア描画データフロー](./viewer-rendering-dataflow.md#監視--store--webview--js-の一気通貫)）。
 
+### 本体は `BefoldCLI` / ArgumentParser に依存しない
+
+依存は `befold-cli → BefoldCLI → BefoldKit` の一方向で、本体（`befold`）と
+`BefoldRenderKit` は `BefoldCLI` も ArgumentParser も import しない。本体と CLI が
+共有する型（`CLIOpenOptions` / `CLISortOrderOption` / `CLIRequest` / `CLIRequestWire` /
+`AppBundle` / `AppVersion`）は `BefoldKit` に置く。ArgumentParser への適合
+（`CLISortOrderOption` の `ExpressibleByArgument`）は `BefoldCLI` 側の extension に残す。
+`CLIInstaller` は `NSAppleScript` を使う本体メニューの実体なので本体側にある。
+
+破れないよう `scripts/check-app-no-cli-dependency.sh` が、`befold` と `BefoldRenderKit` の
+import、`BefoldApp/Package.swift` の `befold` ターゲット、`BefoldApp/project.yml` の
+`befold` ブロックを検査する（pre-commit と CI の両方）。
+
 ### `BefoldKit` はプラットフォーム非依存に保つ
 
 `BefoldKit` は本体アプリ・QuickLook 拡張・CLI の 3 つが共有するコアロジック層で、

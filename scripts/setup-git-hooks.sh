@@ -43,6 +43,8 @@ install_hook post-checkout scripts/worktree-init.sh
 # 塞ぐと、全スイート pass でも «unknown» issue で run が落ちる。TASK-516）。
 # check-befoldkit-platform-free.sh は BefoldKit（コアロジック層）の import を許可一覧で
 # 固定する（AppKit などが 1 つ入るたびに外すコストが上がるため。TASK-594）。
+# check-app-no-cli-dependency.sh は本体(befold)と BefoldRenderKit が BefoldCLI /
+# ArgumentParser に依存しないことを固定する（共有型は BefoldKit に置く。TASK-698）。
 # oxc-lint.sh は JS/TS の Oxlint と Oxfmt を見る（CI と同じチェック。lint も整形も
 # その場で機械的に直せるので、警告ではなく落とす側にしてある）。
 # warn-type-group-growth.sh は型グループ（Foo.swift + Foo+*.swift の合算）の肥大化を見る。
@@ -52,5 +54,5 @@ install_hook pre-commit scripts/block-main-commits.sh scripts/swiftformat-lint.s
   scripts/oxc-lint.sh scripts/check-doc-symbols.sh scripts/check-doc-citations.sh \
   scripts/check-task-id-uniqueness.sh \
   scripts/check-analytics-query-guard.sh scripts/check-no-detached-blocking.sh \
-  scripts/check-befoldkit-platform-free.sh \
+  scripts/check-befoldkit-platform-free.sh scripts/check-app-no-cli-dependency.sh \
   scripts/warn-type-group-growth.sh
