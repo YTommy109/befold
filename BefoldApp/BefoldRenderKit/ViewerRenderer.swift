@@ -181,6 +181,21 @@ public final class ViewerRenderer {
         )
     }
 
+    /// 配達済みの行指定の通し番号。同じ要求を再配達しない(`reveal(_:)`)。
+    private var deliveredRevealID: Int?
+
+    /// 行指定(CLI の `--line`)を JS へ一度だけ渡す。`updateNSView` のたびに呼ばれるので、
+    /// 通し番号で配達済みを弾く。描画との前後は問わない: JS 側が文書パスつきで保留し、
+    /// 表示できる状態になった時点で満たす。
+    public func reveal(_ request: LineRevealRequest?) {
+        guard let request, request.serial != deliveredRevealID else { return }
+        deliveredRevealID = request.serial
+        guard let script = ViewerBridge.revealLineScript(request) else { return }
+        runWhenReady { [weak self] in
+            self?.surface?.evaluateScript(script) { _ in }
+        }
+    }
+
     /// viewer.html の準備ができていれば即実行し、まだなら準備完了まで保留する。
     func runWhenReady(_ work: @escaping () -> Void) {
         readiness.run(work)

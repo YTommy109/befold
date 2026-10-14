@@ -13,7 +13,7 @@ import Testing
 struct BefoldCLIOptionValidationTests {
     /// パスを要する表示フラグの実引数。表の 1 行が 1 フラグに対応する。
     private nonisolated static let documentScopedFlags: [[String]] = [
-        ["--source"], ["--preview"], ["--diff"], ["--diff", "--compare", "head"], ["--new-window"],
+        ["--source"], ["--preview"], ["--diff"], ["--diff", "--compare", "head"], ["--new-window"], ["--line", "5"],
         ["--line-numbers"], ["--no-line-numbers"],
         ["--sidebar"], ["--no-sidebar"],
         ["--sort", "alphabetical"],
@@ -67,6 +67,24 @@ struct BefoldCLIOptionValidationTests {
         }
     }
 
+    /// `--line` は 1 つの文書の 1 行を指すので、複数パス・行に当たる要素が無い表示・0 以下は弾く。
+    @Test("--line の不正な組み合わせはエラーになり、表示モード未指定ならソース表示になる")
+    func lineValidation() throws {
+        for arguments in [
+            ["--line", "0", "a.md"], ["--line", "-1", "a.md"], ["--line", "3", "a.md", "b.md"],
+            ["--line", "3", "--preview", "a.md"], ["--line", "3", "--diff", "a.md"],
+        ] {
+            #expect(throws: (any Error).self) { _ = try BefoldCLICommand.parseAsRoot(arguments) }
+        }
+        let implied = try #require(try BefoldCLICommand.parseAsRoot(["--line", "42", "a.md"]) as? BefoldCLICommand)
+        #expect(implied.options.line == 42)
+        #expect(implied.options.displayMode == .source)
+        let explicit = try #require(
+            try BefoldCLICommand.parseAsRoot(["--source", "--line", "7", "a.md"]) as? BefoldCLICommand
+        )
+        #expect(explicit.options == CLIOpenOptions(displayMode: .source, line: 7))
+    }
+
     /// `--compare` の扱いは「--diff 必須」と決めた(単独指定は黙って捨てず、意図の取り違えを知らせる)。
     @Test("--compare は --diff と一緒でなければエラーになる")
     func compareRequiresDiff() throws {
@@ -110,6 +128,7 @@ struct BefoldCLIOptionValidationTests {
         #expect(CLIOpenOptions(displayMode: .rendered).requiresPaths)
         #expect(CLIOpenOptions(comparisonTarget: .head).requiresPaths)
         #expect(CLIOpenOptions(opensInNewWindow: true).requiresPaths)
+        #expect(CLIOpenOptions(line: 3).requiresPaths)
         #expect(CLIOpenOptions(showSidebar: false).requiresPaths)
     }
 
@@ -127,6 +146,7 @@ struct BefoldCLIOptionValidationTests {
             "displayMode",
             "comparisonTarget",
             "showSidebar",
+            "line",
             "opensInNewWindow",
         ])
     }

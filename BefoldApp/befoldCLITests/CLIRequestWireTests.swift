@@ -146,6 +146,17 @@ struct CLIRequestWireTests {
         #expect(CLIRequestWire.decode(userInfo: info) == request)
     }
 
+    @Test("line は往復でき、旧 JSON(キー無し)では nil になる")
+    func lineRoundTripsAndIsBackwardCompatible() throws {
+        let request = CLIRequest.open(paths: ["/a.md"], options: CLIOpenOptions(displayMode: .source, line: 120))
+        let info = try #require(CLIRequestWire.userInfo(for: request, requestID: "id"))
+        #expect(CLIRequestWire.decode(userInfo: info) == request)
+
+        let legacy = #"{"open":{"paths":["/a.md"],"options":{"displayMode":"source"}}}"#
+        #expect(CLIRequestWire.decode(userInfo: ["request": legacy, "requestID": "id"])
+            == .open(paths: ["/a.md"], options: CLIOpenOptions(displayMode: .source)))
+    }
+
     @Test("送信側は旧キー sourceMode を出力しない")
     func encodingNeverEmitsLegacySourceMode() throws {
         let data = try JSONEncoder().encode(CLIOpenOptions(displayMode: .source))

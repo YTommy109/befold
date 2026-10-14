@@ -30,6 +30,8 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
     public var displayMode: CLIDisplayModeOption?
     public var comparisonTarget: CLIComparisonTargetOption?
     public var showSidebar: Bool?
+    /// 開いた直後に表示する行(1 始まり。`--line`)。ソース表示でのみ意味を持つ。
+    public var line: Int?
     /// 既存の窓を再利用せず新規ウィンドウで開く(`--new-window`)。表示設定ではなく開き方の指定。
     /// 非 Optional なのは「指定なし」と「false」を区別する意味が無いため。旧 CLI の JSON には
     /// キーが無いので、デコードは `decodeIfPresent ?? false`。
@@ -42,6 +44,7 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
         displayMode: CLIDisplayModeOption? = nil,
         comparisonTarget: CLIComparisonTargetOption? = nil,
         showSidebar: Bool? = nil,
+        line: Int? = nil,
         opensInNewWindow: Bool = false
     ) {
         self.showHiddenFiles = showHiddenFiles
@@ -50,6 +53,7 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
         self.displayMode = displayMode
         self.comparisonTarget = comparisonTarget
         self.showSidebar = showSidebar
+        self.line = line
         self.opensInNewWindow = opensInNewWindow
     }
 
@@ -64,11 +68,12 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
     /// 「そもそも GUI へ転送するか」の別判定であり、この述語とは目的が違う。
     public var requiresPaths: Bool {
         sortOrder != nil || showLineNumbers != nil || displayMode != nil
-            || comparisonTarget != nil || showSidebar != nil || opensInNewWindow
+            || comparisonTarget != nil || showSidebar != nil || line != nil || opensInNewWindow
     }
 
     private enum CodingKeys: String, CodingKey {
-        case showHiddenFiles, sortOrder, showLineNumbers, displayMode, comparisonTarget, showSidebar, opensInNewWindow
+        case showHiddenFiles, sortOrder, showLineNumbers, displayMode, comparisonTarget, showSidebar, line,
+             opensInNewWindow
         /// 旧 CLI が送っていた `--source`(true)/`--preview`(false)。読み取り専用で、送信はしない。
         case legacySourceMode = "sourceMode"
     }
@@ -83,6 +88,7 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
         showLineNumbers = try container.decodeIfPresent(Bool.self, forKey: .showLineNumbers)
         comparisonTarget = try container.decodeIfPresent(CLIComparisonTargetOption.self, forKey: .comparisonTarget)
         showSidebar = try container.decodeIfPresent(Bool.self, forKey: .showSidebar)
+        line = try container.decodeIfPresent(Int.self, forKey: .line)
         opensInNewWindow = try container.decodeIfPresent(Bool.self, forKey: .opensInNewWindow) ?? false
         let legacy = try container.decodeIfPresent(Bool.self, forKey: .legacySourceMode)
         displayMode = try container.decodeIfPresent(CLIDisplayModeOption.self, forKey: .displayMode)
@@ -97,6 +103,7 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
         try container.encodeIfPresent(displayMode, forKey: .displayMode)
         try container.encodeIfPresent(comparisonTarget, forKey: .comparisonTarget)
         try container.encodeIfPresent(showSidebar, forKey: .showSidebar)
+        try container.encodeIfPresent(line, forKey: .line)
         if opensInNewWindow { try container.encode(true, forKey: .opensInNewWindow) }
     }
 }

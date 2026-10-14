@@ -109,7 +109,8 @@ befold --help                  # list available options
 Display options can be passed alongside the paths: `--line-numbers` / `--no-line-numbers`,
 `--sidebar` / `--no-sidebar`, `--source` / `--preview` / `--diff`,
 `--sort folders-first|alphabetical`, and `--new-window` (don't reuse an already open window).
-`--diff` opens the git diff view; add `--compare parent-branch|default-branch|head` to pick
+`--line N` opens the file in source view scrolled to line N (one path only; lines past the end
+land on the last line). `--diff` opens the git diff view; add `--compare parent-branch|default-branch|head` to pick
 what it compares against (`--compare` requires `--diff`). They apply to the files being opened (if a file is
 already open, its window is updated). Only `--hidden-files` / `--no-hidden-files` is an
 app-wide setting and can be used without a path. To open a path starting with a hyphen, put

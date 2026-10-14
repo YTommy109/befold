@@ -271,3 +271,44 @@ struct ViewerRendererMessageHandlingTests {
         #expect(!names.contains(ViewerBridgeMessage.referenceActivated.rawValue))
     }
 }
+
+/// 行指定(CLI の `--line`)の配達が一度きりであることの担保(TASK-701)。
+/// `updateNSView` は再描画のたびに呼ばれるので、通し番号で弾かないと
+/// 無関係な更新のたびに行へ戻される。
+@Suite
+struct LineRevealDeliveryTests {
+    @Test("同じ要求は一度だけ配達し、通し番号が進めば同じ行でも再配達する")
+    @MainActor
+    func revealIsDeliveredOncePerRequestID() {
+        let renderer = ViewerRenderer()
+        let surface = ViewerRendererMessageStubs.Surface()
+        renderer.surface = surface
+        renderer.navigationCoordinator.surfaceDidFinishLoad()
+        let first = LineRevealRequest(serial: 1, path: "/a.swift", line: 9)
+
+        renderer.reveal(first)
+        renderer.reveal(first)
+        renderer.reveal(nil)
+
+        #expect(surface.evaluatedScripts.count(where: { $0.hasPrefix("_mmdRevealLine") }) == 1)
+
+        renderer.reveal(LineRevealRequest(serial: 2, path: "/a.swift", line: 9))
+
+        #expect(surface.evaluatedScripts.count(where: { $0.hasPrefix("_mmdRevealLine") }) == 2)
+    }
+
+    @Test("viewer.html の準備前に届いた要求は準備完了後に配達される")
+    @MainActor
+    func revealWaitsForReadiness() {
+        let renderer = ViewerRenderer()
+        let surface = ViewerRendererMessageStubs.Surface()
+        renderer.surface = surface
+
+        renderer.reveal(LineRevealRequest(serial: 1, path: "/a.swift", line: 3))
+        #expect(surface.evaluatedScripts.isEmpty)
+
+        renderer.navigationCoordinator.surfaceDidFinishLoad()
+
+        #expect(surface.evaluatedScripts.contains { $0.hasPrefix("_mmdRevealLine") })
+    }
+}

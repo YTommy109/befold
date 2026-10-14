@@ -81,7 +81,7 @@ struct ViewerWindowControllerFixture {
             initialSortOrder: initialSortOrder,
             initialListing: initialListing,
             showLineNumbersOverride: showLineNumbersOverride,
-            displayModeOverride: displayModeOverride,
+            cliOverrides: CLIDisplayOverrides(mode: displayModeOverride),
             store: store,
             makeContentView: placeholderViewerContent,
             documentRenderer: documentRenderer,

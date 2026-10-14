@@ -32,10 +32,33 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 `--check` / `--bookmark` いずれも無ければ `run()` が
 `CLIAppLauncher.launch(paths:options:)` を呼ぶ。
 
+### 行を指定して開く（`--line`）
+
+`--line <n>` は 1 つの文書の n 行目（1 始まり）をソース表示の先頭へ出す。
+
+- **構文は `--line` のみ**。`path:LINE` は採らない: `:` を含むファイル名との曖昧さを
+  CLI が実 FS を見て解く必要があり、得られるのは入力の短縮だけのため。
+  Markdown の見出しアンカー指定も採らない（行番号で足り、レンダリング表示に
+  行と DOM の対応が無い）。
+- 検証（`validate()`）: 1 以上、パスはちょうど 1 つ、`--preview` / `--diff` と併用不可。
+  表示モード未指定なら `OpenCLIOptions.cliOpenOptions` が `.source` にする
+  （ワイヤには明示した `displayMode` が載る）。
+- 本体側: `ViewerDocumentPresenter.applyCLIDisplay` が `ViewerStore.revealLineRequest`
+  （`LineRevealRequest`。通し番号つき）を置き、`ViewerWebView.updateNSView` →
+  `ViewerRenderer.reveal` が通し番号で一度だけ JS（`_mmdRevealLine`）へ渡す。
+  配達は描画との前後を問わない: JS（`viewer-src/reveal-line.ts`）が文書パスつきで保留し、
+  描画・追記・読み込み状態の変化のたびに満たせるか試す。
+- 段階読み込み（1 チャンク ≒ 1000 行）の先にある行は、続きの読み込みを依頼して到着を待つ。
+  **Swift は「末尾に達した」通知（`_mmdSetTruncated(false)`）を最後のチャンクの追記より先に送る**
+  ため、依頼中の非切り詰め通知では確定せず、追記の後に判断する（実機で 2000 行目止まりに
+  なった実例）。非切り詰め時の行数は Swift が 0 に正規化するので、行数は判断に使えない。
+- 末尾を超える行・読み込み失敗は読めた範囲の末尾へ寄せる。画像・PDF など行を出せない
+  種別では要求を捨てる。
+
 ### 表示オプションはパスを要する
 
 `--source` / `--preview` / `--diff`、`--compare`、`--line-numbers` / `--no-line-numbers`、
-`--sidebar` / `--no-sidebar`、`--sort`、`--new-window` は「その文書をどう表示するか」の指定なので、
+`--sidebar` / `--no-sidebar`、`--sort`、`--line`、`--new-window` は「その文書をどう表示するか」の指定なので、
 対象が無ければ適用先が無い。`BefoldCLICommand.validate()` が
 `CLIOpenOptions.requiresPaths` を見て、次の 2 つをパース段階でエラーにする。
 
@@ -101,7 +124,7 @@ enum CLIRequest: Equatable, Codable, Sendable {
 ```
 
 `CLIOpenOptions`（`showHiddenFiles` / `sortOrder` / `showLineNumbers` /
-`displayMode` / `comparisonTarget` / `showSidebar` と、非 Optional の `opensInNewWindow`）の
+`displayMode` / `comparisonTarget` / `showSidebar` / `line` と、非 Optional の `opensInNewWindow`）の
 Codable 適合がワイヤ表現の唯一の情報源。
 
 - 表示モードは `displayMode`（`rendered` / `source` / `diff`）。旧 CLI が送る

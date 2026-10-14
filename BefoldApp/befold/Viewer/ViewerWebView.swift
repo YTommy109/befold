@@ -53,6 +53,8 @@ struct ViewerWebView: NSViewRepresentable {
     let csvNegativeStyle: CsvNegativeStyle
     /// render() 呼び出し前に JS へ注入するスクロール復元位置。
     let scrollPositionToRestore: Double
+    /// 開いた直後に表示する行(CLI の `--line`)。配達の一度きり化は `ViewerRenderer.reveal` が持つ。
+    let revealLineRequest: LineRevealRequest?
     /// JS 側の出来事(倍率・スクロール位置・リンク・パス解決・続きを読み込む)の通知先。
     /// SwiftUI View はウィンドウ階層越しに通知先へ強参照を持つと循環するため weak で運ぶ。
     let rendererDelegate: WeakRendererDelegate
@@ -105,6 +107,7 @@ struct ViewerWebView: NSViewRepresentable {
         renderer.headingJumpLevelRecording = headingJump.recording
         renderer.initialPageZoom = initialZoom
         renderer.scrollPositionToRestore = scrollPositionToRestore
+        renderer.reveal(revealLineRequest)
         renderer.rendererFeatures = rendererFeatures
         renderer.diffState = diffState
         // 設定の反映(倍率・フォント・検索オプション)は隠れていても通す。止めると

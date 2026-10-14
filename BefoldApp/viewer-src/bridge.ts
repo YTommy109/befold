@@ -61,6 +61,16 @@ function isHostFeatureEnabled(
   return hostFeatures[key] !== false;
 }
 
+// 段階読み込みの続きを Swift に依頼する。依頼できたかを返す。
+// 多層防御: ボタン非表示だけでは XSS からの直接呼び出しを防げないため、
+// ここでも hostFeatures を見て抑止する(Swift 側もハンドラ未登録)。
+function _mmdRequestMoreLines(): boolean {
+  if (!isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')) {
+    return false;
+  }
+  return _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
+}
+
 export {
   _MSG_ZOOM_CHANGED,
   _MSG_REFERENCE_ACTIVATED,
@@ -70,5 +80,6 @@ export {
   _MSG_LOAD_MORE_LINES,
   _MSG_RESOLVE_REFERENCES,
   _mmdPostMessage,
+  _mmdRequestMoreLines,
   isHostFeatureEnabled,
 };

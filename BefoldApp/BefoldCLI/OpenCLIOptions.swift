@@ -130,6 +130,12 @@ public struct OpenCLIOptions: ParsableArguments {
     )
     var comparisonTarget: CLIComparisonTargetOption?
 
+    @Option(
+        name: .customLong("line"),
+        help: "Scroll to the given line (1-based) in source view. Implies --source; takes exactly one path."
+    )
+    var line: Int?
+
     @Flag(name: .customLong("new-window"), help: "Open in a new window instead of reusing an existing one.")
     var newWindow = false
 
@@ -142,9 +148,11 @@ public struct OpenCLIOptions: ParsableArguments {
             showHiddenFiles: hiddenFiles.map { $0 == .hiddenFiles },
             sortOrder: sortOrder,
             showLineNumbers: lineNumbers.map { $0 == .lineNumbers },
-            displayMode: displayMode.map(\.option),
+            // --line は行番号のあるソース表示でしか意味を持たないので、表示モード未指定ならソースにする。
+            displayMode: displayMode.map(\.option) ?? (line == nil ? nil : .source),
             comparisonTarget: comparisonTarget,
             showSidebar: sidebar.map { $0 == .sidebar },
+            line: line,
             opensInNewWindow: newWindow
         )
     }

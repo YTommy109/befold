@@ -108,6 +108,7 @@ befold --help                  # 利用可能なオプションを表示
 開き方の表示オプションも指定できます（`--line-numbers` / `--no-line-numbers`、
 `--sidebar` / `--no-sidebar`、`--source` / `--preview` / `--diff`、
 `--sort folders-first|alphabetical`、`--new-window`（開いているウィンドウを再利用せず新しいウィンドウで開く）。
+`--line N` はソース表示で N 行目へスクロールした状態で開きます（パスは 1 つだけ。末尾を超える行は最終行になります）。
 `--diff` は git 差分表示で開き、`--compare parent-branch|default-branch|head` で比較基準を選べます
 （`--compare` は `--diff` とセットでのみ指定できます）。これらは開くファイルに対する指定なので、
 パスと一緒に渡してください（既に開いているファイルを指定した場合は、そのウィンドウへ反映されます）。

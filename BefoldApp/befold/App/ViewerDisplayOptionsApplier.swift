@@ -23,9 +23,7 @@ enum ViewerDisplayOptionsApplier {
         if let showLineNumbers = options.showLineNumbers {
             controller.store.lineNumbersSetting.applyOverride(showLineNumbers)
         }
-        controller.applyCLIDisplay(
-            mode: options.viewerDisplayMode, comparisonTarget: options.viewerComparisonTarget
-        )
+        controller.applyCLIDisplay(CLIDisplayOverrides(options))
         // 並び順は「指定があったときだけ」触る。viewerSortOrder は未指定でも既定値を
         // 返すため、指定の有無は sortOrder の nil 判定で見る。
         // ここはこの起動限りの窓単位の上書きなので、保存された既定値

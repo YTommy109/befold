@@ -236,9 +236,18 @@ final class ViewerDocumentPresenter {
     /// その種別で成立しないモードは降格規則へ通す。降格を挟まないと、ソース表示を持たない
     /// 画像・PDF に `--source` を渡したときだけ規則の外側に出る。
     /// 比較基準を先に決めるのは、`--diff` の差分取得が最初から指定の基準を読むようにするため。
-    func applyCLIDisplay(mode: ViewerDisplayMode?, comparisonTarget: GitComparisonTarget?) {
-        if let comparisonTarget { setComparisonTarget(comparisonTarget) }
-        if let mode { applyDisplayMode(mode.supported(for: currentDocument.url)) }
+    ///
+    /// 行の指定(`--line`)は要求として store に置くだけで、スクロールは描画面側が満たす。
+    /// モードを降格した結果ソース表示にならない種別(画像・PDF)では JS が要求を捨てる。
+    func applyCLIDisplay(_ overrides: CLIDisplayOverrides) {
+        if let target = overrides.comparisonTarget { setComparisonTarget(target) }
+        if let mode = overrides.mode { applyDisplayMode(mode.supported(for: currentDocument.url)) }
+        if let line = overrides.line {
+            store.revealLineRequest = LineRevealRequest(
+                serial: (store.revealLineRequest?.serial ?? 0) + 1,
+                path: currentDocument.url.normalizedPathKey, line: line
+            )
+        }
     }
 
     /// 記憶済みのソース表示モードを復元する（記憶は書き換えない）。

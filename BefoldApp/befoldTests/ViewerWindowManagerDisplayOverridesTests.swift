@@ -129,6 +129,34 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(opened.store.comparisonTarget == .head)
     }
 
+    @Test("--line は新規・既存のどちらでも行指定の要求を置き、指定のたびに通し番号が進む")
+    func lineRequestIsRecordedWithIncreasingID() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsLine")
+        defer { fixture.closeAll() }
+        let options = CLIOpenOptions(displayMode: .source, line: 12)
+
+        let opened = try #require(fixture.manager.openViewer(for: file, options: options))
+        let first = try #require(opened.store.revealLineRequest)
+        #expect(first.line == 12)
+        #expect(first.path == file.normalizedPathKey)
+
+        // 同じ行を続けて指定しても、通し番号が進むので再配達される。
+        fixture.manager.openViewer(for: file, options: options)
+        let second = try #require(opened.store.revealLineRequest)
+        #expect(second.line == 12)
+        #expect(second.serial == first.serial + 1)
+    }
+
+    @Test("行指定が無ければ要求は置かれない")
+    func noLineMeansNoRequest() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsNoLine")
+        defer { fixture.closeAll() }
+
+        let opened = try #require(fixture.manager.openViewer(for: file, options: CLIOpenOptions(displayMode: .source)))
+
+        #expect(opened.store.revealLineRequest == nil)
+    }
+
     @Test("--diff だけなら比較基準は窓の現在値を保つ")
     func diffWithoutCompareKeepsComparisonTarget() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsDiffKeepsTarget")
