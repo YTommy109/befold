@@ -28,6 +28,7 @@ import {
   _renderSource,
   _renderSvg,
 } from './renderers.js';
+import { _mmdLineReveal } from './reveal-line.js';
 import { _mmdRestoreScrollPosition, _mmdScrollTarget } from './scroll.js';
 import { hljs } from './vendor.js';
 import { _mmdModeSwitch, _mmdViewOptions } from './view-options.js';
@@ -172,6 +173,8 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   _mmdFindRefreshAfterRender();
   _mmdApplyZoom();
   _mmdRestoreScrollPosition(fallbackScrollTop);
+  // 復元位置より後に行う: 行の指定は復元位置より優先される。
+  _mmdLineReveal.afterRender();
 }
 
 // 直近の内容をそのまま描き直す(カラースキーム変更などの内部再描画)。
@@ -368,6 +371,7 @@ function appendChunk(text: string, type: string, lang?: string): void {
   // 生成した未分類の参照だけが対象になるため、ここ 1 箇所で全分岐をまかなえる。
   _mmdResolveReferences();
   _mmdFindRefreshAfterRender();
+  _mmdLineReveal.afterAppend();
 }
 
 export { renderShape, render, appendChunk, _mmdRerenderCurrent, _mmdInitCsvNumberFormat };

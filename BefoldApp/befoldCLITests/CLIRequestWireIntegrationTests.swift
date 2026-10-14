@@ -22,7 +22,7 @@ struct CLIRequestWireIntegrationTests {
     func openRequestSurvivesDistributedNotification() async throws {
         let options = CLIOpenOptions(
             showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: false,
-            sourceMode: true, showSidebar: false
+            displayMode: .source, showSidebar: false
         )
         let request = CLIRequest.open(paths: ["/tmp/a.mmd", "/tmp/b.md"], options: options)
         let wireUserInfo = try #require(

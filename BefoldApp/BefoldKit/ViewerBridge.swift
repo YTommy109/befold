@@ -175,6 +175,14 @@ public enum ViewerBridge {
         "\(global) = \(jsonLiteral(value) ?? fallback);"
     }
 
+    /// 指定行をソース表示の先頭へ出す要求を JS 側へ渡すスクリプト。JS 側は文書パスつきで保留し、
+    /// 描画・追記・読み込み状態の変化のたびに満たせるか試す(reveal-line.ts)。
+    /// 行は 1 以上に丸める(0 や負の値は先頭行として扱う)。
+    public static func revealLineScript(_ request: LineRevealRequest) -> String? {
+        guard let path = jsonLiteral(request.path) else { return nil }
+        return "_mmdRevealLine(\(path), \(max(request.line, 1)))"
+    }
+
     /// render() 呼び出しの直前に評価し、次に復元すべきスクロール位置(scrollTop)を
     /// JS 側へ注入するスクリプト。viewer.html 側は _mmdSetRestoreScroll() が受け取った
     /// 値を保持し、続く render() の末尾でその位置を復元する。

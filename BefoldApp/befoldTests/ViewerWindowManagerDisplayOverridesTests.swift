@@ -24,7 +24,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
     /// befoldCLITests の optionFieldsAreEnumeratedExhaustively が落ちるので、
     /// ここへ足し忘れたまま気付かない形にはならない。
     private var allOptions: CLIOpenOptions {
-        CLIOpenOptions(sortOrder: .alphabetical, showLineNumbers: true, sourceMode: true, showSidebar: true)
+        CLIOpenOptions(sortOrder: .alphabetical, showLineNumbers: true, displayMode: .source, showSidebar: true)
     }
 
     @Test("既に開いているファイルを指定すると、そのウィンドウへ表示オプションが適用される")
@@ -91,7 +91,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
         #expect(controller.documentPresenter.presentationMemory.displayMode(for: file) == .rendered)
 
-        fixture.manager.openViewer(for: file, options: CLIOpenOptions(sourceMode: true))
+        fixture.manager.openViewer(for: file, options: CLIOpenOptions(displayMode: .source))
 
         #expect(controller.documentPresenter.presentationMemory.displayMode(for: file) == .rendered)
     }
@@ -110,6 +110,78 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
     }
 
+    @Test("--diff / --compare は新規ウィンドウにも既存ウィンドウにも同じ結果で適用される")
+    func diffModeAndComparisonTargetAreApplied() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsDiff")
+        defer { fixture.closeAll() }
+        let options = CLIOpenOptions(displayMode: .diff, comparisonTarget: .head)
+
+        let opened = try #require(fixture.manager.openViewer(for: file, options: options))
+        #expect(opened.store.displayMode == .diff)
+        #expect(opened.store.comparisonTarget == .head)
+
+        // 既存ウィンドウは別の状態から出発させ、適用で追随することを確かめる。
+        opened.documentPresenter.setComparisonTarget(.defaultBranch)
+        opened.documentPresenter.applyDisplayMode(.rendered)
+        fixture.manager.openViewer(for: file, options: options)
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 1)
+        #expect(opened.store.displayMode == .diff)
+        #expect(opened.store.comparisonTarget == .head)
+    }
+
+    @Test("--line は新規・既存のどちらでも行指定の要求を置き、指定のたびに通し番号が進む")
+    func lineRequestIsRecordedWithIncreasingID() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsLine")
+        defer { fixture.closeAll() }
+        let options = CLIOpenOptions(displayMode: .source, line: 12)
+
+        let opened = try #require(fixture.manager.openViewer(for: file, options: options))
+        let first = try #require(opened.store.revealLineRequest)
+        #expect(first.line == 12)
+        #expect(first.path == file.normalizedPathKey)
+
+        // 同じ行を続けて指定しても、通し番号が進むので再配達される。
+        fixture.manager.openViewer(for: file, options: options)
+        let second = try #require(opened.store.revealLineRequest)
+        #expect(second.line == 12)
+        #expect(second.serial == first.serial + 1)
+    }
+
+    @Test("行指定が無ければ要求は置かれない")
+    func noLineMeansNoRequest() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsNoLine")
+        defer { fixture.closeAll() }
+
+        let opened = try #require(fixture.manager.openViewer(for: file, options: CLIOpenOptions(displayMode: .source)))
+
+        #expect(opened.store.revealLineRequest == nil)
+    }
+
+    @Test("--diff だけなら比較基準は窓の現在値を保つ")
+    func diffWithoutCompareKeepsComparisonTarget() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsDiffKeepsTarget")
+        defer { fixture.closeAll() }
+        let opened = try #require(fixture.manager.openViewer(for: file))
+        opened.documentPresenter.setComparisonTarget(.defaultBranch)
+
+        fixture.manager.openViewer(for: file, options: CLIOpenOptions(displayMode: .diff))
+
+        #expect(opened.store.comparisonTarget == .defaultBranch)
+    }
+
+    @Test("--new-window は同じファイルが開いていても新しいウィンドウを作る")
+    func newWindowDispositionDoesNotReuseWindow() {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsNewWindow")
+        defer { fixture.closeAll() }
+        let options = CLIOpenOptions(opensInNewWindow: true)
+        fixture.manager.openViewer(for: file)
+
+        fixture.manager.openViewer(for: file, options: options, disposition: options.openDisposition)
+
+        #expect(fixture.manager.controllers[file.normalizedPathKey]?.count == 2)
+        #expect(CLIOpenOptions().openDisposition == .currentTab)
+    }
+
     /// 降格規則は ViewerDisplayMode.supported(for:) の 1 箇所（ADR 0002）。
     /// ソース表示を持たない種別へ --source を渡しても、その規則を通って .rendered に落ちる。
     @Test("ソース表示を持たない種別への --source は新規・既存のどちらの経路でも降格する")
@@ -117,11 +189,11 @@ struct ViewerWindowManagerDisplayOverridesTests {
         let fixture = MockedViewerWindowManager(files: [imageFile], prefix: "OptionsDemotion")
         defer { fixture.closeAll() }
 
-        fixture.manager.openViewer(for: imageFile, options: CLIOpenOptions(sourceMode: true))
+        fixture.manager.openViewer(for: imageFile, options: CLIOpenOptions(displayMode: .source))
         let controller = try #require(fixture.manager.controllers[imageFile.normalizedPathKey]?.first)
         #expect(!controller.isSourceMode)
 
-        fixture.manager.openViewer(for: imageFile, options: CLIOpenOptions(sourceMode: true))
+        fixture.manager.openViewer(for: imageFile, options: CLIOpenOptions(displayMode: .source))
 
         #expect(!controller.isSourceMode)
     }

@@ -131,7 +131,7 @@ extension ViewerWindowManager {
             initialListing: seed.listing,
             initialExpansion: seed.expansion,
             showLineNumbersOverride: options.showLineNumbers,
-            sourceModeOverride: options.sourceMode,
+            cliOverrides: CLIDisplayOverrides(options),
             store: makeStore?(url),
             makeContentView: makeContentView,
             openFileElsewhere: { [weak self] fileURL, disposition, placement, sourceWindow in

@@ -160,8 +160,8 @@ export const FAQ: FaqItem[] = [
   {
     question: { ja: 'ターミナルから開けますか？', en: 'Can I open files from the terminal?' },
     answer: {
-      ja: 'できます。同梱の befold コマンドに複数のパスを渡すとまとめて開きます。--sidebar / --source / --line-numbers で開いた直後の表示も指定できます。',
-      en: 'Yes. Pass one or more paths to the bundled befold command to open them all at once, and use --sidebar, --source or --line-numbers to choose how they open.',
+      ja: 'できます。同梱の befold コマンドに複数のパスを渡すとまとめて開きます。--sidebar / --source / --diff / --line-numbers で開いた直後の表示、--new-window で新しいウィンドウでの表示も指定できます。',
+      en: 'Yes. Pass one or more paths to the bundled befold command to open them all at once, and use --sidebar, --source, --diff or --line-numbers to choose how they open, and --new-window to open in a new window.',
     },
   },
 ]

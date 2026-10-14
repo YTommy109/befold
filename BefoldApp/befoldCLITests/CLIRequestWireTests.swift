@@ -20,7 +20,7 @@ struct CLIRequestWireTests {
     func roundTripsOpenRequestWithAllOptions() {
         let options = CLIOpenOptions(
             showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: false,
-            sourceMode: true, showSidebar: false
+            displayMode: .source, showSidebar: false
         )
         let request = CLIRequest.open(paths: ["/tmp/a.mmd", "/tmp/b.md"], options: options)
 
@@ -103,9 +103,67 @@ struct CLIRequestWireTests {
 
         let options = CLIOpenOptions(
             showHiddenFiles: true, sortOrder: .foldersFirst, showLineNumbers: false,
-            sourceMode: true, showSidebar: false
+            displayMode: .source, showSidebar: false
         )
         #expect(decoded == .open(paths: ["/tmp/a.mmd"], options: options))
+    }
+
+    /// 旧 CLI の --source/--preview は sourceMode: Bool で届く。displayMode へ読み替えないと
+    /// アップデート直後の旧 CLI のフラグが黙って捨てられる(TASK-700)。
+    @Test(
+        "旧 CLI の sourceMode は displayMode へ読み替えられる",
+        arguments: [(true, CLIDisplayModeOption.source), (false, .rendered)]
+    )
+    func decodesLegacySourceModeAsDisplayMode(legacy: Bool, expected: CLIDisplayModeOption) {
+        let json = #"{"open":{"paths":["/tmp/a.md"],"options":{"sourceMode":\#(legacy)}}}"#
+
+        let decoded = CLIRequestWire.decode(userInfo: ["request": json, "requestID": "id"])
+
+        #expect(decoded == .open(paths: ["/tmp/a.md"], options: CLIOpenOptions(displayMode: expected)))
+    }
+
+    @Test("sourceMode と displayMode が両方あれば displayMode が勝ち、diff も運べる")
+    func displayModeWinsOverLegacySourceMode() {
+        let json = """
+        {"open":{"paths":["/a.md"],"options":{"sourceMode":false,\
+        "displayMode":"diff","comparisonTarget":"head"}}}
+        """
+
+        let decoded = CLIRequestWire.decode(userInfo: ["request": json, "requestID": "id"])
+
+        let options = CLIOpenOptions(displayMode: .diff, comparisonTarget: .head)
+        #expect(decoded == .open(paths: ["/a.md"], options: options))
+    }
+
+    @Test("opensInNewWindow は旧 JSON(キー無し)で false、送ると往復できる")
+    func opensInNewWindowIsBackwardCompatible() throws {
+        let legacy = #"{"open":{"paths":["/a.md"],"options":{}}}"#
+        #expect(CLIRequestWire.decode(userInfo: ["request": legacy, "requestID": "id"])
+            == .open(paths: ["/a.md"], options: CLIOpenOptions()))
+
+        let request = CLIRequest.open(paths: ["/a.md"], options: CLIOpenOptions(opensInNewWindow: true))
+        let info = try #require(CLIRequestWire.userInfo(for: request, requestID: "id"))
+        #expect(CLIRequestWire.decode(userInfo: info) == request)
+    }
+
+    @Test("line は往復でき、旧 JSON(キー無し)では nil になる")
+    func lineRoundTripsAndIsBackwardCompatible() throws {
+        let request = CLIRequest.open(paths: ["/a.md"], options: CLIOpenOptions(displayMode: .source, line: 120))
+        let info = try #require(CLIRequestWire.userInfo(for: request, requestID: "id"))
+        #expect(CLIRequestWire.decode(userInfo: info) == request)
+
+        let legacy = #"{"open":{"paths":["/a.md"],"options":{"displayMode":"source"}}}"#
+        #expect(CLIRequestWire.decode(userInfo: ["request": legacy, "requestID": "id"])
+            == .open(paths: ["/a.md"], options: CLIOpenOptions(displayMode: .source)))
+    }
+
+    @Test("送信側は旧キー sourceMode を出力しない")
+    func encodingNeverEmitsLegacySourceMode() throws {
+        let data = try JSONEncoder().encode(CLIOpenOptions(displayMode: .source))
+        let json = try #require(String(data: data, encoding: .utf8))
+
+        #expect(!json.contains("sourceMode"))
+        #expect(json.contains(#""displayMode":"source""#))
     }
 
     @Test("旧形式の固定 JSON でオプションの各フィールドを省略すると nil になる")

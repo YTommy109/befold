@@ -46,24 +46,46 @@ struct BefoldCLICommand: AsyncParsableCommand {
         }
         // 表示オプションは開く文書に対する指定なので、適用先が無い呼び出しでは黙って
         // 捨てずにここで弾く(--check/--bookmark はウィンドウを開かないため適用先が無い)。
+        if options.comparisonTarget != nil, options.displayMode != .diff {
+            throw ValidationError("--compare requires --diff.")
+        }
+        try validateLine()
         guard options.requiresPaths else { return }
         if paths.isEmpty {
             throw ValidationError(Self.displayOptionsRequirePathMessage)
         }
         if check || bookmark {
             throw ValidationError(
-                "Display options (--source/--preview, --line-numbers/--no-line-numbers, "
-                    + "--sidebar/--no-sidebar, --sort) cannot be combined with --check/--bookmark, "
-                    + "which don't open a window."
+                "Display options (--source/--preview/--diff, --compare, --line-numbers/--no-line-numbers, "
+                    + "--sidebar/--no-sidebar, --sort, --line, --new-window) cannot be combined "
+                    + "with --check/--bookmark, which don't open a window."
             )
+        }
+    }
+
+    /// `--line` は 1 つの文書の 1 行を指す。複数パスでは対象が曖昧になり、ソース表示以外
+    /// (--preview / --diff)では行に当たる要素が無いので、黙って捨てずに弾く。
+    /// 表示モード未指定は `OpenCLIOptions.cliOpenOptions` が `.source` にするため、ここで見る
+    /// `displayMode` は利用者が明示した値と `--line` 由来の `.source` のどちらか。
+    private func validateLine() throws {
+        guard let line = options.line else { return }
+        if line < 1 {
+            throw ValidationError("--line must be 1 or greater.")
+        }
+        if let mode = options.displayMode, mode != .source {
+            throw ValidationError("--line applies to source view and cannot be combined with --preview/--diff.")
+        }
+        if paths.count > 1 {
+            throw ValidationError("--line takes exactly one path.")
         }
     }
 
     /// パス無しで表示オプションだけを渡したときの案内。対象フラグを列挙して、
     /// アプリ全体設定の `--hidden-files` は対象外であることまで伝える。
     static let displayOptionsRequirePathMessage = """
-    Display options (--source/--preview, --line-numbers/--no-line-numbers, \
-    --sidebar/--no-sidebar, --sort) apply to the file being opened, so at least one path is required. \
+    Display options (--source/--preview/--diff, --compare, --line-numbers/--no-line-numbers, \
+    --sidebar/--no-sidebar, --sort, --line, --new-window) apply to the file being opened, \
+    so at least one path is required. \
     Use --hidden-files/--no-hidden-files to change the app-wide setting without opening a file.
     """
 

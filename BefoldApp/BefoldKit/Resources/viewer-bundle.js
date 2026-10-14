@@ -14186,6 +14186,7 @@
     _mmdJump: () => _mmdJump,
     _mmdJumpNextIfOpen: () => _mmdJumpNextIfOpen,
     _mmdJumpPrevIfOpen: () => _mmdJumpPrevIfOpen,
+    _mmdLineReveal: () => _mmdLineReveal,
     _mmdLoadMore: () => _mmdLoadMore,
     _mmdMermaidConfig: () => _mmdMermaidConfig,
     _mmdMermaidParseError: () => _mmdMermaidParseError,
@@ -14195,9 +14196,11 @@
     _mmdPostMessage: () => _mmdPostMessage,
     _mmdReinitializeMermaidIfLoaded: () => _mmdReinitializeMermaidIfLoaded,
     _mmdRenameDocPath: () => _mmdRenameDocPath,
+    _mmdRequestMoreLines: () => _mmdRequestMoreLines,
     _mmdRerenderCurrent: () => _mmdRerenderCurrent,
     _mmdResolveReferences: () => _mmdResolveReferences,
     _mmdRestoreScrollPosition: () => _mmdRestoreScrollPosition,
+    _mmdRevealLine: () => _mmdRevealLine,
     _mmdRunMermaid: () => _mmdRunMermaid,
     _mmdScroll: () => _mmdScroll,
     _mmdScrollTarget: () => _mmdScrollTarget,
@@ -14402,6 +14405,12 @@
       return true;
     }
     return hostFeatures[key] !== false;
+  }
+  function _mmdRequestMoreLines() {
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
+      return false;
+    }
+    return _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
   }
 
   // viewer-src/bar-controls.ts
@@ -16679,6 +16688,93 @@
     var el = _mmdScrollTarget();
     if (!el) return;
     el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
+  }
+
+  // viewer-src/reveal-line.ts
+  function sourceTable() {
+    var shape = _mmdDocument.shape();
+    if (shape !== "code" && shape !== "csv-source") {
+      return null;
+    }
+    return document.querySelector("#diagram-wrap pre code table.code-table");
+  }
+  function _createLineReveal() {
+    var pending = null;
+    var moreRequested = false;
+    var truncated = false;
+    var loadFailed = false;
+    function scrollToRow(table2, line) {
+      var row = table2.rows[Math.min(line, table2.rows.length) - 1];
+      if (row) {
+        row.scrollIntoView({ block: "start" });
+      }
+      pending = null;
+    }
+    function attempt(afterRender) {
+      if (!pending) {
+        return;
+      }
+      var current = _mmdDocPath.current();
+      if (current === null) {
+        return;
+      }
+      if (current !== pending.path) {
+        if (afterRender) {
+          pending = null;
+        }
+        return;
+      }
+      var table2 = sourceTable();
+      if (!table2) {
+        if (afterRender) {
+          pending = null;
+        }
+        return;
+      }
+      if (pending.line <= table2.rows.length || loadFailed) {
+        scrollToRow(table2, pending.line);
+        return;
+      }
+      if (!truncated) {
+        if (!moreRequested) {
+          scrollToRow(table2, pending.line);
+        }
+        return;
+      }
+      if (!moreRequested) {
+        moreRequested = true;
+        if (!_mmdRequestMoreLines()) {
+          scrollToRow(table2, pending.line);
+        }
+      }
+    }
+    return {
+      request: function(path2, line) {
+        pending = { path: path2, line };
+        moreRequested = false;
+        attempt(false);
+      },
+      afterRender: function() {
+        if (moreRequested) {
+          pending = null;
+        }
+        moreRequested = false;
+        attempt(true);
+      },
+      afterAppend: function() {
+        moreRequested = false;
+        attempt(false);
+      },
+      truncationChanged: function(isTruncated, failed) {
+        truncated = isTruncated;
+        loadFailed = failed;
+        attempt(false);
+      }
+    };
+  }
+  var _mmdLineReveal = _createLineReveal();
+  function _mmdRevealLine(path2, line) {
+    _mmdLineReveal.request(path2, line);
   }
 
   // viewer-src/jump-function-provider.ts
@@ -24942,6 +25038,7 @@
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
     _mmdRestoreScrollPosition(fallbackScrollTop);
+    _mmdLineReveal.afterRender();
   }
   function _mmdRerenderCurrent() {
     var content = _mmdDocument.content();
@@ -25057,12 +25154,14 @@
     _mmdChunkTail.record(text3);
     _mmdResolveReferences();
     _mmdFindRefreshAfterRender();
+    _mmdLineReveal.afterAppend();
   }
 
   // viewer-src/truncation.ts
   function _mmdSetTruncated(isTruncated, lineCount, failed) {
     _mmdFind.setTruncated(isTruncated);
     _mmdJump.setTruncated(isTruncated);
+    _mmdLineReveal.truncationChanged(isTruncated, failed);
     var banner = document.getElementById("mmd-truncated-banner");
     if (!isTruncated) {
       banner.style.display = "none";
@@ -25092,10 +25191,7 @@
     }
   }
   function _mmdLoadMore() {
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, "loadMore")) {
-      return;
-    }
-    _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
+    _mmdRequestMoreLines();
   }
   function _mmdInitLoadMore() {
     document.getElementById("mmd-load-more-btn").addEventListener("click", function(e) {

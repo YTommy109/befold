@@ -131,6 +131,7 @@ struct DocumentSurfaceStack: View {
                     csvGrouping: csvGrouping,
                     csvNegativeStyle: csvNegativeStyle,
                     scrollPositionToRestore: store.scrollPositionToRestore,
+                    revealLineRequest: store.revealLineRequest,
                     rendererDelegate: rendererDelegate,
                     findOptionsPreference: findOptionsPreference,
                     headingJump: headingJump,

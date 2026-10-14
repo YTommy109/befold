@@ -80,6 +80,14 @@ struct ViewerBridgeTests {
         #expect(ViewerBridge.restoreScrollPositionScript(position) == "_mmdSetRestoreScroll(0.0)")
     }
 
+    @Test("revealLineScript は文書パスを JSON エスケープして埋め込み、0 以下の行は 1 に丸める")
+    func revealLineScriptEmbedsPathAndClampsLine() {
+        let request = LineRevealRequest(serial: 1, path: "/mock/a \"b\".md", line: 42)
+        #expect(ViewerBridge.revealLineScript(request) == #"_mmdRevealLine("\/mock\/a \"b\".md", 42)"#)
+        let zero = LineRevealRequest(serial: 2, path: "/a.md", line: 0)
+        #expect(ViewerBridge.revealLineScript(zero) == #"_mmdRevealLine("\/a.md", 1)"#)
+    }
+
     @Test("renderDocPathScript がパスを JSON エスケープして埋め込み、nil は null を予告する")
     func renderDocPathScriptEmbedsEscapedPath() {
         // 実在しないパス(/mock)は resolvingSymlinksInPath が書き換えないため出力が安定する

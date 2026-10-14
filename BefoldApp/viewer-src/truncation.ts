@@ -1,8 +1,9 @@
 // 段階読み込み中のバナー表示と「続きを読み込む」の要求。
 
-import { _MSG_LOAD_MORE_LINES, _mmdPostMessage, isHostFeatureEnabled } from './bridge.js';
+import { _mmdRequestMoreLines, isHostFeatureEnabled } from './bridge.js';
 import { _mmdFind } from './find.js';
 import { _mmdJump } from './jump.js';
+import { _mmdLineReveal } from './reveal-line.js';
 
 // 段階読み込み中(ファイルの一部だけを表示している間)のバナー表示を切り替える。
 // failed が true の場合、チャンク読込エラーで打ち切られたことを示す。正常な
@@ -19,6 +20,7 @@ function _mmdSetTruncated(
 ): void {
   _mmdFind.setTruncated(isTruncated);
   _mmdJump.setTruncated(isTruncated);
+  _mmdLineReveal.truncationChanged(isTruncated, failed);
   var banner = document.getElementById('mmd-truncated-banner')!;
   if (!isTruncated) {
     banner.style.display = 'none';
@@ -51,12 +53,8 @@ function _mmdSetTruncated(
 }
 
 function _mmdLoadMore() {
-  // 多層防御: ボタン非表示(_mmdSetTruncated 参照)だけでは XSS からの直接呼び出しを
-  // 防げないため、ここでも hostFeatures を見て抑止する(Swift 側もハンドラ未登録)。
-  if (!isHostFeatureEnabled(window._mmdHostFeatures, 'loadMore')) {
-    return;
-  }
-  _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
+  // 多層防御(hostFeatures の確認)は _mmdRequestMoreLines が持つ。
+  _mmdRequestMoreLines();
 }
 
 // CSP のため onclick ではなく addEventListener で配線する。

@@ -23,6 +23,7 @@ export * from './csv-number-format.js';
 export * from './csv-html.js';
 export * from './zoom.js';
 export * from './scroll.js';
+export * from './reveal-line.js';
 export * from './jump.js';
 export * from './jump-providers.js';
 export * from './keyboard.js';

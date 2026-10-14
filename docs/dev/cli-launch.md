@@ -12,10 +12,12 @@ CLI は 2 つのターゲットに分かれる。
 
 | ターゲット | 位置 | 役割 |
 |---|---|---|
-| `befold-cli`（実行ファイル） | `BefoldApp/befold-cli/` | 送信側の関心（宛先探索・起動・再送・ACK 待ち）。ArgumentParser にも依存 |
-| `BefoldCLI`（ライブラリ） | `BefoldApp/BefoldCLI/` | 送受信で共有するワイヤ表現・要求型・各サブコマンドのロジック。受信側 GUI もこちらをリンク |
+| `befold-cli`（実行ファイル） | `BefoldApp/befold-cli/` | `BefoldCLIEntryPoint.run()` を呼ぶだけの薄い入口 |
+| `BefoldCLI`（ライブラリ） | `BefoldApp/BefoldCLI/` | コマンド定義（ArgumentParser）と送信側の関心すべて（宛先探索・起動・再送・ACK 待ち・`--check` / `--bookmark`）。本体 GUI はリンクしない |
 
-本体 GUI の受信は `BefoldApp/befold/App/AppDelegate.swift`。
+ワイヤ表現（`CLIRequest` / `CLIOpenOptions` / `CLIRequestWire`）は `BefoldKit` にあり、
+送信側（`BefoldCLI`）と受信側（本体）の両方が参照する。本体 GUI の受信は
+`BefoldApp/befold/App/AppCLIRequestReceiver.swift`。
 
 **チャネルは Distributed Notification のみ**。XPC も URL scheme も argv 転送も
 使っていない。
@@ -30,10 +32,33 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 `--check` / `--bookmark` いずれも無ければ `run()` が
 `CLIAppLauncher.launch(paths:options:)` を呼ぶ。
 
+### 行を指定して開く（`--line`）
+
+`--line <n>` は 1 つの文書の n 行目（1 始まり）をソース表示の先頭へ出す。
+
+- **構文は `--line` のみ**。`path:LINE` は採らない: `:` を含むファイル名との曖昧さを
+  CLI が実 FS を見て解く必要があり、得られるのは入力の短縮だけのため。
+  Markdown の見出しアンカー指定も採らない（行番号で足り、レンダリング表示に
+  行と DOM の対応が無い）。
+- 検証（`validate()`）: 1 以上、パスはちょうど 1 つ、`--preview` / `--diff` と併用不可。
+  表示モード未指定なら `OpenCLIOptions.cliOpenOptions` が `.source` にする
+  （ワイヤには明示した `displayMode` が載る）。
+- 本体側: `ViewerDocumentPresenter.applyCLIDisplay` が `ViewerStore.revealLineRequest`
+  （`LineRevealRequest`。通し番号つき）を置き、`ViewerWebView.updateNSView` →
+  `ViewerRenderer.reveal` が通し番号で一度だけ JS（`_mmdRevealLine`）へ渡す。
+  配達は描画との前後を問わない: JS（`viewer-src/reveal-line.ts`）が文書パスつきで保留し、
+  描画・追記・読み込み状態の変化のたびに満たせるか試す。
+- 段階読み込み（1 チャンク ≒ 1000 行）の先にある行は、続きの読み込みを依頼して到着を待つ。
+  **Swift は「末尾に達した」通知（`_mmdSetTruncated(false)`）を最後のチャンクの追記より先に送る**
+  ため、依頼中の非切り詰め通知では確定せず、追記の後に判断する（実機で 2000 行目止まりに
+  なった実例）。非切り詰め時の行数は Swift が 0 に正規化するので、行数は判断に使えない。
+- 末尾を超える行・読み込み失敗は読めた範囲の末尾へ寄せる。画像・PDF など行を出せない
+  種別では要求を捨てる。
+
 ### 表示オプションはパスを要する
 
-`--source` / `--preview`、`--line-numbers` / `--no-line-numbers`、
-`--sidebar` / `--no-sidebar`、`--sort` は「その文書をどう表示するか」の指定なので、
+`--source` / `--preview` / `--diff`、`--compare`、`--line-numbers` / `--no-line-numbers`、
+`--sidebar` / `--no-sidebar`、`--sort`、`--line`、`--new-window` は「その文書をどう表示するか」の指定なので、
 対象が無ければ適用先が無い。`BefoldCLICommand.validate()` が
 `CLIOpenOptions.requiresPaths` を見て、次の 2 つをパース段階でエラーにする。
 
@@ -80,7 +105,7 @@ flowchart TD
   G2 -- "あり" --> G4["ポーリングで<br/>起動待ち"]
   G4 --> I
   I --> J["Distributed Notification<br/>dev.befold.cli.openRequest"]
-  J --> K["AppDelegate.handleCLIOpenRequest<br/>→ openPaths → NSApp.activate()"]
+  J --> K["AppCLIRequestReceiver.handleRequest<br/>→ openPaths → NSApp.activate()"]
 ```
 
 引数変換の境界は `OpenCLIOptions`（`BefoldCLI/OpenCLIOptions.swift`）。
@@ -99,8 +124,21 @@ enum CLIRequest: Equatable, Codable, Sendable {
 ```
 
 `CLIOpenOptions`（`showHiddenFiles` / `sortOrder` / `showLineNumbers` /
-`sourceMode` / `showSidebar`、全 Optional な Codable struct）の Codable 適合が
-ワイヤ表現の唯一の情報源。
+`displayMode` / `comparisonTarget` / `showSidebar` / `line` と、非 Optional の `opensInNewWindow`）の
+Codable 適合がワイヤ表現の唯一の情報源。
+
+- 表示モードは `displayMode`（`rendered` / `source` / `diff`）。旧 CLI が送る
+  `sourceMode: Bool` はデコード時に `displayMode` へ読み替える（`true` → `source`、
+  `false` → `rendered`。両方あれば `displayMode` が勝つ）。送信側は旧キーを出力しない。
+  逆に旧本体は `displayMode` を知らないため、`--diff` は旧本体では無視される
+  （アップデート途中の一時的な組み合わせに限られるので許容している）。
+- `opensInNewWindow` は旧 JSON にキーが無いので `decodeIfPresent ?? false`。
+  受信側は `CLIOpenOptions.openDisposition` で `OpenDisposition.newWindow` に写し、
+  `ViewerWindowOpenPolicy.reusableController` が既存の窓を再利用しない。
+- `--compare` は `--diff` とセットでのみ指定できる（`validate()` が弾く）。単独指定を
+  黙って捨てず、取り違えを知らせるための選択。比較基準は窓ごとのライブ値で、
+  `--diff` だけなら窓の現在値を保つ。適用は `ViewerDocumentPresenter.applyCLIDisplay` の
+  1 箇所（新規窓の init も既存窓への適用もここを通る）。
 
 シリアライズ層 `CLIRequestWire`（`BefoldKit/CLIRequestWire.swift`）:
 
@@ -137,7 +175,10 @@ enum CLIRequest: Equatable, Codable, Sendable {
 
 再送は GUI 側が requestID で重複排除するため、二重オープンにはならない。
 
-## サブコマンド
+## --check / --bookmark（フラグモード）
+
+`befold` にサブコマンドは無い。`--check` / `--bookmark` はウィンドウを開かずに
+結果だけを返すフラグで、同時指定や表示オプションとの併用は `validate()` が弾く。
 
 **`--check`**（`BefoldCLI/CLICheckCommand.swift`）: GUI を起動せず、GUI と同じ
 `SupportedFileResolver` / `ViewerLoadPipeline.load(...)` へ委譲して「開けるか」を
@@ -175,18 +216,30 @@ symlink 判定・`FileType`・サイズ・拒否理由を `CLICommandResult` で
 
 ## 受信側（本体アプリ）
 
-`AppDelegate`（`befold/App/AppDelegate.swift`）は `init` で
-`DistributedNotificationCenter` に `requestNotificationName` のオブザーバを登録
-する。`handleCLIOpenRequest(_:)` の流れ:
+`AppCLIRequestReceiver`（`befold/App/AppCLIRequestReceiver.swift`）は生成と同時に
+Distributed Notification の `requestNotificationName` を購読する。`AppDelegate` の
+`init` で eager に生成するのは、起動直後に届いた要求の ACK を取りこぼさないため。
+`handleRequest(_:)` の流れ:
 
 1. `CLIRequestWire.decode(userInfo:)` で `CLIRequest` を復元する
 2. `requestID` があれば即 `CLIRequestWire.sendAck(requestID:)`（受信のたびに ACK）
 3. `CLIRequestDeduplicator.shouldProcess(requestID:)` で requestID ごとに一度だけ
    実行する
-4. `.open(paths, options)` → `openPaths(paths, options:)` → `NSApp.activate()`。
-   `.bookmark(paths)` → `windowManager.addBookmarks(...)`（前面化しない）
+4. `.open(paths, options)` → `onOpen`（`DocumentOpener.openPaths`）→ `NSApp.activate()`。
+   `.bookmark(paths)` → `onBookmark`（前面化しない）
 
-`openPaths(_:options:)` は `showHiddenFiles` をアプリ全体設定として先に反映し、
-残りのパスを `openSequentially(_:options:)` へ渡して個別ウィンドウに開く。
-paths が空になるのは `--hidden-files` 単独のときだけで、他の表示オプションは
-対象の文書を要するため CLI のパース段階で弾かれる（下記「表示オプションはパスを要する」）。
+`DocumentOpener.openPaths(_:options:)` はパスを `openSequentially(_:options:)` へ渡して
+個別ウィンドウに開く。paths が空になるのは `--hidden-files` 単独のときだけで、
+その場合は操作対象の窓へ適用する。他の表示オプションは対象の文書を要するため CLI の
+パース段階で弾かれる（上記「表示オプションはパスを要する」）。
+
+## 終了コード
+
+| コード | 意味 |
+|---|---|
+| 0 | 成功 |
+| 1 | 失敗（`--check` / `--bookmark` で 1 つでも失敗、アプリの起動・転送に失敗） |
+| 64 | 引数エラー（`EX_USAGE`。ArgumentParser が不明なオプションや `validate()` の違反に対して返す） |
+
+64 は 2026-10-14 に `befold-cli` の実出力で測った値（`--bogus`・`--check`（パス無し）・
+`--check --bookmark x`・`--check --source x` のいずれも 64）。
