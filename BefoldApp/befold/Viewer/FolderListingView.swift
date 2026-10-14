@@ -1,3 +1,4 @@
+import AppKit
 import BefoldKit
 import SwiftUI
 
@@ -79,11 +80,16 @@ struct FolderListingView: View {
     /// 行に添える変更日・サイズ・種類(TASK-707)。一覧の描画とは切り離し、MainActor の外で
     /// 取得して届いた行から埋める。未取得の間は名前だけの行になる。
     @State private var metadata: [URL: FolderListingMetadata] = [:]
+    /// ウィンドウがキーに戻った回数。サイドバーの一覧がキー復帰で取り直されるのと同じ契機で、
+    /// 自前列挙とメタデータも取り直す(ディレクトリ監視が無いため、外部での追加・削除・更新は
+    /// この契機で拾う)。
+    @State private var keyEpoch = 0
 
     /// メタデータの取得キー。行の並びが同じでも、開いているファイルが再読込されたら取り直す。
     private struct MetadataKey: Equatable {
         let urls: [URL]
         let revision: Int
+        let keyEpoch: Int
     }
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
@@ -98,6 +104,7 @@ struct FolderListingView: View {
         let sortOrder: SortOrder
         let showHiddenFiles: Bool
         let usesOwnListing: Bool
+        let keyEpoch: Int
     }
 
     var listingKey: ListingKey {
@@ -105,7 +112,8 @@ struct FolderListingView: View {
             directory: directory,
             sortOrder: sortOrder,
             showHiddenFiles: showHiddenFiles,
-            usesOwnListing: source == .ownListing
+            usesOwnListing: source == .ownListing,
+            keyEpoch: keyEpoch
         )
     }
 
@@ -231,11 +239,15 @@ struct FolderListingView: View {
                 entries: listing.rows(), didFailEnumeration: listing.didFailEnumeration
             )
         }
-        .task(id: MetadataKey(urls: entries?.map(\.url) ?? [], revision: metadataRevision)) {
+        .task(id: MetadataKey(urls: entries?.map(\.url) ?? [], revision: metadataRevision, keyEpoch: keyEpoch)) {
             guard let urls = entries?.map(\.url) else { return }
             let loaded = await FolderListingMetadata.load(for: urls)
             guard !Task.isCancelled else { return }
             metadata = loaded
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            // 他窓がキーになったときも増えるが、取り直しが 1 回余計に走るだけで害は無い。
+            keyEpoch += 1
         }
         .id(directory)
     }

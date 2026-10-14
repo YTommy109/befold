@@ -63,3 +63,27 @@ struct FolderListingItemCountTests {
         #expect(failed != empty)
     }
 }
+
+/// 複数形の解決(en は 1 件だけ単数、ja は常に同じ形)。
+struct FolderListingPluralTests {
+    @Test("項目数の複数形がカタログに en/ja の複数形が揃っている")
+    func pluralVariationsResolve() throws {
+        // SPM のテストはカタログをコンパイルせず実行時の複数形を引けないため、カタログの形を読む
+        // (コンパイル後の stringsdict は xcodebuild の成果物で確認済み)。
+        let catalog = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("befold/Resources/Localizable.xcstrings")
+        let json = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: catalog)) as? [String: Any]
+        )
+        let strings = try #require(json["strings"] as? [String: Any])
+        let entry = try #require(strings["folderListing.itemCount %lld"] as? [String: Any])
+        let locs = try #require(entry["localizations"] as? [String: [String: Any]])
+        func categories(_ lang: String) -> Set<String> {
+            let plural = (locs[lang]?["variations"] as? [String: Any])?["plural"] as? [String: Any]
+            return Set(plural?.keys.map(\.self) ?? [])
+        }
+        #expect(categories("en") == ["one", "other"])
+        #expect(categories("ja") == ["other"])
+    }
+}
