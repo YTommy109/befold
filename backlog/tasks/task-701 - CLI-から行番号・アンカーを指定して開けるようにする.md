@@ -4,10 +4,12 @@ title: CLI から行番号・アンカーを指定して開けるようにする
 status: To Do
 assignee: []
 created_date: '2026-10-12 13:07'
+updated_date: '2026-10-14 07:42'
 labels:
   - cli
 dependencies: []
 priority: low
+type: feature
 ordinal: 890000
 ---
 

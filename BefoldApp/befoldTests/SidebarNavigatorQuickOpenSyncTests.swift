@@ -17,7 +17,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorQuickOpenSyncTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private struct Fixture {
         let navigator: SidebarNavigator
@@ -38,6 +38,7 @@ struct SidebarNavigatorQuickOpenSyncTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorQuickOpenSyncTests")
             ),

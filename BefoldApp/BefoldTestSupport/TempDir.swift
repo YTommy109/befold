@@ -7,8 +7,8 @@ public final class TempDir: Sendable {
     public let url: URL
 
     /// - Parameter base: 作成先の親ディレクトリ。省略時はシステム一時ディレクトリ。
-    ///   `navigateToFolder` はホームディレクトリ配下のみ許可するため、それをテストする
-    ///   場合はホームディレクトリ配下(例: `homeDirectoryForCurrentUser`)を渡す。
+    ///   ホーム直下には作らない(強制終了で残るため。`scripts/check-no-home-test-dirs.sh` が検査する)。
+    ///   ホーム配下の判定が要るテストは、一時ディレクトリを `home:` で注入する。
     public init(
         prefix: String = "befold-test",
         base: URL = FileManager.default.temporaryDirectory
@@ -70,10 +70,4 @@ public final class TempDir: Sendable {
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
         return (real, link)
     }
-}
-
-/// ホームディレクトリ配下に一時ディレクトリを作る。`navigateToFolder` は
-/// ホーム配下のみ許可するため、その経路を実 FS で検証する際に使う。
-public func makeHomeTempDir() throws -> TempDir {
-    try TempDir(base: FileManager.default.homeDirectoryForCurrentUser)
 }

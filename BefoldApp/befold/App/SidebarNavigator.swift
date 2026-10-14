@@ -34,6 +34,8 @@ import Foundation
 @MainActor
 final class SidebarNavigator {
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。
+    /// 上位フォルダー移動の上限。必須引数で、本番値を渡すのは ViewerWindowManagerFactory だけ(TASK-705)。
+    let home: URL
     let fileListModel: FileListModel
     /// 戻る/進む履歴の記録と適用。`tree` などと同じく注入引数にせず内部で生成する。
     private let historyController: SidebarHistoryController
@@ -86,6 +88,7 @@ final class SidebarNavigator {
 
     init(
         currentDirectory: URL, entries: [FileListEntry], selection: URL?,
+        home: URL,
         displayDefaults: any SidebarDisplayDefaultsProviding,
         overrides: SidebarDisplayOverrides = .none,
         directoryLister: @escaping (URL, SortOrder, Bool) async -> DirectoryListing
@@ -100,6 +103,7 @@ final class SidebarNavigator {
         // それで上書きし、無ければ前回保存した既定値から始める。**既定値を読むのはここ 1 回だけ。**
         // displayDefaults は保持しないため以後読み直せず、窓の内側(listing)へ渡すのは
         // 書き戻し専用の SidebarDisplayDefaultsRecording としてのみ(ADR 0002「窓の状態の規則」2)。
+        self.home = home
         let initialSettings = overrides.applied(to: displayDefaults.settings)
         let fileListModel = FileListModel(
             currentDirectory: currentDirectory,

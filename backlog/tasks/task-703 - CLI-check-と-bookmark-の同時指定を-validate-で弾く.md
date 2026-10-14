@@ -1,13 +1,15 @@
 ---
 id: TASK-703
 title: 'CLI: --check と --bookmark の同時指定を validate で弾く'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-12 13:08'
+updated_date: '2026-10-14 07:52'
 labels:
   - cli
 dependencies: []
-priority: low
+priority: medium
+type: bug
 ordinal: 892000
 ---
 
@@ -19,6 +21,12 @@ BefoldCLICommand.validate() は --check と --bookmark の同時指定を弾か�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 --check と --bookmark の同時指定が validate() でエラーになる
-- [ ] #2 BefoldCLIOptionValidationTests にケースを追加する
+- [x] #1 --check と --bookmark の同時指定が validate() でエラーになる
+- [x] #2 BefoldCLIOptionValidationTests にケースを追加する
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+validate() に check && bookmark の同時指定を弾くガードを追加し、BefoldCLIOptionValidationTests にケースを追加した。swift test --filter BefoldCLIOptionValidationTests で 8 テスト全通過。修正を戻すと新規テストだけが落ちることも確認済み。
+<!-- SECTION:FINAL_SUMMARY:END -->

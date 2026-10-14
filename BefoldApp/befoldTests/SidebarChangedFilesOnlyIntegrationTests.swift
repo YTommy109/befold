@@ -256,6 +256,7 @@ struct SidebarChangedFilesOnlyIntegrationTests {
             currentDirectory: directory,
             entries: entries,
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: entries) },
             git: SidebarGitReader(fileIndex: gitFileIndex, statusStore: store)

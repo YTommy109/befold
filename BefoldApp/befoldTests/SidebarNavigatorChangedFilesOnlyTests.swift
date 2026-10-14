@@ -9,7 +9,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorChangedFilesOnlyTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     /// 「変更ファイルのみ表示」のトグル方向 2 種。ON へ倒すときだけ git 状態を取り直し、
     /// どちらの方向でも再列挙は走らないことを同じ計測で比べる。
@@ -66,6 +66,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 listings.update { $0 += 1 }
@@ -121,6 +122,7 @@ struct SidebarNavigatorChangedFilesOnlyTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in .empty },
             git: SidebarGitReadingStub(statuses: { _, _ in

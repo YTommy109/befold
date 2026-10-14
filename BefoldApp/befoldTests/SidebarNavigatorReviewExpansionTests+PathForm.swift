@@ -11,7 +11,7 @@ extension SidebarNavigatorReviewExpansionTests {
     /// 開いたままのパス形を基準にした相対パスが絶対パスへ落ちる(TASK-651)。
     @Test("symlink 経由で開いたディレクトリの自動展開でも、配下の行は開いたままのパス形になる")
     func revealKeepsListingPathForm() async throws {
-        let tmp = try TempDir(base: Self.home)
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let real = tmp.url.appendingPathComponent("real")
         try FileManager.default.createDirectory(

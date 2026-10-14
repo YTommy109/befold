@@ -55,6 +55,14 @@ struct BefoldCLIOptionValidationTests {
         }
     }
 
+    /// 両方が実行されて終了コードの集約が曖昧になるため、同時指定は弾く。
+    @Test("--check と --bookmark の同時指定はエラーになる")
+    func checkAndBookmarkCannotBeCombined() {
+        #expect(throws: (any Error).self) {
+            _ = try BefoldCLICommand.parseAsRoot(["--check", "--bookmark", "a.md"])
+        }
+    }
+
     @Test("--check/--bookmark はアプリ全体設定のフラグとは併用できる")
     func nonOpeningModesAcceptGlobalFlags() throws {
         let command = try #require(

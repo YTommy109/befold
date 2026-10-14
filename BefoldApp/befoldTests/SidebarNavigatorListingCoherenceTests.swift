@@ -19,7 +19,7 @@ private func fileListing(_ urls: URL...) -> DirectoryListing {
 @Suite
 @MainActor
 struct SidebarNavigatorListingCoherenceTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     @Test("フォルダー移動では、一覧が反映された時点で git 状態も揃っている")
     func appliesListingAndGitStatusTogether() async {
@@ -35,6 +35,7 @@ struct SidebarNavigatorListingCoherenceTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
@@ -85,6 +86,7 @@ struct SidebarNavigatorListingCoherenceTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
@@ -143,6 +145,7 @@ struct SidebarNavigatorListingCoherenceTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)
@@ -263,6 +266,7 @@ struct SidebarNavigatorListingCoherenceTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 fileListing(changed, clean)

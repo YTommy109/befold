@@ -25,7 +25,7 @@ struct SidebarNavigatorIntegrationTests {
 
     @Test("symlink 経由の別表記パスへの切替でも同一ディレクトリと判定され再読込が発生しない")
     func switchFileViaSymlinkAncestorKeepsCurrentDirectoryRepresentation() throws {
-        let base = try makeHomeTempDir()
+        let base = try TempDir()
         defer { withExtendedLifetime(base) {} }
 
         // 実体ディレクトリ: base/actual/sub

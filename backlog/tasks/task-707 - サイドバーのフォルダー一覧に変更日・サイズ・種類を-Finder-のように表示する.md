@@ -4,11 +4,13 @@ title: プレビュー内のフォルダー一覧に変更日・サイズ・種�
 status: To Do
 assignee: []
 created_date: '2026-10-14 04:31'
-updated_date: '2026-10-14 04:33'
+updated_date: '2026-10-14 07:42'
 labels:
   - sidebar
+  - folder-list
 dependencies: []
 priority: low
+type: feature
 ordinal: 896000
 ---
 

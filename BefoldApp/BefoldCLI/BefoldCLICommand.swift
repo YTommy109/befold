@@ -41,6 +41,9 @@ struct BefoldCLICommand: AsyncParsableCommand {
         if check || bookmark, paths.isEmpty {
             throw ValidationError("At least one path is required with --check/--bookmark.")
         }
+        if check, bookmark {
+            throw ValidationError("--check and --bookmark cannot be combined.")
+        }
         // 表示オプションは開く文書に対する指定なので、適用先が無い呼び出しでは黙って
         // 捨てずにここで弾く(--check/--bookmark はウィンドウを開かないため適用先が無い)。
         guard options.requiresPaths else { return }

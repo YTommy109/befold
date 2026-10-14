@@ -13,7 +13,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorSyncAfterSwitchTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private func makeNavigator(
         currentDirectory: URL,
@@ -29,6 +29,7 @@ struct SidebarNavigatorSyncAfterSwitchTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,

@@ -59,10 +59,10 @@ struct BefoldCLICommandTests {
         #expect(!checkOnly.bookmark)
         #expect(checkOnly.paths == ["a.md"])
 
-        let both = try parseCommand(["--check", "--bookmark", "a.md", "b.md"])
-        #expect(both.check)
-        #expect(both.bookmark)
-        #expect(both.paths == ["a.md", "b.md"])
+        let bookmarkOnly = try parseCommand(["--bookmark", "a.md", "b.md"])
+        #expect(bookmarkOnly.bookmark)
+        #expect(!bookmarkOnly.check)
+        #expect(bookmarkOnly.paths == ["a.md", "b.md"])
     }
 
     @Test("--check は複数パスを対象にし、1件でも失敗すれば終了コードが非0になる")
@@ -78,35 +78,6 @@ struct BefoldCLICommandTests {
 
         let oneMissing = try parseCommand(["--check", existing.path, missing.path])
         await #expect(throws: ExitCode(1)) { try await executeIsolated(oneMissing) }
-    }
-
-    @Test("--check と --bookmark を併用すると check→bookmark の順で両方実行され、失敗が集計される")
-    @MainActor
-    func checkAndBookmarkRunInOrderAndAggregateFailure() async throws {
-        let tmp = try TempDir()
-        defer { withExtendedLifetime(tmp) {} }
-        let existing = try tmp.file(named: "ok.md", contents: "# ok")
-        let missing = tmp.url.appendingPathComponent("missing.md")
-
-        var bookmarked: [URL] = []
-        var messages: [String] = []
-        let both = try parseCommand(["--check", "--bookmark", existing.path, missing.path])
-
-        await #expect(throws: ExitCode(1)) {
-            try await both.execute(
-                addBookmark: { bookmarked.append($0); return true },
-                printResult: { messages.append($0.message) }
-            )
-        }
-
-        // 全パスの check を終えてから bookmark に移る順序を、出力の並びで確認する。
-        #expect(messages.count == 4)
-        #expect(messages[0].contains("Can open:"))
-        #expect(messages[1].contains("No such path: \(missing.path)"))
-        #expect(messages[2].contains("Bookmarked: \(existing.path)"))
-        #expect(messages[3].contains("No such path: \(missing.path)"))
-        // 存在しないパスは存在確認で弾かれ、実在する側だけが登録される。
-        #expect(bookmarked.map(\.path) == [existing.path])
     }
 
     @Test("旧サブコマンド名と同名のパスはサブコマンドと解釈されず、そのまま open 対象になる")

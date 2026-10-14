@@ -19,7 +19,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarPostSwitchSyncTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private struct Fixture {
         let base: URL
@@ -80,6 +80,7 @@ struct SidebarPostSwitchSyncTests {
             currentDirectory: currentDirectory,
             entries: listing(currentDirectory).rows(),
             selection: selection,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { url, _, _ in listing(url) },
             childrenLister: { url, _, _ in listings[url.normalizedPathKey] },

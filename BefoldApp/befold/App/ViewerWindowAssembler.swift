@@ -60,6 +60,7 @@ enum ViewerWindowAssembler {
 
     static func makeSidebarNavigator(
         fileURL: URL,
+        home: URL,
         displayDefaults: SidebarDisplayDefaults,
         overrides: SidebarDisplayOverrides,
         gitFileIndex: any GitFileIndexing,
@@ -71,6 +72,7 @@ enum ViewerWindowAssembler {
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
         SidebarNavigator(
             currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
+            home: home,
             displayDefaults: displayDefaults, overrides: overrides,
             git: sidebarGit ?? makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         )

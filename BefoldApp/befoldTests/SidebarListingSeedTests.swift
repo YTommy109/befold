@@ -15,7 +15,7 @@ import Testing
 @MainActor
 struct SidebarListingSeedTests {
     private func makeDirectory() throws -> TempDir {
-        let base = try makeHomeTempDir()
+        let base = try TempDir()
         for name in ["a.md", "b.md", "c.md", "d.md"] {
             try "# \(name)".write(
                 to: base.url.appendingPathComponent(name), atomically: true, encoding: .utf8

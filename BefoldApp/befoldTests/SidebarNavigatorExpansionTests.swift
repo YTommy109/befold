@@ -12,7 +12,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorExpansionTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private func makeNavigator(
         currentDirectory: URL,
@@ -29,6 +29,7 @@ struct SidebarNavigatorExpansionTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: rootEntries) },
             childrenLister: childrenLister,
@@ -176,6 +177,7 @@ struct SidebarNavigatorExpansionTests {
         preference.record { $0.layoutMode = .tree }
         let navigator = SidebarNavigator(
             currentDirectory: base, entries: [], selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { _, _, _ in
                 DirectoryListing(rootChildren: rootEntries.get())

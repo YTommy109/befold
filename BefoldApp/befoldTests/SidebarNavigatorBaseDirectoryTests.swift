@@ -27,6 +27,7 @@ struct SidebarNavigatorBaseDirectoryTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorBaseDirectoryTests")
             ),
