@@ -4,10 +4,12 @@ title: CLI から新規窓で開けるようにする (--new-window)
 status: To Do
 assignee: []
 created_date: '2026-10-12 13:08'
+updated_date: '2026-10-14 07:42'
 labels:
   - cli
 dependencies: []
 priority: low
+type: feature
 ordinal: 891000
 ---
 

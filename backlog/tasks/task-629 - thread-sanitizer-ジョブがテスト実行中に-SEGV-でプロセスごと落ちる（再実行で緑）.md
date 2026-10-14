@@ -4,8 +4,10 @@ title: thread-sanitizer ジョブがテスト実行中に SEGV でプロセス�
 status: To Do
 assignee: []
 created_date: '2026-09-16 02:32'
-updated_date: '2026-09-29 08:51'
-labels: []
+updated_date: '2026-10-14 07:39'
+labels:
+  - ci
+  - test-infra
 dependencies: []
 priority: medium
 type: bug

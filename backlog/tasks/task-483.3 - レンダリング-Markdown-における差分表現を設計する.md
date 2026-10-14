@@ -4,8 +4,10 @@ title: レンダリング Markdown における差分表現を設計する
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:47'
-updated_date: '2026-08-14 13:29'
-labels: []
+updated_date: '2026-10-14 07:39'
+labels:
+  - diff
+  - markdown
 milestone: m-4
 dependencies: []
 parent_task_id: TASK-483

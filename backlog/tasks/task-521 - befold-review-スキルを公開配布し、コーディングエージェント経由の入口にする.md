@@ -4,8 +4,10 @@ title: befold-review スキルを公開配布し、コーディングエージ�
 status: To Do
 assignee: []
 created_date: '2026-08-18 14:58'
-updated_date: '2026-08-21 07:53'
-labels: []
+updated_date: '2026-10-14 07:39'
+labels:
+  - marketing
+  - skill
 milestone: m-10
 dependencies: []
 priority: high

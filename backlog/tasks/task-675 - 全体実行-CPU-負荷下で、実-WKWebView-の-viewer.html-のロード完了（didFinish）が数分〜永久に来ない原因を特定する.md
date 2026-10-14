@@ -4,14 +4,18 @@ title: 全体実行 + CPU 負荷下で、実 WKWebView の viewer.html のロー
 status: To Do
 assignee: []
 created_date: '2026-10-07 00:58'
+updated_date: '2026-10-14 07:42'
 labels:
   - test
   - bug
+  - ci
+  - test-infra
 dependencies: []
 references:
   - TASK-673
   - TASK-607
 priority: low
+type: bug
 ordinal: 861000
 ---
 

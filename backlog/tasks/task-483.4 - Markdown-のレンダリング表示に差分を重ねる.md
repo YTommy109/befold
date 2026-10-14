@@ -4,8 +4,10 @@ title: Markdown のレンダリング表示に差分を重ねる
 status: To Do
 assignee: []
 created_date: '2026-08-14 12:47'
-updated_date: '2026-08-14 13:29'
-labels: []
+updated_date: '2026-10-14 07:39'
+labels:
+  - diff
+  - markdown
 milestone: m-4
 dependencies:
   - TASK-483.3

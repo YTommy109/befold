@@ -4,10 +4,13 @@ title: CLI から diff モードと比較基準を指定して開けるように
 status: To Do
 assignee: []
 created_date: '2026-10-12 13:07'
+updated_date: '2026-10-14 07:42'
 labels:
   - cli
+  - diff
 dependencies: []
 priority: medium
+type: feature
 ordinal: 889000
 ---
 

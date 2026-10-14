@@ -4,10 +4,12 @@ title: 'CLI: --check と --bookmark の同時指定を validate で弾く'
 status: To Do
 assignee: []
 created_date: '2026-10-12 13:08'
+updated_date: '2026-10-14 07:42'
 labels:
   - cli
 dependencies: []
-priority: low
+priority: medium
+type: bug
 ordinal: 892000
 ---
 

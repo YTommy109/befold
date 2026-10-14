@@ -4,10 +4,12 @@ title: テストがホームディレクトリ直下に befold-test-* を作ら�
 status: To Do
 assignee: []
 created_date: '2026-10-14 04:27'
+updated_date: '2026-10-14 07:42'
 labels:
   - test-infra
 dependencies: []
 priority: low
+type: chore
 ordinal: 894000
 ---
 

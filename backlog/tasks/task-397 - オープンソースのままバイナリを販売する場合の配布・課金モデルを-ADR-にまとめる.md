@@ -4,7 +4,10 @@ title: オープンソースのままバイナリを販売する場合の配布�
 status: To Do
 assignee: []
 created_date: '2026-08-09 13:34'
-labels: []
+updated_date: '2026-10-14 07:39'
+labels:
+  - monetization
+  - docs
 dependencies: []
 priority: low
 type: task

@@ -4,10 +4,13 @@ title: CLI 文書を実装に追随させる（cli-launch.md・README の食い�
 status: To Do
 assignee: []
 created_date: '2026-10-12 13:08'
+updated_date: '2026-10-14 07:42'
 labels:
   - cli
+  - docs
 dependencies: []
-priority: low
+priority: medium
+type: chore
 ordinal: 893000
 ---
 

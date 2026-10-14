@@ -1,10 +1,13 @@
 ---
 id: TASK-464
 title: befold Worker をカスタムドメイン befold.degino.com で公開する
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-12 12:19'
-labels: []
+updated_date: '2026-10-14 07:47'
+labels:
+  - distribution
+  - site
 dependencies: []
 priority: medium
 type: task
@@ -55,9 +58,21 @@ ordinal: 687000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 https://befold.degino.com/ で LP が、/dashboard でダッシュボードが表示される
-- [ ] #2 https://befold.degino.com/appcast.xml と /download が本番と同じ内容を返す
-- [ ] #3 degino.com の MX レコードと apex / www の GitLab Pages 配信が変更前と同一である
-- [ ] #4 既存ユーザーの自動更新経路（旧 workers.dev の appcast / dl）が引き続き動作する
-- [ ] #5 staging の扱いと workers_dev の無効化可否がサブタスクで明示的に決定され、記録されている
+- [x] #1 https://befold.degino.com/ で LP が、/dashboard でダッシュボードが表示される
+- [x] #2 https://befold.degino.com/appcast.xml と /download が本番と同じ内容を返す
+- [x] #3 degino.com の MX レコードと apex / www の GitLab Pages 配信が変更前と同一である
+- [x] #4 既存ユーザーの自動更新経路（旧 workers.dev の appcast / dl）が引き続き動作する
+- [x] #5 staging の扱いと workers_dev の無効化可否がサブタスクで明示的に決定され、記録されている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-14 に実測で確認した。AC1: befold.degino.com/ は 200、/dashboard は Cloudflare Access のログインへ 302（認証方式は ADR 0007 決定 5 で Basic から Access に変更済み。ログイン後の画面は未確認）。AC2: /appcast.xml の shasum が新旧ドメインで一致（93791dba…）、/download は双方 200。AC3: MX は aspmx 系 5 本が残り、degino.com は www へ 308、www は 200（Degino Inc.）。変更前の値が無く『同一』は断定できないため、ユーザー判断で確認済み扱いとした。AC4: workers.dev の /appcast.xml と /download は 200、/ は新ドメインへ 301。AC5: ADR 0007 決定 1（workers_dev を恒久維持）・決定 4（staging も独自ドメイン配下）と site/wrangler.toml に記録済み。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+befold.degino.com の公開は 489 以前に完了していた。2026-10-14 に curl・dig・shasum で AC1〜4 を実測し、AC5 は ADR 0007 と site/wrangler.toml で確認した。AC3 は変更前の値が無いため、現状の MX・apex・www が正常配信されていることをもって確認済みとした。
+<!-- SECTION:FINAL_SUMMARY:END -->
