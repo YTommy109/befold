@@ -13,7 +13,7 @@ import Testing
 struct BefoldCLIOptionValidationTests {
     /// パスを要する表示フラグの実引数。表の 1 行が 1 フラグに対応する。
     private nonisolated static let documentScopedFlags: [[String]] = [
-        ["--source"], ["--preview"],
+        ["--source"], ["--preview"], ["--diff"], ["--diff", "--compare", "head"], ["--new-window"],
         ["--line-numbers"], ["--no-line-numbers"],
         ["--sidebar"], ["--no-sidebar"],
         ["--sort", "alphabetical"],
@@ -50,9 +50,36 @@ struct BefoldCLIOptionValidationTests {
     /// (現状は黙って無視される)。パス無しと同じ「対象が無い」ケースとして弾く。
     @Test("開かない --check/--bookmark と表示フラグの併用はエラーになる", arguments: ["--check", "--bookmark"])
     func nonOpeningModesRejectDocumentScopedFlags(_ mode: String) {
-        #expect(throws: (any Error).self) {
-            _ = try BefoldCLICommand.parseAsRoot([mode, "--source", "a.md"])
+        for flags in Self.documentScopedFlags {
+            #expect(throws: (any Error).self) {
+                _ = try BefoldCLICommand.parseAsRoot([mode] + flags + ["a.md"])
+            }
         }
+    }
+
+    /// 表示モードは単一値の @Flag なので、組み合わせはパース段階で弾かれる(構造的排他)。
+    @Test("--source / --preview / --diff の同時指定はエラーになる")
+    func displayModeFlagsAreMutuallyExclusive() {
+        for pair in [["--source", "--diff"], ["--preview", "--diff"], ["--source", "--preview"]] {
+            #expect(throws: (any Error).self) {
+                _ = try BefoldCLICommand.parseAsRoot(pair + ["a.md"])
+            }
+        }
+    }
+
+    /// `--compare` の扱いは「--diff 必須」と決めた(単独指定は黙って捨てず、意図の取り違えを知らせる)。
+    @Test("--compare は --diff と一緒でなければエラーになる")
+    func compareRequiresDiff() throws {
+        for flags in [["--compare", "head"], ["--source", "--compare", "head"], ["--preview", "--compare", "head"]] {
+            #expect(throws: (any Error).self) {
+                _ = try BefoldCLICommand.parseAsRoot(flags + ["a.md"])
+            }
+        }
+        let command = try #require(
+            try BefoldCLICommand.parseAsRoot(["--diff", "--compare", "default-branch", "a.md"]) as? BefoldCLICommand
+        )
+        #expect(command.options.displayMode == .diff)
+        #expect(command.options.comparisonTarget == .defaultBranch)
     }
 
     /// 両方が実行されて終了コードの集約が曖昧になるため、同時指定は弾く。
@@ -80,7 +107,9 @@ struct BefoldCLIOptionValidationTests {
         #expect(!CLIOpenOptions(showHiddenFiles: true).requiresPaths)
         #expect(CLIOpenOptions(sortOrder: .alphabetical).requiresPaths)
         #expect(CLIOpenOptions(showLineNumbers: false).requiresPaths)
-        #expect(CLIOpenOptions(sourceMode: false).requiresPaths)
+        #expect(CLIOpenOptions(displayMode: .rendered).requiresPaths)
+        #expect(CLIOpenOptions(comparisonTarget: .head).requiresPaths)
+        #expect(CLIOpenOptions(opensInNewWindow: true).requiresPaths)
         #expect(CLIOpenOptions(showSidebar: false).requiresPaths)
     }
 
@@ -91,6 +120,14 @@ struct BefoldCLIOptionValidationTests {
     func optionFieldsAreEnumeratedExhaustively() {
         let labels = Set(Mirror(reflecting: CLIOpenOptions()).children.compactMap(\.label))
 
-        #expect(labels == ["showHiddenFiles", "sortOrder", "showLineNumbers", "sourceMode", "showSidebar"])
+        #expect(labels == [
+            "showHiddenFiles",
+            "sortOrder",
+            "showLineNumbers",
+            "displayMode",
+            "comparisonTarget",
+            "showSidebar",
+            "opensInNewWindow",
+        ])
     }
 }

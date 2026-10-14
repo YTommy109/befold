@@ -60,19 +60,25 @@ final class DocumentOpener {
         }
         // CLI で開いた窓は本文にフォーカスを置く（TASK-584）。サイドバーを操作して
         // 開いたわけではないので、本文に居るのが妥当。
-        openSequentially(paths.map { URL(fileURLWithPath: $0) }, options: options, focusesContent: true)
+        openSequentially(
+            paths.map { URL(fileURLWithPath: $0) }, options: options,
+            disposition: options.openDisposition, focusesContent: true
+        )
     }
 
     /// 複数の URL を、渡された順にウィンドウが出るよう逐次に開く。
     /// **複数の URL を開く入口はここ 1 本に揃える。** 1 件ずつ `openViewer(for:)` を呼ぶと
     /// 呼び出しごとに Task が張られ、解決(実 FS アクセス)の完了順でウィンドウ順序が入れ替わる。
     func openSequentially(
-        _ urls: [URL], options: CLIOpenOptions = CLIOpenOptions(), focusesContent: Bool = false
+        _ urls: [URL], options: CLIOpenOptions = CLIOpenOptions(),
+        disposition: OpenDisposition = .currentTab, focusesContent: Bool = false
     ) {
         guard !urls.isEmpty else { return }
         Task {
             await SequentialOpener.open(urls) {
-                await openViewer(for: $0, options: options, focusesContent: focusesContent)
+                await openViewer(
+                    for: $0, options: options, disposition: disposition, focusesContent: focusesContent
+                )
             }
         }
     }

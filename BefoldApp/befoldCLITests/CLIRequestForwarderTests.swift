@@ -115,7 +115,7 @@ struct CLIRequestForwarderTests {
     func forwardPostsDecodableOpenRequest() async {
         let options = CLIOpenOptions(
             showHiddenFiles: true, sortOrder: .alphabetical, showLineNumbers: false,
-            sourceMode: true, showSidebar: false
+            displayMode: .source, showSidebar: false
         )
         var posted: [String: Any] = [:]
         let acked = await CLIRequestForwarder.forward(

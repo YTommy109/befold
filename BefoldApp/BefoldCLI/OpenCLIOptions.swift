@@ -69,16 +69,17 @@ enum SidebarVisibilityFlag: EnumerableFlag {
     }
 }
 
-/// ソース/プレビュー表示モードを排他的に受ける。詳細は `HiddenFilesFlag` を参照。
-/// `.source` が true(ソースモード)に対応する。
-enum SourceModeFlag: EnumerableFlag {
+/// ソース/プレビュー/差分の表示モードを排他的に受ける。詳細は `HiddenFilesFlag` を参照。
+enum DisplayModeFlag: EnumerableFlag {
     case source
     case preview
+    case diff
 
     static func name(for value: Self) -> NameSpecification {
         switch value {
         case .source: [.customLong("source")]
         case .preview: [.customLong("preview")]
+        case .diff: [.customLong("diff")]
         }
     }
 
@@ -86,9 +87,22 @@ enum SourceModeFlag: EnumerableFlag {
         switch value {
         case .source: "Open in source view mode."
         case .preview: "Open in preview mode."
+        case .diff: "Open in diff mode (git changes against the --compare base)."
         }
     }
 }
+
+extension DisplayModeFlag {
+    var option: CLIDisplayModeOption {
+        switch self {
+        case .source: .source
+        case .preview: .rendered
+        case .diff: .diff
+        }
+    }
+}
+
+extension CLIComparisonTargetOption: ExpressibleByArgument {}
 
 /// ファイルを開く際の表示オプション定義。BefoldCLICommand が単一の @OptionGroup として保持する
 /// (root 以外にこれを共有する ParsableCommand は存在しないため、
@@ -108,7 +122,16 @@ public struct OpenCLIOptions: ParsableArguments {
 
     @Flag var lineNumbers: LineNumbersFlag?
 
-    @Flag var sourceMode: SourceModeFlag?
+    @Flag var displayMode: DisplayModeFlag?
+
+    @Option(
+        name: .customLong("compare"),
+        help: "Specify the diff base: parent-branch, default-branch or head. Requires --diff."
+    )
+    var comparisonTarget: CLIComparisonTargetOption?
+
+    @Flag(name: .customLong("new-window"), help: "Open in a new window instead of reusing an existing one.")
+    var newWindow = false
 
     @Flag var sidebar: SidebarVisibilityFlag?
 
@@ -119,8 +142,10 @@ public struct OpenCLIOptions: ParsableArguments {
             showHiddenFiles: hiddenFiles.map { $0 == .hiddenFiles },
             sortOrder: sortOrder,
             showLineNumbers: lineNumbers.map { $0 == .lineNumbers },
-            sourceMode: sourceMode.map { $0 == .source },
-            showSidebar: sidebar.map { $0 == .sidebar }
+            displayMode: displayMode.map(\.option),
+            comparisonTarget: comparisonTarget,
+            showSidebar: sidebar.map { $0 == .sidebar },
+            opensInNewWindow: newWindow
         )
     }
 }

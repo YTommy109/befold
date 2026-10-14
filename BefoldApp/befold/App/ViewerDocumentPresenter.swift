@@ -229,16 +229,16 @@ final class ViewerDocumentPresenter {
         refreshGitStatuses()
     }
 
-    /// CLI の `--source` / `--preview` を適用する。オープン時（init）と、既に開いている
-    /// ウィンドウを指定して開き直したときの両方がここを通る唯一の入口。
+    /// CLI の `--source` / `--preview` / `--diff` / `--compare` を適用する。オープン時（init）と、
+    /// 既に開いているウィンドウを指定して開き直したときの両方がここを通る唯一の入口。
     ///
     /// 保存値は書き換えない（この起動限りの上書き。ADR 0002「保存値の書き込み規則」）。
     /// その種別で成立しないモードは降格規則へ通す。降格を挟まないと、ソース表示を持たない
     /// 画像・PDF に `--source` を渡したときだけ規則の外側に出る。
-    func applyCLIDisplayMode(isSourceMode: Bool) {
-        let url = currentDocument.url
-        let requested: ViewerDisplayMode = isSourceMode ? .source : .rendered
-        applyDisplayMode(requested.supported(for: url))
+    /// 比較基準を先に決めるのは、`--diff` の差分取得が最初から指定の基準を読むようにするため。
+    func applyCLIDisplay(mode: ViewerDisplayMode?, comparisonTarget: GitComparisonTarget?) {
+        if let comparisonTarget { setComparisonTarget(comparisonTarget) }
+        if let mode { applyDisplayMode(mode.supported(for: currentDocument.url)) }
     }
 
     /// 記憶済みのソース表示モードを復元する（記憶は書き換えない）。

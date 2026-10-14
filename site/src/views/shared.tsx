@@ -106,11 +106,11 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       'CLI から開く',
-      'befold path/... で複数ファイルをまとめて開く。--sidebar / --source / --line-numbers などの表示指定、表示可否だけを確かめる --check、--bookmark も使える',
+      'befold path/... で複数ファイルをまとめて開く。--sidebar / --source / --diff / --line-numbers / --new-window などの表示指定、表示可否だけを確かめる --check、--bookmark も使える',
     ],
     en: [
       'Open from the CLI',
-      'befold path/... opens several files at once. Display flags like --sidebar, --source and --line-numbers, plus --check to verify a file opens and --bookmark',
+      'befold path/... opens several files at once. Display flags like --sidebar, --source, --diff, --line-numbers and --new-window, plus --check to verify a file opens and --bookmark',
     ],
   },
   {

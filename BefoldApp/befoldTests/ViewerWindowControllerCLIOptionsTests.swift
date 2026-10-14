@@ -21,7 +21,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     func sourceModeOverrideTakesPrecedenceOverRememberedValue() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
+            file: file, contents: "# hi", defaults: defaults, displayModeOverride: .source
         ).controller
         defer { controller.close() }
 
@@ -52,7 +52,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     func sourceModeOverrideSurvivesRename() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
+            file: file, contents: "# hi", defaults: defaults, displayModeOverride: .source
         ).controller
         defer { controller.close() }
         #expect(controller.isSourceMode)
@@ -67,7 +67,7 @@ struct ViewerWindowControllerCLIOptionsTests {
     func sourceModeOverrideIsDemotedOnUnsupportedRename() {
         let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerCLIOptionsTests")
         let controller = ViewerWindowControllerFixture(
-            file: file, contents: "# hi", defaults: defaults, sourceModeOverride: true
+            file: file, contents: "# hi", defaults: defaults, displayModeOverride: .source
         ).controller
         defer { controller.close() }
         #expect(controller.isSourceMode)

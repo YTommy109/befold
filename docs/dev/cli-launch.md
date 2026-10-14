@@ -34,8 +34,8 @@ OpenCLIOptions`、位置引数は `@Argument var paths: [String]`。
 
 ### 表示オプションはパスを要する
 
-`--source` / `--preview`、`--line-numbers` / `--no-line-numbers`、
-`--sidebar` / `--no-sidebar`、`--sort` は「その文書をどう表示するか」の指定なので、
+`--source` / `--preview` / `--diff`、`--compare`、`--line-numbers` / `--no-line-numbers`、
+`--sidebar` / `--no-sidebar`、`--sort`、`--new-window` は「その文書をどう表示するか」の指定なので、
 対象が無ければ適用先が無い。`BefoldCLICommand.validate()` が
 `CLIOpenOptions.requiresPaths` を見て、次の 2 つをパース段階でエラーにする。
 
@@ -101,8 +101,21 @@ enum CLIRequest: Equatable, Codable, Sendable {
 ```
 
 `CLIOpenOptions`（`showHiddenFiles` / `sortOrder` / `showLineNumbers` /
-`sourceMode` / `showSidebar`、全 Optional な Codable struct）の Codable 適合が
-ワイヤ表現の唯一の情報源。
+`displayMode` / `comparisonTarget` / `showSidebar` と、非 Optional の `opensInNewWindow`）の
+Codable 適合がワイヤ表現の唯一の情報源。
+
+- 表示モードは `displayMode`（`rendered` / `source` / `diff`）。旧 CLI が送る
+  `sourceMode: Bool` はデコード時に `displayMode` へ読み替える（`true` → `source`、
+  `false` → `rendered`。両方あれば `displayMode` が勝つ）。送信側は旧キーを出力しない。
+  逆に旧本体は `displayMode` を知らないため、`--diff` は旧本体では無視される
+  （アップデート途中の一時的な組み合わせに限られるので許容している）。
+- `opensInNewWindow` は旧 JSON にキーが無いので `decodeIfPresent ?? false`。
+  受信側は `CLIOpenOptions.openDisposition` で `OpenDisposition.newWindow` に写し、
+  `ViewerWindowOpenPolicy.reusableController` が既存の窓を再利用しない。
+- `--compare` は `--diff` とセットでのみ指定できる（`validate()` が弾く）。単独指定を
+  黙って捨てず、取り違えを知らせるための選択。比較基準は窓ごとのライブ値で、
+  `--diff` だけなら窓の現在値を保つ。適用は `ViewerDocumentPresenter.applyCLIDisplay` の
+  1 箇所（新規窓の init も既存窓への適用もここを通る）。
 
 シリアライズ層 `CLIRequestWire`（`BefoldKit/CLIRequestWire.swift`）:
 

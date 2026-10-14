@@ -11,4 +11,29 @@ extension CLIOpenOptions {
     var viewerSortOrder: SortOrder {
         sortOrder == .alphabetical ? .alphabetical : .foldersFirst
     }
+
+    /// Viewer へ渡す表示モード(未指定は nil)。降格(種別が持たないモード)は適用側が行う。
+    var viewerDisplayMode: ViewerDisplayMode? {
+        switch displayMode {
+        case .rendered: .rendered
+        case .source: .source
+        case .diff: .diff
+        case nil: nil
+        }
+    }
+
+    /// 開き方。`--new-window` は既存の窓を再利用しない(`ViewerWindowOpenPolicy.reusableController`)。
+    var openDisposition: OpenDisposition {
+        opensInNewWindow ? .newWindow : .currentTab
+    }
+
+    /// Viewer へ渡す差分の比較基準(未指定は nil)。
+    var viewerComparisonTarget: GitComparisonTarget? {
+        switch comparisonTarget {
+        case .parentBranch: .parentBranch
+        case .defaultBranch: .defaultBranch
+        case .head: .head
+        case nil: nil
+        }
+    }
 }

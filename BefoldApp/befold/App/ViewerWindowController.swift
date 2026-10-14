@@ -142,9 +142,9 @@ final class ViewerWindowController: NSWindowController {
         documentPresenter.applyDisplayMode(newValue)
     }
 
-    /// CLI の `--source` / `--preview` の適用。
-    func applyCLIDisplayMode(isSourceMode: Bool) {
-        documentPresenter.applyCLIDisplayMode(isSourceMode: isSourceMode)
+    /// CLI の `--source` / `--preview` / `--diff` / `--compare` の適用。
+    func applyCLIDisplay(mode: ViewerDisplayMode?, comparisonTarget: GitComparisonTarget?) {
+        documentPresenter.applyCLIDisplay(mode: mode, comparisonTarget: comparisonTarget)
     }
 
     /// 提示開始。保存値を読んでよい 3 契機のうちの 2 つ(オープン・ファイル切替)から呼ぶ。
@@ -283,7 +283,8 @@ final class ViewerWindowController: NSWindowController {
         initialListing: SidebarListingSeed? = nil,
         initialExpansion: [String: URL] = [:],
         showLineNumbersOverride: Bool? = nil,
-        sourceModeOverride: Bool? = nil,
+        displayModeOverride: ViewerDisplayMode? = nil,
+        comparisonTargetOverride: GitComparisonTarget? = nil,
         store: ViewerStore? = nil,
         makeContentView: (() -> AnyView)? = nil,
         documentRenderer: (any DocumentRendering)? = nil,
@@ -350,12 +351,11 @@ final class ViewerWindowController: NSWindowController {
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)
         // 直接開いた場合も、切替(performFileSwitch)と同じく保存済みのソース表示モードを復元する。
-        // CLI から --source/--preview が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
-        // 上書きの適用は applyCLIDisplayMode に寄せる。既に開いているウィンドウを指定して
+        // CLI から --source/--preview/--diff が指定された場合はそちらを優先し、保存値は書き換えない(この起動限りの上書き)。
+        // 上書きの適用は applyCLIDisplay に寄せる。既に開いているウィンドウを指定して
         // 開き直した経路(ViewerWindowManager.openViewer)と同じ降格規則を通すため。
-        if let sourceModeOverride {
-            applyCLIDisplayMode(isSourceMode: sourceModeOverride)
-        } else {
+        applyCLIDisplay(mode: displayModeOverride, comparisonTarget: comparisonTargetOverride)
+        if displayModeOverride == nil {
             documentPresenter.applyRestoredDisplayMode(for: fileURL)
         }
         // 提示開始(オープン)。倍率とスクロール位置の保存値を読むのはここと performFileSwitch だけ。

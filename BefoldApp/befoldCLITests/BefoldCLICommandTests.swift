@@ -104,8 +104,15 @@ struct BefoldCLICommandTests {
             (["--no-hidden-files"], CLIOpenOptions(showHiddenFiles: false)),
             (["--line-numbers"], CLIOpenOptions(showLineNumbers: true)),
             (["--no-line-numbers"], CLIOpenOptions(showLineNumbers: false)),
-            (["--source"], CLIOpenOptions(sourceMode: true)),
-            (["--preview"], CLIOpenOptions(sourceMode: false)),
+            (["--source"], CLIOpenOptions(displayMode: .source)),
+            (["--preview"], CLIOpenOptions(displayMode: .rendered)),
+            (["--diff"], CLIOpenOptions(displayMode: .diff)),
+            (
+                ["--diff", "--compare", "parent-branch"],
+                CLIOpenOptions(displayMode: .diff, comparisonTarget: .parentBranch)
+            ),
+            (["--diff", "--compare", "head"], CLIOpenOptions(displayMode: .diff, comparisonTarget: .head)),
+            (["--new-window"], CLIOpenOptions(opensInNewWindow: true)),
             (["--sidebar"], CLIOpenOptions(showSidebar: true)),
             (["--no-sidebar"], CLIOpenOptions(showSidebar: false)),
             (["--sort", "folders-first"], CLIOpenOptions(sortOrder: .foldersFirst)),
@@ -130,6 +137,8 @@ struct BefoldCLICommandTests {
             ["--sidebar", "--no-sidebar"],
             ["--sort"],
             ["--sort", "reverse"],
+            ["--diff", "--compare", "tag"],
+            ["--diff", "--compare"],
         ]
     )
     func invalidArgumentsThrow(arguments: [String]) {
@@ -141,7 +150,7 @@ struct BefoldCLICommandTests {
         let root = try parseCommand(["--hidden-files", "a.md", "--source", "b.md"])
 
         #expect(root.paths == ["a.md", "b.md"])
-        #expect(root.options == CLIOpenOptions(showHiddenFiles: true, sourceMode: true))
+        #expect(root.options == CLIOpenOptions(showHiddenFiles: true, displayMode: .source))
     }
 
     @Test("configuration.version は AppVersion.current と一致する(単一の情報源)")
