@@ -1,3 +1,4 @@
+import AppKit
 import BefoldKit
 import SwiftUI
 
@@ -60,6 +61,10 @@ struct FolderListingView: View {
     /// 一覧へ足す(DirectoryLister.appendingOpenFile)。サイドバーと同じ規則を通すため、
     /// 供給元が .shared でも .ownListing でも同じ結果になる(TASK-295)。
     var openFile: URL?
+    /// 開いているファイルの内容が再読込された世代(`ViewerContentState.contentRevision`)。
+    /// 変わったら行の変更日・サイズを取り直す。ディレクトリ監視は無い(一覧は窓がキーに
+    /// なったときに再取得される)ので、内容更新を検知できるのは開いているファイルだけ。
+    var metadataRevision = 0
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
 
@@ -72,6 +77,20 @@ struct FolderListingView: View {
     /// 初期値 nil は「未取得」を表し、取得完了後に空一覧と区別する(空状態の一瞬のちらつき防止)。
     /// 「読めなかった」は空一覧ではなく `DirectoryListing.didFailEnumeration` が持つ。
     @State private var cachedListing: SharedFolderListing?
+    /// 行に添える変更日・サイズ・種類(TASK-707)。一覧の描画とは切り離し、MainActor の外で
+    /// 取得して届いた行から埋める。未取得の間は名前だけの行になる。
+    @State private var metadata: [URL: FolderListingMetadata] = [:]
+    /// ウィンドウがキーに戻った回数。サイドバーの一覧がキー復帰で取り直されるのと同じ契機で、
+    /// 自前列挙とメタデータも取り直す(ディレクトリ監視が無いため、外部での追加・削除・更新は
+    /// この契機で拾う)。
+    @State private var keyEpoch = 0
+
+    /// メタデータの取得キー。行の並びが同じでも、開いているファイルが再読込されたら取り直す。
+    private struct MetadataKey: Equatable {
+        let urls: [URL]
+        let revision: Int
+        let keyEpoch: Int
+    }
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
     /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
@@ -85,6 +104,7 @@ struct FolderListingView: View {
         let sortOrder: SortOrder
         let showHiddenFiles: Bool
         let usesOwnListing: Bool
+        let keyEpoch: Int
     }
 
     var listingKey: ListingKey {
@@ -92,7 +112,8 @@ struct FolderListingView: View {
             directory: directory,
             sortOrder: sortOrder,
             showHiddenFiles: showHiddenFiles,
-            usesOwnListing: source == .ownListing
+            usesOwnListing: source == .ownListing,
+            keyEpoch: keyEpoch
         )
     }
 
@@ -144,10 +165,40 @@ struct FolderListingView: View {
         loadedListing.map { visibleEntries(from: $0.entries) }
     }
 
+    /// ヘッダーに出す直下の項目数(ファイル+フォルダー)。nil は一覧が未到着で、何も出さない。
+    ///
+    /// **数えるのは「いま一覧に見えている行」**(`displayedEntries`)であって、ディスク上の
+    /// 実数ではない。隠しファイル・非対応形式・git 変更のみ表示の絞り込みが効いていれば、
+    /// 一覧に並ばないものは数えない——件数と行数がずれると利用者は数え間違いを疑うため。
+    /// 供給元が `.shared` でも `.ownListing` でも一覧は `displayedEntries` に合流するので、
+    /// 同じ規則が両経路に効く。列挙に失敗したフォルダーは「0 項目」ではなく失敗を示す
+    /// 文言にして、空のフォルダーと取り違えさせない(TASK-410)。
+    var itemCountHeader: String? {
+        guard let entries = displayedEntries else { return nil }
+        if loadedListing?.didFailEnumeration == true {
+            return String(localized: "folder.enumerationFailed", bundle: .l10n)
+        }
+        return String(localized: "folderListing.itemCount \(entries.count)", bundle: .l10n)
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            if let itemCountHeader {
+                Text(itemCountHeader)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+            }
+            entryList
+        }
+    }
+
+    private var entryList: some View {
         let entries = displayedEntries
-        List(entries ?? [], selection: $localSelection) { entry in
-            FileListEntryRow(entry: entry)
+        return List(entries ?? [], selection: $localSelection) { entry in
+            FolderListingRow(entry: entry, metadata: metadata[entry.url])
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .listRowInsets(EdgeInsets())
@@ -187,6 +238,16 @@ struct FolderListingView: View {
             cachedListing = SharedFolderListing(
                 entries: listing.rows(), didFailEnumeration: listing.didFailEnumeration
             )
+        }
+        .task(id: MetadataKey(urls: entries?.map(\.url) ?? [], revision: metadataRevision, keyEpoch: keyEpoch)) {
+            guard let urls = entries?.map(\.url) else { return }
+            let loaded = await FolderListingMetadata.load(for: urls)
+            guard !Task.isCancelled else { return }
+            metadata = loaded
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            // 他窓がキーになったときも増えるが、取り直しが 1 回余計に走るだけで害は無い。
+            keyEpoch += 1
         }
         .id(directory)
     }

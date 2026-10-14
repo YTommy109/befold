@@ -27,7 +27,23 @@ public enum LocalizableCatalog {
     /// 外に出してある(`CatalogFile.Entry` の 1 段のみが入れ子)。
     private struct CatalogStringUnit: Decodable { let value: String }
 
-    private struct CatalogLocalization: Decodable { let stringUnit: CatalogStringUnit }
+    /// 複数形(`variations.plural`)は `other` を代表の訳として読む。`other` は全言語で必須の
+    /// 区分なので、「訳があるか」の判定にはこれで足りる(TASK-706 の項目数が最初の例)。
+    private struct CatalogPluralVariation: Decodable { let other: CatalogStringUnitHolder }
+
+    private struct CatalogStringUnitHolder: Decodable { let stringUnit: CatalogStringUnit }
+
+    private struct CatalogVariations: Decodable { let plural: CatalogPluralVariation }
+
+    private struct CatalogLocalization: Decodable {
+        let stringUnit: CatalogStringUnit?
+        let variations: CatalogVariations?
+
+        /// 単純な訳が無ければ複数形の `other`。どちらも無ければ nil(訳漏れとして扱う)。
+        var representativeValue: String? {
+            stringUnit?.value ?? variations?.plural.other.stringUnit.value
+        }
+    }
 
     private struct CatalogFile: Decodable {
         struct Entry: Decodable {
@@ -40,7 +56,7 @@ public enum LocalizableCatalog {
     private static func parseStringCatalog(_ url: URL) throws -> [String: [String: String]] {
         let file = try JSONDecoder().decode(CatalogFile.self, from: Data(contentsOf: url))
         return file.strings.mapValues { entry in
-            (entry.localizations ?? [:]).mapValues(\.stringUnit.value)
+            (entry.localizations ?? [:]).compactMapValues(\.representativeValue)
         }
     }
 
@@ -56,6 +72,18 @@ public enum LocalizableCatalog {
             let entries = try #require(NSDictionary(contentsOf: url) as? [String: String])
             for (key, value) in entries {
                 catalog[key, default: [:]][language] = value
+            }
+            // 複数形は .strings ではなく .stringsdict へコンパイルされる。`other` を代表の訳にする。
+            let dictURL = bundle.url(
+                forResource: "Localizable", withExtension: "stringsdict",
+                subdirectory: nil, localization: language
+            )
+            let plurals = dictURL.flatMap { NSDictionary(contentsOf: $0) as? [String: [String: Any]] } ?? [:]
+            for (key, entry) in plurals {
+                let variants = entry.values.compactMap { $0 as? [String: Any] }.first
+                if let other = variants?["other"] as? String {
+                    catalog[key, default: [:]][language] = other
+                }
             }
         }
         return catalog
