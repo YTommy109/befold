@@ -16,7 +16,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorHistoryTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     /// directoryLister をディレクトリの pathKey で固定エントリを返すスタブに差し替えた
     /// ナビゲーターを作る(前例: SidebarNavigatorFolderNavigationTests)。
@@ -33,6 +33,7 @@ struct SidebarNavigatorHistoryTests {
             currentDirectory: currentDirectory,
             entries: listing(currentDirectory).rows(),
             selection: selection,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorHistoryTests")
             ),

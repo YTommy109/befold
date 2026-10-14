@@ -1,10 +1,10 @@
 ---
 id: TASK-705
 title: テストがホームディレクトリ直下に befold-test-* を作らないようにする
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-14 04:27'
-updated_date: '2026-10-14 07:42'
+updated_date: '2026-10-14 08:08'
 labels:
   - test-infra
 dependencies: []
@@ -21,9 +21,21 @@ ordinal: 894000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 テストの実行でホームディレクトリ直下に befold-test-* が作られない(テスト実行前後で ls ~ の befold-test-* の数が変わらないことを実測する)
-- [ ] #2 makeHomeTempDir() と TempDir(base: ホーム) の呼び出しが 0 件になり、makeHomeTempDir は削除されている
-- [ ] #3 ホームの注入口を必須引数かシーム経由にし、本番既定は本番の組み立て箇所だけが指定する(テストが既定値を黙って使えない形にする)
-- [ ] #4 注入口を使わずホーム配下へ作る書き方が再発したら落ちる仕掛けがある(テストまたは scripts の検査)
-- [ ] #5 DirectoryListerTests など判定規則のテストはシステムの一時ディレクトリ + home: 注入で書かれている
+- [x] #1 テストの実行でホームディレクトリ直下に befold-test-* が作られない(テスト実行前後で ls ~ の befold-test-* の数が変わらないことを実測する)
+- [x] #2 makeHomeTempDir() と TempDir(base: ホーム) の呼び出しが 0 件になり、makeHomeTempDir は削除されている
+- [x] #3 ホームの注入口を必須引数かシーム経由にし、本番既定は本番の組み立て箇所だけが指定する(テストが既定値を黙って使えない形にする)
+- [x] #4 注入口を使わずホーム配下へ作る書き方が再発したら落ちる仕掛けがある(テストまたは scripts の検査)
+- [x] #5 DirectoryListerTests など判定規則のテストはシステムの一時ディレクトリ + home: 注入で書かれている
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+注入口: SidebarNavigator.init(home:) と ViewerWindowDependencies.home をどちらも必須引数にし、本番値(DirectoryLister.defaultHome)を渡すのは ViewerWindowManagerFactory だけ。テスト補助 makeViewerWindowDependencies の既定はシステム一時ディレクトリ。未対応(意図的): FileListView+Keyboard / SidebarHeaderView は DirectoryLister.defaultHome を直接読む GUI 層で、ディレクトリを作らないため対象外(SidebarParentRowSelectionTests は実ホームのパスを使う)。再発防止: scripts/check-no-home-test-dirs.sh(pre-commit と CI、--self-test 付き)。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ホームを SidebarNavigator / ViewerWindowDependencies の必須引数にし、テストは一時ディレクトリを注入。makeHomeTempDir を撤去し、ホーム直下へ作る書き方を scripts/check-no-home-test-dirs.sh で検知。swift test 全件通過、実行前後で ~/befold-test-* は 0 個のまま。
+<!-- SECTION:FINAL_SUMMARY:END -->

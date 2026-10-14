@@ -11,7 +11,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorSelectionMemoryTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     @Test("再びそのフォルダーへ入ると、直前にそこで選択していた項目が復元される")
     func revisitingFolderRestoresPreviousSelection() async {
@@ -85,6 +85,7 @@ struct SidebarNavigatorSelectionMemoryTests {
             currentDirectory: currentDirectory,
             entries: listings(currentDirectory),
             selection: selection,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorSelectionMemoryTests")
             ),

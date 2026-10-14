@@ -246,6 +246,7 @@ struct GitStatusReaderIntegrationTests {
             currentDirectory: temp.url,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "GitStatusReaderIntegrationTests")
             ),
@@ -287,6 +288,7 @@ struct GitStatusReaderIntegrationTests {
             currentDirectory: temp.url,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "GitStatusIndexWatch")
             ),

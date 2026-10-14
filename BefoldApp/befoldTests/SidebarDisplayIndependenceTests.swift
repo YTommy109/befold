@@ -19,7 +19,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarDisplayIndependenceTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     /// 4 値それぞれの「変更」と、変更後に期待される値の読み出し。
     private struct DisplayValue: CustomTestStringConvertible {
@@ -68,6 +68,7 @@ struct SidebarDisplayIndependenceTests {
             currentDirectory: Self.home,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: defaults,
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: []) },
             git: SidebarGitReadingStub(repositoryRoot: { _ in nil })

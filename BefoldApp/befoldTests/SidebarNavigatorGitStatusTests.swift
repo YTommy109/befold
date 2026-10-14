@@ -35,7 +35,7 @@ final class RecordingWatcher: FileWatching, @unchecked Sendable {
 @Suite
 @MainActor
 struct SidebarNavigatorGitStatusTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private func makeNavigator(
         currentDirectory: URL,
@@ -46,6 +46,7 @@ struct SidebarNavigatorGitStatusTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGitStatusTests")
             ),

@@ -15,7 +15,7 @@ extension SidebarNavigator {
     func navigateToFolder(_ url: URL) {
         guard host != nil else { return }
         let target = url.standardizedFileURL
-        guard DirectoryLister.isWithinHome(target) else { return }
+        guard DirectoryLister.isWithinHome(target, home: home) else { return }
         let previous = fileListModel.currentDirectory
         moveCurrentDirectory(to: url)
         performListing(of: url) { host, directory, listing in

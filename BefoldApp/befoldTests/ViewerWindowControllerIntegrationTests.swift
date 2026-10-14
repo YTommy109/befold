@@ -118,7 +118,7 @@ struct ViewerWindowControllerIntegrationTests {
 extension ViewerWindowControllerIntegrationTests {
     @Test("navigateToFolder でカレントディレクトリと一覧が更新される")
     func navigateToFolderUpdatesCurrentDirectoryAndEntries() async throws {
-        let tmp = try makeHomeTempDir()
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let file = try tmp.file(named: "diagram.mmd", contents: "graph TD;")
         let subDir = tmp.url.appendingPathComponent("sub", isDirectory: true)

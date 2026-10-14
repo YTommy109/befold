@@ -315,7 +315,7 @@ final class ViewerWindowController: NSWindowController {
         self.store = store
         currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
-            fileURL: fileURL, displayDefaults: shared.displayDefaults,
+            fileURL: fileURL, home: shared.home, displayDefaults: shared.displayDefaults,
             overrides: SidebarDisplayOverrides(
                 sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
             ),

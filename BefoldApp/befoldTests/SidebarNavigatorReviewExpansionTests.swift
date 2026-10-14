@@ -11,7 +11,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorReviewExpansionTests {
-    static let home = FileManager.default.homeDirectoryForCurrentUser
+    static let home = FileManager.default.temporaryDirectory
     private nonisolated static let modified = GitFileStatus(indexChange: nil, worktreeChange: .modified)
 
     /// テストごとの窓と、差し替え可能な git 状態。
@@ -51,6 +51,7 @@ struct SidebarNavigatorReviewExpansionTests {
             currentDirectory: base,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { directory, _, _ in
                 // `gatedFolder`(既定は `b`、空ならルート)の列挙だけをテストが解放するまで
@@ -290,6 +291,7 @@ struct SidebarNavigatorReviewExpansionTests {
                 let navigator = SidebarNavigator(
                     currentDirectory: URL(fileURLWithPath: "/tmp", isDirectory: true),
                     entries: [], selection: nil,
+                    home: FileManager.default.temporaryDirectory,
                     displayDefaults: SidebarDisplayDefaults(
                         defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorReviewExpansionTests-trap")
                     ),

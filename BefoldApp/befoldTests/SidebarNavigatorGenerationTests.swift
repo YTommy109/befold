@@ -13,7 +13,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorGenerationTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private func makeNavigator(
         currentDirectory: URL,
@@ -23,6 +23,7 @@ struct SidebarNavigatorGenerationTests {
             currentDirectory: currentDirectory,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: SidebarDisplayDefaults(
                 defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorGenerationTests")
             ),

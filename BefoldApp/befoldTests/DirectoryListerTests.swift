@@ -89,8 +89,7 @@ struct DirectoryListerTests {
 
     @Test("listEntries はフォルダーと拡張子を問わず全ファイルを返す")
     func listEntriesReturnsFoldersAndAllFiles() throws {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let tmp = try TempDir(base: home)
+        let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         try FileManager.default.createDirectory(
             at: tmp.url.appendingPathComponent("subdir"),
@@ -281,10 +280,11 @@ struct DirectoryListerTests {
     }
 
     @Test("isWithinHome はホームディレクトリ自身で true を返す")
-    func isWithinHomeReturnsTrueForHomeItself() {
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+    func isWithinHomeReturnsTrueForHomeItself() throws {
+        let home = try TempDir()
+        defer { withExtendedLifetime(home) {} }
 
-        #expect(DirectoryLister.isWithinHome(home))
+        #expect(DirectoryLister.isWithinHome(home.url, home: home.url))
     }
 
     @Test("isWithinHome はホームディレクトリ配下で true を返す")
@@ -308,11 +308,12 @@ struct DirectoryListerTests {
     }
 
     @Test("isWithinHome は前方一致だけ似た兄弟パスで false を返す")
-    func isWithinHomeReturnsFalseForPrefixLikeSiblingPath() {
-        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
-        let sibling = home.deletingLastPathComponent()
-            .appendingPathComponent(home.lastPathComponent + "2")
+    func isWithinHomeReturnsFalseForPrefixLikeSiblingPath() throws {
+        let home = try TempDir()
+        defer { withExtendedLifetime(home) {} }
+        let sibling = home.url.deletingLastPathComponent()
+            .appendingPathComponent(home.url.lastPathComponent + "2")
 
-        #expect(!DirectoryLister.isWithinHome(sibling))
+        #expect(!DirectoryLister.isWithinHome(sibling, home: home.url))
     }
 }

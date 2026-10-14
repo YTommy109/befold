@@ -9,6 +9,7 @@ on:
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
+      - 'scripts/check-no-home-test-dirs.sh'
       - 'scripts/check-befoldkit-platform-free.sh'
       - 'scripts/check-app-no-cli-dependency.sh'
       - 'scripts/worktree-reset.sh'
@@ -24,6 +25,7 @@ on:
       - 'scripts/check-type-group-size.sh'
       - 'scripts/type-group-exceptions.txt'
       - 'scripts/check-no-detached-blocking.sh'
+      - 'scripts/check-no-home-test-dirs.sh'
       - 'scripts/check-befoldkit-platform-free.sh'
       - 'scripts/check-app-no-cli-dependency.sh'
       - 'scripts/worktree-reset.sh'
@@ -100,7 +102,7 @@ jobs:
             exit 0
           fi
           files=$(printf '%s' "$compare" | jq -r '.files[]?.filename')
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-no-home-test-dirs\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -129,6 +131,11 @@ jobs:
         run: |
           scripts/check-no-detached-blocking.sh --self-test
           scripts/check-no-detached-blocking.sh
+
+      - name: テストがホーム直下に一時ディレクトリを作っていないことを検査する
+        run: |
+          scripts/check-no-home-test-dirs.sh --self-test
+          scripts/check-no-home-test-dirs.sh
 
       # pre-commit は scripts/setup-git-hooks.sh を実行したクローンにしか入らないため、
       # BefoldKit のプラットフォーム非依存は CI 側でも見る(TASK-594)。

@@ -14,7 +14,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarNavigatorSortOrderTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     private func makePreference() -> SidebarDisplayDefaults {
         SidebarDisplayDefaults(
@@ -29,6 +29,7 @@ struct SidebarNavigatorSortOrderTests {
             currentDirectory: Self.home,
             entries: [],
             selection: nil,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             overrides: SidebarDisplayOverrides(sortOrder: sortOrder),
             directoryLister: { _, _, _ in DirectoryListing(rootChildren: []) },

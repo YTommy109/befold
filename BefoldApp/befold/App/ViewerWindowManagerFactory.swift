@@ -19,7 +19,8 @@ enum ViewerWindowManagerFactory {
                 codeFontPreference: stores.codeFontPreference,
                 csvNumberFormatPreference: stores.csvNumberFormatPreference,
                 perFileState: stores.perFileState,
-                bookmarkStore: stores.bookmarkStore
+                bookmarkStore: stores.bookmarkStore,
+                home: DirectoryLister.defaultHome
             ),
             windowFrame: stores.windowFrame,
             recentRepositoriesStore: stores.recentRepositoriesStore,

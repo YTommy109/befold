@@ -13,7 +13,7 @@ import Testing
 @Suite
 @MainActor
 struct SidebarLayoutTransitionTests {
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let home = FileManager.default.temporaryDirectory
 
     /// scrollRowToVisible の要求行を記録するスパイ(FileListModelScrollTests と同型)。
     private final class SpyTableView: NSTableView {
@@ -73,6 +73,7 @@ struct SidebarLayoutTransitionTests {
             currentDirectory: currentDirectory,
             entries: listing(currentDirectory).rows(),
             selection: selection,
+            home: FileManager.default.temporaryDirectory,
             displayDefaults: preference,
             directoryLister: { url, _, _ in listing(url) },
             childrenLister: { url, _, _ in listings[url.normalizedPathKey] },

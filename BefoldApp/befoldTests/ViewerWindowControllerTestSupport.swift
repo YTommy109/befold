@@ -102,7 +102,8 @@ func makeViewerWindowDependencies(
     displayDefaults: SidebarDisplayDefaults? = nil,
     diffDisplayPreference: DiffDisplayPreference? = nil,
     perFileState: PerFileStateStore? = nil,
-    bookmarkStore: BookmarkStore? = nil
+    bookmarkStore: BookmarkStore? = nil,
+    home: URL = FileManager.default.temporaryDirectory
 ) -> ViewerWindowDependencies {
     ViewerWindowDependencies(
         displayDefaults: displayDefaults ?? SidebarDisplayDefaults(defaults: defaults),
@@ -112,6 +113,7 @@ func makeViewerWindowDependencies(
         codeFontPreference: CodeFontPreference(defaults: defaults),
         csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
         perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
-        bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults)
+        bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults),
+        home: home
     )
 }
