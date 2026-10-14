@@ -1,10 +1,10 @@
 ---
 id: TASK-706
 title: プレビュー内のフォルダー一覧のヘッダーに項目数(ファイル+フォルダー)を表示する
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-10-14 04:31'
-updated_date: '2026-10-14 13:42'
+updated_date: '2026-10-14 13:43'
 labels:
   - sidebar
   - folder-list
@@ -46,3 +46,9 @@ AC6 検証: xcodebuild の成果物 befold.app の en/ja の Localizable.strings
 
 AC7 検証: FolderListingKeyReturnRefreshTests(実物の FolderListingView + NSTableView の行数)で、ファイル追加+キー復帰通知により一覧が 1→2 行へ追随することを確認。keyEpoch 加算を外すと落ちる(ミューテーション確認済み)。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+フォルダー一覧のヘッダーに直下の項目数を表示(見えている行を数える。サイドバー経由・自前列挙の両経路が displayedEntries に合流するので同じ規則)。列挙失敗は『読み取れませんでした』を出して 0 件と区別。en one/other・ja other の plural を追加し、xcodebuild 成果物の stringsdict と実アプリの AX ツリー(『1 項目』)で確認。ディレクトリ監視は無いため、キー復帰で取り直す(FolderListingKeyReturnRefreshTests で固定、外すと落ちる)。
+<!-- SECTION:FINAL_SUMMARY:END -->
