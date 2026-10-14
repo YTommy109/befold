@@ -60,6 +60,10 @@ struct FolderListingView: View {
     /// 一覧へ足す(DirectoryLister.appendingOpenFile)。サイドバーと同じ規則を通すため、
     /// 供給元が .shared でも .ownListing でも同じ結果になる(TASK-295)。
     var openFile: URL?
+    /// 開いているファイルの内容が再読込された世代(`ViewerContentState.contentRevision`)。
+    /// 変わったら行の変更日・サイズを取り直す。ディレクトリ監視は無い(一覧は窓がキーに
+    /// なったときに再取得される)ので、内容更新を検知できるのは開いているファイルだけ。
+    var metadataRevision = 0
     let onSelectFile: (URL) -> Void
     let onNavigateToFolder: (URL) -> Void
 
@@ -72,6 +76,15 @@ struct FolderListingView: View {
     /// 初期値 nil は「未取得」を表し、取得完了後に空一覧と区別する(空状態の一瞬のちらつき防止)。
     /// 「読めなかった」は空一覧ではなく `DirectoryListing.didFailEnumeration` が持つ。
     @State private var cachedListing: SharedFolderListing?
+    /// 行に添える変更日・サイズ・種類(TASK-707)。一覧の描画とは切り離し、MainActor の外で
+    /// 取得して届いた行から埋める。未取得の間は名前だけの行になる。
+    @State private var metadata: [URL: FolderListingMetadata] = [:]
+
+    /// メタデータの取得キー。行の並びが同じでも、開いているファイルが再読込されたら取り直す。
+    private struct MetadataKey: Equatable {
+        let urls: [URL]
+        let revision: Int
+    }
 
     /// .task(id:) のキー。directory だけでなく sortOrder・showHiddenFiles の変更でも
     /// 一覧を再取得させるため、3値をまとめた Hashable な複合キーにする。
@@ -177,7 +190,7 @@ struct FolderListingView: View {
     private var entryList: some View {
         let entries = displayedEntries
         return List(entries ?? [], selection: $localSelection) { entry in
-            FileListEntryRow(entry: entry)
+            FolderListingRow(entry: entry, metadata: metadata[entry.url])
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .listRowInsets(EdgeInsets())
@@ -217,6 +230,12 @@ struct FolderListingView: View {
             cachedListing = SharedFolderListing(
                 entries: listing.rows(), didFailEnumeration: listing.didFailEnumeration
             )
+        }
+        .task(id: MetadataKey(urls: entries?.map(\.url) ?? [], revision: metadataRevision)) {
+            guard let urls = entries?.map(\.url) else { return }
+            let loaded = await FolderListingMetadata.load(for: urls)
+            guard !Task.isCancelled else { return }
+            metadata = loaded
         }
         .id(directory)
     }

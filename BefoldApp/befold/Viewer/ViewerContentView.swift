@@ -83,6 +83,7 @@ struct ViewerContentView: View {
                     filter: fileListModel.listFilter,
                     source: fileListModel.listingSource(for: folderURL),
                     openFile: store.contentState.filePath,
+                    metadataRevision: store.contentState.contentRevision,
                     onSelectFile: onSelectFile,
                     onNavigateToFolder: onNavigateToFolder
                 )

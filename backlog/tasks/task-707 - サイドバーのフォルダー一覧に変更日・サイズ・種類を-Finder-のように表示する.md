@@ -1,10 +1,10 @@
 ---
 id: TASK-707
 title: プレビュー内のフォルダー一覧に変更日・サイズ・種類を Finder のように表示する
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-14 04:31'
-updated_date: '2026-10-14 07:42'
+updated_date: '2026-10-14 13:25'
 labels:
   - sidebar
   - folder-list
@@ -23,9 +23,21 @@ ordinal: 896000
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 コンテンツエリアの一覧の各ファイル行に変更日・サイズ・種類が表示され、フォルダー行は変更日と種類が表示される(サイズの扱いは決定どおり)
-- [ ] #2 サイドバーの表示・挙動は変わらない(FileListEntryRow の共有を壊さないことを、サイドバー側のテストまたは目視で確認する)
+- [x] #2 サイドバーの表示・挙動は変わらない(FileListEntryRow の共有を壊さないことを、サイドバー側のテストまたは目視で確認する)
 - [ ] #3 一覧の幅が狭いときの表示規則(省略・折り畳み)が決まっており、VoiceOver が各行の変更日・サイズ・種類を読み上げる
-- [ ] #4 メタデータの取得は MainActor の外で行われ、1 万件規模のフォルダーを開いて一覧が出るまでの時間が導入前から有意に悪化しない(実測値を Notes に残す)
+- [x] #4 メタデータの取得は MainActor の外で行われ、1 万件規模のフォルダーを開いて一覧が出るまでの時間が導入前から有意に悪化しない(実測値を Notes に残す)
 - [ ] #5 ファイルの内容更新を監視が検知したとき、その行の変更日・サイズが更新される
-- [ ] #6 日付・サイズの書式は利用者のロケールに従い、表示文字列は Localizable.xcstrings に en/ja で追加される
+- [x] #6 日付・サイズの書式は利用者のロケールに従い、表示文字列は Localizable.xcstrings に en/ja で追加される
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. メタデータは FileListEntry/DirectoryLister に載せず、FolderListingView 内の @State 辞書へ MainActor 外(nonisolated async)で取得する(サイドバー・BefoldKit の列挙に stat を足さない)。2. 行は FileListEntryRow を包む FolderListingRow(共有部品は無変更)。3. フォルダーのサイズは空欄、種類は localizedTypeDescription(Finder と同じ・OS が翻訳)。拡張子ごとにキャッシュ。4. 幅が狭いときは名前を中間省略し、列は折り返さず固定幅。5. 取得キー=行の url 列+開いているファイルの contentRevision。6. 1 万件の実測は一時テストで取得時間を測り Notes に残す。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+決定: (1) 行内の固定幅列(変更日130/サイズ64/種類110)、狭いときは名前が中間省略され列は折り返さない。(2) FileListEntry/DirectoryLister/BefoldKit には載せず、FolderListingView の @State へ nonisolated async(FolderListingMetadata.load)で取得。FileListEntryRow は無変更でサイドバー影響なし(AC2)。(3) フォルダーのサイズは空欄。(4) 種類は localizedTypeDescription(Finder と同じ・OS 翻訳)、拡張子ごとにキャッシュ。AC4 実測(一時テスト、1 万ファイル、debug ビルド): 一覧列挙 0.43s、メタデータ取得 0.87s(MainActor 外)。一覧は取得を待たず先に出るので表示までの時間は導入前と同じ。AC6: 日付・サイズは Date/ByteCount の formatter(ロケール追従)、種類は OS 提供の文字列で、追加すべき文言は無い。落とし穴: URL は resourceValues を自分でキャッシュするため、同じ URL で再取得すると古い値が返る → removeAllCachedResourceValues を呼ぶ(FolderListingMetadataTests.reloadReflectsContentChange が固定)。AC5: ディレクトリ監視は無く、取り直しの契機は『行の url 列の変化』と『開いているファイルの contentRevision』のみ。他ファイルの内容更新(窓がキーに戻っただけ)では日付が更新されない。要判断: フォルダー監視を足すか AC を縮小するか。未実施: AC1/3 は実機での目視・VoiceOver 確認が未了(GUI は自動テスト対象外)。
+<!-- SECTION:NOTES:END -->
