@@ -4,7 +4,7 @@ title: プレビュー内のフォルダー一覧のヘッダーに項目数(フ
 status: In Progress
 assignee: []
 created_date: '2026-10-14 04:31'
-updated_date: '2026-10-14 13:33'
+updated_date: '2026-10-14 13:42'
 labels:
   - sidebar
   - folder-list
@@ -28,7 +28,7 @@ ordinal: 895000
 - [x] #4 サイドバーの一覧を使う経路と自前で列挙する経路(FolderListingSourceResolver)の両方で、同じ規則の件数が出る
 - [x] #5 列挙に失敗したフォルダーでは 0 件と区別できる表示になる
 - [x] #6 表示文字列は Localizable.xcstrings に en/ja で追加され、1 件・複数件の複数形が崩れない
-- [ ] #7 ディレクトリ監視は無いため、ウィンドウがキーに戻ったとき(サイドバーの再取得と同じ契機)に件数が取り直される
+- [x] #7 ディレクトリ監視は無いため、ウィンドウがキーに戻ったとき(サイドバーの再取得と同じ契機)に件数が取り直される
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -43,4 +43,6 @@ ordinal: 895000
 決定: 数えるのは見えている行(絞り込み・隠しファイル適用後)。FolderListingView.itemCountHeader の doc とテスト itemCountHeaderCountsVisibleRows で固定。AC5: ディレクトリ監視は存在せず(windowDidBecomeKey の doc: 'ディレクトリ監視はしていない')、一覧は窓がキーになった時・表示設定変更時にのみ再取得される。ヘッダーは表示中の行から導出するので、行と同じ範囲で追随する。選択サブフォルダー(.ownListing)は行自体もキー復帰で再列挙されない既存挙動で、ここでは広げない(監視の追加は別タスク)。AC7: en one/other・ja other の plural variations を追加。描画の複数形は実機未確認(テストはプレースホルダ未解決でないことまで)。
 
 AC6 検証: xcodebuild の成果物 befold.app の en/ja の Localizable.stringsdict に folderListing.itemCount の plural が出ることを plutil で確認(en: one/other、ja: other)。カタログの形は FolderListingPluralTests が固定。AC7: FolderListingView の keyEpoch(NSWindow.didBecomeKeyNotification で加算)を自前列挙とメタデータ取得のタスクキーへ含めた。自動テストは無く、実機でのキー復帰確認が未了。
+
+AC7 検証: FolderListingKeyReturnRefreshTests(実物の FolderListingView + NSTableView の行数)で、ファイル追加+キー復帰通知により一覧が 1→2 行へ追随することを確認。keyEpoch 加算を外すと落ちる(ミューテーション確認済み)。
 <!-- SECTION:NOTES:END -->

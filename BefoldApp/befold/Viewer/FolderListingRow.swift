@@ -15,12 +15,12 @@ struct FolderListingRow: View {
             FileListEntryRow(entry: entry)
             if let metadata {
                 Group {
-                    Text(metadata.modified?.formatted(date: .abbreviated, time: .shortened) ?? "")
-                        .frame(width: 130, alignment: .trailing)
+                    Text(metadata.modified?.formatted(date: .numeric, time: .shortened) ?? "")
+                        .frame(width: 120, alignment: .trailing)
                     Text(metadata.size?.formatted(.byteCount(style: .file)) ?? "")
                         .frame(width: 64, alignment: .trailing)
                     Text(metadata.kind ?? "")
-                        .frame(width: 110, alignment: .leading)
+                        .frame(width: 150, alignment: .leading)
                 }
                 .font(.callout)
                 .foregroundStyle(.secondary)
