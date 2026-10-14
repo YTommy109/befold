@@ -12,10 +12,12 @@ CLI は 2 つのターゲットに分かれる。
 
 | ターゲット | 位置 | 役割 |
 |---|---|---|
-| `befold-cli`（実行ファイル） | `BefoldApp/befold-cli/` | 送信側の関心（宛先探索・起動・再送・ACK 待ち）。ArgumentParser にも依存 |
-| `BefoldCLI`（ライブラリ） | `BefoldApp/BefoldCLI/` | 送受信で共有するワイヤ表現・要求型・各サブコマンドのロジック。受信側 GUI もこちらをリンク |
+| `befold-cli`（実行ファイル） | `BefoldApp/befold-cli/` | `BefoldCLIEntryPoint.run()` を呼ぶだけの薄い入口 |
+| `BefoldCLI`（ライブラリ） | `BefoldApp/BefoldCLI/` | コマンド定義（ArgumentParser）と送信側の関心すべて（宛先探索・起動・再送・ACK 待ち・`--check` / `--bookmark`）。本体 GUI はリンクしない |
 
-本体 GUI の受信は `BefoldApp/befold/App/AppDelegate.swift`。
+ワイヤ表現（`CLIRequest` / `CLIOpenOptions` / `CLIRequestWire`）は `BefoldKit` にあり、
+送信側（`BefoldCLI`）と受信側（本体）の両方が参照する。本体 GUI の受信は
+`BefoldApp/befold/App/AppCLIRequestReceiver.swift`。
 
 **チャネルは Distributed Notification のみ**。XPC も URL scheme も argv 転送も
 使っていない。
@@ -80,7 +82,7 @@ flowchart TD
   G2 -- "あり" --> G4["ポーリングで<br/>起動待ち"]
   G4 --> I
   I --> J["Distributed Notification<br/>dev.befold.cli.openRequest"]
-  J --> K["AppDelegate.handleCLIOpenRequest<br/>→ openPaths → NSApp.activate()"]
+  J --> K["AppCLIRequestReceiver.handleRequest<br/>→ openPaths → NSApp.activate()"]
 ```
 
 引数変換の境界は `OpenCLIOptions`（`BefoldCLI/OpenCLIOptions.swift`）。
@@ -137,7 +139,10 @@ enum CLIRequest: Equatable, Codable, Sendable {
 
 再送は GUI 側が requestID で重複排除するため、二重オープンにはならない。
 
-## サブコマンド
+## --check / --bookmark（フラグモード）
+
+`befold` にサブコマンドは無い。`--check` / `--bookmark` はウィンドウを開かずに
+結果だけを返すフラグで、同時指定や表示オプションとの併用は `validate()` が弾く。
 
 **`--check`**（`BefoldCLI/CLICheckCommand.swift`）: GUI を起動せず、GUI と同じ
 `SupportedFileResolver` / `ViewerLoadPipeline.load(...)` へ委譲して「開けるか」を
@@ -175,18 +180,30 @@ symlink 判定・`FileType`・サイズ・拒否理由を `CLICommandResult` で
 
 ## 受信側（本体アプリ）
 
-`AppDelegate`（`befold/App/AppDelegate.swift`）は `init` で
-`DistributedNotificationCenter` に `requestNotificationName` のオブザーバを登録
-する。`handleCLIOpenRequest(_:)` の流れ:
+`AppCLIRequestReceiver`（`befold/App/AppCLIRequestReceiver.swift`）は生成と同時に
+Distributed Notification の `requestNotificationName` を購読する。`AppDelegate` の
+`init` で eager に生成するのは、起動直後に届いた要求の ACK を取りこぼさないため。
+`handleRequest(_:)` の流れ:
 
 1. `CLIRequestWire.decode(userInfo:)` で `CLIRequest` を復元する
 2. `requestID` があれば即 `CLIRequestWire.sendAck(requestID:)`（受信のたびに ACK）
 3. `CLIRequestDeduplicator.shouldProcess(requestID:)` で requestID ごとに一度だけ
    実行する
-4. `.open(paths, options)` → `openPaths(paths, options:)` → `NSApp.activate()`。
-   `.bookmark(paths)` → `windowManager.addBookmarks(...)`（前面化しない）
+4. `.open(paths, options)` → `onOpen`（`DocumentOpener.openPaths`）→ `NSApp.activate()`。
+   `.bookmark(paths)` → `onBookmark`（前面化しない）
 
-`openPaths(_:options:)` は `showHiddenFiles` をアプリ全体設定として先に反映し、
-残りのパスを `openSequentially(_:options:)` へ渡して個別ウィンドウに開く。
-paths が空になるのは `--hidden-files` 単独のときだけで、他の表示オプションは
-対象の文書を要するため CLI のパース段階で弾かれる（下記「表示オプションはパスを要する」）。
+`DocumentOpener.openPaths(_:options:)` はパスを `openSequentially(_:options:)` へ渡して
+個別ウィンドウに開く。paths が空になるのは `--hidden-files` 単独のときだけで、
+その場合は操作対象の窓へ適用する。他の表示オプションは対象の文書を要するため CLI の
+パース段階で弾かれる（上記「表示オプションはパスを要する」）。
+
+## 終了コード
+
+| コード | 意味 |
+|---|---|
+| 0 | 成功 |
+| 1 | 失敗（`--check` / `--bookmark` で 1 つでも失敗、アプリの起動・転送に失敗） |
+| 64 | 引数エラー（`EX_USAGE`。ArgumentParser が不明なオプションや `validate()` の違反に対して返す） |
+
+64 は 2026-10-14 に `befold-cli` の実出力で測った値（`--bogus`・`--check`（パス無し）・
+`--check --bookmark x`・`--check --source x` のいずれも 64）。

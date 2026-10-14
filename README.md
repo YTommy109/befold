@@ -113,6 +113,10 @@ already open, its window is updated). Only `--hidden-files` / `--no-hidden-files
 app-wide setting and can be used without a path. To open a path starting with a hyphen, put
 it after `--` (e.g. `befold -- -notes.md`).
 
+`--check` and `--bookmark` don't open a window, so they can't be combined with each other or
+with the display options above. Exit codes: `0` on success, `1` on failure (a path that can't
+be opened or bookmarked, or the app failed to launch), `64` on invalid arguments.
+
 `befold` is a symlink into `/Applications/befold.app`. If you move the app elsewhere, run
 "Install Command Line Tool" again.
 
