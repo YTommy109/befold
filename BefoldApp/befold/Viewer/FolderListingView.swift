@@ -144,9 +144,39 @@ struct FolderListingView: View {
         loadedListing.map { visibleEntries(from: $0.entries) }
     }
 
+    /// ヘッダーに出す直下の項目数(ファイル+フォルダー)。nil は一覧が未到着で、何も出さない。
+    ///
+    /// **数えるのは「いま一覧に見えている行」**(`displayedEntries`)であって、ディスク上の
+    /// 実数ではない。隠しファイル・非対応形式・git 変更のみ表示の絞り込みが効いていれば、
+    /// 一覧に並ばないものは数えない——件数と行数がずれると利用者は数え間違いを疑うため。
+    /// 供給元が `.shared` でも `.ownListing` でも一覧は `displayedEntries` に合流するので、
+    /// 同じ規則が両経路に効く。列挙に失敗したフォルダーは「0 項目」ではなく失敗を示す
+    /// 文言にして、空のフォルダーと取り違えさせない(TASK-410)。
+    var itemCountHeader: String? {
+        guard let entries = displayedEntries else { return nil }
+        if loadedListing?.didFailEnumeration == true {
+            return String(localized: "folder.enumerationFailed", bundle: .l10n)
+        }
+        return String(localized: "folderListing.itemCount \(entries.count)", bundle: .l10n)
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            if let itemCountHeader {
+                Text(itemCountHeader)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+            }
+            entryList
+        }
+    }
+
+    private var entryList: some View {
         let entries = displayedEntries
-        List(entries ?? [], selection: $localSelection) { entry in
+        return List(entries ?? [], selection: $localSelection) { entry in
             FileListEntryRow(entry: entry)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
