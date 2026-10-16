@@ -104,6 +104,9 @@ jobs:
             MARKETING_VERSION="${GITHUB_REF_NAME#v}" \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 
+      - name: 同梱 Mach-O の @rpath framework が揃っているか検査する
+        run: scripts/check-app-rpath-frameworks.sh build/Build/Products/Release/befold.app
+
       - name: Sparkle.framework の内蔵バイナリを再署名する
         # xcodebuild は SPM 依存フレームワーク内部のヘルパーバイナリに
         # Developer ID 署名を適用しないことがある。公証前に明示的に再署名する。

@@ -106,6 +106,10 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.degino.befold.cli
       PRODUCT_NAME: BefoldCLI
+      # 静的リンクにする。動的 framework のままだと befold-cli の @rpath 先が
+      # 本体の Contents/Frameworks になるが、本体は BefoldCLI に依存しない(TASK-698)ため
+      # 誰も埋め込まず、同梱 CLI が dyld で abort する。
+      MACH_O_TYPE: staticlib
       GENERATE_INFOPLIST_FILE: true
   BefoldQuickLook:
     type: app-extension
