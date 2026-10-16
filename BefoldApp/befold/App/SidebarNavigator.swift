@@ -330,12 +330,14 @@ final class SidebarNavigator {
     /// 取り直す理由も無い(tree の展開下の子行を選んだだけで移動させない / TASK-465)。
     func syncAfterSwitch(to newURL: URL) {
         let needsMove = !fileListModel.isReachableInCurrentListing(newURL)
+        let revealsInTree = needsMove && layoutTransition.canRevealInTree(newURL)
         SidebarPostSwitchSync.apply(
             on: self,
-            movingTo: needsMove ? newURL.deletingLastPathComponent() : nil,
+            movingTo: needsMove && !revealsInTree ? newURL.deletingLastPathComponent() : nil,
             selecting: newURL,
             refreshesWhenStaying: false
         )
+        if revealsInTree { layoutTransition.revealSelection(under: fileListModel.currentDirectory) }
         recordHistory()
     }
 
