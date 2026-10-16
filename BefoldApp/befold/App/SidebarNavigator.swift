@@ -330,39 +330,15 @@ final class SidebarNavigator {
     /// 取り直す理由も無い(tree の展開下の子行を選んだだけで移動させない / TASK-465)。
     func syncAfterSwitch(to newURL: URL) {
         let needsMove = !fileListModel.isReachableInCurrentListing(newURL)
-        // ツリーでは畳まれたフォルダー配下の行は一覧に無いが、ルート配下なら動かさず祖先を開く
-        // (TASK-708)。ルート外は従来どおり親フォルダーへ移る。リスト表示は展開の概念が無い。
-        let revealsInTree = needsMove && canRevealInTree(newURL)
+        let revealsInTree = needsMove && layoutTransition.canRevealInTree(newURL)
         SidebarPostSwitchSync.apply(
             on: self,
             movingTo: needsMove && !revealsInTree ? newURL.deletingLastPathComponent() : nil,
             selecting: newURL,
             refreshesWhenStaying: false
         )
-        if revealsInTree {
-            layoutTransition.revealSelection(under: fileListModel.currentDirectory)
-        }
+        if revealsInTree { layoutTransition.revealSelection(under: fileListModel.currentDirectory) }
         recordHistory()
-    }
-
-    /// ツリーで `url` を、ルートを動かさず祖先を開いて見せられるか(TASK-708)。
-    ///
-    /// ルート配下で、かつ隠しフォルダーを経由しないこと。経由すると行が出ず、選択だけが付いて
-    /// `previewTarget` がフォルダー一覧へ落ちる(AC #7 の実測)ので、その場合は従来どおり移動する。
-    /// 隠し判定の事実源は、ルート直下の祖先フォルダーの行が**いまの一覧に実在するか**
-    /// (一覧の組み立てが chflags の hidden も含めて既に判定済み)。それより深い階層は
-    /// 展開するまで行が無いので、ドット始まりだけを見る(chflags hidden の深い階層は未対応)。
-    private func canRevealInTree(_ url: URL) -> Bool {
-        guard fileListModel.display.layoutMode == .tree else { return false }
-        let rootKey = fileListModel.currentDirectory.normalizedPathKey
-        let key = url.normalizedPathKey
-        guard key.hasPrefix(rootKey + "/") else { return false }
-        let ancestors = key.dropFirst(rootKey.count + 1).split(separator: "/").dropLast()
-        guard let first = ancestors.first,
-              fileListModel.folderEntryURL(forKey: rootKey + "/" + first) != nil
-        else { return false }
-        return fileListModel.display.showHiddenFiles
-            || !ancestors.contains { HiddenFileRule.isHidden(component: $0) }
     }
 
     /// ファイル切替が別ウィンドウ移譲・失敗で成立しなかったときに選択を元へ戻す。

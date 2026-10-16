@@ -1,3 +1,4 @@
+import BefoldKit
 import Foundation
 
 /// サイドバーのツリー⇄リスト切り替えに伴う遷移方針(TASK-481)。
@@ -118,5 +119,25 @@ final class SidebarLayoutTransition {
             // currentFileURL へ引き戻されるため、ここで確定させる。
             return true
         })
+    }
+
+    /// ツリーで `url` を、ルートを動かさず祖先を開いて見せられるか(TASK-708)。
+    ///
+    /// ルート配下で、かつ隠しフォルダーを経由しないこと。経由すると行が出ず、選択だけが付いて
+    /// `previewTarget` がフォルダー一覧へ落ちる(AC #7 の実測)ので、その場合は従来どおり移動する。
+    /// 隠し判定の事実源は、ルート直下の祖先フォルダーの行が**いまの一覧に実在するか**
+    /// (一覧の組み立てが chflags の hidden も含めて既に判定済み)。それより深い階層は
+    /// 展開するまで行が無いので、ドット始まりだけを見る(chflags hidden の深い階層は未対応)。
+    func canRevealInTree(_ url: URL) -> Bool {
+        guard fileListModel.display.layoutMode == .tree else { return false }
+        let rootKey = fileListModel.currentDirectory.normalizedPathKey
+        let key = url.normalizedPathKey
+        guard key.hasPrefix(rootKey + "/") else { return false }
+        let ancestors = key.dropFirst(rootKey.count + 1).split(separator: "/").dropLast()
+        guard let first = ancestors.first,
+              fileListModel.folderEntryURL(forKey: rootKey + "/" + first) != nil
+        else { return false }
+        return fileListModel.display.showHiddenFiles
+            || !ancestors.contains { HiddenFileRule.isHidden(component: $0) }
     }
 }
