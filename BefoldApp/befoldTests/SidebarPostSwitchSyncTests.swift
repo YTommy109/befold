@@ -35,7 +35,8 @@ struct SidebarPostSwitchSyncTests {
     private func makeFixture(_ name: String) -> Fixture {
         let base = Self.home.appendingPathComponent("SidebarPostSwitchSyncTests-\(name)")
         let sub = base.appendingPathComponent("sub", isDirectory: true)
-        let outside = base.appendingPathComponent("outside", isDirectory: true)
+        // base の配下に置かない: ツリーではルート配下のファイルは移動せず展開される(TASK-708)。
+        let outside = Self.home.appendingPathComponent("SidebarPostSwitchSyncTests-\(name)-outside", isDirectory: true)
         let inner = sub.appendingPathComponent("inner", isDirectory: true)
         return Fixture(
             base: base,

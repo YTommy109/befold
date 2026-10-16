@@ -90,10 +90,11 @@ final class SidebarLayoutTransition {
         revealSelection(under: root)
     }
 
+    /// レイアウト切替と `SidebarNavigator.syncAfterSwitch`(TASK-708)が共有する。
     /// 現在の選択までの祖先フォルダーを展開し、選択行が現れたら可視になるよう
     /// スクロールを要求する。展開はルートの一覧が着地してから始める
     /// (先に始めると、着地した子リストが古い一覧材料で行を組み直す窓がある)。
-    private func revealSelection(under root: URL) {
+    func revealSelection(under root: URL) {
         guard let navigator, let selection = fileListModel.selection else { return }
         var ancestors: [URL] = []
         var directory = selection.deletingLastPathComponent()
