@@ -150,11 +150,7 @@ final class Benchmark: NSObject, WKNavigationDelegate {
             textLength: text.length, marks, nativeMatches: native?.size || 0,
             nativeHighlightRegistered: !!native, count, matchCount, expectedMatches};
         """#
-        let result: Any? = try await withCheckedThrowingContinuation { continuation in
-            webView.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) {
-                continuation.resume(with: $0)
-            }
-        }
+        let result = try await webView.callAsyncJavaScript(script, arguments: arguments, in: nil, contentWorld: .page)
         guard let result = result as? [String: Any] else { fail("Missing result for \(name)") }
         emit(["operation": name, "result": result])
     }

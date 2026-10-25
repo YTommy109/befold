@@ -6,7 +6,7 @@
 検索・描画の正しさは `BefoldApp/viewer-test/` の Jest で固定し、WebKit のレイアウトを
 含む所要時間は `scripts/benchmark-csv.swift` で別に測る。既存の
 `scripts/webview-smoke.swift` と同じ独立 WKWebView の形で、本番の HTML・CSS・bundle を読む。
-時間の閾値を通常のテストや CI に追加しない。
+この CSV ベンチマークは任意実行とし、CI の時間閾値は設けない。
 
 ## 入力と実行
 
