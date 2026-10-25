@@ -6,7 +6,6 @@
 import { renderCodeHtml } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
-import { installCsvResize } from './csv-resize.js';
 import { renderDiffHtml } from './diff-html.js';
 import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
 import { markdownRenderer, sanitizeRenderedHtml } from './markdown.js';
@@ -199,7 +198,6 @@ function _renderCsv(
     scroll.className = 'csv-scroll';
     element.before(scroll);
     scroll.append(element);
-    installCsvResize(element);
   }
   return table.formats;
 }

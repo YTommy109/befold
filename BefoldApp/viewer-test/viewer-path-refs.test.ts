@@ -23,6 +23,50 @@ function pathRefTexts() {
 }
 
 describe('_annotatePathRefs', () => {
+  test('ノード境界・空ノード・同じノード内の複数のパスを保つ', () => {
+    const wrap = dom.window.document.getElementById('diagram-wrap')!;
+    wrap.innerHTML =
+      '<code><span>./a.md ./b</span><span>.ts ./c.py </span><span>./d.rs</span> tail</code>';
+    const spans = wrap.querySelectorAll('span');
+    spans[0]!.after(dom.window.document.createTextNode(''));
+    spans[1]!.after(dom.window.document.createTextNode(''));
+    const before = wrap.textContent;
+
+    _annotatePathRefs();
+
+    expect(wrap.textContent).toBe(before);
+    expect(pathRefTexts()).toEqual(['./a.md', './b.ts', './b.ts', './b.ts', './c.py', './d.rs']);
+    expect(Array.from(wrap.querySelectorAll('.befold-path-ref'), (el) => el.textContent)).toEqual([
+      './a.md',
+      './b',
+      '',
+      '.ts',
+      './c.py',
+      './d.rs',
+    ]);
+  });
+
+  test('大きいソースのパス注釈はテキストノードを一致ごとに読み直さない', () => {
+    const wrap = dom.window.document.getElementById('diagram-wrap')!;
+    wrap.innerHTML =
+      '<code>' + '<span>./file.md ./other.ts</span><span> </span>'.repeat(1000) + '</code>';
+    const nodes = Array.from(wrap.querySelectorAll('span'), (span) => span.firstChild as Text);
+    let reads = 0;
+    nodes.forEach((node) => {
+      Object.defineProperty(node, 'textContent', {
+        get: () => {
+          reads++;
+          return node.data;
+        },
+      });
+    });
+
+    _annotatePathRefs();
+
+    expect(pathRefTexts()).toHaveLength(2000);
+    expect(reads).toBeLessThanOrEqual(nodes.length * 2);
+  });
+
   test('ASCII のみの相対パスを検出する', () => {
     dom.window.document.getElementById('diagram-wrap')!.innerHTML =
       '<p>参照: docs/dev/native-app-design.md を見る</p>';

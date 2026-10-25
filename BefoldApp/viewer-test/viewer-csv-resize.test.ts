@@ -69,6 +69,46 @@ const guideIn = (viewer: LoadedViewer): HTMLElement | null =>
   viewer.document.querySelector<HTMLElement>('.csv-resize-guide');
 
 describe('CSV/TSV の列幅', () => {
+  test('列幅はパス注釈の後に測り、全文を二度レイアウトしない', async () => {
+    const viewer = loadViewerMain();
+    const annotatedAtMeasurement: number[] = [];
+    Object.defineProperty(viewer.window.HTMLTableCellElement.prototype, 'offsetWidth', {
+      get() {
+        annotatedAtMeasurement.push(viewer.document.querySelectorAll('.befold-path-ref').length);
+        return 120;
+      },
+      configurable: true,
+    });
+    await viewer.main.render('Path,Count\nsrc/app.ts,1\n', 'csv', ',');
+    expect(annotatedAtMeasurement).toEqual([1, 1]);
+  });
+
+  test('ハンドルを追加する前に全列の自然幅を測り、列ごとの再レイアウトを避ける', async () => {
+    const viewer = loadViewerMain();
+    const handleCountsAtMeasurement: number[] = [];
+    Object.defineProperty(viewer.window.HTMLTableCellElement.prototype, 'offsetWidth', {
+      get() {
+        handleCountsAtMeasurement.push(
+          viewer.document.querySelectorAll('.csv-resize-handle').length,
+        );
+        return 120;
+      },
+      configurable: true,
+    });
+    await viewer.main.render('A,B,C\n1,2,3\n', 'csv', ',');
+    expect(handleCountsAtMeasurement).toEqual([0, 0, 0]);
+    expect(
+      Array.from(tableIn(viewer).querySelectorAll('.csv-resize-handle'), (handle) =>
+        handle.getAttribute('aria-valuenow'),
+      ),
+    ).toEqual(['120', '120', '120']);
+    handleCountsAtMeasurement.length = 0;
+    viewer.main.appendChunk('4,5,6\n', 'csv', ',');
+    expect(handleCountsAtMeasurement).toEqual([]);
+    viewer.main.appendChunk('7,8,9,10\n', 'csv', ',');
+    expect(handleCountsAtMeasurement).toEqual([3]);
+  });
+
   test.each([',', '\t'])(
     '左右キーは対象列だけを変更し、40px 未満にはしない (%s)',
     async (delimiter) => {

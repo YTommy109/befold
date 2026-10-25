@@ -24,6 +24,11 @@ function applyWidths(table: HTMLTableElement): void {
   var headers = table.tHead!.rows[0]!.cells;
   // 列が減った再描画では、消えた列の幅を合計に残さない。
   widths.length = Math.min(widths.length, headers.length);
+  // 列幅を書き込む前に自然幅をまとめて読む（交互に行うと列ごとに全行を再レイアウトする）。
+  for (var column = 0; column < headers.length; column++) {
+    if (widths[column] === undefined)
+      widths[column] = Math.max(MIN_WIDTH, headers[column]!.offsetWidth);
+  }
   var group = table.querySelector('colgroup');
   if (!group) {
     group = document.createElement('colgroup');
@@ -31,7 +36,6 @@ function applyWidths(table: HTMLTableElement): void {
   }
   while (group.children.length < headers.length) group.append(document.createElement('col'));
   for (var i = 0; i < headers.length; i++) {
-    if (widths[i] === undefined) widths[i] = Math.max(MIN_WIDTH, headers[i]!.offsetWidth);
     var col = group.children[i];
     if (col instanceof HTMLElement) col.style.width = widths[i] + 'px';
     headers[i]!.querySelector('.csv-resize-handle')?.setAttribute(
@@ -114,6 +118,10 @@ function installCsvResize(table: HTMLTableElement): void {
   var headers = table.tHead?.rows[0]?.cells;
   if (!headers) return;
   var strings = window._mmdUIStrings || {};
+  // ハンドルの追加もレイアウトを無効化するため、全列を先に測る。
+  var measuredWidths = Array.from(headers, (header, index) =>
+    header.querySelector('.csv-resize-handle') ? 0 : (widths[index] ?? header.offsetWidth),
+  );
   Array.from(headers).forEach(function (header, index) {
     if (header.querySelector('.csv-resize-handle')) return;
     var handle = document.createElement('span');
@@ -124,7 +132,7 @@ function installCsvResize(table: HTMLTableElement): void {
     handle.setAttribute('role', 'separator');
     handle.setAttribute('aria-orientation', 'vertical');
     handle.setAttribute('aria-valuemin', String(MIN_WIDTH));
-    handle.setAttribute('aria-valuenow', String(widths[index] || header.offsetWidth));
+    handle.setAttribute('aria-valuenow', String(measuredWidths[index]));
     handle.setAttribute(
       'aria-label',
       (strings.csvResizeColumn || 'Resize column {column}').replace('{column}', String(index + 1)),
