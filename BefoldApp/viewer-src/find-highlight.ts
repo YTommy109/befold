@@ -86,6 +86,7 @@ function updateNativeHighlights(): void {
       range.setEnd(match.endContainer, match.endOffset);
       return range.getBoundingClientRect();
     };
+    // 全ヒットの位置を毎回測らず、表示区間の端だけを二分探索する。
     var low = 0;
     var high = end;
     var middle: number;
@@ -104,6 +105,7 @@ function updateNativeHighlights(): void {
     end = low;
   }
   if (start === paintedStart && end === paintedEnd) return;
+  // 全ヒットの Range 生成・登録は高コストなので、画面周辺だけを生成する（印刷時は全件）。
   var highlight = new Highlight();
   for (var i = start; i < end; i++) highlight.add(new StaticRange(nativeMatches[i]!));
   CSS.highlights.delete('mmd-find-match');

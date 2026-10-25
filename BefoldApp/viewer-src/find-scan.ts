@@ -39,14 +39,14 @@ interface SearchScope {
 }
 
 var usingNativeHighlights = false;
-// render/append clear this through Find.refresh; typing reuses the same document.
+// 毎打鍵の DOM 走査と検索テキスト再構築を避け、refresh/invalidate/close で索引を破棄する。
 var indexedScopes: SearchScope[] | null = null;
 
 export function clearFindCache(): void {
   indexedScopes = null;
 }
 
-// Rendering will replace the DOM, so discard ranges without unwrapping legacy marks.
+// 描画で捨てる DOM の mark は展開せず、古いハイライトと索引だけを先に破棄する。
 export function invalidateFindDocument(): void {
   if (usingNativeHighlights) {
     clearNativeHighlights();
@@ -128,7 +128,7 @@ export function clearMarks() {
 // 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
 // undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
 function locate(scope: SearchScope, offset: number, isStart: boolean): TextLocation {
-  // Use cached numeric boundaries; DOM length reads per hit cost more than the regex itself.
+  // ヒットごとの全ノード走査と DOM 読み取りを避け、数値の境界配列を二分探索する。
   var low = 0;
   var high = scope.nodes.length;
   while (low < high) {
@@ -291,6 +291,7 @@ function matchScope(
     mark.className = 'mmd-find-match';
     mark.append(domRange.extractContents());
     domRange.insertNode(mark);
+    // unshift の全要素移動を避け、最後に逆順で取り出して文書順へ戻す。
     scopeFound.push(mark);
 
     pruneEmptyAncestors(startAncestor, root);
@@ -302,14 +303,14 @@ function matchScope(
 // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
 // ごとにマッチさせる。document 順のまま found に積む。
 export function walk(root: Node, regex: RegExp): FindMatch[] {
-  // ヒットごとに生成すると、GC まで残る live Range の境界更新が DOM 操作のたびに走る。
-  // WebKit で大量ヒット時に入力が固まるため、検索全体で1つを使い回す。
+  // CSV は大量の mark の挿入・解除で再レイアウトが起きるため、DOM を変えずに強調する。
   usingNativeHighlights =
     supportsHighlights() &&
     root instanceof Element &&
     root.matches('.csv-body, .code-body:has(code.csv-source)');
   var nativeMatches: StaticRangeInit[] | null = usingNativeHighlights ? [] : null;
   var found: HTMLElement[] = [];
+  // mark 側は live Range を1つだけ使い、DOM 操作ごとの境界更新を抑える。
   var domRange = nativeMatches ? null : document.createRange();
   var scopes = nativeMatches
     ? (indexedScopes ??= collectScopes(root).map((nodes) => indexScope(nodes)))
