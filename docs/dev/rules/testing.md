@@ -119,6 +119,14 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 
 ## テストパターン
 
+### viewer の性能計測
+
+<!-- derived-from ../csv-performance.md -->
+
+値として検証できる正しさは Jest / Swift Testing に置き、実 WebKit の所要時間は
+独立ハーネスで測る。CSV の再現入力・実行手順・前後比較は
+[CSV viewer の性能計測](../csv-performance.md) を参照。計測は任意実行とし、通常の CI に時間閾値を追加しない。
+
 ### ファイルシステムテスト（FileWatcher / ViewerStore）
 
 `TempDir` で一時ディレクトリを作る（deinit が削除を担う）:
