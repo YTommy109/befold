@@ -116,6 +116,9 @@ function _walkChildren(node: Node, allowed: boolean): void {
 // 単位となる要素配下のテキストをまとめて注釈する。ハイライトの <span> で
 // 分割されたパスも、単位のテキストとしては連続しているため検出できる。
 function _annotateUnit(el: Element): void {
+  // パスには必ず / があるため、単一の平文セルはノード収集前に除外できる。
+  var child = el.firstChild;
+  if (child instanceof Text && !child.nextSibling && !child.data.includes('/')) return;
   var nodes: Text[] = [];
   _collectUnitTextNodes(el, nodes);
   _annotateTextNodes(nodes);

@@ -14625,17 +14625,23 @@
       parent.normalize();
     });
   }
-  function locate(scope, offset, isStart) {
-    var low = 0;
+  function locate(scope, offset, isStart, low = 0) {
     var high = scope.nodes.length;
+    var end = scope.starts[low + 1] ?? scope.text.length;
+    if (isStart ? offset < end : offset <= end) return low;
+    low++;
+    if (low < high) {
+      end = scope.starts[low + 1] ?? scope.text.length;
+      if (isStart ? offset < end : offset <= end) return low;
+      low++;
+    }
     while (low < high) {
       var middle = Math.floor((low + high) / 2);
-      var end = scope.starts[middle + 1] ?? scope.text.length;
+      end = scope.starts[middle + 1] ?? scope.text.length;
       if (isStart ? offset < end : offset <= end) high = middle;
       else low = middle + 1;
     }
-    var index = Math.min(low, scope.nodes.length - 1);
-    return { node: scope.nodes[index], localOffset: offset - scope.starts[index] };
+    return Math.min(low, scope.nodes.length - 1);
   }
   function pruneEmptyAncestors(node, root) {
     while (node && node !== root && node instanceof Element && node.textContent === "") {
@@ -14708,6 +14714,7 @@
     regex.lastIndex = 0;
     var ranges = [];
     var match2;
+    var nativeIndex = 0;
     while ((match2 = regex.exec(text3)) !== null) {
       if (match2[0].length === 0) {
         regex.lastIndex++;
@@ -14715,13 +14722,14 @@
         continue;
       }
       if (nativeMatches2) {
-        var nativeStart = locate(scope, match2.index, true);
-        var nativeEnd = locate(scope, match2.index + match2[0].length, false);
+        var nativeStart = locate(scope, match2.index, true, nativeIndex);
+        var nativeEnd = locate(scope, match2.index + match2[0].length, false, nativeStart);
+        nativeIndex = nativeEnd;
         nativeMatches2.push({
-          startContainer: nativeStart.node,
-          startOffset: nativeStart.localOffset,
-          endContainer: nativeEnd.node,
-          endOffset: nativeEnd.localOffset
+          startContainer: scope.nodes[nativeStart],
+          startOffset: match2.index - scope.starts[nativeStart],
+          endContainer: scope.nodes[nativeEnd],
+          endOffset: match2.index + match2[0].length - scope.starts[nativeEnd]
         });
       } else {
         ranges.push({ start: match2.index, end: match2.index + match2[0].length });
@@ -14732,10 +14740,10 @@
     ranges.toReversed().forEach(function(range) {
       var start = locate(scope, range.start, true);
       var end = locate(scope, range.end, false);
-      var startAncestor = start.node.parentNode;
-      var endAncestor = end.node.parentNode;
-      domRange.setStart(start.node, start.localOffset);
-      domRange.setEnd(end.node, end.localOffset);
+      var startAncestor = scope.nodes[start].parentNode;
+      var endAncestor = scope.nodes[end].parentNode;
+      domRange.setStart(scope.nodes[start], range.start - scope.starts[start]);
+      domRange.setEnd(scope.nodes[end], range.end - scope.starts[end]);
       var mark = document.createElement("mark");
       mark.className = "mmd-find-match";
       mark.append(domRange.extractContents());
@@ -17389,6 +17397,8 @@
     }
   }
   function _annotateUnit(el) {
+    var child = el.firstChild;
+    if (child instanceof Text && !child.nextSibling && !child.data.includes("/")) return;
     var nodes = [];
     _collectUnitTextNodes(el, nodes);
     _annotateTextNodes(nodes);

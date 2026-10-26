@@ -23,6 +23,29 @@ function pathRefTexts() {
 }
 
 describe('_annotatePathRefs', () => {
+  test('単一テキストのセルを変えず、隣の実パスとノードをまたぐパスを注釈する', () => {
+    const wrap = dom.window.document.getElementById('diagram-wrap')!;
+    wrap.innerHTML =
+      '<table><tr><td>sample.ts plain text</td><td>docs/readme.md</td>' +
+      '<td><span>src</span><span>/main.ts</span></td><td>src<span>/other.ts</span></td></tr></table>';
+    const plain = wrap.querySelector('td')!;
+    const originalNode = plain.firstChild;
+    const before = wrap.textContent;
+
+    _annotatePathRefs();
+
+    expect(plain.innerHTML).toBe('sample.ts plain text');
+    expect(plain.firstChild).toBe(originalNode);
+    expect(wrap.textContent).toBe(before);
+    expect(pathRefTexts()).toEqual([
+      'docs/readme.md',
+      'src/main.ts',
+      'src/main.ts',
+      'src/other.ts',
+      'src/other.ts',
+    ]);
+  });
+
   test('ノード境界・空ノード・同じノード内の複数のパスを保つ', () => {
     const wrap = dom.window.document.getElementById('diagram-wrap')!;
     wrap.innerHTML =

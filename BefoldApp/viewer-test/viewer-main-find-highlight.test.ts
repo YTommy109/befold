@@ -145,6 +145,28 @@ describe('native find highlights', () => {
     expect(matches()[0]!.endOffset).toBe(1);
   });
 
+  test('adjacent native matches skip empty nodes without shifting either endpoint', () => {
+    const { document, wrap, query, matches } = nativeFind(
+      '<code class="csv-source">' + '<span>hit</span>'.repeat(3) + '</code>',
+    );
+    const nodes = Array.from(wrap.querySelectorAll('span'), (span) => {
+      const text = span.firstChild!;
+      span.prepend(document.createTextNode(''), document.createTextNode(''));
+      span.append(document.createTextNode(''), document.createTextNode(''));
+      return text;
+    });
+
+    query('hit');
+
+    expect(matches()).toHaveLength(nodes.length);
+    matches().forEach((match, index) => {
+      expect(match.startContainer).toBe(nodes[index]);
+      expect(match.startOffset).toBe(0);
+      expect(match.endContainer).toBe(nodes[index]);
+      expect(match.endOffset).toBe(3);
+    });
+  });
+
   test('async rendering clears old highlights before replacing the DOM and preserves the match index', async () => {
     const { document, window, main, highlights, query, count, flushHighlights } =
       nativeFind('<p>old old</p>');

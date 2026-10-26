@@ -65,11 +65,6 @@ function indexScope(nodes: Text[]): SearchScope {
   return { nodes: nodes, starts: starts, text: text };
 }
 
-interface TextLocation {
-  node: Text;
-  localOffset: number;
-}
-
 // クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
 // クエリが空、または正規表現として不正な場合は null を返す(呼び出し側はエラー表示に切り替える)。
 export function buildFindRegExp(query: string, options: FindOptions): RegExp | null {
@@ -115,7 +110,7 @@ export function clearMarks() {
     parent.normalize();
   });
 }
-// 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
+// 連結文字列上のオフセットから、境界に使うテキストノードの添字を逆引きする。
 // textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
 //
 // ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
@@ -127,18 +122,24 @@ export function clearMarks() {
 // starts は textNodes と同じ長さで同時に構築される（matchScope 参照）ため、
 // 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
 // undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
-function locate(scope: SearchScope, offset: number, isStart: boolean): TextLocation {
-  // ヒットごとの全ノード走査と DOM 読み取りを避け、数値の境界配列を二分探索する。
-  var low = 0;
+function locate(scope: SearchScope, offset: number, isStart: boolean, low = 0): number {
+  // 密なヒットは直前か次のノードにあるため先に試し、離れた一致だけ二分探索する。
   var high = scope.nodes.length;
+  var end = scope.starts[low + 1] ?? scope.text.length;
+  if (isStart ? offset < end : offset <= end) return low;
+  low++;
+  if (low < high) {
+    end = scope.starts[low + 1] ?? scope.text.length;
+    if (isStart ? offset < end : offset <= end) return low;
+    low++;
+  }
   while (low < high) {
     var middle = Math.floor((low + high) / 2);
-    var end = scope.starts[middle + 1] ?? scope.text.length;
+    end = scope.starts[middle + 1] ?? scope.text.length;
     if (isStart ? offset < end : offset <= end) high = middle;
     else low = middle + 1;
   }
-  var index = Math.min(low, scope.nodes.length - 1);
-  return { node: scope.nodes[index]!, localOffset: offset - scope.starts[index]! };
+  return Math.min(low, scope.nodes.length - 1);
 }
 
 // node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
@@ -251,6 +252,8 @@ function matchScope(
   regex.lastIndex = 0;
   var ranges: { start: number; end: number }[] = [];
   var match: RegExpExecArray | null;
+  // 非空の一致は順番に来るため、前の終了ノードから次の開始を探せる。
+  var nativeIndex = 0;
   while ((match = regex.exec(text)) !== null) {
     if (match[0].length === 0) {
       regex.lastIndex++;
@@ -258,13 +261,14 @@ function matchScope(
       continue;
     }
     if (nativeMatches) {
-      var nativeStart = locate(scope, match.index, true);
-      var nativeEnd = locate(scope, match.index + match[0].length, false);
+      var nativeStart = locate(scope, match.index, true, nativeIndex);
+      var nativeEnd = locate(scope, match.index + match[0].length, false, nativeStart);
+      nativeIndex = nativeEnd;
       nativeMatches.push({
-        startContainer: nativeStart.node,
-        startOffset: nativeStart.localOffset,
-        endContainer: nativeEnd.node,
-        endOffset: nativeEnd.localOffset,
+        startContainer: scope.nodes[nativeStart]!,
+        startOffset: match.index - scope.starts[nativeStart]!,
+        endContainer: scope.nodes[nativeEnd]!,
+        endOffset: match.index + match[0].length - scope.starts[nativeEnd]!,
       });
     } else {
       ranges.push({ start: match.index, end: match.index + match[0].length });
@@ -282,10 +286,10 @@ function matchScope(
     // 含まれる」扱いにならない)を空のまま DOM に残す。参照はここで取っておき、
     // 抽出後に空になっていれば取り除く(そうしないと再検索のたびに空 <span> が
     // 増殖し、シンタックスハイライトの構造が壊れていく)。
-    var startAncestor: Node | null = start.node.parentNode;
-    var endAncestor: Node | null = end.node.parentNode;
-    domRange.setStart(start.node, start.localOffset);
-    domRange.setEnd(end.node, end.localOffset);
+    var startAncestor: Node | null = scope.nodes[start]!.parentNode;
+    var endAncestor: Node | null = scope.nodes[end]!.parentNode;
+    domRange.setStart(scope.nodes[start]!, range.start - scope.starts[start]!);
+    domRange.setEnd(scope.nodes[end]!, range.end - scope.starts[end]!);
 
     var mark = document.createElement('mark');
     mark.className = 'mmd-find-match';
