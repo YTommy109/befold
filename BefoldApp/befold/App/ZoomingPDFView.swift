@@ -22,6 +22,14 @@ final class ZoomingPDFView: PDFView {
     /// この面がいま見せている倍率(1.0 = ページ全体が収まる)。**面が覚える**ことで、
     /// リサイズや回転をまたいでも意味が保たれる。書き込みは `apply(zoom:)` を通す。
     var zoom: Double = ZoomStore.defaultZoom
+    /// ファイル自身の向き(各ページの `/Rotate`)に**ユーザーが足した**回転角(0 / 90 / 180 / 270)。
+    /// 窓が記憶するのはこの値で、ページの最終的な角度ではない。最終角度を記憶すると、
+    /// 既定値 0 が `/Rotate 90` の横長ページを縦へ戻してしまう(#742)。
+    ///
+    /// ファイル自身の向きは後から読み直せない(`PDFPage.rotation` を変えると
+    /// `CGPDFPage.rotationAngle` も同じ値になる = 実測)ので、足した分を面が覚える。
+    /// 書き込みは `rotate(byDegrees:)` と、文書を差し替える `present` だけ。
+    private(set) var addedRotation = 0
     /// 倍率の上下限。`ZoomStore` と同じ値を使い、面ごとに範囲が違う状態を作らない。
     /// **読むのは `ZoomingPDFView+Input` の `applyZoom(scaledBy:)` だけ**
     /// (Swift の `private` はファイルスコープなので、分割した extension から見えるよう
@@ -102,6 +110,8 @@ final class ZoomingPDFView: PDFView {
             return
         }
         self.document = document
+        // 新しい文書はファイル自身の向きのまま届く。足した分はまだ無い。
+        addedRotation = 0
         apply(rotation: rotation)
         apply(zoom: zoom)
         layoutSubtreeIfNeeded()
@@ -117,9 +127,9 @@ final class ZoomingPDFView: PDFView {
         scaleFactor = PDFSurfaceLayout.expectedScaleFactor(of: self, zoom: zoom)
     }
 
-    /// 記憶していた回転角へ合わせる(差分だけ回す)。
+    /// 記憶していた回転角(ファイル自身の向きに足す角度)へ合わせる(差分だけ回す)。
     func apply(rotation: Int) {
-        let delta = PDFSurfaceLayout.normalized(rotation) - PDFSurfaceLayout.rotation(of: self)
+        let delta = PDFSurfaceLayout.normalized(rotation) - addedRotation
         guard delta != 0 else { return }
         rotate(byDegrees: delta)
     }
@@ -149,6 +159,7 @@ final class ZoomingPDFView: PDFView {
             guard let page = document.page(at: index) else { continue }
             page.rotation = PDFSurfaceLayout.normalized(page.rotation + degrees)
         }
+        addedRotation = PDFSurfaceLayout.normalized(addedRotation + degrees)
         // フィットで見ていたなら回転後もフィット、拡大していたなら同じ拡大率のまま。
         apply(zoom: zoom)
         PDFRotationAnimationStripper.strip(under: documentView)

@@ -151,8 +151,9 @@ enum ViewerWindowAssembler {
                     controller.documentPresenter.recordZoomChange(zoom, for: controller.currentDocument.url)
                 },
                 // 回転はコマンド経路を通す(可否の判断は capabilities が持つ)。
+                // ライブ値への追随まで presenter が持つ(#742)。
                 onRotate: { [weak controller] degrees in
-                    controller?.documentCommands.rotate(byDegrees: degrees)
+                    controller?.documentPresenter.rotate(byDegrees: degrees)
                 }
             ),
             diffDisplayPreference: controller.diffDisplayPreference

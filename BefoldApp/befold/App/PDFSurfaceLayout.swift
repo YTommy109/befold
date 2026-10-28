@@ -269,12 +269,6 @@ enum PDFSurfaceLayout {
         return scroll.backwards ? -towardsEnd : towardsEnd
     }
 
-    /// いまの回転角(0 / 90 / 180 / 270)。文書全体を回すので、先頭ページを代表として読む。
-    static func rotation(of pdfView: PDFView) -> Int {
-        guard let page = pdfView.document?.page(at: 0) else { return 0 }
-        return normalized(page.rotation)
-    }
-
     /// 0 / 90 / 180 / 270 へ丸める。`PDFPage.rotation` は負の値も受け付けるが、
     /// 記憶と比較のためにここで正規化しておく。
     static func normalized(_ degrees: Int) -> Int {

@@ -78,7 +78,7 @@ struct PDFSurfaceRotationTests {
         var seen: [Int] = []
         for _ in 0 ..< 4 {
             pdfView.rotate(byDegrees: 90)
-            seen.append(PDFSurfaceLayout.rotation(of: pdfView))
+            seen.append(pdfView.addedRotation)
         }
 
         #expect(seen == [90, 180, 270, 0])
@@ -92,7 +92,7 @@ struct PDFSurfaceRotationTests {
 
         pdfView.rotate(byDegrees: -90)
 
-        #expect(PDFSurfaceLayout.rotation(of: pdfView) == 270)
+        #expect(pdfView.addedRotation == 270)
     }
 
     /// 記憶した向きへ合わせ直す（差分だけ回す）。往復で同じ向きに戻る。
@@ -100,12 +100,74 @@ struct PDFSurfaceRotationTests {
     func restoresARememberedRotation() {
         let pdfView = makeView()
         pdfView.rotate(byDegrees: 180)
-        let remembered = PDFSurfaceLayout.rotation(of: pdfView)
+        let remembered = pdfView.addedRotation
 
         let reopened = makeView()
         reopened.apply(rotation: remembered)
 
-        #expect(PDFSurfaceLayout.rotation(of: reopened) == 180)
+        #expect(reopened.addedRotation == 180)
+    }
+
+    /// ページごとにファイル自身の向き（`/Rotate`）を持つ文書。`dataRepresentation()` で
+    /// 書き出して読み直すので、各ページの回転はファイルの属性として届く。
+    private func makeDocument(intrinsicRotations: [Int]) throws -> PDFDocument {
+        let source = makeDocument()
+        for (index, degrees) in intrinsicRotations.enumerated() {
+            source.page(at: index)?.rotation = degrees
+        }
+        let data = try #require(source.dataRepresentation())
+        let document = try #require(PDFDocument(data: data))
+        // 前提: 読み直した時点でファイルの向きを持っている（持たなければ以下は空振りする）。
+        #expect((0 ..< document.pageCount).map { document.page(at: $0)?.rotation } == intrinsicRotations)
+        return document
+    }
+
+    /// 縦長の枠に `/Rotate 90` を付けた横長ページは、記憶が無ければそのまま横長で出る（#742）。
+    /// かつては記憶を最終角度として扱い、既定値 0 へ合わせて縦へ戻していた。
+    @Test("ファイル自身の向きは、回転の記憶が無ければそのまま保たれる")
+    func keepsTheFilesOwnRotation() throws {
+        let pdfView = makeView()
+
+        try pdfView.present(
+            document: makeDocument(intrinsicRotations: [90, 90]), rotation: 0, zoom: 1.0, scrollFraction: 0
+        )
+
+        #expect(pdfView.document?.page(at: 0)?.rotation == 90)
+        #expect(pdfView.addedRotation == 0)
+    }
+
+    /// 回転はファイル自身の向きへ**足す**ので、ページごとに向きが違っても差は保たれる。
+    /// 先頭ページを基準に全ページを同じ角度へ揃えると、向きの違うページが横倒しになる。
+    @Test("ページごとに向きが違う文書を回しても、ページ間の向きの差は保たれる")
+    func keepsMixedPageRotationsApart() throws {
+        let pdfView = makeView()
+
+        try pdfView.present(
+            document: makeDocument(intrinsicRotations: [90, 0]), rotation: 90, zoom: 1.0, scrollFraction: 0
+        )
+
+        let document = try #require(pdfView.document)
+        #expect(document.page(at: 0)?.rotation == 180)
+        #expect(document.page(at: 1)?.rotation == 90)
+    }
+
+    /// ファイルの変更で文書を作り直しても、手で回した分は保たれる（#742）。
+    /// 再読込は面が覚えている角度（ライブ値へ追随させたもの）を渡して `present` し直す。
+    @Test("手で回した後に文書を作り直しても、足した角度が保たれる")
+    func keepsTheAddedRotationAcrossReload() throws {
+        let pdfView = makeView()
+        try pdfView.present(
+            document: makeDocument(intrinsicRotations: [90, 90]), rotation: 0, zoom: 1.0, scrollFraction: 0
+        )
+        pdfView.rotate(byDegrees: 90)
+
+        try pdfView.present(
+            document: makeDocument(intrinsicRotations: [90, 90]),
+            rotation: pdfView.addedRotation, zoom: 1.0, scrollFraction: 0
+        )
+
+        #expect(pdfView.addedRotation == 90)
+        #expect(pdfView.document?.page(at: 0)?.rotation == 180)
     }
 
     /// 回転してもフィットで見ている状態は保たれる（AC #2）。
@@ -177,6 +239,31 @@ struct PDFSurfaceRotationTests {
         #expect(abs(pdfView.scaleFactor - scaleAfterSwitch) < 0.0001)
     }
 
+    /// 回した結果は窓のライブ値（`store.pdfRotation`）へ追随する（#742）。再読込は
+    /// このライブ値を面へ渡すので、追随しないと開いた時点の角度へ戻る。
+    @Test("回転操作の結果は窓のライブ値へ追随し、記憶へは書かない")
+    func rotatingFollowsTheLiveValue() async throws {
+        // 回せるのは PDF を読み込めた後だけ（`canRotate`）なので、実ファイルで開く。
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let pdf = try tmp.file(named: "doc.pdf", data: minimalPDFData())
+        let fixture = ViewerWindowControllerFixture(
+            file: pdf, realFileSystem: true, prefix: "PDFSurfaceRotationTests.live"
+        )
+        let controller = fixture.controller
+        defer { controller.close() }
+        await waitUntilOnMainActor { controller.store.contentState.data != nil }
+        // content ペインはプレースホルダなので、PDF の面は手で繋ぐ（本番は `PDFPreviewView` が繋ぐ）。
+        let pdfView = makeView()
+        controller.surfaces.pdf.pdfView = pdfView
+
+        controller.documentPresenter.rotate(byDegrees: 90)
+
+        #expect(pdfView.addedRotation == 90)
+        #expect(controller.store.pdfRotation == 90)
+        #expect(controller.documentPresenter.presentationMemory.rotation(for: pdf) == 0)
+    }
+
     /// 回転の記憶は窓の生存期間だけ（位置・表示モードと同じ寿命）。
     @Test("回転は窓の記憶に乗り、新しい窓へは持ち越さない")
     func rotationLivesOnlyInTheWindowMemory() {
@@ -197,7 +284,7 @@ struct PDFSurfaceRotationTests {
 
         pdfView.rotate(byDegrees: 90)
 
-        #expect(PDFSurfaceLayout.rotation(of: pdfView) == 0)
+        #expect(pdfView.addedRotation == 0)
     }
 
     /// 回転の**補間を残さない**（TASK-576）。

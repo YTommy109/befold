@@ -174,8 +174,10 @@ final class ViewerStore {
     /// 開いた直後に表示する行(CLI の `--line`)。配達は `ViewerRenderer.reveal` が通し番号で
     /// 一度きりにするので、ここは消さずに置いておく。
     var revealLineRequest: LineRevealRequest?
-    /// PDF の面へ渡す回転角(0 / 90 / 180 / 270)。窓の記憶から読んだライブ値で、
-    /// 永続化はしない(`WindowPresentationMemory`)。PDF 以外では常に 0。
+    /// PDF の面へ渡す回転角(0 / 90 / 180 / 270)。**ファイル自身の向きに足す角度**で、
+    /// ページの最終的な角度ではない(#742)。提示開始時に窓の記憶から読み、回転操作の
+    /// たびに面から追随させるライブ値。永続化はしない(`WindowPresentationMemory`)。
+    /// PDF 以外では常に 0。
     var pdfRotation: Int = 0
 
     /// コード表示中(ソースモードまたはコード形式ファイル)かどうか。
