@@ -28,8 +28,8 @@ settings:
     # ターゲットごとに書くとドリフトする。scripts/bump.sh もこの 1 行を書き換える。
     # BefoldKit/AppVersion.swift の `AppVersion.current` と値を一致させる
     # (BefoldCLICommandTests.projectYmlMarketingVersionMatchesAppVersionConstant で照合)
-    MARKETING_VERSION: "1.24.0"
-    CURRENT_PROJECT_VERSION: "1800"
+    MARKETING_VERSION: "1.24.1"
+    CURRENT_PROJECT_VERSION: "1803"
 schemes:
   befold:
     build:
