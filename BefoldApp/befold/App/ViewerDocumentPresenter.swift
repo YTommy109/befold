@@ -138,6 +138,16 @@ final class ViewerDocumentPresenter {
         perFileState.zoom.setZoom(zoom, for: url)
     }
 
+    /// 面を 90 度単位で回し、回した結果(ファイル自身の向きに足した角度)をライブ値へ追随させる。
+    /// 追随させないと、ファイルの変更で文書を作り直すたびに開いた時点の角度へ戻る(#742)。
+    /// 結果は面から読み直す(自前で足すと、面が回さなかったときにずれる)。
+    /// **記憶へは書かない。** 記憶へ届く経路は切替直前の pull 1 本
+    /// (`saveScrollPositionBeforeTransition`)に限る。
+    func rotate(byDegrees degrees: Int) {
+        documentCommands.rotate(byDegrees: degrees)
+        store.pdfRotation = documentCommands.currentRotation
+    }
+
     /// 描画側から上がってきたスクロール位置を、その位置が属する文書・モードのキーへ記録する。
     /// 通知は遅れて届きうるので、キーは現在の提示対象ではなく通知が載せてきたものを使う
     /// （`ViewerWindowController+Renderer` の doc / TASK-400）。

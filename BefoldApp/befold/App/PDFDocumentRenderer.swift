@@ -139,7 +139,7 @@ final class PDFDocumentRenderer: DocumentRendering {
     }
 
     var currentRotation: Int {
-        pdfViewProxy.pdfView.map { PDFSurfaceLayout.rotation(of: $0) } ?? 0
+        pdfViewProxy.pdfView?.addedRotation ?? 0
     }
 
     // MARK: - 追随(全面へ配られる)
