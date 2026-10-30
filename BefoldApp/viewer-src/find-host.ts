@@ -3,9 +3,9 @@
 
 import { wireBarControls } from './bar-controls.js';
 import { buildFindRegExp, walk } from './find-scan.js';
-import type { FindMatch, FindOptions } from './find-scan.js';
+import type { FindOptions } from './find-scan.js';
 import { isComposingKeyEvent } from './ime.js';
-import { formatNavigationCount, moveCurrentHighlight } from './navigation.js';
+import { formatNavigationCount } from './navigation.js';
 
 // viewer.html に静的に置かれている <input>。getElementById は HTMLElement までしか
 // 返さないため、instanceof で <input> であることを確かめてから返す。要素が消えた
@@ -127,31 +127,21 @@ export function wireFindControls(h: FindControlHandlers): void {
   });
 }
 
-// 現在の1件だけを付け替える。旧 WebKit の mark はジャンプと共通の経路で動かす。
-export function moveFindHighlight(
-  previous: FindMatch | undefined,
-  current: FindMatch | undefined,
-): void {
-  if (current && !(current instanceof HTMLElement)) {
-    var highlight = new Highlight(new StaticRange(current));
-    highlight.priority = 1;
-    // Older WebKit does not repaint replacement entries (webkit.org/b/321567).
-    CSS.highlights.delete('mmd-find-match-current');
-    CSS.highlights.set('mmd-find-match-current', highlight);
-    scrollFindRange(current);
-    return;
-  }
-  moveCurrentHighlight(
-    previous instanceof HTMLElement ? [previous] : [],
-    current ? [current] : [],
-    'mmd-find-match-current',
-    current,
-  );
+// 現在位置の 1 件を専用の Highlight に差し替え、そこまでスクロールする。
+// 一覧側の Highlight には触れないので、マッチが何万件あっても走査は起きない。
+// 中央寄せ・smooth はジャンプバー（navigation.ts の moveCurrentHighlight）と同じ見え方。
+export function moveFindHighlight(current: StaticRangeInit): void {
+  var highlight = new Highlight(new StaticRange(current));
+  highlight.priority = 1;
+  // Older WebKit does not repaint replacement entries (webkit.org/b/321567).
+  CSS.highlights.delete('mmd-find-match-current');
+  CSS.highlights.set('mmd-find-match-current', highlight);
+  scrollFindRange(current);
 }
 
-// 直前のマークを消した後の文書を検索し、document 順のマッチを返す。
+// 直前のハイライトを消した後の文書を検索し、document 順のマッチを返す。
 // 不正な正規表現のときは入力欄にエラー表示を付け、マッチは空になる。
-export function searchDocument(query: string, options: FindOptions): FindMatch[] {
+export function searchDocument(query: string, options: FindOptions): StaticRangeInit[] {
   var regex = buildFindRegExp(query, options);
   findInputElement().classList.toggle('mmd-find-error', query.length > 0 && regex === null);
   return regex ? walk(document.getElementById('diagram-wrap')!, regex) : [];

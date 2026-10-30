@@ -92,6 +92,35 @@ function installBrowserStubs(window: DOMWindow): void {
     };
     window.URL.revokeObjectURL = () => {};
   }
+  // 検索は CSS Custom Highlight API で描く（TASK-902。最低対応 macOS 14.2 の WebKit には
+  // 常にある）が、jsdom には無い。登録簿（CSS.highlights）と Highlight だけを用意し、
+  // テストは findHighlights で登録内容を読む。描画はしないので、文字範囲の矩形は
+  // 固定値で足りる（間引きの判定を測るテストは個別に差し替える）。
+  Object.defineProperty(window, 'CSS', {
+    value: { highlights: new Map<string, Set<AbstractRange>>() },
+    configurable: true,
+  });
+  window.Highlight = class extends Set<AbstractRange> {
+    priority = 0;
+    type: HighlightType = 'highlight';
+    constructor(...ranges: AbstractRange[]) {
+      super(ranges);
+    }
+  };
+  window.Range.prototype.getBoundingClientRect = () => new window.DOMRect(0, 0, 20, 16);
+}
+
+// 検索のハイライト登録簿を読む。matches は一覧（画面付近に間引かれていることがある）、
+// current は現在位置の 1 件。
+export function findHighlights(window: DOMWindow): {
+  matches: StaticRange[];
+  current: StaticRange | undefined;
+} {
+  const registry = window.CSS.highlights as unknown as Map<string, Set<StaticRange>>;
+  return {
+    matches: Array.from(registry.get('mmd-find-match') ?? []),
+    current: Array.from(registry.get('mmd-find-match-current') ?? [])[0],
+  };
 }
 
 // Swift 側(ViewerBridge)が注入する window グローバルに対応する。型は

@@ -14413,22 +14413,6 @@
     return _mmdPostMessage(_MSG_LOAD_MORE_LINES, {});
   }
 
-  // viewer-src/bar-controls.ts
-  function wireBarControls(config2) {
-    var prevButton = document.getElementById(config2.prevId);
-    var nextButton = document.getElementById(config2.nextId);
-    var closeButton = document.getElementById(config2.closeId);
-    if (prevButton) {
-      prevButton.addEventListener("click", config2.onPrev);
-    }
-    if (nextButton) {
-      nextButton.addEventListener("click", config2.onNext);
-    }
-    if (closeButton) {
-      closeButton.addEventListener("click", config2.onClose);
-    }
-  }
-
   // viewer-src/scroll.ts
   function _mmdScrollTarget() {
     var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
@@ -14463,6 +14447,7 @@
   }
 
   // viewer-src/find-highlight.ts
+  var CULL_THRESHOLD = 2e3;
   var nativeMatches = [];
   var paintedStart = -1;
   var paintedEnd = -1;
@@ -14481,8 +14466,9 @@
     highlightStyles?.disconnect();
   }
   function setNativeHighlights(root, matches) {
+    clearNativeHighlights();
     nativeMatches = matches;
-    watchHighlightViewport(root);
+    if (matches.length > CULL_THRESHOLD) watchHighlightViewport(root);
     updateNativeHighlights();
   }
   function scheduleNativeHighlights() {
@@ -14525,7 +14511,7 @@
     if (nativeMatches.length === 0) return;
     var start = 0;
     var end = nativeMatches.length;
-    if (!printingHighlights) {
+    if (!printingHighlights && nativeMatches.length > CULL_THRESHOLD) {
       var viewport = _mmdScrollTarget().getBoundingClientRect();
       var top = viewport.top - viewport.height;
       var bottom = viewport.bottom + viewport.height;
@@ -14564,21 +14550,26 @@
     paintedEnd = end;
   }
 
-  // viewer-src/find-scan.ts
-  function supportsHighlights() {
-    return typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined" && typeof StaticRange !== "undefined";
+  // viewer-src/bar-controls.ts
+  function wireBarControls(config2) {
+    var prevButton = document.getElementById(config2.prevId);
+    var nextButton = document.getElementById(config2.nextId);
+    var closeButton = document.getElementById(config2.closeId);
+    if (prevButton) {
+      prevButton.addEventListener("click", config2.onPrev);
+    }
+    if (nextButton) {
+      nextButton.addEventListener("click", config2.onNext);
+    }
+    if (closeButton) {
+      closeButton.addEventListener("click", config2.onClose);
+    }
   }
-  var usingNativeHighlights = false;
+
+  // viewer-src/find-scan.ts
   var indexedScopes = null;
   function clearFindCache() {
     indexedScopes = null;
-  }
-  function invalidateFindDocument() {
-    if (usingNativeHighlights) {
-      clearNativeHighlights();
-      usingNativeHighlights = false;
-    }
-    clearFindCache();
   }
   function indexScope(nodes) {
     var starts = [];
@@ -14604,27 +14595,6 @@
       return null;
     }
   }
-  function clearMarks() {
-    if (usingNativeHighlights) {
-      clearNativeHighlights();
-      usingNativeHighlights = false;
-      return;
-    }
-    var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
-    var parents = /* @__PURE__ */ new Set();
-    marks.forEach(function(mark) {
-      var parent = mark.parentNode;
-      if (!parent) return;
-      while (mark.firstChild) {
-        parent.insertBefore(mark.firstChild, mark);
-      }
-      mark.remove();
-      parents.add(parent);
-    });
-    parents.forEach(function(parent) {
-      parent.normalize();
-    });
-  }
   function locate(scope, offset, isStart, low = 0) {
     var high = scope.nodes.length;
     var end = scope.starts[low + 1] ?? scope.text.length;
@@ -14643,15 +14613,8 @@
     }
     return Math.min(low, scope.nodes.length - 1);
   }
-  function pruneEmptyAncestors(node, root) {
-    while (node && node !== root && node instanceof Element && node.textContent === "") {
-      var parent = node.parentNode;
-      if (!parent) break;
-      node.remove();
-      node = parent;
-    }
-  }
-  var skipTags = ["MARK", "SVG", "STYLE", "SCRIPT"];
+  var skipTags = ["SVG", "STYLE", "SCRIPT"];
+  var skipClass = "diagram-zoom-controls";
   var bridgeTags = [
     "SPAN",
     "A",
@@ -14674,7 +14637,8 @@
     "Q",
     "CITE",
     "TIME",
-    "LABEL"
+    "LABEL",
+    "MARK"
   ];
   function isBridgeable(node) {
     return node instanceof Element && bridgeTags.includes(node.tagName.toUpperCase());
@@ -14694,7 +14658,7 @@
         var child = children[i];
         if (child instanceof Text) {
           current.push(child);
-        } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase())) {
+        } else if (child instanceof Element && !skipTags.includes(child.tagName.toUpperCase()) && !child.classList.contains(skipClass)) {
           if (isBridgeable(child)) {
             recurse(child);
           } else {
@@ -14709,64 +14673,35 @@
     flush();
     return scopes;
   }
-  function matchScope(root, scope, regex, found, domRange, nativeMatches2) {
+  function matchScope(scope, regex, found) {
     var text3 = scope.text;
     regex.lastIndex = 0;
-    var ranges = [];
     var match2;
-    var nativeIndex = 0;
+    var nodeIndex = 0;
     while ((match2 = regex.exec(text3)) !== null) {
       if (match2[0].length === 0) {
         regex.lastIndex++;
         if (regex.lastIndex > text3.length) break;
         continue;
       }
-      if (nativeMatches2) {
-        var nativeStart = locate(scope, match2.index, true, nativeIndex);
-        var nativeEnd = locate(scope, match2.index + match2[0].length, false, nativeStart);
-        nativeIndex = nativeEnd;
-        nativeMatches2.push({
-          startContainer: scope.nodes[nativeStart],
-          startOffset: match2.index - scope.starts[nativeStart],
-          endContainer: scope.nodes[nativeEnd],
-          endOffset: match2.index + match2[0].length - scope.starts[nativeEnd]
-        });
-      } else {
-        ranges.push({ start: match2.index, end: match2.index + match2[0].length });
-      }
+      var start = locate(scope, match2.index, true, nodeIndex);
+      var end = locate(scope, match2.index + match2[0].length, false, start);
+      nodeIndex = end;
+      found.push({
+        startContainer: scope.nodes[start],
+        startOffset: match2.index - scope.starts[start],
+        endContainer: scope.nodes[end],
+        endOffset: match2.index + match2[0].length - scope.starts[end]
+      });
     }
-    if (nativeMatches2 || !domRange || ranges.length === 0) return;
-    var scopeFound = [];
-    ranges.toReversed().forEach(function(range) {
-      var start = locate(scope, range.start, true);
-      var end = locate(scope, range.end, false);
-      var startAncestor = scope.nodes[start].parentNode;
-      var endAncestor = scope.nodes[end].parentNode;
-      domRange.setStart(scope.nodes[start], range.start - scope.starts[start]);
-      domRange.setEnd(scope.nodes[end], range.end - scope.starts[end]);
-      var mark = document.createElement("mark");
-      mark.className = "mmd-find-match";
-      mark.append(domRange.extractContents());
-      domRange.insertNode(mark);
-      scopeFound.push(mark);
-      pruneEmptyAncestors(startAncestor, root);
-      pruneEmptyAncestors(endAncestor, root);
-    });
-    for (var i = scopeFound.length - 1; i >= 0; i--) found.push(scopeFound[i]);
   }
   function walk(root, regex) {
-    usingNativeHighlights = supportsHighlights() && root instanceof Element && root.matches(".csv-body, .code-body:has(code.csv-source)");
-    var nativeMatches2 = usingNativeHighlights ? [] : null;
     var found = [];
-    var domRange = nativeMatches2 ? null : document.createRange();
-    var scopes = nativeMatches2 ? indexedScopes ??= collectScopes(root).map((nodes) => indexScope(nodes)) : collectScopes(root).map((nodes) => indexScope(nodes));
-    scopes.forEach(function(scope) {
-      matchScope(root, scope, regex, found, domRange, nativeMatches2);
+    indexedScopes ??= collectScopes(root).map((nodes) => indexScope(nodes));
+    indexedScopes.forEach(function(scope) {
+      matchScope(scope, regex, found);
     });
-    if (nativeMatches2) {
-      setNativeHighlights(root, nativeMatches2);
-      return nativeMatches2;
-    }
+    setNativeHighlights(root, found);
     return found;
   }
 
@@ -14905,21 +14840,12 @@
       h.toggleOption("useRegex", "mmd-find-regex");
     });
   }
-  function moveFindHighlight(previous, current) {
-    if (current && !(current instanceof HTMLElement)) {
-      var highlight = new Highlight(new StaticRange(current));
-      highlight.priority = 1;
-      CSS.highlights.delete("mmd-find-match-current");
-      CSS.highlights.set("mmd-find-match-current", highlight);
-      scrollFindRange(current);
-      return;
-    }
-    moveCurrentHighlight(
-      previous instanceof HTMLElement ? [previous] : [],
-      current ? [current] : [],
-      "mmd-find-match-current",
-      current
-    );
+  function moveFindHighlight(current) {
+    var highlight = new Highlight(new StaticRange(current));
+    highlight.priority = 1;
+    CSS.highlights.delete("mmd-find-match-current");
+    CSS.highlights.set("mmd-find-match-current", highlight);
+    scrollFindRange(current);
   }
   function searchDocument(query2, options) {
     var regex = buildFindRegExp(query2, options);
@@ -14972,15 +14898,13 @@
     var query2 = "";
     var matches = [];
     var currentIndex = -1;
-    var currentHighlight;
     var truncated = false;
     function updateCount() {
       renderFindCount(query2, currentIndex, matches.length, truncated);
     }
     function highlightCurrent() {
       var current = matches[currentIndex];
-      moveFindHighlight(currentHighlight, current);
-      currentHighlight = current;
+      if (current) moveFindHighlight(current);
     }
     function moveTo(index) {
       currentIndex = index;
@@ -14989,8 +14913,7 @@
     }
     function run(suppressAutoHighlight) {
       query2 = findInputElement().value;
-      clearMarks();
-      currentHighlight = void 0;
+      clearNativeHighlights();
       matches = searchDocument(query2, options);
       currentIndex = matches.length > 0 ? 0 : -1;
       if (currentIndex === 0 && !suppressAutoHighlight) {
@@ -15007,9 +14930,9 @@
       }
     }
     function invalidate() {
-      invalidateFindDocument();
+      clearNativeHighlights();
+      clearFindCache();
       matches = [];
-      currentHighlight = void 0;
     }
     function next() {
       if (matches.length === 0) return;
@@ -15053,7 +14976,6 @@
     function close() {
       releaseBar("find");
       document.getElementById("mmd-find-panel").style.display = "none";
-      clearMarks();
       invalidate();
       currentIndex = -1;
     }

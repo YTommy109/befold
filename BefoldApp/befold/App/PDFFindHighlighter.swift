@@ -9,7 +9,7 @@ import PDFKit
 enum PDFFindHighlighter {
     /// `highlightedSelections` は**ユーザー選択とは別の系統**で、クリックしても消えない
     /// （PDFKit のヘッダが全マッチのハイライト用途として挙げている）。全件をここへ入れ、
-    /// 現在の 1 件だけ色を変えて、web 面の `mark.mmd-find-match` / `-current` の
+    /// 現在の 1 件だけ色を変えて、web 面の `::highlight(mmd-find-match)` / `-current` の
     /// 2 段階に対応させる。
     ///
     /// **`currentSelection` は使わない。** そちらは PDFKit がシステムの選択色で描く
@@ -41,11 +41,11 @@ enum PDFFindHighlighter {
         view.highlightedSelections = nil
     }
 
-    /// 一致の色。web 面の `mark.mmd-find-match`（rgba(255, 213, 0, 0.55)）に合わせる。
+    /// 一致の色。web 面の `::highlight(mmd-find-match)`（`--hit-bg`）に合わせる。
     private static let findMatchColor = NSColor(
         srgbRed: 1.0, green: 213.0 / 255.0, blue: 0, alpha: 0.55
     )
-    /// 現在の一致の色。web 面の `mark.mmd-find-match-current`（--accent）に対応する。
+    /// 現在の一致の色。web 面の `::highlight(mmd-find-match-current)`（--accent）に対応する。
     /// **ユーザー選択と同じ色にしない**（PDFKit のヘッダの推奨。どれが検索結果で
     /// どれが自分で選んだ範囲かが見分けられなくなる）。他の一致（薄い黄）との差が
     /// 一目で分かるよう、彩度の高いオレンジにする。

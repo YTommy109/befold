@@ -6,9 +6,13 @@
 // DOM に触れる層(描画・ズーム・検索・参照解決)のテスト。ファイル名は分割前の
 // viewer-main.js に由来する。公開面の barrel 経由で、jsdom + viewer.html の DOM 上でロジックを
 // 読み込み・初期化・単体呼び出しできることを確認する。
-import { describe, expect, jest, test } from '@jest/globals';
+import { describe, expect, test } from '@jest/globals';
 
-import { loadViewerMain, captureBridgeMessages } from './support/viewerMainHarness.js';
+import {
+  loadViewerMain,
+  captureBridgeMessages,
+  findHighlights,
+} from './support/viewerMainHarness.js';
 
 // カラースキーム変更を発火できる matchMedia に差し替える。ハーネス既定のスタブは
 // addEventListener が空実装のため、change を流すテストだけここで置き換える
@@ -478,45 +482,55 @@ describe('検索ナビゲーション', () => {
   }
 
   const count = (document: Document) => document.getElementById('mmd-find-count')!.textContent;
-  const currentMark = (document: Document) => document.querySelector('mark.mmd-find-match-current');
+  // ハイライトが指す文字列（StaticRange は文字列を持たないので Range に写して読む）。
+  const rangeText = (range: StaticRange | undefined) => {
+    const live = range!.startContainer.ownerDocument!.createRange();
+    live.setStart(range!.startContainer, range!.startOffset);
+    live.setEnd(range!.endContainer, range!.endOffset);
+    return live.toString();
+  };
+  const sameRange = (a: StaticRange | undefined, b: StaticRange | undefined) =>
+    a!.startContainer === b!.startContainer &&
+    a!.startOffset === b!.startOffset &&
+    a!.endContainer === b!.endContainer &&
+    a!.endOffset === b!.endOffset;
 
   test('検索するとヒット件数と先頭のハイライトが出る', () => {
-    const { document } = openFindOn('x a x b x', 'x');
+    const { window, document } = openFindOn('x a x b x', 'x');
+    const { matches, current } = findHighlights(window);
 
     expect(count(document)).toBe('1/3');
-    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(3);
-    expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[0]);
+    expect(matches.map((match) => rangeText(match))).toEqual(['x', 'x', 'x']);
+    expect(sameRange(current, matches[0])).toBe(true);
   });
 
-  test('CSV の複数セルを再検索しても Range は検索ごとに1つだけ生成する', async () => {
+  test('CSV の複数セルを再検索しても DOM を書き換えない', async () => {
     const { document, window, main } = loadViewerMain({});
     await main.render('first,second\nalpha alpha,alpine\nbeta,gamma', 'csv', ',');
     const wrap = document.getElementById('diagram-wrap')!;
     const originalHtml = wrap.innerHTML;
     main._mmdOpenFind();
     const input = document.getElementById('mmd-find-input') as HTMLInputElement;
-    // jsdom の時間計測では WebKit の live Range 更新コストを検出できないため、
-    // ヒット数・セル数に比例して Range を生成しないことを直接検証する。
-    const createRange = jest.spyOn(document, 'createRange');
+    const mutations = new window.MutationObserver(() => {});
+    mutations.observe(wrap, { childList: true, subtree: true, characterData: true });
 
     for (const [query, expected] of [
       ['a', 8],
       ['al', 3],
     ] as const) {
-      createRange.mockClear();
       input.value = query;
       input.dispatchEvent(new window.Event('input'));
 
-      expect(createRange).toHaveBeenCalledTimes(1);
       expect(count(document)).toBe('1/' + expected);
-      expect(Array.from(wrap.querySelectorAll('mark'), (mark) => mark.textContent)).toEqual(
+      expect(findHighlights(window).matches.map((match) => rangeText(match))).toEqual(
         Array.from({ length: expected }, () => query),
       );
     }
 
     main._mmdCloseFind();
+    expect(mutations.takeRecords()).toEqual([]);
+    mutations.disconnect();
     expect(wrap.innerHTML).toBe(originalHtml);
-    createRange.mockRestore();
   });
 
   // TASK-485.19 で jump.ts 側に見つかった回帰（外枠リネームへの追随漏れで
@@ -554,21 +568,24 @@ describe('検索ナビゲーション', () => {
   });
 
   test('現在位置のハイライトは常に1つだけ', () => {
-    const { document, main } = openFindOn('x a x b x', 'x');
+    const { window, main } = openFindOn('x a x b x', 'x');
 
     main._mmdFind.next();
 
-    expect(document.querySelectorAll('mark.mmd-find-match-current').length).toBe(1);
-    expect(currentMark(document)).toBe(document.querySelectorAll('mark.mmd-find-match')[1]);
+    const registry = window.CSS.highlights as unknown as Map<string, Set<StaticRange>>;
+    expect(registry.get('mmd-find-match-current')!.size).toBe(1);
+    const { matches, current } = findHighlights(window);
+    expect(sameRange(current, matches[1])).toBe(true);
   });
 
   test('⌘G 相当は検索バーが閉じている間は何もしない', () => {
-    const { document, main } = openFindOn('x a x b x', 'x');
+    const { window, main } = openFindOn('x a x b x', 'x');
     main._mmdCloseFind();
 
     main._mmdBarNextIfOpen();
 
-    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(findHighlights(window).matches).toEqual([]);
+    expect(findHighlights(window).current).toBeUndefined();
   });
 
   // バーの排他（bar.ts）が検索側にも効いていることを固定する。TASK-485.1 で
@@ -586,13 +603,13 @@ describe('検索ナビゲーション', () => {
   });
 
   test('別のバーを開くと検索バーは閉じる', () => {
-    const { document, main } = openFindOn('x a x b x', 'x');
+    const { window, document, main } = openFindOn('x a x b x', 'x');
 
     main.claimBar('jump');
 
     expect(main.currentBar()).toBe('jump');
     expect(document.getElementById('mmd-find-panel')!.style.display).toBe('none');
-    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(findHighlights(window).matches).toEqual([]);
   });
 
   test('閉じているバーの release は、後から開いた別のバーを消さない', () => {
@@ -630,12 +647,13 @@ describe('検索ナビゲーション', () => {
     expect(count(document)).toBe('');
   });
 
-  test('閉じるとハイライトが平文に戻る', () => {
-    const { document, main } = openFindOn('x a x b x', 'x');
+  test('閉じるとハイライトが消える', () => {
+    const { window, document, main } = openFindOn('x a x b x', 'x');
 
     main._mmdCloseFind();
 
-    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(findHighlights(window).matches).toEqual([]);
+    expect(findHighlights(window).current).toBeUndefined();
     expect(document.getElementById('diagram-wrap')!.textContent).toBe('x a x b x');
   });
 
@@ -652,38 +670,37 @@ describe('検索ナビゲーション', () => {
   }
 
   test('span 境界をまたぐ foo.bar がデフォルトモードでヒットする', () => {
-    const { document } = openFindOnHtml(
+    const { window, document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
       'foo.bar',
     );
 
     expect(count(document)).toBe('1/1');
-    const mark = document.querySelector('mark.mmd-find-match')!;
-    expect(mark.textContent).toBe('foo.bar');
+    expect(rangeText(findHighlights(window).matches[0])).toBe('foo.bar');
   });
 
   test('span 境界をまたぐ .bar が先頭ドットだけでもヒットする', () => {
-    const { document } = openFindOnHtml(
+    const { window, document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
       '.bar',
     );
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('.bar');
+    expect(rangeText(findHighlights(window).matches[0])).toBe('.bar');
   });
 
   test('span 境界をまたぐ foo. が末尾ドットだけでもヒットする', () => {
-    const { document } = openFindOnHtml(
+    const { window, document } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
       'foo.',
     );
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('foo.');
+    expect(rangeText(findHighlights(window).matches[0])).toBe('foo.');
   });
 
   test('span 境界をまたぐマッチはトグル(大小文字・単語一致・正規表現)を有効にしても検出できる', () => {
-    const { document } = openFindOnHtml(
+    const { window, document } = openFindOnHtml(
       '<span class="hljs-title">Foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">Bar</span>',
       '',
     );
@@ -695,24 +712,24 @@ describe('検索ナビゲーション', () => {
     input.dispatchEvent(new document.defaultView!.Event('input'));
 
     expect(count(document)).toBe('1/1');
-    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('Foo.Bar');
+    expect(rangeText(findHighlights(window).matches[0])).toBe('Foo.Bar');
   });
 
   test('span をまたいだハイライト解除後もテキスト内容が保たれる', () => {
-    const { document, main } = openFindOnHtml(
+    const { window, document, main } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
       'foo.bar',
     );
 
     main._mmdCloseFind();
 
-    expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+    expect(findHighlights(window).matches).toEqual([]);
     expect(document.querySelector('#diagram-wrap')!.textContent).toBe('foo.bar');
   });
 
-  // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先 <span> を
-  // 空のまま残す。1打鍵ごとに run() が呼ばれるため、これを放置すると空 <span> が
-  // 際限なく増殖してレイアウトが壊れる(タイプするたびに崩れる、という形で顕在化した回帰)。
+  // 旧実装（<mark> を挿入する経路）では、境界をまたぐマッチの端に空の <span> が残り、
+  // 打鍵のたびに増殖してレイアウトが壊れた。DOM を書き換えなくなった今も、打鍵の
+  // 連続で構造が変わらないことを固定しておく。
   test('span 境界をまたぐ検索を連続して打鍵しても空の span が増殖しない', () => {
     const { document, window } = openFindOnHtml(
       '<span class="hljs-title">foo</span><span class="hljs-punctuation">.</span><span class="hljs-property">bar</span>',
@@ -748,12 +765,12 @@ describe('検索ナビゲーション', () => {
     expect(document.querySelector('#diagram-wrap')!.textContent).toBe('foo.bar');
   });
 
-  // マッチが1つの <span> 内に収まっている(境界をまたがない)場合は、その span 自体を
-  // 分割・複製してはいけない。Range の境界オフセットを前後どちらのテキストノードに
-  // 解決するかを誤ると、実際にはマッチしていない隣接 span まで巻き込んで割れてしまう
-  // (README 検索でヒット箇所が「b e f o l d」のように分断された回帰の再現)。
-  test('マッチが1つの span 内に収まる場合はその span を分割しない', () => {
-    const { document } = openFindOnHtml(
+  // マッチが1つの <span> 内に収まっている(境界をまたがない)場合は、範囲の両端が
+  // その span のテキストに収まり、隣接 span へ食み出さない。境界オフセットを前後
+  // どちらのテキストノードに解決するかを誤ると、実際にはマッチしていない隣接 span まで
+  // 範囲に含まれる(旧実装では「b e f o l d」のように分断された回帰の再現)。
+  test('マッチが1つの span 内に収まる場合は範囲がその span から食み出さない', () => {
+    const { window, document } = openFindOnHtml(
       'DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span><span class="hljs-property">app</span> を配置',
       'b',
     );
@@ -761,13 +778,16 @@ describe('検索ナビゲーション', () => {
     const titleSpans = document.querySelectorAll('#diagram-wrap span.hljs-title');
     expect(titleSpans.length).toBe(1);
     expect(titleSpans[0]!.textContent).toBe('befold');
-    expect(document.querySelector('mark.mmd-find-match')!.textContent).toBe('b');
+    const match = findHighlights(window).matches[0]!;
+    expect(rangeText(match)).toBe('b');
+    expect(match.startContainer).toBe(titleSpans[0]!.firstChild);
+    expect(match.endContainer).toBe(titleSpans[0]!.firstChild);
   });
 
   // 行番号付きコードブロックは行ごとに <tr><td class="line-content"> で区切られる。
   // ブロック境界(見出し・リスト項目・テーブル行/セルなど)をまたいでテキストノードを
-  // 連結してしまうと、複数行にまたがる Range の抽出でテーブル構造そのものが壊れる
-  // (Markdown プレビュー全体のレイアウトが崩れた回帰の再現)。
+  // 連結してしまうと、行やセルをまたいだ一致が生まれる(旧実装では Range の抽出で
+  // テーブル構造そのものが壊れ、Markdown プレビュー全体のレイアウトが崩れた)。
   test('リストとテーブル行をまたいで検索してもテーブル構造が壊れない', () => {
     const { document, window } = openFindOnHtml(
       '<ul><li>DMG を開き、<span class="hljs-title">befold</span><span class="hljs-punctuation">.</span>' +

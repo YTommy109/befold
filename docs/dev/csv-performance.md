@@ -32,6 +32,9 @@ swiftc -module-cache-path .tmp/csv-perf/swift-cache \
   sample/large/manifest-synthetic.csv source true > .tmp/csv-perf/source-numbered.jsonl
 ```
 
+CSV 以外も `--type=` と `--lang=` で同じ手順を通せる（既定は `--type=csv`）。たとえば
+大きなソースコードは `--type=code --lang=swift`、Markdown は `--type=md` を付ける（TASK-902）。
+
 CSV の**全件**を `render()` に渡す。アプリの初期 1,000 行やファイル読み込み処理の計測ではない。
 表、ソース、行番号付きソースを分けて測る。検索は `s` → `sa` → `sample` → 不一致 → 空欄の順で、
 多数一致、絞り込み、解除を通す。任意の UTF-8 CSV も同じ引数で使えるが、公開する入力には
@@ -65,10 +68,11 @@ git archive "$BASE_REF" BefoldApp/BefoldKit/Resources | tar -x -C .tmp/csv-perf/
 - `workMs`: `await render()`、または検索 input イベントの経過時間。処理内のレイアウトや await 待機も含む。
 - `layoutMs`: 直後の `getBoundingClientRect()` による未処理レイアウトの時間。比較値は `workMs + layoutMs`。
 - `frameMs`: 未計測を示す `null`。画面への提示、スクロールの滑らかさ、アプリ全体の応答時間とは区別する。
-- 行数、本文長、パス注釈、検索件数、mark と native highlight の数も記録する。検索中に本文・行数が
+- 行数、本文長、パス注釈、検索件数、mark（変更前の Resources と比べるときだけ現れる）と
+  native highlight の登録数も記録する。検索中に本文・行数が
   変わる、件数が一致しない、描画エラーが出る場合は非ゼロ終了する。検証は計測区間の外で行う。
 
 新旧で本文長・行数・検索件数を照合してから時間を比較する。検索の検証は初期 DOM を基準にするため、
 その行数・本文長が入力全体に対応することも別途確認する。パス注釈数は旧 mark 経路では変わり得るため
 記録値として扱う。ビューの読み込み失敗・WebKit 終了・180 秒のタイムアウトも失敗扱い。
-速度の改善だけでは、選択、正規表現、追記、ズーム、印刷、旧 WebKit のフォールバックの回帰テストを代替しない。
+速度の改善だけでは、選択、正規表現、追記、ズーム、印刷の回帰テストを代替しない。
