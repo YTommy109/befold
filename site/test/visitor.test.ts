@@ -49,8 +49,14 @@ describe('dayKey', () => {
 })
 
 describe('UA 要約', () => {
-  it('macOS のメジャーバージョンとブラウザ種別だけを残す', () => {
-    expect(summarizeOS(UA)).toBe('macOS 14.5')
+  it('OS 種別とブラウザ種別だけを残し、macOS のバージョンは取らない', () => {
+    // ブラウザは UA の macOS バージョンを 10_15_7 に固定するため、実際の版を表さない。
+    expect(summarizeOS(UA)).toBe('macOS')
+    expect(
+      summarizeOS(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)',
+      ),
+    ).toBe('macOS')
     expect(summarizeUA(UA)).toBe('Safari')
   })
 

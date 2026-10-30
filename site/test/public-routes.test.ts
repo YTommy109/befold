@@ -361,7 +361,7 @@ describe('プライバシー', () => {
     const stored = JSON.stringify(event)
     expect(stored).not.toContain(IP)
     expect(stored).not.toContain('AppleWebKit')
-    expect(event?.os).toBe('macOS 14.5')
+    expect(event?.os).toBe('macOS')
     expect(event?.ua_summary).toBe('Safari')
     expect(event?.visitor_token).toMatch(/^[0-9a-f]{64}$/u)
   })
