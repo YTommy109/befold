@@ -108,6 +108,7 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   // 目印の列は列そのものが状態なので、ここで捨てておかないと前の文書の
   // n/N と現在位置ハイライトがその間ずっと表示され続ける。
   _mmdJump.invalidate();
+  _mmdFind.invalidate();
   // DOM を書き換える前に、内部再描画(カラースキーム変更時など)向けの
   // フォールバック復元位置として現在位置を退避する(_mmdRestoreScrollPosition 参照)。
   var scrollTargetBeforeRender = _mmdScrollTarget();
@@ -170,6 +171,11 @@ async function render(content: string, type: string, lang?: string): Promise<voi
 
   _annotatePathRefs();
   _mmdResolveReferences();
+  // Measure columns after link annotation so opening CSV does not lay out the table twice.
+  if (shape === 'csv-table') {
+    var csvTable = diagramWrap.querySelector('table');
+    if (csvTable) installCsvResize(csvTable);
+  }
   _mmdFindRefreshAfterRender();
   _mmdApplyZoom();
   _mmdRestoreScrollPosition(fallbackScrollTop);

@@ -119,6 +119,14 @@ Swift Testing（`befoldTests` / `befoldCLITests`）と Jest（`BefoldApp/viewer-
 
 ## テストパターン
 
+### CSV viewer の性能計測
+
+<!-- derived-from ../csv-performance.md -->
+
+CSV の所要時間は独立した WKWebView ハーネスで任意実行する。入力・実行手順・前後比較は
+[CSV viewer の性能計測](../csv-performance.md) を参照。正しさは既存の Jest で検証し、
+この CSV 計測には CI の時間閾値を設けない。
+
 ### ファイルシステムテスト（FileWatcher / ViewerStore）
 
 `TempDir` で一時ディレクトリを作る（deinit が削除を担う）:

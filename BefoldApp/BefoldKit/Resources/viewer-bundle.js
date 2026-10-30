@@ -14429,7 +14429,166 @@
     }
   }
 
+  // viewer-src/scroll.ts
+  function _mmdScrollTarget() {
+    var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
+    if (codeEl) {
+      return codeEl;
+    }
+    return document.querySelector(".viewer");
+  }
+  function _createScrollSync() {
+    var pendingRestore = null;
+    return {
+      setRestore: function(position) {
+        pendingRestore = position;
+      },
+      // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
+      // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
+      takeRestorePosition: function(fallback) {
+        var position = pendingRestore === null ? typeof fallback === "number" ? fallback : 0 : pendingRestore;
+        pendingRestore = null;
+        return position;
+      }
+    };
+  }
+  var _mmdScroll = _createScrollSync();
+  function _mmdSetRestoreScroll(position) {
+    _mmdScroll.setRestore(position);
+  }
+  function _mmdRestoreScrollPosition(fallbackScrollTop) {
+    var el = _mmdScrollTarget();
+    if (!el) return;
+    el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
+  }
+
+  // viewer-src/find-highlight.ts
+  var nativeMatches = [];
+  var paintedStart = -1;
+  var paintedEnd = -1;
+  var highlightFrame = null;
+  var highlightResize = null;
+  var highlightStyles = null;
+  var printingHighlights = false;
+  function clearNativeHighlights() {
+    CSS.highlights.delete("mmd-find-match");
+    CSS.highlights.delete("mmd-find-match-current");
+    nativeMatches = [];
+    paintedStart = paintedEnd = -1;
+    if (highlightFrame !== null) window.cancelAnimationFrame(highlightFrame);
+    highlightFrame = null;
+    highlightResize?.disconnect();
+    highlightStyles?.disconnect();
+  }
+  function setNativeHighlights(root, matches) {
+    nativeMatches = matches;
+    watchHighlightViewport(root);
+    updateNativeHighlights();
+  }
+  function scheduleNativeHighlights() {
+    if (highlightFrame !== null || nativeMatches.length === 0) return;
+    highlightFrame = window.requestAnimationFrame(function() {
+      highlightFrame = null;
+      updateNativeHighlights();
+    });
+  }
+  function watchHighlightViewport(root) {
+    window.addEventListener("scroll", scheduleNativeHighlights, true);
+    window.addEventListener("resize", scheduleNativeHighlights);
+    window.addEventListener("beforeprint", showPrintHighlights);
+    window.addEventListener("afterprint", restoreViewportHighlights);
+    var viewport = _mmdScrollTarget();
+    if (viewport && typeof ResizeObserver !== "undefined") {
+      highlightResize ??= new ResizeObserver(scheduleNativeHighlights);
+      highlightResize.observe(viewport);
+    }
+    highlightStyles ??= new MutationObserver(scheduleNativeHighlights);
+    highlightStyles.observe(root, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["style", "class"]
+    });
+    highlightStyles.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"]
+    });
+  }
+  function showPrintHighlights() {
+    printingHighlights = true;
+    updateNativeHighlights();
+  }
+  function restoreViewportHighlights() {
+    printingHighlights = false;
+    updateNativeHighlights();
+  }
+  function updateNativeHighlights() {
+    if (nativeMatches.length === 0) return;
+    var start = 0;
+    var end = nativeMatches.length;
+    if (!printingHighlights) {
+      var viewport = _mmdScrollTarget().getBoundingClientRect();
+      var top = viewport.top - viewport.height;
+      var bottom = viewport.bottom + viewport.height;
+      var range = document.createRange();
+      var bounds = function(index) {
+        var match2 = nativeMatches[index];
+        var row = match2.startContainer.parentElement.closest("tr");
+        if (row) return row.getBoundingClientRect();
+        range.setStart(match2.startContainer, match2.startOffset);
+        range.setEnd(match2.endContainer, match2.endOffset);
+        return range.getBoundingClientRect();
+      };
+      var low = 0;
+      var high = end;
+      var middle;
+      while (low < high) {
+        middle = Math.floor((low + high) / 2);
+        if (bounds(middle).bottom < top) low = middle + 1;
+        else high = middle;
+      }
+      start = low;
+      high = end;
+      while (low < high) {
+        middle = Math.floor((low + high) / 2);
+        if (bounds(middle).top <= bottom) low = middle + 1;
+        else high = middle;
+      }
+      end = low;
+    }
+    if (start === paintedStart && end === paintedEnd) return;
+    var highlight = new Highlight();
+    for (var i = start; i < end; i++) highlight.add(new StaticRange(nativeMatches[i]));
+    CSS.highlights.delete("mmd-find-match");
+    CSS.highlights.set("mmd-find-match", highlight);
+    paintedStart = start;
+    paintedEnd = end;
+  }
+
   // viewer-src/find-scan.ts
+  function supportsHighlights() {
+    return typeof CSS !== "undefined" && !!CSS.highlights && typeof Highlight !== "undefined" && typeof StaticRange !== "undefined";
+  }
+  var usingNativeHighlights = false;
+  var indexedScopes = null;
+  function clearFindCache() {
+    indexedScopes = null;
+  }
+  function invalidateFindDocument() {
+    if (usingNativeHighlights) {
+      clearNativeHighlights();
+      usingNativeHighlights = false;
+    }
+    clearFindCache();
+  }
+  function indexScope(nodes) {
+    var starts = [];
+    var text3 = "";
+    nodes.forEach(function(node) {
+      starts.push(text3.length);
+      text3 += node.textContent;
+    });
+    return { nodes, starts, text: text3 };
+  }
   function buildFindRegExp(query2, options) {
     if (!query2) {
       return null;
@@ -14446,6 +14605,11 @@
     }
   }
   function clearMarks() {
+    if (usingNativeHighlights) {
+      clearNativeHighlights();
+      usingNativeHighlights = false;
+      return;
+    }
     var marks = document.querySelectorAll("#diagram-wrap mark.mmd-find-match");
     var parents = /* @__PURE__ */ new Set();
     marks.forEach(function(mark) {
@@ -14461,17 +14625,23 @@
       parent.normalize();
     });
   }
-  function locate(textNodes, starts, offset, isStart) {
-    for (var i = 0; i < textNodes.length; i++) {
-      var start = starts[i];
-      var length = textNodes[i].length;
-      var fits = isStart ? offset < start + length : offset <= start + length;
-      if (fits) {
-        return { node: textNodes[i], localOffset: offset - start };
-      }
+  function locate(scope, offset, isStart, low = 0) {
+    var high = scope.nodes.length;
+    var end = scope.starts[low + 1] ?? scope.text.length;
+    if (isStart ? offset < end : offset <= end) return low;
+    low++;
+    if (low < high) {
+      end = scope.starts[low + 1] ?? scope.text.length;
+      if (isStart ? offset < end : offset <= end) return low;
+      low++;
     }
-    var last = textNodes.length - 1;
-    return { node: textNodes[last], localOffset: textNodes[last].length };
+    while (low < high) {
+      var middle = Math.floor((low + high) / 2);
+      end = scope.starts[middle + 1] ?? scope.text.length;
+      if (isStart ? offset < end : offset <= end) high = middle;
+      else low = middle + 1;
+    }
+    return Math.min(low, scope.nodes.length - 1);
   }
   function pruneEmptyAncestors(node, root) {
     while (node && node !== root && node instanceof Element && node.textContent === "") {
@@ -14539,48 +14709,65 @@
     flush();
     return scopes;
   }
-  function matchScope(root, textNodeList, regex, found, domRange) {
-    var starts = [];
-    var text3 = "";
-    textNodeList.forEach(function(node) {
-      starts.push(text3.length);
-      text3 += node.textContent;
-    });
+  function matchScope(root, scope, regex, found, domRange, nativeMatches2) {
+    var text3 = scope.text;
     regex.lastIndex = 0;
     var ranges = [];
     var match2;
+    var nativeIndex = 0;
     while ((match2 = regex.exec(text3)) !== null) {
       if (match2[0].length === 0) {
         regex.lastIndex++;
         if (regex.lastIndex > text3.length) break;
         continue;
       }
-      ranges.push({ start: match2.index, end: match2.index + match2[0].length });
+      if (nativeMatches2) {
+        var nativeStart = locate(scope, match2.index, true, nativeIndex);
+        var nativeEnd = locate(scope, match2.index + match2[0].length, false, nativeStart);
+        nativeIndex = nativeEnd;
+        nativeMatches2.push({
+          startContainer: scope.nodes[nativeStart],
+          startOffset: match2.index - scope.starts[nativeStart],
+          endContainer: scope.nodes[nativeEnd],
+          endOffset: match2.index + match2[0].length - scope.starts[nativeEnd]
+        });
+      } else {
+        ranges.push({ start: match2.index, end: match2.index + match2[0].length });
+      }
     }
-    if (ranges.length === 0) return;
+    if (nativeMatches2 || !domRange || ranges.length === 0) return;
     var scopeFound = [];
     ranges.toReversed().forEach(function(range) {
-      var start = locate(textNodeList, starts, range.start, true);
-      var end = locate(textNodeList, starts, range.end, false);
-      var startAncestor = start.node.parentNode;
-      var endAncestor = end.node.parentNode;
-      domRange.setStart(start.node, start.localOffset);
-      domRange.setEnd(end.node, end.localOffset);
+      var start = locate(scope, range.start, true);
+      var end = locate(scope, range.end, false);
+      var startAncestor = scope.nodes[start].parentNode;
+      var endAncestor = scope.nodes[end].parentNode;
+      domRange.setStart(scope.nodes[start], range.start - scope.starts[start]);
+      domRange.setEnd(scope.nodes[end], range.end - scope.starts[end]);
       var mark = document.createElement("mark");
       mark.className = "mmd-find-match";
       mark.append(domRange.extractContents());
       domRange.insertNode(mark);
-      scopeFound.unshift(mark);
+      scopeFound.push(mark);
       pruneEmptyAncestors(startAncestor, root);
       pruneEmptyAncestors(endAncestor, root);
     });
-    found.push.apply(found, scopeFound);
+    for (var i = scopeFound.length - 1; i >= 0; i--) found.push(scopeFound[i]);
   }
-  function walk(root, regex, found) {
-    var domRange = document.createRange();
-    collectScopes(root).forEach(function(textNodeList) {
-      matchScope(root, textNodeList, regex, found, domRange);
+  function walk(root, regex) {
+    usingNativeHighlights = supportsHighlights() && root instanceof Element && root.matches(".csv-body, .code-body:has(code.csv-source)");
+    var nativeMatches2 = usingNativeHighlights ? [] : null;
+    var found = [];
+    var domRange = nativeMatches2 ? null : document.createRange();
+    var scopes = nativeMatches2 ? indexedScopes ??= collectScopes(root).map((nodes) => indexScope(nodes)) : collectScopes(root).map((nodes) => indexScope(nodes));
+    scopes.forEach(function(scope) {
+      matchScope(root, scope, regex, found, domRange, nativeMatches2);
     });
+    if (nativeMatches2) {
+      setNativeHighlights(root, nativeMatches2);
+      return nativeMatches2;
+    }
+    return found;
   }
 
   // viewer-src/ime.ts
@@ -14719,8 +14906,16 @@
     });
   }
   function moveFindHighlight(previous, current) {
+    if (current && !(current instanceof HTMLElement)) {
+      var highlight = new Highlight(new StaticRange(current));
+      highlight.priority = 1;
+      CSS.highlights.delete("mmd-find-match-current");
+      CSS.highlights.set("mmd-find-match-current", highlight);
+      scrollFindRange(current);
+      return;
+    }
     moveCurrentHighlight(
-      previous ? [previous] : [],
+      previous instanceof HTMLElement ? [previous] : [],
       current ? [current] : [],
       "mmd-find-match-current",
       current
@@ -14729,11 +14924,40 @@
   function searchDocument(query2, options) {
     var regex = buildFindRegExp(query2, options);
     findInputElement().classList.toggle("mmd-find-error", query2.length > 0 && regex === null);
-    var found = [];
-    if (regex) {
-      walk(document.getElementById("diagram-wrap"), regex, found);
+    return regex ? walk(document.getElementById("diagram-wrap"), regex) : [];
+  }
+  function scrollFindRange(match2) {
+    var range = document.createRange();
+    range.setStart(match2.startContainer, match2.startOffset);
+    range.setEnd(match2.endContainer, match2.endOffset);
+    var rect = range.getBoundingClientRect();
+    var left = rect.left;
+    var top = rect.top;
+    for (var el = match2.startContainer.parentElement; el; el = el.parentElement) {
+      var style = getComputedStyle(el);
+      var scrollX = /^(auto|scroll|hidden)$/u.test(style.overflowX) && el.scrollWidth > el.clientWidth;
+      var scrollY = /^(auto|scroll|hidden)$/u.test(style.overflowY) && el.scrollHeight > el.clientHeight;
+      if (!scrollX && !scrollY) continue;
+      var bounds = el.getBoundingClientRect();
+      var scale = el.offsetWidth ? bounds.width / el.offsetWidth : 1;
+      var x = left - bounds.left - el.clientLeft * scale;
+      var y = top - bounds.top - el.clientTop * scale;
+      var width = el.clientWidth * scale;
+      var dx = 0;
+      if (x < 0 && x + rect.width < width) dx = Math.max(x, x + rect.width - width);
+      if (x + rect.width > width && x > 0) dx = Math.min(x, x + rect.width - width);
+      var nextLeft = scrollX ? Math.max(0, Math.min(el.scrollWidth - el.clientWidth, el.scrollLeft + dx / scale)) : el.scrollLeft;
+      var nextTop = scrollY ? Math.max(
+        0,
+        Math.min(
+          el.scrollHeight - el.clientHeight,
+          el.scrollTop + (y + rect.height / 2) / scale - el.clientHeight / 2
+        )
+      ) : el.scrollTop;
+      left -= (nextLeft - el.scrollLeft) * scale;
+      top -= (nextTop - el.scrollTop) * scale;
+      el.scrollTo({ left: nextLeft, top: nextTop, behavior: "smooth" });
     }
-    return found;
   }
 
   // viewer-src/find.ts
@@ -14766,23 +14990,26 @@
     function run(suppressAutoHighlight) {
       query2 = findInputElement().value;
       clearMarks();
-      currentIndex = -1;
       currentHighlight = void 0;
       matches = searchDocument(query2, options);
-      if (matches.length > 0) {
-        currentIndex = 0;
-        if (!suppressAutoHighlight) {
-          highlightCurrent();
-        }
+      currentIndex = matches.length > 0 ? 0 : -1;
+      if (currentIndex === 0 && !suppressAutoHighlight) {
+        highlightCurrent();
       }
       updateCount();
     }
     function refresh(resetToFirst) {
+      clearFindCache();
       var previousIndex = resetToFirst ? 0 : currentIndex;
       run(true);
       if (matches.length > 0) {
         moveTo(keptMatchIndex(previousIndex, matches.length));
       }
+    }
+    function invalidate() {
+      invalidateFindDocument();
+      matches = [];
+      currentHighlight = void 0;
     }
     function next() {
       if (matches.length === 0) return;
@@ -14827,9 +15054,8 @@
       releaseBar("find");
       document.getElementById("mmd-find-panel").style.display = "none";
       clearMarks();
-      matches = [];
+      invalidate();
       currentIndex = -1;
-      currentHighlight = void 0;
     }
     function setTruncated(value) {
       truncated = value;
@@ -14844,6 +15070,7 @@
       next,
       prev,
       refresh,
+      invalidate,
       applyHostSettings,
       initControls,
       setTruncated
@@ -16657,39 +16884,6 @@
     });
   }
 
-  // viewer-src/scroll.ts
-  function _mmdScrollTarget() {
-    var codeEl = document.querySelector("#diagram-wrap.code-body pre code");
-    if (codeEl) {
-      return codeEl;
-    }
-    return document.querySelector(".viewer");
-  }
-  function _createScrollSync() {
-    var pendingRestore = null;
-    return {
-      setRestore: function(position) {
-        pendingRestore = position;
-      },
-      // 注入された復元位置があればそれを、無ければ fallback を返して消費する。
-      // fallback は Swift を経由しない内部再描画で現在位置を保つための値。
-      takeRestorePosition: function(fallback) {
-        var position = pendingRestore === null ? typeof fallback === "number" ? fallback : 0 : pendingRestore;
-        pendingRestore = null;
-        return position;
-      }
-    };
-  }
-  var _mmdScroll = _createScrollSync();
-  function _mmdSetRestoreScroll(position) {
-    _mmdScroll.setRestore(position);
-  }
-  function _mmdRestoreScrollPosition(fallbackScrollTop) {
-    var el = _mmdScrollTarget();
-    if (!el) return;
-    el.scrollTop = _mmdScroll.takeRestorePosition(fallbackScrollTop);
-  }
-
   // viewer-src/reveal-line.ts
   function sourceTable() {
     var shape = _mmdDocument.shape();
@@ -17203,6 +17397,8 @@
     }
   }
   function _annotateUnit(el) {
+    var child = el.firstChild;
+    if (child instanceof Text && !child.nextSibling && !child.data.includes("/")) return;
     var nodes = [];
     _collectUnitTextNodes(el, nodes);
     _annotateTextNodes(nodes);
@@ -17240,18 +17436,18 @@
       starts.push(text3.length);
       text3 += nodes[i].textContent;
     }
+    starts.push(text3.length);
     _PATH_RE.lastIndex = 0;
     var segments = null;
     var match2;
+    var firstNode = 0;
     while ((match2 = _PATH_RE.exec(text3)) !== null) {
       var from = match2.index;
       var to = from + match2[0].length;
-      for (var n = 0; n < nodes.length; n++) {
+      while (firstNode < nodes.length && starts[firstNode + 1] <= from) firstNode++;
+      for (var n = firstNode; n < nodes.length && starts[n] < to; n++) {
         var nodeStart = starts[n];
-        var nodeEnd = nodeStart + nodes[n].textContent.length;
-        if (nodeEnd <= from || nodeStart >= to) {
-          continue;
-        }
+        var nodeEnd = starts[n + 1];
         if (!segments) {
           segments = {};
         }
@@ -24616,181 +24812,6 @@
     _mmdWrapDiagrams(diagramWrap);
   }
 
-  // viewer-src/csv-resize.ts
-  var MIN_WIDTH = 40;
-  var LIVE_RESIZE_MAX_ROWS = 2e3;
-  var widths = [];
-  var path = null;
-  var cancelDrag;
-  function prepareCsvResize(newPath) {
-    cancelDrag?.();
-    if (newPath === null || path !== newPath) widths = [];
-    path = newPath;
-  }
-  function applyWidths(table2) {
-    if (widths.length === 0) return;
-    var headers = table2.tHead.rows[0].cells;
-    widths.length = Math.min(widths.length, headers.length);
-    var group = table2.querySelector("colgroup");
-    if (!group) {
-      group = document.createElement("colgroup");
-      table2.prepend(group);
-    }
-    while (group.children.length < headers.length) group.append(document.createElement("col"));
-    for (var i = 0; i < headers.length; i++) {
-      if (widths[i] === void 0) widths[i] = Math.max(MIN_WIDTH, headers[i].offsetWidth);
-      var col = group.children[i];
-      if (col instanceof HTMLElement) col.style.width = widths[i] + "px";
-      headers[i].querySelector(".csv-resize-handle")?.setAttribute(
-        "aria-valuenow",
-        String(Math.round(widths[i]))
-      );
-    }
-    table2.classList.add("csv-sized");
-    table2.style.width = widths.reduce((sum, width) => sum + width, 1) + "px";
-  }
-  function setWidth(table2, index, width) {
-    if (widths.length === 0)
-      widths = Array.from(
-        table2.tHead.rows[0].cells,
-        (cell) => Math.max(MIN_WIDTH, cell.offsetWidth)
-      );
-    widths[index] = Math.max(MIN_WIDTH, width);
-    applyWidths(table2);
-  }
-  var FIT_SAMPLE = 200;
-  function displayLength(text3) {
-    var longest = 0;
-    for (var line of text3.split("\n")) {
-      var length = 0;
-      for (var ch of line) length += ch.codePointAt(0) >= 11904 ? 2 : 1;
-      longest = Math.max(longest, length);
-    }
-    return longest;
-  }
-  function fitCandidates(table2, index) {
-    var cells = [];
-    for (var row of table2.rows) {
-      var cell = row.cells[index];
-      if (cell) cells.push(cell);
-    }
-    if (cells.length <= FIT_SAMPLE + 1) return cells;
-    var [header, ...body] = cells;
-    var ranked = body.map((candidate) => ({
-      cell: candidate,
-      length: displayLength(candidate.textContent ?? "")
-    }));
-    ranked.sort((a, b) => b.length - a.length);
-    return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
-  }
-  function fitColumn(table2, index) {
-    var probe = table2.cloneNode(false);
-    if (!(probe instanceof HTMLTableElement)) return;
-    probe.classList.remove("csv-sized");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
-    for (var cell of fitCandidates(table2, index)) {
-      var copy = cell.cloneNode(true);
-      if (!(copy instanceof HTMLTableCellElement)) continue;
-      copy.querySelector(".csv-resize-handle")?.remove();
-      copy.style.whiteSpace = "pre";
-      probe.insertRow().append(copy);
-    }
-    table2.parentElement.append(probe);
-    var width = probe.offsetWidth || MIN_WIDTH;
-    probe.remove();
-    setWidth(table2, index, width);
-  }
-  function installCsvResize(table2) {
-    var headers = table2.tHead?.rows[0]?.cells;
-    if (!headers) return;
-    var strings = window._mmdUIStrings || {};
-    Array.from(headers).forEach(function(header, index) {
-      if (header.querySelector(".csv-resize-handle")) return;
-      var handle = document.createElement("span");
-      handle.className = "csv-resize-handle";
-      handle.tabIndex = index === 0 ? 0 : -1;
-      handle.setAttribute("role", "separator");
-      handle.setAttribute("aria-orientation", "vertical");
-      handle.setAttribute("aria-valuemin", String(MIN_WIDTH));
-      handle.setAttribute("aria-valuenow", String(widths[index] || header.offsetWidth));
-      handle.setAttribute(
-        "aria-label",
-        (strings.csvResizeColumn || "Resize column {column}").replace("{column}", String(index + 1))
-      );
-      handle.title = strings.csvResizeHint || "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows. Alt+Left/Right moves to another column.";
-      handle.addEventListener("dblclick", function(event) {
-        event.preventDefault();
-        fitColumn(table2, index);
-      });
-      handle.addEventListener("focus", function() {
-        for (var other of table2.querySelectorAll(".csv-resize-handle"))
-          other.tabIndex = other === handle ? 0 : -1;
-      });
-      handle.addEventListener("keydown", function(event) {
-        if (!["ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.key === "Enter") fitColumn(table2, index);
-        else if (event.altKey) {
-          var handles = table2.querySelectorAll(".csv-resize-handle");
-          handles[index + (event.key === "ArrowRight" ? 1 : -1)]?.focus();
-        } else setWidth(table2, index, header.offsetWidth + (event.key === "ArrowRight" ? 10 : -10));
-      });
-      handle.addEventListener("pointerdown", function(event) {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        cancelDrag?.();
-        var startX = event.clientX;
-        var startWidth = header.offsetWidth;
-        var zoom = _mmdZoom.value();
-        var guided = (table2.tBodies[0]?.rows.length ?? 0) > LIVE_RESIZE_MAX_ROWS;
-        var width;
-        var overlay = document.createElement("div");
-        overlay.className = "csv-resize-overlay";
-        overlay.setAttribute("aria-hidden", "true");
-        var guide;
-        if (guided) {
-          guide = document.createElement("div");
-          guide.className = "csv-resize-guide";
-          guide.style.left = startX + "px";
-          overlay.append(guide);
-        }
-        document.body.append(overlay);
-        handle.setPointerCapture(event.pointerId);
-        function move(e) {
-          width = Math.max(MIN_WIDTH, startWidth + (e.clientX - startX) / zoom);
-          if (guide) guide.style.left = startX + (width - startWidth) * zoom + "px";
-          else setWidth(table2, index, width);
-        }
-        function end(commit) {
-          handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", onUp);
-          handle.removeEventListener("lostpointercapture", onCancel);
-          handle.removeEventListener("pointercancel", onCancel);
-          overlay.remove();
-          if (handle.hasPointerCapture(event.pointerId))
-            handle.releasePointerCapture(event.pointerId);
-          cancelDrag = void 0;
-          if (commit && guided && width !== void 0) setWidth(table2, index, width);
-        }
-        function onUp() {
-          end(true);
-        }
-        function onCancel() {
-          end(false);
-        }
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", onUp);
-        handle.addEventListener("lostpointercapture", onCancel);
-        handle.addEventListener("pointercancel", onCancel);
-        cancelDrag = onCancel;
-      });
-      header.append(handle);
-    });
-    applyWidths(table2);
-  }
-
   // viewer-src/renderers.ts
   var BODY_CLASSES = [
     "markdown-body",
@@ -24909,7 +24930,6 @@
       scroll.className = "csv-scroll";
       element.before(scroll);
       scroll.append(element);
-      installCsvResize(element);
     }
     return table2.formats;
   }
@@ -24965,6 +24985,188 @@
     }
   }
 
+  // viewer-src/csv-resize.ts
+  var MIN_WIDTH = 40;
+  var LIVE_RESIZE_MAX_ROWS = 2e3;
+  var widths = [];
+  var path = null;
+  var cancelDrag;
+  function prepareCsvResize(newPath) {
+    cancelDrag?.();
+    if (newPath === null || path !== newPath) widths = [];
+    path = newPath;
+  }
+  function applyWidths(table2) {
+    if (widths.length === 0) return;
+    var headers = table2.tHead.rows[0].cells;
+    widths.length = Math.min(widths.length, headers.length);
+    for (var column = 0; column < headers.length; column++) {
+      if (widths[column] === void 0)
+        widths[column] = Math.max(MIN_WIDTH, headers[column].offsetWidth);
+    }
+    var group = table2.querySelector("colgroup");
+    if (!group) {
+      group = document.createElement("colgroup");
+      table2.prepend(group);
+    }
+    while (group.children.length < headers.length) group.append(document.createElement("col"));
+    for (var i = 0; i < headers.length; i++) {
+      var col = group.children[i];
+      if (col instanceof HTMLElement) col.style.width = widths[i] + "px";
+      headers[i].querySelector(".csv-resize-handle")?.setAttribute(
+        "aria-valuenow",
+        String(Math.round(widths[i]))
+      );
+    }
+    table2.classList.add("csv-sized");
+    table2.style.width = widths.reduce((sum, width) => sum + width, 1) + "px";
+  }
+  function setWidth(table2, index, width) {
+    if (widths.length === 0)
+      widths = Array.from(
+        table2.tHead.rows[0].cells,
+        (cell) => Math.max(MIN_WIDTH, cell.offsetWidth)
+      );
+    widths[index] = Math.max(MIN_WIDTH, width);
+    applyWidths(table2);
+  }
+  var FIT_SAMPLE = 200;
+  function displayLength(text3) {
+    var longest = 0;
+    for (var line of text3.split("\n")) {
+      var length = 0;
+      for (var ch of line) length += ch.codePointAt(0) >= 11904 ? 2 : 1;
+      longest = Math.max(longest, length);
+    }
+    return longest;
+  }
+  function fitCandidates(table2, index) {
+    var cells = [];
+    for (var row of table2.rows) {
+      var cell = row.cells[index];
+      if (cell) cells.push(cell);
+    }
+    if (cells.length <= FIT_SAMPLE + 1) return cells;
+    var [header, ...body] = cells;
+    var ranked = body.map((candidate) => ({
+      cell: candidate,
+      length: displayLength(candidate.textContent ?? "")
+    }));
+    ranked.sort((a, b) => b.length - a.length);
+    return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
+  }
+  function fitColumn(table2, index) {
+    var probe = table2.cloneNode(false);
+    if (!(probe instanceof HTMLTableElement)) return;
+    probe.classList.remove("csv-sized");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
+    for (var cell of fitCandidates(table2, index)) {
+      var copy = cell.cloneNode(true);
+      if (!(copy instanceof HTMLTableCellElement)) continue;
+      copy.querySelector(".csv-resize-handle")?.remove();
+      copy.style.whiteSpace = "pre";
+      probe.insertRow().append(copy);
+    }
+    table2.parentElement.append(probe);
+    var width = probe.offsetWidth || MIN_WIDTH;
+    probe.remove();
+    setWidth(table2, index, width);
+  }
+  function installCsvResize(table2) {
+    var headers = table2.tHead?.rows[0]?.cells;
+    if (!headers) return;
+    var strings = window._mmdUIStrings || {};
+    var measuredWidths = Array.from(
+      headers,
+      (header, index) => header.querySelector(".csv-resize-handle") ? 0 : widths[index] ?? header.offsetWidth
+    );
+    Array.from(headers).forEach(function(header, index) {
+      if (header.querySelector(".csv-resize-handle")) return;
+      var handle = document.createElement("span");
+      handle.className = "csv-resize-handle";
+      handle.tabIndex = index === 0 ? 0 : -1;
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", "vertical");
+      handle.setAttribute("aria-valuemin", String(MIN_WIDTH));
+      handle.setAttribute("aria-valuenow", String(measuredWidths[index]));
+      handle.setAttribute(
+        "aria-label",
+        (strings.csvResizeColumn || "Resize column {column}").replace("{column}", String(index + 1))
+      );
+      handle.title = strings.csvResizeHint || "Drag or use Left/Right to resize. Double-click or press Enter to fit loaded rows. Alt+Left/Right moves to another column.";
+      handle.addEventListener("dblclick", function(event) {
+        event.preventDefault();
+        fitColumn(table2, index);
+      });
+      handle.addEventListener("focus", function() {
+        for (var other of table2.querySelectorAll(".csv-resize-handle"))
+          other.tabIndex = other === handle ? 0 : -1;
+      });
+      handle.addEventListener("keydown", function(event) {
+        if (!["ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.key === "Enter") fitColumn(table2, index);
+        else if (event.altKey) {
+          var handles = table2.querySelectorAll(".csv-resize-handle");
+          handles[index + (event.key === "ArrowRight" ? 1 : -1)]?.focus();
+        } else setWidth(table2, index, header.offsetWidth + (event.key === "ArrowRight" ? 10 : -10));
+      });
+      handle.addEventListener("pointerdown", function(event) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        cancelDrag?.();
+        var startX = event.clientX;
+        var startWidth = header.offsetWidth;
+        var zoom = _mmdZoom.value();
+        var guided = (table2.tBodies[0]?.rows.length ?? 0) > LIVE_RESIZE_MAX_ROWS;
+        var width;
+        var overlay = document.createElement("div");
+        overlay.className = "csv-resize-overlay";
+        overlay.setAttribute("aria-hidden", "true");
+        var guide;
+        if (guided) {
+          guide = document.createElement("div");
+          guide.className = "csv-resize-guide";
+          guide.style.left = startX + "px";
+          overlay.append(guide);
+        }
+        document.body.append(overlay);
+        handle.setPointerCapture(event.pointerId);
+        function move(e) {
+          width = Math.max(MIN_WIDTH, startWidth + (e.clientX - startX) / zoom);
+          if (guide) guide.style.left = startX + (width - startWidth) * zoom + "px";
+          else setWidth(table2, index, width);
+        }
+        function end(commit) {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", onUp);
+          handle.removeEventListener("lostpointercapture", onCancel);
+          handle.removeEventListener("pointercancel", onCancel);
+          overlay.remove();
+          if (handle.hasPointerCapture(event.pointerId))
+            handle.releasePointerCapture(event.pointerId);
+          cancelDrag = void 0;
+          if (commit && guided && width !== void 0) setWidth(table2, index, width);
+        }
+        function onUp() {
+          end(true);
+        }
+        function onCancel() {
+          end(false);
+        }
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", onUp);
+        handle.addEventListener("lostpointercapture", onCancel);
+        handle.addEventListener("pointercancel", onCancel);
+        cancelDrag = onCancel;
+      });
+      header.append(handle);
+    });
+    applyWidths(table2);
+  }
+
   // viewer-src/render.ts
   function renderShape(type, mode) {
     if (type === "xslt") {
@@ -24996,6 +25198,7 @@
     _mmdDocPath.adoptPending();
     prepareCsvResize(_mmdDocPath.current());
     _mmdJump.invalidate();
+    _mmdFind.invalidate();
     var scrollTargetBeforeRender = _mmdScrollTarget();
     var fallbackScrollTop = scrollTargetBeforeRender ? scrollTargetBeforeRender.scrollTop : 0;
     _mmdDocument.record(content, type, lang);
@@ -25035,6 +25238,10 @@
     await _mmdRunMermaid(diagramWrap);
     _annotatePathRefs();
     _mmdResolveReferences();
+    if (shape === "csv-table") {
+      var csvTable = diagramWrap.querySelector("table");
+      if (csvTable) installCsvResize(csvTable);
+    }
     _mmdFindRefreshAfterRender();
     _mmdApplyZoom();
     _mmdRestoreScrollPosition(fallbackScrollTop);

@@ -1,5 +1,6 @@
-// 検索のスキャン部分: クエリから RegExp を組み立て、#diagram-wrap 配下のテキストを
-// 走査して <mark> で包み、元に戻す。コントローラの状態には触れない純粋な DOM 操作。
+// 検索のスキャンとハイライト。対応する WebKit では DOM を変えずに描画する。
+
+import { clearNativeHighlights, setNativeHighlights } from './find-highlight.js';
 
 // 検索の 3 トグル。window._mmdInitialFindOptions（Swift が注入する側、すべて省略可）と
 // 違い、コントローラ内部では 3 つとも常に確定している。
@@ -20,9 +21,48 @@ declare global {
   }
 }
 
-interface TextLocation {
-  node: Text;
-  localOffset: number;
+export type FindMatch = HTMLElement | StaticRangeInit;
+
+function supportsHighlights(): boolean {
+  return (
+    typeof CSS !== 'undefined' &&
+    !!CSS.highlights &&
+    typeof Highlight !== 'undefined' &&
+    typeof StaticRange !== 'undefined'
+  );
+}
+
+interface SearchScope {
+  nodes: Text[];
+  starts: number[];
+  text: string;
+}
+
+var usingNativeHighlights = false;
+// 毎打鍵の DOM 走査と検索テキスト再構築を避け、refresh/invalidate/close で索引を破棄する。
+var indexedScopes: SearchScope[] | null = null;
+
+export function clearFindCache(): void {
+  indexedScopes = null;
+}
+
+// 描画で捨てる DOM の mark は展開せず、古いハイライトと索引だけを先に破棄する。
+export function invalidateFindDocument(): void {
+  if (usingNativeHighlights) {
+    clearNativeHighlights();
+    usingNativeHighlights = false;
+  }
+  clearFindCache();
+}
+
+function indexScope(nodes: Text[]): SearchScope {
+  var starts: number[] = [];
+  var text = '';
+  nodes.forEach(function (node) {
+    starts.push(text.length);
+    text += node.textContent!;
+  });
+  return { nodes: nodes, starts: starts, text: text };
 }
 
 // クエリと3トグル(caseSensitive / wholeWord / useRegex)から RegExp を組み立てる。
@@ -43,12 +83,18 @@ export function buildFindRegExp(query: string, options: FindOptions): RegExp | n
   }
 }
 
-// 前回検索でハイライトした <mark> を復元する(次の検索前に必ず呼ぶ)。
+// 前回のハイライトを解除する(次の検索前に必ず呼ぶ)。
+// Custom Highlight API が無い WebKit では従来の <mark> を復元する。
 // span 境界をまたぐマッチは <mark> の中に元の <span> 構造を保持したまま挿入して
 // いるため、単純に textContent で潰すとシンタックスハイライトの構造が壊れる。
 // mark を子ノードで置き換える(unwrap)ことで元の構造を保ったまま平文表示に戻す。
 // normalize() は親ごとに1回だけ呼ぶ(同じ親に複数の <mark> がある場合の重複呼び出しを避ける)。
 export function clearMarks() {
+  if (usingNativeHighlights) {
+    clearNativeHighlights();
+    usingNativeHighlights = false;
+    return;
+  }
   var marks = document.querySelectorAll('#diagram-wrap mark.mmd-find-match');
   var parents = new Set<Node>();
   marks.forEach(function (mark) {
@@ -64,7 +110,7 @@ export function clearMarks() {
     parent.normalize();
   });
 }
-// 連結文字列上のオフセットを (テキストノード, ノード内オフセット) に逆引きする。
+// 連結文字列上のオフセットから、境界に使うテキストノードの添字を逆引きする。
 // textNodes[i] は連結文字列上で [starts[i], starts[i] + textNodes[i].length) を占める。
 //
 // ノードの継ぎ目ちょうどのオフセット(前ノードの終端 === 次ノードの先頭)は
@@ -76,22 +122,24 @@ export function clearMarks() {
 // starts は textNodes と同じ長さで同時に構築される（matchScope 参照）ため、
 // 走査中の添字と末尾要素は必ず存在する。noUncheckedIndexedAccess 下で
 // undefined が付くのを非 null 表明で落としている（実行時の判定は変えていない）。
-function locate(
-  textNodes: Text[],
-  starts: number[],
-  offset: number,
-  isStart: boolean,
-): TextLocation {
-  for (var i = 0; i < textNodes.length; i++) {
-    var start = starts[i]!;
-    var length = textNodes[i]!.length;
-    var fits = isStart ? offset < start + length : offset <= start + length;
-    if (fits) {
-      return { node: textNodes[i]!, localOffset: offset - start };
-    }
+function locate(scope: SearchScope, offset: number, isStart: boolean, low = 0): number {
+  // 密なヒットは直前か次のノードにあるため先に試し、離れた一致だけ二分探索する。
+  var high = scope.nodes.length;
+  var end = scope.starts[low + 1] ?? scope.text.length;
+  if (isStart ? offset < end : offset <= end) return low;
+  low++;
+  if (low < high) {
+    end = scope.starts[low + 1] ?? scope.text.length;
+    if (isStart ? offset < end : offset <= end) return low;
+    low++;
   }
-  var last = textNodes.length - 1;
-  return { node: textNodes[last]!, localOffset: textNodes[last]!.length };
+  while (low < high) {
+    var middle = Math.floor((low + high) / 2);
+    end = scope.starts[middle + 1] ?? scope.text.length;
+    if (isStart ? offset < end : offset <= end) high = middle;
+    else low = middle + 1;
+  }
+  return Math.min(low, scope.nodes.length - 1);
 }
 
 // node から祖先方向へ、内容が空になった要素を取り除く(root には触れない)。
@@ -190,71 +238,93 @@ function collectScopes(root: Node): Text[][] {
 }
 
 // 1スコープ(bridgeTags でつながった範囲)のテキストを連結してマッチさせ、マッチ
-// 位置を (textNode, localOffset) に逆引きして Range を組み、<mark> で置き換える。
+// 位置を (textNode, localOffset) に逆引きして StaticRange（旧 WebKit は <mark>）にする。
 // ゼロ幅マッチ(例: 正規表現 "a*" の空文字一致)は無限ループを避けるため読み飛ばす。
 function matchScope(
   root: Node,
-  textNodeList: Text[],
+  scope: SearchScope,
   regex: RegExp,
   found: HTMLElement[],
-  domRange: Range,
+  domRange: Range | null,
+  nativeMatches: StaticRangeInit[] | null,
 ): void {
-  var starts: number[] = [];
-  var text = '';
-  textNodeList.forEach(function (node) {
-    starts.push(text.length);
-    // Text ノードの textContent は仕様上必ず文字列（null になるのは
-    // Document / DocumentType などの場合のみ）。
-    text += node.textContent!;
-  });
-
+  var text = scope.text;
   regex.lastIndex = 0;
   var ranges: { start: number; end: number }[] = [];
   var match: RegExpExecArray | null;
+  // 非空の一致は順番に来るため、前の終了ノードから次の開始を探せる。
+  var nativeIndex = 0;
   while ((match = regex.exec(text)) !== null) {
     if (match[0].length === 0) {
       regex.lastIndex++;
       if (regex.lastIndex > text.length) break;
       continue;
     }
-    ranges.push({ start: match.index, end: match.index + match[0].length });
+    if (nativeMatches) {
+      var nativeStart = locate(scope, match.index, true, nativeIndex);
+      var nativeEnd = locate(scope, match.index + match[0].length, false, nativeStart);
+      nativeIndex = nativeEnd;
+      nativeMatches.push({
+        startContainer: scope.nodes[nativeStart]!,
+        startOffset: match.index - scope.starts[nativeStart]!,
+        endContainer: scope.nodes[nativeEnd]!,
+        endOffset: match.index + match[0].length - scope.starts[nativeEnd]!,
+      });
+    } else {
+      ranges.push({ start: match.index, end: match.index + match[0].length });
+    }
   }
-  if (ranges.length === 0) return;
+  if (nativeMatches || !domRange || ranges.length === 0) return;
 
   var scopeFound: HTMLElement[] = [];
   // Range 構築中に DOM を書き換えるとテキストノードがずれるため、末尾側から処理する。
   ranges.toReversed().forEach(function (range) {
-    var start = locate(textNodeList, starts, range.start, true);
-    var end = locate(textNodeList, starts, range.end, false);
+    var start = locate(scope, range.start, true);
+    var end = locate(scope, range.end, false);
     // extractContents() は境界をまたぐマッチの端で、部分的にしか含まれない祖先要素
     // (例: <span>foo</span> の "foo" 全体が対象でも境界が offset 0 なので「完全に
     // 含まれる」扱いにならない)を空のまま DOM に残す。参照はここで取っておき、
     // 抽出後に空になっていれば取り除く(そうしないと再検索のたびに空 <span> が
     // 増殖し、シンタックスハイライトの構造が壊れていく)。
-    var startAncestor: Node | null = start.node.parentNode;
-    var endAncestor: Node | null = end.node.parentNode;
-    domRange.setStart(start.node, start.localOffset);
-    domRange.setEnd(end.node, end.localOffset);
+    var startAncestor: Node | null = scope.nodes[start]!.parentNode;
+    var endAncestor: Node | null = scope.nodes[end]!.parentNode;
+    domRange.setStart(scope.nodes[start]!, range.start - scope.starts[start]!);
+    domRange.setEnd(scope.nodes[end]!, range.end - scope.starts[end]!);
 
     var mark = document.createElement('mark');
     mark.className = 'mmd-find-match';
     mark.append(domRange.extractContents());
     domRange.insertNode(mark);
-    scopeFound.unshift(mark);
+    // unshift の全要素移動を避け、最後に逆順で取り出して文書順へ戻す。
+    scopeFound.push(mark);
 
     pruneEmptyAncestors(startAncestor, root);
     pruneEmptyAncestors(endAncestor, root);
   });
-  found.push.apply(found, scopeFound);
+  for (var i = scopeFound.length - 1; i >= 0; i--) found.push(scopeFound[i]!);
 }
 
 // #diagram-wrap 配下をスコープ(bridgeTags でつながった範囲)に分割し、スコープ
 // ごとにマッチさせる。document 順のまま found に積む。
-export function walk(root: Node, regex: RegExp, found: HTMLElement[]): void {
-  // ヒットごとに生成すると、GC まで残る live Range の境界更新が DOM 操作のたびに走る。
-  // WebKit で大量ヒット時に入力が固まるため、検索全体で1つを使い回す。
-  var domRange = document.createRange();
-  collectScopes(root).forEach(function (textNodeList) {
-    matchScope(root, textNodeList, regex, found, domRange);
+export function walk(root: Node, regex: RegExp): FindMatch[] {
+  // CSV は大量の mark の挿入・解除で再レイアウトが起きるため、DOM を変えずに強調する。
+  usingNativeHighlights =
+    supportsHighlights() &&
+    root instanceof Element &&
+    root.matches('.csv-body, .code-body:has(code.csv-source)');
+  var nativeMatches: StaticRangeInit[] | null = usingNativeHighlights ? [] : null;
+  var found: HTMLElement[] = [];
+  // mark 側は live Range を1つだけ使い、DOM 操作ごとの境界更新を抑える。
+  var domRange = nativeMatches ? null : document.createRange();
+  var scopes = nativeMatches
+    ? (indexedScopes ??= collectScopes(root).map((nodes) => indexScope(nodes)))
+    : collectScopes(root).map((nodes) => indexScope(nodes));
+  scopes.forEach(function (scope) {
+    matchScope(root, scope, regex, found, domRange, nativeMatches);
   });
+  if (nativeMatches) {
+    setNativeHighlights(root, nativeMatches);
+    return nativeMatches;
+  }
+  return found;
 }

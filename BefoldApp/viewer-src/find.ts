@@ -11,8 +11,13 @@ import {
   searchDocument,
   wireFindControls,
 } from './find-host.js';
-import { buildFindRegExp, clearMarks } from './find-scan.js';
-import type { FindOptions } from './find-scan.js';
+import {
+  buildFindRegExp,
+  clearFindCache,
+  clearMarks,
+  invalidateFindDocument,
+} from './find-scan.js';
+import type { FindMatch, FindOptions } from './find-scan.js';
 import { keptMatchIndex, nextMatchIndex, prevMatchIndex } from './navigation.js';
 
 // _createFindController が返す公開メソッド。他モジュール（truncation.ts /
@@ -24,6 +29,7 @@ interface FindController {
   next(): void;
   prev(): void;
   refresh(resetToFirst?: boolean): void;
+  invalidate(): void;
   applyHostSettings(): void;
   initControls(): void;
   setTruncated(value: boolean): void;
@@ -44,12 +50,11 @@ function isFindInputFocused(): boolean {
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
-  var matches: HTMLElement[] = [];
+  var matches: FindMatch[] = [];
   var currentIndex = -1;
-  // いま現在位置の印が付いている <mark>。付け替えのたびに全マッチを走査しないよう
-  // 直前の要素だけを覚えておく。clearMarks で DOM ごと消えるため、
+  // 付け替えのたびに全マッチを走査せず、直前の印だけを覚える。
   // 列を作り直す経路（run / close）では併せて undefined に戻す。
-  var currentHighlight: HTMLElement | undefined;
+  var currentHighlight: FindMatch | undefined;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
   var truncated = false;
 
@@ -77,15 +82,11 @@ function _createFindController(): FindController {
   function run(suppressAutoHighlight?: boolean): void {
     query = findInputElement().value;
     clearMarks();
-    currentIndex = -1;
     currentHighlight = undefined;
     matches = searchDocument(query, options);
-
-    if (matches.length > 0) {
-      currentIndex = 0;
-      if (!suppressAutoHighlight) {
-        highlightCurrent();
-      }
+    currentIndex = matches.length > 0 ? 0 : -1;
+    if (currentIndex === 0 && !suppressAutoHighlight) {
+      highlightCurrent();
     }
     updateCount();
   }
@@ -98,11 +99,19 @@ function _createFindController(): FindController {
   // run には suppressAutoHighlight=true を渡し、1件目への自動スクロールを抑止した上で、
   // 位置確定後にここで1回だけ highlightCurrent() を呼ぶ(二重スクロール防止)。
   function refresh(resetToFirst?: boolean): void {
+    clearFindCache();
     var previousIndex = resetToFirst ? 0 : currentIndex;
     run(true);
     if (matches.length > 0) {
       moveTo(keptMatchIndex(previousIndex, matches.length));
     }
+  }
+
+  function invalidate(): void {
+    invalidateFindDocument();
+    matches = [];
+    currentHighlight = undefined;
+    // Keep currentIndex so refresh can restore the user's place after rendering.
   }
 
   function next(): void {
@@ -157,9 +166,8 @@ function _createFindController(): FindController {
     releaseBar('find');
     document.getElementById('mmd-find-panel')!.style.display = 'none';
     clearMarks();
-    matches = [];
+    invalidate();
     currentIndex = -1;
-    currentHighlight = undefined;
   }
 
   // 段階読み込み状態の変化を件数表示(「表示範囲内」ラベル)へ反映する。
@@ -181,6 +189,7 @@ function _createFindController(): FindController {
     next: next,
     prev: prev,
     refresh: refresh,
+    invalidate: invalidate,
     applyHostSettings: applyHostSettings,
     initControls: initControls,
     setTruncated: setTruncated,

@@ -3,7 +3,7 @@
 
 import { wireBarControls } from './bar-controls.js';
 import { buildFindRegExp, walk } from './find-scan.js';
-import type { FindOptions } from './find-scan.js';
+import type { FindMatch, FindOptions } from './find-scan.js';
 import { isComposingKeyEvent } from './ime.js';
 import { formatNavigationCount, moveCurrentHighlight } from './navigation.js';
 
@@ -127,14 +127,22 @@ export function wireFindControls(h: FindControlHandlers): void {
   });
 }
 
-// 印の付け替えとスクロールは navigation.ts に集約する（ジャンプバーと同じ挙動）。
-// 直前の要素だけを渡すので、マッチが何万件あっても走査は起きない。
+// 現在の1件だけを付け替える。旧 WebKit の mark はジャンプと共通の経路で動かす。
 export function moveFindHighlight(
-  previous: HTMLElement | undefined,
-  current: HTMLElement | undefined,
+  previous: FindMatch | undefined,
+  current: FindMatch | undefined,
 ): void {
+  if (current && !(current instanceof HTMLElement)) {
+    var highlight = new Highlight(new StaticRange(current));
+    highlight.priority = 1;
+    // Older WebKit does not repaint replacement entries (webkit.org/b/321567).
+    CSS.highlights.delete('mmd-find-match-current');
+    CSS.highlights.set('mmd-find-match-current', highlight);
+    scrollFindRange(current);
+    return;
+  }
   moveCurrentHighlight(
-    previous ? [previous] : [],
+    previous instanceof HTMLElement ? [previous] : [],
     current ? [current] : [],
     'mmd-find-match-current',
     current,
@@ -143,12 +151,50 @@ export function moveFindHighlight(
 
 // 直前のマークを消した後の文書を検索し、document 順のマッチを返す。
 // 不正な正規表現のときは入力欄にエラー表示を付け、マッチは空になる。
-export function searchDocument(query: string, options: FindOptions): HTMLElement[] {
+export function searchDocument(query: string, options: FindOptions): FindMatch[] {
   var regex = buildFindRegExp(query, options);
   findInputElement().classList.toggle('mmd-find-error', query.length > 0 && regex === null);
-  var found: HTMLElement[] = [];
-  if (regex) {
-    walk(document.getElementById('diagram-wrap')!, regex, found);
+  return regex ? walk(document.getElementById('diagram-wrap')!, regex) : [];
+}
+
+// Center the exact text, including wrapped lines, without changing the user's selection.
+function scrollFindRange(match: StaticRangeInit): void {
+  var range = document.createRange();
+  range.setStart(match.startContainer, match.startOffset);
+  range.setEnd(match.endContainer, match.endOffset);
+  var rect = range.getBoundingClientRect();
+  var left = rect.left;
+  var top = rect.top;
+  for (var el = match.startContainer.parentElement; el; el = el.parentElement) {
+    var style = getComputedStyle(el);
+    var scrollX =
+      /^(auto|scroll|hidden)$/u.test(style.overflowX) && el.scrollWidth > el.clientWidth;
+    var scrollY =
+      /^(auto|scroll|hidden)$/u.test(style.overflowY) && el.scrollHeight > el.clientHeight;
+    if (!scrollX && !scrollY) continue;
+    var bounds = el.getBoundingClientRect();
+    var scale = el.offsetWidth ? bounds.width / el.offsetWidth : 1;
+    var x = left - bounds.left - el.clientLeft * scale;
+    var y = top - bounds.top - el.clientTop * scale;
+    var width = el.clientWidth * scale;
+    var dx = 0;
+    // Match scrollIntoView's inline:nearest behavior, including a range wider than its viewport.
+    if (x < 0 && x + rect.width < width) dx = Math.max(x, x + rect.width - width);
+    if (x + rect.width > width && x > 0) dx = Math.min(x, x + rect.width - width);
+    var nextLeft = scrollX
+      ? Math.max(0, Math.min(el.scrollWidth - el.clientWidth, el.scrollLeft + dx / scale))
+      : el.scrollLeft;
+    var nextTop = scrollY
+      ? Math.max(
+          0,
+          Math.min(
+            el.scrollHeight - el.clientHeight,
+            el.scrollTop + (y + rect.height / 2) / scale - el.clientHeight / 2,
+          ),
+        )
+      : el.scrollTop;
+    left -= (nextLeft - el.scrollLeft) * scale;
+    top -= (nextTop - el.scrollTop) * scale;
+    el.scrollTo({ left: nextLeft, top: nextTop, behavior: 'smooth' });
   }
-  return found;
 }

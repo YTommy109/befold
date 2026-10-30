@@ -486,6 +486,12 @@ body {
   height: 100%;
 }
 
+/* 全文ソースの内在幅を測り直さず、表示領域から折り返し幅を決める。 */
+#diagram-wrap.code-body:has(code.csv-source) {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
 #diagram-wrap.code-body pre {
   margin: 0;
 }
@@ -897,6 +903,15 @@ mark.mmd-find-match {
 
 mark.mmd-find-match-current {
   background: var(--accent);
+  color: #fff;
+}
+
+::highlight(mmd-find-match) {
+  background-color: var(--hit-bg);
+}
+
+::highlight(mmd-find-match-current) {
+  background-color: var(--accent);
   color: #fff;
 }
 

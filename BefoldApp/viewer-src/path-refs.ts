@@ -116,6 +116,9 @@ function _walkChildren(node: Node, allowed: boolean): void {
 // 単位となる要素配下のテキストをまとめて注釈する。ハイライトの <span> で
 // 分割されたパスも、単位のテキストとしては連続しているため検出できる。
 function _annotateUnit(el: Element): void {
+  // パスには必ず / があるため、単一の平文セルはノード収集前に除外できる。
+  var child = el.firstChild;
+  if (child instanceof Text && !child.nextSibling && !child.data.includes('/')) return;
   var nodes: Text[] = [];
   _collectUnitTextNodes(el, nodes);
   _annotateTextNodes(nodes);
@@ -161,18 +164,19 @@ function _annotateTextNodes(nodes: Text[]): void {
     starts.push(text.length);
     text += nodes[i]!.textContent;
   }
+  starts.push(text.length);
   _PATH_RE.lastIndex = 0;
   var segments: Record<number, PathSegment[]> | null = null;
   var match: RegExpExecArray | null;
+  var firstNode = 0;
   while ((match = _PATH_RE.exec(text)) !== null) {
     var from = match.index;
     var to = from + match[0]!.length;
-    for (var n = 0; n < nodes.length; n++) {
+    // 一致は順番に来るため、過ぎたノードを再走査しない（巨大なソースで O(一致数×ノード数) になる）。
+    while (firstNode < nodes.length && starts[firstNode + 1]! <= from) firstNode++;
+    for (var n = firstNode; n < nodes.length && starts[n]! < to; n++) {
       var nodeStart = starts[n]!;
-      var nodeEnd = nodeStart + nodes[n]!.textContent!.length;
-      if (nodeEnd <= from || nodeStart >= to) {
-        continue;
-      }
+      var nodeEnd = starts[n + 1]!;
       if (!segments) {
         segments = {};
       }
