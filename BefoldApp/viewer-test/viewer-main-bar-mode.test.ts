@@ -4,7 +4,7 @@
 // だけを検証する。
 import { describe, expect, test } from '@jest/globals';
 
-import { loadViewerMain } from './support/viewerMainHarness.js';
+import { findHighlights, loadViewerMain } from './support/viewerMainHarness.js';
 
 const outerVisible = (document: Document) =>
   document.getElementById('mmd-bar')!.style.display === 'flex';
@@ -321,18 +321,18 @@ describe('バーのモード切替スイッチ', () => {
   // 崩れていないことを固定する）。
   describe('非アクティブモードは再描画で無駄な列挙をしない', () => {
     test('検索を閉じたまま再描画しても、残っていたクエリで再検索されない', async () => {
-      const { main, document } = loadViewerMain({});
+      const { main, document, window } = loadViewerMain({});
       await main.render('abc\n', 'markdown');
       main._mmdOpenFind();
       const input = document.getElementById('mmd-find-input') as HTMLInputElement;
       input.value = 'abc';
       input.dispatchEvent(new document.defaultView!.Event('input'));
-      expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(1);
+      expect(findHighlights(window).matches).toHaveLength(1);
       main._mmdCloseFind();
 
       await main.render('abc abc\n', 'markdown');
 
-      expect(document.querySelectorAll('mark.mmd-find-match').length).toBe(0);
+      expect(findHighlights(window).matches).toHaveLength(0);
     });
   });
 

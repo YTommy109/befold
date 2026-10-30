@@ -5,7 +5,6 @@ import { loadViewerMain } from './support/viewerMainHarness.js';
 function nativeFind(html: string) {
   const loaded = loadViewerMain();
   const { window, document, main } = loaded;
-  const highlights = new Map<string, Set<StaticRange>>();
   const frames = new Map<number, FrameRequestCallback>();
   let frameID = 0;
   window.requestAnimationFrame = (callback) => {
@@ -23,19 +22,10 @@ function nativeFind(html: string) {
     });
   };
   window.HTMLElement.prototype.getBoundingClientRect = () => new window.DOMRect(0, 0, 800, 600);
-
-  Object.defineProperty(window, 'CSS', { value: { highlights }, configurable: true });
-  window.Highlight = class extends Set<AbstractRange> {
-    priority = 0;
-    type: HighlightType = 'highlight';
-    constructor(...ranges: AbstractRange[]) {
-      super(ranges);
-    }
-  };
-  window.Range.prototype.getBoundingClientRect = () => new window.DOMRect(0, 0, 20, 16);
+  // CSS.highlights と Highlight はハーネス（installBrowserStubs）が用意する。
+  const highlights = window.CSS.highlights as unknown as Map<string, Set<StaticRange>>;
   const wrap = document.getElementById('diagram-wrap')!;
   wrap.innerHTML = html;
-  wrap.classList.add(wrap.querySelector('code.csv-source') ? 'code-body' : 'csv-body');
   main._mmdOpenFind();
   const input = document.getElementById('mmd-find-input') as HTMLInputElement;
   const query = (value: string) => {
@@ -168,7 +158,7 @@ describe('native find highlights', () => {
   });
 
   test('async rendering clears old highlights before replacing the DOM and preserves the match index', async () => {
-    const { document, window, main, highlights, query, count, flushHighlights } =
+    const { document, window, main, highlights, query, count, matches, current, flushHighlights } =
       nativeFind('<p>old old</p>');
     query('old');
     main._mmdFind.next();
@@ -184,15 +174,14 @@ describe('native find highlights', () => {
       .dispatchEvent(new window.Event('error'));
     await pending;
     expect(count()).toBe('2/3');
-    expect(document.querySelector('.mmd-find-match-current')).toBe(
-      document.querySelectorAll('mark.mmd-find-match')[1],
-    );
-    expect(highlights.size).toBe(0);
+    expectSameRange(current(), matches()[1]);
+    expect(document.querySelectorAll('mark')).toHaveLength(0);
   });
 
   test('CSV paints visible rows while counts, navigation, printing, and font changes retain every match', async () => {
     const { document, window, main, wrap, query, matches, count, flushHighlights } = nativeFind(
-      '<table>' + '<tr><td>hit</td><td>hit</td></tr>'.repeat(1000) + '</table>',
+      // 間引きは件数が閾値（2,000 件）を超えたときだけ働く。
+      '<table>' + '<tr><td>hit</td><td>hit</td></tr>'.repeat(1500) + '</table>',
     );
     const NativeStaticRange = window.StaticRange;
     const allocations = jest
@@ -211,19 +200,19 @@ describe('native find highlights', () => {
       };
     });
     query('hit');
-    expect(count()).toBe('1/2000');
+    expect(count()).toBe('1/3000');
     expect(matches()).toHaveLength(22);
     expect(allocations).toHaveBeenCalledTimes(23);
     expect(measurements).toBeLessThan(100);
     main._mmdFind.prev();
-    expect(count()).toBe('2000/2000');
+    expect(count()).toBe('3000/3000');
     scroll = 10000;
     viewport.dispatchEvent(new window.Event('scroll'));
     flushHighlights();
     expect(matches()).toHaveLength(34);
     expect(matches()[0]!.startContainer.parentElement!.closest('tr')).toBe(rows[494]);
     window.dispatchEvent(new window.Event('beforeprint'));
-    expect(matches()).toHaveLength(2000);
+    expect(matches()).toHaveLength(3000);
     window.dispatchEvent(new window.Event('afterprint'));
     expect(matches()).toHaveLength(34);
     rowHeight = 40;
@@ -240,8 +229,10 @@ describe('native find highlights', () => {
 
   test('unnumbered source culls using exact multiline match bounds without dropping results', () => {
     const { document, window, wrap, query, matches, count, flushHighlights } = nativeFind(
-      '<pre><code class="csv-source">' + 'hit\n'.repeat(1000) + '</code></pre>',
+      '<pre><code class="csv-source">' + 'hit\n'.repeat(5000) + '</code></pre>',
     );
+    // ソース表示ではコードの要素がスクロール対象になる（_mmdScrollTarget）。
+    wrap.classList.add('code-body');
     const code = wrap.querySelector('code')!;
     code.getBoundingClientRect = () => new window.DOMRect(0, 0, 800, 100);
     let scroll = 0;
@@ -252,12 +243,12 @@ describe('native find highlights', () => {
     };
     document.getElementById('mmd-find-regex')!.click();
     query('hit\\nhit');
-    expect(count()).toBe('1/500');
+    expect(count()).toBe('1/2500');
     expect(matches().length).toBeLessThan(10);
     scroll = 10000;
     code.dispatchEvent(new window.Event('scroll'));
     flushHighlights();
-    expect(count()).toBe('1/500');
+    expect(count()).toBe('1/2500');
     expect(matches().length).toBeLessThan(10);
     expect(matches()[0]!.startOffset).toBe(1976);
   });
@@ -287,29 +278,99 @@ describe('native find highlights', () => {
   );
 
   test.each(['markdown-body', 'code-body'])(
-    '%s retains marks even when native APIs exist',
+    '%s also highlights natively without touching the DOM',
     (className) => {
-      const { main, wrap, highlights, query, count } = nativeFind(
+      const { window, main, wrap, highlights, query, count, matches, current } = nativeFind(
         '<p>' + 'word '.repeat(1000) + '</p>',
       );
       wrap.className = className;
+      const original = wrap.innerHTML;
+      const mutations = new window.MutationObserver(() => {});
+      mutations.observe(wrap, { childList: true, subtree: true, characterData: true });
       query('word');
       expect(count()).toBe('1/1000');
-      expect(wrap.querySelectorAll('mark')).toHaveLength(1000);
-      expect(wrap.querySelector('.mmd-find-match-current')).toBe(wrap.querySelector('mark'));
+      expect(matches()).toHaveLength(1000);
+      expectSameRange(current(), matches()[0]);
       main._mmdFind.prev();
-      expect(wrap.querySelector('.mmd-find-match-current')).toBe(
-        wrap.querySelectorAll('mark')[999],
-      );
-      expect(highlights.size).toBe(0);
+      expectSameRange(current(), matches()[999]);
       query('words');
-      expect(wrap.querySelectorAll('mark')).toHaveLength(0);
+      expect(matches()).toHaveLength(0);
       query('word');
       main._mmdCloseFind();
-      expect(wrap.querySelectorAll('mark')).toHaveLength(0);
       expect(highlights.size).toBe(0);
+      expect(mutations.takeRecords()).toEqual([]);
+      mutations.disconnect();
+      expect(wrap.innerHTML).toBe(original);
     },
   );
+
+  // 間引きの二分探索は「文書順の一致は画面上でも上から下へ並ぶ」前提に立つ。float や
+  // position で文書順より上に描かれる内容があるとこれが崩れ、見えている一致を飛ばす
+  // ことがある（閉じた <details> の矩形 0 は登録範囲を広げる側で、害はない）。
+  // 件数が閾値以下なら間引かず全件を登録して前提を持ち込まない。
+  test('document order that disagrees with vertical order still paints every visible match', () => {
+    const { window, wrap, query, matches, count } = nativeFind(
+      '<p>hit one</p><details><summary>more</summary><p>hit hidden</p></details>' +
+        '<p>hit moved</p><p>hit two</p>',
+    );
+    const top: Record<string, number> = {
+      'hit one': 100,
+      'hit hidden': 0,
+      // 文書順では 3 番目だが、CSS の並べ替えで画面のはるか上に出ている。
+      'hit moved': -5000,
+      'hit two': 200,
+    };
+    window.Range.prototype.getBoundingClientRect = function () {
+      const y = top[this.startContainer.textContent ?? ''] ?? 0;
+      return y === 0 ? new window.DOMRect(0, 0, 0, 0) : new window.DOMRect(0, y, 20, 16);
+    };
+    query('hit');
+    expect(count()).toBe('1/4');
+    const painted = matches().map((match) => match.startContainer.textContent);
+    expect(painted).toEqual(expect.arrayContaining(['hit one', 'hit two']));
+    expect(wrap.querySelectorAll('mark')).toHaveLength(0);
+  });
+
+  // 閾値を超えた Markdown（<tr> が無く Range の矩形で測る経路）でも間引きが働き、
+  // スクロールで登録範囲が追従する。
+  test('markdown above the threshold culls by range bounds and follows scrolling', () => {
+    const { window, document, query, matches, count, flushHighlights } = nativeFind(
+      '<p>hit</p>'.repeat(2500),
+    );
+    const viewer = document.querySelector<HTMLElement>('.viewer')!;
+    viewer.getBoundingClientRect = () => new window.DOMRect(0, 0, 800, 100);
+    let scroll = 0;
+    const paragraphs = Array.from(document.querySelectorAll('#diagram-wrap p'));
+    window.Range.prototype.getBoundingClientRect = function () {
+      const index = paragraphs.indexOf(this.startContainer.parentElement!);
+      return new window.DOMRect(0, index * 20 - scroll, 20, 16);
+    };
+    query('hit');
+    expect(count()).toBe('1/2500');
+    expect(matches().length).toBeLessThan(20);
+    expect(matches()[0]!.startContainer.parentElement).toBe(paragraphs[0]);
+    scroll = 10000;
+    viewer.dispatchEvent(new window.Event('scroll'));
+    flushHighlights();
+    expect(matches().length).toBeLessThan(20);
+    expect(matches()[0]!.startContainer.parentElement).toBe(paragraphs[495]);
+  });
+
+  // 図のズーム操作（− 100% ＋）は文書の内容ではなく、倍率を変えると label のテキスト
+  // ノードが差し替わる。索引に入れると件数に混ざり、切り離されたノードを指す一致が残る。
+  test('diagram zoom controls are neither counted nor indexed', () => {
+    const { document, query, count, matches } = nativeFind(
+      '<div class="diagram-zoom-wrap"><div class="diagram-zoom-controls">' +
+        '<button>−</button><span class="diagram-zoom-label">100%</span><button>+</button>' +
+        '</div></div><p>100% done</p>',
+    );
+    query('100%');
+    expect(count()).toBe('1/1');
+    document.querySelector('.diagram-zoom-label')!.textContent = '150%';
+    query('100%');
+    expect(matches()[0]!.startContainer.isConnected).toBe(true);
+    expect(count()).toBe('1/1');
+  });
 
   test('navigation reveals an exact match through horizontal and vertical containers at 200% zoom', () => {
     const { window, document, wrap, query } = nativeFind(

@@ -896,16 +896,6 @@ body {
   color: #fff;
 }
 
-mark.mmd-find-match {
-  background: var(--hit-bg);
-  color: inherit;
-}
-
-mark.mmd-find-match-current {
-  background: var(--accent);
-  color: #fff;
-}
-
 ::highlight(mmd-find-match) {
   background-color: var(--hit-bg);
 }

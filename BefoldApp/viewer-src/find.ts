@@ -3,6 +3,7 @@
 
 import { claimBar, isBarOpen, registerBar, releaseBar } from './bar.js';
 import { _MSG_FIND_OPTIONS_CHANGED, _mmdPostMessage } from './bridge.js';
+import { clearNativeHighlights } from './find-highlight.js';
 import {
   applyFindHostSettings,
   findInputElement,
@@ -11,13 +12,8 @@ import {
   searchDocument,
   wireFindControls,
 } from './find-host.js';
-import {
-  buildFindRegExp,
-  clearFindCache,
-  clearMarks,
-  invalidateFindDocument,
-} from './find-scan.js';
-import type { FindMatch, FindOptions } from './find-scan.js';
+import { buildFindRegExp, clearFindCache } from './find-scan.js';
+import type { FindOptions } from './find-scan.js';
 import { keptMatchIndex, nextMatchIndex, prevMatchIndex } from './navigation.js';
 
 // _createFindController が返す公開メソッド。他モジュール（truncation.ts /
@@ -50,11 +46,8 @@ function isFindInputFocused(): boolean {
 function _createFindController(): FindController {
   var options: FindOptions = { caseSensitive: false, wholeWord: false, useRegex: false };
   var query = '';
-  var matches: FindMatch[] = [];
+  var matches: StaticRangeInit[] = [];
   var currentIndex = -1;
-  // 付け替えのたびに全マッチを走査せず、直前の印だけを覚える。
-  // 列を作り直す経路（run / close）では併せて undefined に戻す。
-  var currentHighlight: FindMatch | undefined;
   // 段階読み込み中(まだ全チャンクを読み終えていない)かどうか。setTruncated が更新する。
   var truncated = false;
 
@@ -65,8 +58,7 @@ function _createFindController(): FindController {
 
   function highlightCurrent(): void {
     var current = matches[currentIndex];
-    moveFindHighlight(currentHighlight, current);
-    currentHighlight = current;
+    if (current) moveFindHighlight(current);
   }
 
   // 現在位置を移し、ハイライトと件数表示を揃える(next/prev/refresh 共通)。
@@ -81,8 +73,8 @@ function _createFindController(): FindController {
   // (呼び出し元が位置確定後に自分でハイライトする場合に使う。refresh 参照)。
   function run(suppressAutoHighlight?: boolean): void {
     query = findInputElement().value;
-    clearMarks();
-    currentHighlight = undefined;
+    // クエリが空・不正で walk に入らない経路でも、前のハイライトは消す。
+    clearNativeHighlights();
     matches = searchDocument(query, options);
     currentIndex = matches.length > 0 ? 0 : -1;
     if (currentIndex === 0 && !suppressAutoHighlight) {
@@ -107,10 +99,11 @@ function _createFindController(): FindController {
     }
   }
 
+  // 描画で DOM を捨てる前に、古いハイライトと索引を破棄する。
   function invalidate(): void {
-    invalidateFindDocument();
+    clearNativeHighlights();
+    clearFindCache();
     matches = [];
-    currentHighlight = undefined;
     // Keep currentIndex so refresh can restore the user's place after rendering.
   }
 
@@ -165,7 +158,6 @@ function _createFindController(): FindController {
   function close(): void {
     releaseBar('find');
     document.getElementById('mmd-find-panel')!.style.display = 'none';
-    clearMarks();
     invalidate();
     currentIndex = -1;
   }

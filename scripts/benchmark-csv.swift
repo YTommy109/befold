@@ -14,10 +14,18 @@ func fail(_ message: String) -> Never {
 }
 
 let renderOnly = CommandLine.arguments.contains("--render-only")
-let arguments = CommandLine.arguments.filter { $0 != "--render-only" }
+// CSV 以外（ソースコード・Markdown）の検索も同じ手順で測れるよう、描画する種別と言語を選べる。
+func option(_ name: String, default value: String) -> String {
+    CommandLine.arguments.first { $0.hasPrefix("--\(name)=") }.map { String($0.dropFirst(name.count + 3)) } ?? value
+}
+let renderType = option("type", default: "csv")
+let renderLang = option("lang", default: renderType == "csv" ? "," : "")
+let arguments = CommandLine.arguments.filter { $0 != "--render-only" && !$0.hasPrefix("--type=") && !$0.hasPrefix("--lang=") }
 guard (4 ... 5).contains(arguments.count), ["rendered", "source"].contains(arguments[3]),
       arguments.count == 4 || ["false", "true"].contains(arguments[4])
-else { fail("Usage: benchmark-csv Resources CSV rendered|source [false|true (line numbers)] [--render-only]") }
+else {
+    fail("Usage: benchmark-csv Resources FILE rendered|source [false|true (line numbers)] [--render-only] [--type=csv|code|md] [--lang=LANG]")
+}
 let resources = URL(fileURLWithPath: arguments[1], isDirectory: true)
 let fixture = URL(fileURLWithPath: arguments[2])
 let mode = arguments[3]
@@ -34,7 +42,7 @@ func fingerprint(_ data: Data) -> [String: Any] {
 }
 
 let fixtureData = read(fixture)
-guard let decoded = String(data: fixtureData, encoding: .utf8) else { fail("CSV must be UTF-8") }
+guard let decoded = String(data: fixtureData, encoding: .utf8) else { fail("Input must be UTF-8") }
 let content = decoded.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
 let resourceNames = ["viewer.html", "viewer-bundle.js", "style.css", "github-markdown.css", "github.css", "github-dark.css"]
 let resourceHashes = Dictionary(uniqueKeysWithValues: resourceNames.map {
@@ -42,6 +50,7 @@ let resourceHashes = Dictionary(uniqueKeysWithValues: resourceNames.map {
 })
 emit([
     "type": "metadata", "mode": mode, "lineNumbers": lineNumbers, "renderOnly": renderOnly,
+    "renderType": renderType, "renderLang": renderLang,
     "queries": renderOnly ? [] : queries,
     "os": ProcessInfo.processInfo.operatingSystemVersionString,
     "viewport": ["width": 1200, "height": 800], "zoom": 1,
@@ -85,8 +94,11 @@ final class Benchmark: NSObject, WKNavigationDelegate {
         Task { @MainActor in
             do {
                 try await measure("render",
-                                  body: "setViewMode(mode); setLineNumbers(lineNumbers); await render(content, 'csv', ',');",
-                                  arguments: ["mode": mode, "lineNumbers": lineNumbers, "content": content])
+                                  body: "setViewMode(mode); setLineNumbers(lineNumbers); await render(content, renderType, renderLang || undefined);",
+                                  arguments: [
+                                      "mode": mode, "lineNumbers": lineNumbers, "content": content,
+                                      "renderType": renderType, "renderLang": renderLang,
+                                  ])
                 if !renderOnly {
                     try await measure("open-find", body: "_mmdOpenFind();")
                     for query in queries {
@@ -137,7 +149,7 @@ final class Benchmark: NSObject, WKNavigationDelegate {
             expression.lastIndex = 0;
             while (expression.exec(scope) !== null) expectedMatches++;
         }
-        if (matchCount !== expectedMatches) throw new Error('Search count differs from CSV text');
+        if (matchCount !== expectedMatches) throw new Error('Search count differs from rendered text');
         const native = globalThis.CSS?.highlights?.get('mmd-find-match');
         const marks = wrap.querySelectorAll('mark.mmd-find-match').length;
         if (native && (native.size > matchCount || marks !== 0)) {
