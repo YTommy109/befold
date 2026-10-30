@@ -1,10 +1,10 @@
 ---
 id: TASK-902
 title: 検索ハイライトを Custom Highlight API に一本化し、`<mark>` 挿入経路を削除する
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-30T10:20:00Z'
-updated_date: '2026-10-30T10:32:00Z'
+updated_date: '2026-10-30T10:45:00Z'
 labels: []
 dependencies:
   - TASK-903

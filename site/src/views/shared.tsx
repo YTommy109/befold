@@ -66,8 +66,8 @@ export function downloadHref(from: Page): string {
 
 /** 動作要件。LP・詳細ページ・JSON-LD で同じ表記を使う。 */
 export const REQUIRED_OS: Localized = {
-  ja: 'macOS 14 (Sonoma) 以降',
-  en: 'macOS 14 (Sonoma) or later',
+  ja: 'macOS 14.2 (Sonoma) 以降',
+  en: 'macOS 14.2 (Sonoma) or later',
 }
 
 /**

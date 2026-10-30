@@ -13,7 +13,7 @@ A native macOS viewer for Mermaid, Markdown, SVG, CSV, images, PDF, and source c
 with live reload, fuzzy file search, and side-by-side git diffs.
 
 [![Release](https://img.shields.io/github/v/release/YTommy109/befold?label=release&color=0a7)](https://github.com/YTommy109/befold/releases/latest)
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000?logo=apple&logoColor=fff)](#requirements)
+[![macOS 14.2+](https://img.shields.io/badge/macOS-14.2%2B-000?logo=apple&logoColor=fff)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [**Download**](https://befold.degino.com/download?ref=readme) ·
@@ -87,7 +87,7 @@ rendered result straight away.
 
 ## Requirements
 
-macOS 14 (Sonoma) or later.
+macOS 14.2 (Sonoma) or later.
 
 ## Install
 

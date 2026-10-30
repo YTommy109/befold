@@ -23,7 +23,7 @@ befold は macOS 向けの Mermaid ダイアグラム・ビューアアプリで
 ## アーキテクチャ
 
 ```text
-befold.app (Swift 6 / AppKit + SwiftUI, macOS 14+)
+befold.app (Swift 6 / AppKit + SwiftUI, macOS 14.2+)
   ├── AppDelegate                # ライフサイクルと @objc アクションの受け口（配線のみ）
   │     ├── AppStores                # アプリ全体で共有するストア・表示設定の束
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理（正規化パス → コントローラ辞書）
@@ -423,7 +423,7 @@ Info.plist で以下を宣言する。
 
 | 技術 | 用途 |
 |---|---|
-| Swift 6 / SwiftUI + AppKit | アプリ本体（macOS 14+、Strict Concurrency complete） |
+| Swift 6 / SwiftUI + AppKit | アプリ本体（macOS 14.2+、Strict Concurrency complete） |
 | WKWebView | markdown・mermaid・各種ファイルのレンダリング |
 | mermaid（npm 依存 → `mermaid.min.js` をコピーして同梱、遅延ロード） | Mermaid SVG レンダリング |
 | markdown-it（npm 依存 → viewer-bundle.js に同梱） | `.md` ファイルの markdown → HTML 変換 |

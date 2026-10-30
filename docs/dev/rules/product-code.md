@@ -45,7 +45,7 @@ swift package plugin --allow-writing-to-package-directory swiftformat
 
 - Swift 6（`swift-tools-version: 6.0`）
 - Strict Concurrency: `complete`（`SWIFT_STRICT_CONCURRENCY: complete`）
-- デプロイメントターゲット: macOS 14.0
+- デプロイメントターゲット: macOS 14.2（CSS Custom Highlight API を前提にするため。TASK-903）
 
 ### Concurrency モデル
 

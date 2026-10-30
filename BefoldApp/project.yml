@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.degino
   developmentLanguage: en
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "14.2"
   xcodeVersion: "26.5"
 packages:
   Sparkle:
