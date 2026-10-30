@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "befold",
     defaultLocalization: "en",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("14.2")],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),

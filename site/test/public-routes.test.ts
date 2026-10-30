@@ -426,10 +426,10 @@ describe('対象 OS の明示', () => {
     expect(en).not.toContain('Mac 専用')
   })
 
-  it('ダウンロードボタンの近辺で macOS 14 以降だと分かる', async () => {
+  it('ダウンロードボタンの近辺で macOS 14.2 以降だと分かる', async () => {
     for (const [path, note] of [
-      ['/', 'macOS 14 (Sonoma) 以降が必要です'],
-      ['/en', 'Requires macOS 14 (Sonoma) or later'],
+      ['/', 'macOS 14.2 (Sonoma) 以降が必要です'],
+      ['/en', 'Requires macOS 14.2 (Sonoma) or later'],
     ]) {
       const html = await (await call(path as string)).text()
       const hero = html.match(/<section class="hero">([\s\S]*?)<\/section>/u)?.[1] ?? ''
@@ -449,7 +449,7 @@ describe('構造化データ (JSON-LD)', () => {
     expect(json).toBeTruthy()
     const data = JSON.parse(json as string)
     expect(data['@type']).toBe('SoftwareApplication')
-    expect(data.operatingSystem).toBe('macOS 14 (Sonoma) or later')
+    expect(data.operatingSystem).toBe('macOS 14.2 (Sonoma) or later')
     expect(data.applicationCategory).toBe('DeveloperApplication')
     expect(data.downloadUrl).toBe('https://befold.example/download')
     expect(data.url).toBe('https://befold.example/')

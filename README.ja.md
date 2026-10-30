@@ -13,7 +13,7 @@ Mermaid / Markdown / SVG / CSV / 画像 / PDF / ソースコードを開くだ�
 macOS ネイティブのファイルビューアです。ライブリロード・あいまいファイル検索・git 差分の並列表示を備えています。
 
 [![Release](https://img.shields.io/github/v/release/YTommy109/befold?label=release&color=0a7)](https://github.com/YTommy109/befold/releases/latest)
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000?logo=apple&logoColor=fff)](#動作要件)
+[![macOS 14.2+](https://img.shields.io/badge/macOS-14.2%2B-000?logo=apple&logoColor=fff)](#動作要件)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [**ダウンロード**](https://befold.degino.com/download?ref=readme) ·
@@ -85,7 +85,7 @@ QuickLook 拡張を同梱しているので、`.mmd` や `.md` にスペース�
 
 ## 動作要件
 
-macOS 14 (Sonoma) 以降が必要です。
+macOS 14.2 (Sonoma) 以降が必要です。
 
 ## インストール
 

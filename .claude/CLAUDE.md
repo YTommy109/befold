@@ -41,7 +41,7 @@ macOS 向けのドキュメント・ダイアグラムビューアアプリ。
 
 ## 技術スタック
 
-- Swift 6 / AppKit + SwiftUI（macOS 14+）
+- Swift 6 / AppKit + SwiftUI（macOS 14.2+）
 - WKWebView（mermaid.js / markdown-it.js レンダリング）
 - DispatchSource（ファイル監視）
 - XcodeGen（プロジェクト生成）/ Swift Package Manager（ビルド）
