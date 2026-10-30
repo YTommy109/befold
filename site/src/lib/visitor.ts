@@ -27,10 +27,16 @@ export async function visitorTokenHash(ip: string, ua: string, ts: number): Prom
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** UA から OS 種別（と macOS のメジャーバージョン）だけを粗く抜き出す。 */
+/**
+ * UA から OS 種別だけを粗く抜き出す。
+ *
+ * macOS のバージョンは取らない（TASK-904）。ブラウザは macOS 11 以降でも UA を
+ * `Mac OS X 10_15_7` に固定して送り、アプリ本体（Sparkle）の UA は OS を含まないため、
+ * 取っても実際のバージョンを表さない数字がダッシュボードに並ぶだけになる。
+ * 本当のバージョンには Sparkle の system profile（利用者の同意が要る）が必要で、
+ * そこまでの価値は無いと判断した。
+ */
 export function summarizeOS(ua: string): string | null {
-  const mac = /Mac OS X (\d+)[._](\d+)/u.exec(ua)
-  if (mac) return `macOS ${mac[1] ?? '0'}.${mac[2] ?? '0'}`
   if (ua.includes('Macintosh') || ua.includes('Darwin')) return 'macOS'
   if (ua.includes('Windows')) return 'Windows'
   if (ua.includes('Android')) return 'Android'
