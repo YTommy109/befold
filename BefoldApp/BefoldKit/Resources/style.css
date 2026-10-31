@@ -1212,3 +1212,25 @@ pre .befold-link-dead {
     display: none !important;
   }
 }
+
+/* 表が横にはみ出す間は、細いスクロールつまみを常時表示する。
+   透明な境界線により、12px の操作領域の内側に 6px のつまみを描く。 */
+.csv-viewport-scrollbar {
+  position: fixed;
+  z-index: 100;
+  height: 12px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+}
+.csv-viewport-scrollbar[hidden] { display: none; }
+.csv-viewport-scrollbar > div { height: 1px; }
+.csv-viewport-scrollbar::-webkit-scrollbar { height: 12px; }
+.csv-viewport-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.csv-viewport-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--fg-muted);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 6px;
+}
+.csv-viewport-scrollbar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media print { .csv-viewport-scrollbar { display: none; } }

@@ -1,4 +1,5 @@
 // CSV/TSV の列幅は表示中の文書だけで保持する。保存や原文の変更はしない。
+import { installCsvScrollbar, removeCsvScrollbar } from './csv-scrollbar.js';
 import { _mmdZoom } from './zoom.js';
 
 var MIN_WIDTH = 40;
@@ -15,6 +16,7 @@ var cancelDrag: (() => void) | undefined;
 // パス不明（null）は別文書かもしれないので、常に捨てる。
 function prepareCsvResize(newPath: string | null): void {
   cancelDrag?.();
+  removeCsvScrollbar();
   if (newPath === null || path !== newPath) widths = [];
   path = newPath;
 }
@@ -299,6 +301,7 @@ function installCsvResize(table: HTMLTableElement): void {
     header.append(handle);
   });
   applyWidths(table);
+  installCsvScrollbar(table);
 }
 
 export { prepareCsvResize, installCsvResize };
