@@ -71,28 +71,42 @@ struct NormalizedTextCacheLazyGrowthTests {
         #expect(cache.isFullyNormalized == false)
     }
 
-    @Test("段階的に ensureFullyNormalized まで進めると eager 正規化と一致する(改行混在)")
-    func incrementalGrowthMatchesEagerResultForMixedLineEndings() throws {
-        var text = ""
-        for rowIndex in 0 ..< 5000 {
-            switch rowIndex % 3 {
-            case 0: text += "row\(rowIndex)\r\n"
-            case 1: text += "row\(rowIndex)\r"
-            default: text += "row\(rowIndex)\n"
+    /// 1 窓目は CR で終わり、2 窓目の上限は「あ」の途中に当たる。
+    /// 4 窓以上に成長させ、CRLF 吸収・UTF-8 境界補正・末尾改行処理をまとめて通す。
+    private static let boundaryText: String = {
+        let window = NormalizedTextCache.normalizationWindowBytes
+        return String(repeating: "a", count: window - 1) + "\r\n"
+            + String(repeating: "b", count: window - 2) + "あ\r"
+            + String(repeating: "🙂\r\n", count: window / 3) + "終わり\r\n"
+    }()
+
+    @Test("複数窓の増分正規化で CRLF・UTF-8 境界と全行オフセットを保つ")
+    func incrementalGrowthPreservesWindowBoundaries() throws {
+        let source = Self.boundaryText
+        let expected = source.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        var cache = try NormalizedTextCache(data: Data(source.utf8), normalizeFully: false)
+        #expect(cache.normalizedByteCount == 0)
+        var growthCount = 0
+        while !cache.isFullyNormalized {
+            let previousCount = cache.normalizedByteCount
+            cache.ensureNormalized(minimumLineCount: .max, minimumByteCount: previousCount + 1)
+            #expect(cache.normalizedByteCount > previousCount)
+            #expect(cache.normalizedByteCount - previousCount <= NormalizedTextCache.normalizationWindowBytes)
+            if growthCount == 0 {
+                #expect(!cache.isFullyNormalized)
+                #expect(cache.normalizedByteCount == NormalizedTextCache.normalizationWindowBytes)
             }
+            growthCount += 1
         }
-        text += String(repeating: "あ", count: 10000)
-
-        let data = Data(text.utf8)
-        let eager = try NormalizedTextCache(data: data, normalizeFully: true)
-
-        var lazy = try NormalizedTextCache(data: data, normalizeFully: false)
-        lazy.ensureFullyNormalized()
-
-        #expect(lazy.isFullyNormalized == true)
-        #expect(lazy.text == eager.text)
-        #expect(lazy.lineCount == eager.lineCount)
-        #expect(lazy.lineStartIndices == eager.lineStartIndices)
+        #expect(growthCount >= 4)
+        #expect(cache.text == expected)
+        let bytes = Array(expected.utf8)
+        let offsets = [0] + bytes.indices.filter { bytes[$0] == 0x0A && $0 + 1 < bytes.count }.map { $0 + 1 }
+        #expect(cache.lineCount == offsets.count)
+        #expect((0 ..< cache.lineCount).map { cache.lineStart($0) } == offsets)
+        let indices = cache.lineStartIndices
+        #expect(indices == offsets.map { expected.utf8.index(expected.utf8.startIndex, offsetBy: $0) })
     }
 
     @Test("段階的に ensureFullyNormalized まで進めると eager 正規化と一致する(改行なし巨大1行)")
@@ -113,7 +127,7 @@ struct NormalizedTextCacheLazyGrowthTests {
 
     @Test("段階的な readNextChunk 相当のアクセスでも、増分正規化した内容が eager 版と一致する")
     func chunkedIncrementalReadMatchesEagerAcrossManyGrowthCalls() async throws {
-        let text = Self.makeLines(50000)
+        let text = Self.boundaryText
         let data = Data(text.utf8)
 
         let eager = try NormalizedTextCache(data: data, normalizeFully: true)
@@ -127,6 +141,7 @@ struct NormalizedTextCacheLazyGrowthTests {
             if result.isAtEnd { break }
         }
 
+        #expect(chunks.count > 3)
         #expect(chunks.joined() == eager.text)
     }
 }
