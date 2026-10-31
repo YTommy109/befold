@@ -1020,7 +1020,11 @@ body {
 
 #diagram-wrap.csv-body table.csv-sized th,
 #diagram-wrap.csv-body table.csv-sized td {
-  overflow-wrap: anywhere;
+  /* 画面外の長い値で全行の高さが増えないよう、自動折り返しをしない。
+     データ内の明示的な改行は保持し、長い行は列幅を広げるまで切り取る。 */
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: clip;
   min-width: 0;
 }
 

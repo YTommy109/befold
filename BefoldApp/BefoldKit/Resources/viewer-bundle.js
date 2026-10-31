@@ -24978,7 +24978,7 @@
     return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
   }
   function fitColumn(table2, index) {
-    var probe = table2.cloneNode(false);
+    const probe = table2.cloneNode(false);
     if (!(probe instanceof HTMLTableElement)) return;
     probe.classList.remove("csv-sized");
     probe.setAttribute("aria-hidden", "true");
@@ -24995,9 +24995,49 @@
     probe.remove();
     setWidth(table2, index, width);
   }
+  function initialWidths(table2) {
+    var headers = table2.tHead.rows[0].cells;
+    var missing = Array.from(headers, (_, index) => index).filter(
+      (index) => widths[index] === void 0
+    );
+    if (missing.length === 0) return;
+    const probe = table2.cloneNode(false);
+    if (!(probe instanceof HTMLTableElement)) return;
+    probe.classList.remove("csv-sized");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;display:table;width:max-content;table-layout:auto;pointer-events:none";
+    var samples = missing.map((index) => {
+      var cells = [];
+      for (var rowIndex = 0; rowIndex < Math.min(table2.rows.length, FIT_SAMPLE + 1); rowIndex++) {
+        var original = table2.rows[rowIndex].cells[index];
+        if (!original) continue;
+        var copy = original.cloneNode(true);
+        if (!(copy instanceof HTMLTableCellElement)) continue;
+        copy.querySelector(".csv-resize-handle")?.remove();
+        copy.style.cssText = "display:block;width:max-content;white-space:pre";
+        probe.insertRow().append(copy);
+        cells.push(copy);
+      }
+      return cells;
+    });
+    table2.parentElement.append(probe);
+    var measured = samples.map((cells) => {
+      var header = cells[0]?.offsetWidth ?? 0;
+      var data = cells.slice(1).filter((cell) => cell.textContent?.trim()).map((cell) => cell.offsetWidth);
+      data.sort((a, b) => a - b);
+      var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
+      return Math.max(header, typical);
+    });
+    probe.remove();
+    missing.forEach((index, sample) => {
+      if (measured[sample] > 0)
+        widths[index] = Math.max(MIN_WIDTH, Math.min(360, measured[sample]));
+    });
+  }
   function installCsvResize(table2) {
     var headers = table2.tHead?.rows[0]?.cells;
     if (!headers) return;
+    initialWidths(table2);
     var strings = window._mmdUIStrings || {};
     var measuredWidths = Array.from(
       headers,
