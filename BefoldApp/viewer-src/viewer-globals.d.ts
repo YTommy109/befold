@@ -33,6 +33,7 @@ interface ViewerUIStrings {
   zoomIn?: string;
   csvResizeColumn?: string;
   csvResizeHint?: string;
+  csvScrollHorizontally?: string;
 }
 
 /// ViewerBridge.bannerStringsScript(bundle:) が注入する段階読み込みバナーの文言。

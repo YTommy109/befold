@@ -122,6 +122,24 @@
         }
       }
     },
+    "viewer.csv.scrollHorizontally": {
+      "comment": "Accessible name for the CSV/TSV horizontal scrollbar.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scroll table horizontally"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表を横方向にスクロール"
+          }
+        }
+      }
+    },
     "viewer.diagram.zoomIn": {
       "extractionState": "manual",
       "localizations": {
