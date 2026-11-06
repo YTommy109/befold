@@ -5,6 +5,7 @@ import SwiftUI
 final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
     private let onClose: (BlankTabWindowController) -> Void
     private(set) var isClosed = false
+    private var toolbarController: ViewerToolbarController?
 
     init(onClose: @escaping (BlankTabWindowController) -> Void) {
         self.onClose = onClose
@@ -12,6 +13,7 @@ final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.contentViewController = NSHostingController(rootView: BlankTabView())
         DocumentFileDropView.install(on: window)
+        toolbarController = ViewerToolbarController(window: window, host: nil)
         ViewerWindowChrome.applyInitialFrame(nil, to: window, kind: .viewer, isOccupied: { _ in false })
         window.delegate = self
     }

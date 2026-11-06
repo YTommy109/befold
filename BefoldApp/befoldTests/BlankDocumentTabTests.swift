@@ -6,6 +6,23 @@ import Testing
 @Suite
 @MainActor
 struct BlankDocumentTabTests {
+    @Test("空タブも文書と同じツールバー構成を持ち、文書操作を無効にする")
+    func blankKeepsDocumentToolbar() throws {
+        let blank = BlankTabWindowController(onClose: { _ in })
+        defer { blank.close() }
+        let window = try #require(blank.window)
+        let toolbar = try #require(window.toolbar)
+        #expect(window.toolbarStyle == .unified)
+        #expect(toolbar.items.first { $0.itemIdentifier == .toggleSidebar }?.isNavigational == true)
+        let expected = ViewerToolbarController.layout.map(\.identifier).filter { $0 != .sidebarTrackingSeparator }
+        #expect(toolbar.items.map(\.itemIdentifier) == expected)
+        for entry in ViewerToolbarController.layout where entry.spec != nil {
+            let item = try #require(toolbar.items.first { $0.itemIdentifier == entry.identifier })
+            #expect(!item.isEnabled)
+            if let control = item.view as? NSControl { #expect(!control.isEnabled) }
+        }
+    }
+
     @Test("File メニューの新しいタブは ⌘T を持つ")
     func newTabHasCommandT() throws {
         let file = try #require(MainMenuFixture().submenu(titledKey: "menu.file.title"))
