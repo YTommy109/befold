@@ -88,6 +88,11 @@ enum MainMenuBuilder {
         let item = NSMenuItem()
         let menu = NSMenu(title: String(localized: "menu.file.title", bundle: .l10n))
         item.submenu = menu
+        menu.addLocalizedItem(
+            "menu.file.newTab",
+            action: #selector(NSResponder.newWindowForTab(_:)),
+            keyEquivalent: "t"
+        )
         menu.addLocalizedItem("menu.file.open", action: openAction, keyEquivalent: "o")
         menu.addLocalizedItem(
             "menu.file.quickOpen",

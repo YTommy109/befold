@@ -166,6 +166,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         documentOpener.presentOpenPanel()
     }
 
+    @objc func newWindowForTab(_ sender: Any?) {
+        windowManager.blankTabs.open(relativeTo: (sender as? NSWindow) ?? NSApp.keyWindow)
+    }
+
     /// Help > Visit Website。配布サイトをブラウザで開く。
     @objc func openHelp(_ sender: Any?) {
         NSWorkspace.shared.open(AppLinks.help)

@@ -26,6 +26,7 @@ import SwiftUI
 /// 型の外から触ってよい API ではない。
 @MainActor
 final class ViewerWindowManager {
+    let blankTabs = BlankTabCoordinator()
     /// 正規化パス → そのファイルを表示中のコントローラ群。
     /// 操作中(アクティブ)のウィンドウのサイドバー切替を最優先するため、同一ファイルを
     /// 複数ウィンドウで開くことを許す(1 対 1 ではない)。Finder/CLI からの再オープンは
@@ -155,7 +156,9 @@ final class ViewerWindowManager {
     /// Window メニューの一覧を各ウィンドウの選択中タブだけに揃える。
     /// 対象の組み立て(`allControllers` の走査)を呼び出し元へ漏らさないため、ここで委譲する。
     func syncWindowsMenuMembership() {
-        ViewerTabGrouping.syncWindowsMenuMembership(among: allControllers.compactMap(\.window))
+        ViewerTabGrouping.syncWindowsMenuMembership(
+            among: allControllers.compactMap(\.window) + blankTabs.controllers.compactMap(\.window)
+        )
     }
 
     /// controller を key のコントローラ群へ登録する。
