@@ -4,6 +4,11 @@ stable リリースのユーザー影響のある変更を記録する。
 dev リリースの全変更履歴は [GitHub Releases](https://github.com/YTommy109/befold/releases) を参照。
 v1.5.0 より前の履歴は GitHub Releases の各タグページを参照。
 
+## v1.25.1
+
+### 修正
+- 大きなテキストファイルを読み進めるときのメモリ使用量を減らしました。(#749、@rianjs さんに感謝)
+
 ## v1.25.0
 
 ### 変更
