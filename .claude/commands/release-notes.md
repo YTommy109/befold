@@ -7,11 +7,22 @@
 
 ## 1. タグの取得
 
+最新タグは HEAD から辿れる最も近いタグとする。前回タグの求め方は dev / stable で異なる。
+
 ```bash
-git tag --sort=-v:refname | head -2
+# 最新タグ
+git describe --tags --abbrev=0
+
+# 前回タグ（dev）: 最新タグの 1 つ前のタグ
+git describe --tags --abbrev=0 {最新タグ}^
+
+# 前回タグ（stable）: 出力の 2 行目。間の dev タグは飛ばす
+git tag --sort=-v:refname | grep -v -e '-' | head -2
 ```
 
-- 最新タグと前回タグを取得する
+`git tag --sort=-v:refname` は `v1.25.1-dev.1` を `v1.25.1` より上に並べる。stable で
+絞り込まずに上位 2 つを使うと、dev に先行して載った変更がノートから抜ける。
+
 - タグが 1 つしかない場合は初回リリースとして全コミットを対象にする
 
 ## 2. コミットログの取得
