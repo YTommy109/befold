@@ -1,0 +1,180 @@
+{
+  "base": "38afdff0ab80055590fd07fa4ba2cd240686cf3e",
+  "swift": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.0.0",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+  "cpu": "Apple M4 Pro",
+  "memory_bytes": 51539607552,
+  "source_sha256": "d1fb344191896b3434ee8d548f9fff4be56aa4fd8255a961c664f1e64d2f255a",
+  "fixtures": [
+    {
+      "name": "manifest-100k.csv",
+      "records": 100000,
+      "bytes": 38323000,
+      "sha256": "c366f402801c64a83350a6b266fa48e82c3c6694ebd704ba7f32097619dfb1cc",
+      "normalized_sha256": "915cbe4a24f09d9e329cde2aa82b7461d955fdc22572cd90a96aacda42ea0821",
+      "runs": {
+        "before": [
+          {
+            "lines": 100001,
+            "milliseconds": 119.647042,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 484491264,
+            "resident_bytes": 484491264
+          },
+          {
+            "lines": 100001,
+            "milliseconds": 114.336708,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 483557376,
+            "resident_bytes": 483557376
+          },
+          {
+            "lines": 100001,
+            "milliseconds": 109.915125,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 484474880,
+            "resident_bytes": 484474880
+          }
+        ],
+        "after": [
+          {
+            "lines": 100001,
+            "milliseconds": 110.46775,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 174620672,
+            "resident_bytes": 174620672
+          },
+          {
+            "lines": 100001,
+            "milliseconds": 91.807834,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 174620672,
+            "resident_bytes": 174620672
+          },
+          {
+            "lines": 100001,
+            "milliseconds": 89.891625,
+            "normalized_bytes": 38222999,
+            "peak_bytes": 174620672,
+            "resident_bytes": 174620672
+          }
+        ]
+      },
+      "summary": {
+        "before": {
+          "milliseconds": {
+            "median": 114.336708,
+            "max": 119.647042
+          },
+          "resident_bytes": {
+            "median": 484474880,
+            "max": 484491264
+          },
+          "peak_bytes": {
+            "median": 484474880,
+            "max": 484491264
+          }
+        },
+        "after": {
+          "milliseconds": {
+            "median": 91.807834,
+            "max": 110.46775
+          },
+          "resident_bytes": {
+            "median": 174620672,
+            "max": 174620672
+          },
+          "peak_bytes": {
+            "median": 174620672,
+            "max": 174620672
+          }
+        }
+      }
+    },
+    {
+      "name": "narrow-1m.csv",
+      "records": 1000000,
+      "bytes": 61519004,
+      "sha256": "8ce6b0c638f7327b431ade6035c5b03d3de4a26c2d0d088015916befc5f4d941",
+      "normalized_sha256": "188ce6cc4308cbeb75dd721c3993d2e2c81993803f865c07f81dcdde961a38c7",
+      "runs": {
+        "before": [
+          {
+            "lines": 1010311,
+            "milliseconds": 183.04525,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 1093386240,
+            "resident_bytes": 1093386240
+          },
+          {
+            "lines": 1010311,
+            "milliseconds": 181.87625,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 1093386240,
+            "resident_bytes": 1093386240
+          },
+          {
+            "lines": 1010311,
+            "milliseconds": 181.369958,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 1093386240,
+            "resident_bytes": 1093386240
+          }
+        ],
+        "after": [
+          {
+            "lines": 1010311,
+            "milliseconds": 134.123,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 292896768,
+            "resident_bytes": 292896768
+          },
+          {
+            "lines": 1010311,
+            "milliseconds": 134.922583,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 292896768,
+            "resident_bytes": 292896768
+          },
+          {
+            "lines": 1010311,
+            "milliseconds": 135.015833,
+            "normalized_bytes": 60519003,
+            "peak_bytes": 292896768,
+            "resident_bytes": 292896768
+          }
+        ]
+      },
+      "summary": {
+        "before": {
+          "milliseconds": {
+            "median": 181.87625,
+            "max": 183.04525
+          },
+          "resident_bytes": {
+            "median": 1093386240,
+            "max": 1093386240
+          },
+          "peak_bytes": {
+            "median": 1093386240,
+            "max": 1093386240
+          }
+        },
+        "after": {
+          "milliseconds": {
+            "median": 134.922583,
+            "max": 135.015833
+          },
+          "resident_bytes": {
+            "median": 292896768,
+            "max": 292896768
+          },
+          "peak_bytes": {
+            "median": 292896768,
+            "max": 292896768
+          }
+        }
+      }
+    }
+  ]
+}

@@ -179,7 +179,7 @@ public struct NormalizedTextCache: Sendable {
     /// window(すでに1文字境界までスナップ済み)に対して行う。pendingCarriageReturn で
     /// ウィンドウ境界をまたぐ \r\n を正しく1つの改行として扱う。
     private mutating func consume(window: [UInt8]) {
-        normalizedBytes.reserveCapacity(normalizedBytes.count + window.count)
+        // ウィンドウごとの容量予約は配列の幾何級数的な拡張を妨げるため、append に任せる。
         var position = 0
 
         if pendingCarriageReturn {
