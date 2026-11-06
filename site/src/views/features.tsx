@@ -29,6 +29,7 @@ const RENDER_MODE_LABEL: Record<RenderMode, Localized> = {
  * 実装（MainMenuBuilder*.swift）とのずれは test/shortcuts.test.ts が検知する。
  */
 export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
+  { keys: '⌘T', ja: '空のタブを開く', en: 'Open a blank tab' },
   { keys: '⌘O', ja: 'ファイル / フォルダを開く', en: 'Open a file or folder' },
   {
     keys: '⌘P',

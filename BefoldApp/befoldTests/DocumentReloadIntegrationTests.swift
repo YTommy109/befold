@@ -33,30 +33,20 @@ struct DocumentReloadIntegrationTests {
         webView.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
         let delegate = Delegate()
         renderer.delegate = delegate
-        // WebKit の完了にはメインランループを進める yield が必要。時間上限で失敗を確定する。
-        let deadline = ContinuousClock.now.advanced(by: .seconds(30))
-        while !renderer.readiness.isReady, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
+        // 全スイート並走時の MainActor 配送待ちは壁時計予算で打ち切らず、
+        // 共通ヘルパーとスイートの timeLimit でキャンセルを扱う。
+        await waitForDeliveryOnMainActor { renderer.readiness.isReady }
         try #require(renderer.readiness.isReady)
         Delegate.render(renderer, revision: 1)
-        while renderer.rendered.contentRevision != 1, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
-        var before = ""
-        while !before.contains("Reload sentinel"), ContinuousClock.now < deadline {
-            before = try await webView.evaluateJavaScript("document.body.innerText") as? String ?? ""
-            await Task.yield()
-        }
-        try #require(before.contains("Reload sentinel"))
+        await waitForDeliveryOnMainActor { renderer.rendered.contentRevision == 1 }
+        try Task.checkCancellation()
+        let before = try await webView.evaluateJavaScript("document.body.innerText") as? String
+        try #require(before?.contains("Reload sentinel") == true)
         webView.reload()
-        while delegate.reloadCount == 0, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
-        #expect(delegate.reloadCount == 1)
-        while renderer.rendered.contentRevision != 2, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
+        await waitForDeliveryOnMainActor { delegate.reloadCount > 0 }
+        try #require(delegate.reloadCount == 1)
+        await waitForDeliveryOnMainActor { renderer.rendered.contentRevision == 2 }
+        try Task.checkCancellation()
         let after = try await webView.evaluateJavaScript("document.body.innerText") as? String
         #expect(after?.contains("Reload sentinel") == true)
     }
