@@ -6,6 +6,18 @@
 サイドバーほか）の現在仕様。ファイル種別ごとの描き分けは
 [ファイル種別ごとの表示仕様](./file-type-display.md) を参照。
 
+## 文書の再読み込み
+
+<!-- constrained-by ./file-type-display.md -->
+
+WebKit の右クリックメニューにある「再読み込み」は、`ViewerNavigationCoordinator` から
+ホストへ通知し、`ViewerStore.loadContent(forceRefresh:)` で現在の文書を読み直す。
+Markdown・Mermaid・ソース・CSV/TSV・画像等の WebKit 表示と、直接 HTML 表示が対象。
+PDF は PDFKit のメニューを使うため、このブラウザ操作を持たない。
+`viewer.html` 自体の再読み込みはキャンセルし、描画済み状態と DOM の食い違いを防ぐ。
+明示的な再読み込みでは同一内容でも再描画し、通常のファイル監視では従来どおり
+同一内容の更新を省略する。読み込みの世代判定・エラー処理は既存経路を共有する。
+
 ## ズームとスクロール
 
 - **ズーム**: 0.5〜2.0（ボタン・キーは 25% 刻み、ホイールは連続）、基準スケール 0.75。

@@ -44,7 +44,7 @@ final class ViewerNavigationCoordinator: SurfaceNavigationObserver {
     }
 
     /// 初回の HTML ロード（loadFileURL）は常に許可する。viewer.html モードではそれ以外の
-    /// ナビゲーションを全てキャンセルする(JS 側がリンクを処理する)。直接 HTML モードでは
+    /// ナビゲーションをキャンセルする(JS 側がリンクを処理する)。再読み込みは文書のホストへ戻す。直接 HTML モードでは
     /// リンククリック(.linkActivated)のみ directHTMLLinkPolicy で分類して処理する。
     ///
     /// renderer が既に無ければ表示先が無いので `.cancel` を返す。
@@ -58,6 +58,10 @@ final class ViewerNavigationCoordinator: SurfaceNavigationObserver {
         }
         guard let surface = renderer.surface else {
             RenderDiagnostics.log("shouldNavigate を cancel (surface が未設定)")
+            return .cancel
+        }
+        if request.kind == .reload {
+            renderer.delegate?.rendererDidRequestReload(renderer)
             return .cancel
         }
         return renderer.directHTML.decidePolicy(surface: surface, request: request)

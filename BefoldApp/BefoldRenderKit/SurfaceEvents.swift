@@ -9,15 +9,16 @@ import Foundation
 public struct SurfaceNavigationRequest {
     /// 遷移の種類。
     ///
-    /// **3 つに分ける。2 値へ潰さないこと。** この層の判断は「プログラムからの
-    /// ロードは通す」「リンククリックは分類する」「**それ以外は止める**」の 3 分岐で、
-    /// 3 つ目を 1 つ目へ寄せるとリロードや戻る/進むが黙って通るようになる。
-    public enum Kind {
+    /// 再読み込みは文書のホストへ戻す。ブラウザの再読み込みをそのまま通すと、
+    /// viewer.html の DOM とレンダラの描画済みミラーが食い違う。
+    public enum Kind: Sendable {
         /// リンクのクリック。開き方を修飾キーから決める。
         case linkActivated
         /// プログラムからのロード（初回の `loadLocalFile` / `loadHTML`）。
         case programmatic
-        /// それ以外（フォーム送信・戻る/進む・リロード）。この層は通さない。
+        /// 文書の再読み込み。WebKit の遷移は止め、ホストの読み込み経路へ委譲する。
+        case reload
+        /// それ以外（フォーム送信・戻る/進む）。この層は通さない。
         case otherInteraction
     }
 

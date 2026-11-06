@@ -39,4 +39,8 @@ extension ViewerWindowController: ViewerRendererDelegate {
     func rendererDidRequestMoreLines(_: ViewerRenderer) async -> LoadMoreLinesResult? {
         await store.loadMoreLines()
     }
+
+    func rendererDidRequestReload(_: ViewerRenderer) {
+        store.loadContent(forceRefresh: true)
+    }
 }

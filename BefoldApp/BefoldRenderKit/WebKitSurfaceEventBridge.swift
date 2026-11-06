@@ -51,10 +51,12 @@ final class WebKitSurfaceEventBridge: NSObject, WKNavigationDelegate, WKScriptMe
         RenderDiagnostics.log("surface \(RenderDiagnostics.id(webView)): webContentProcessDidTerminate")
     }
 
+    /// completion の actor 注釈もプロトコルの署名の一部。省略すると optional delegate に
+    /// 準拠せず、Objective-C の selector が公開されないため WebKit から呼ばれない。
     func webView(
         _: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
     ) {
         guard let navigation else {
             RenderDiagnostics.log("surface: decidePolicy を cancel (観測者が解放済み)")
@@ -64,7 +66,8 @@ final class WebKitSurfaceEventBridge: NSObject, WKNavigationDelegate, WKScriptMe
         let kind: SurfaceNavigationRequest.Kind = switch navigationAction.navigationType {
         case .linkActivated: .linkActivated
         case .other: .programmatic
-        // フォーム送信・戻る/進む・リロード。まとめて「通さない側」へ写す。
+        case .reload: .reload
+        // フォーム送信・戻る/進む。まとめて「通さない側」へ写す。
         // ここを .programmatic へ寄せると、それらが黙って通るようになる。
         default: .otherInteraction
         }

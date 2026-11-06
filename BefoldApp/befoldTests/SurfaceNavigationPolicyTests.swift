@@ -75,13 +75,8 @@ enum SurfaceNavigationStubs {
 
 /// `WKNavigationType` → `SurfaceNavigationRequest.Kind` の写像を固定する（TASK-601）。
 ///
-/// `SurfaceEvents.swift` の doc は「**3 つに分ける。2 値へ潰さないこと。**」と書いているが、
-/// TASK-595.2 で写像が `WebKitSurfaceEventBridge` へ移って以降、それを見るテストが 1 本も
-/// 無かった。`default: .otherInteraction` を `.programmatic` へ寄せてもビルドも CI も通り、
-/// その状態では viewer.html モードでリロード・戻る/進む・フォーム送信が `.allow` になる
-/// （`DirectHTMLModeController.decidePolicy` が `.programmatic` を無条件に通すため）。
-///
-/// ここが落ちたら、写像を潰したということ。
+/// プログラムからのロードだけを無条件に通し、再読み込み・リンク・その他の操作を
+/// 別々に扱う。写像を潰すと、viewer.html の DOM をホストの状態と無関係に置き換えてしまう。
 @Suite
 struct WebKitSurfaceEventBridgeMappingTests {
     /// 1 種類の `WKNavigationType` をブリッジへ流し、翻訳された要求を取り出す。
@@ -115,12 +110,16 @@ struct WebKitSurfaceEventBridgeMappingTests {
         #expect(Self.mapKind(of: .other)?.kind == .programmatic)
     }
 
-    /// **この 4 つが本題。** どれか 1 つでも `.programmatic` へ寄ると、viewer.html モードで
-    /// 黙って通るようになる。
-    @Test("リロード・戻る/進む・フォーム送信は .otherInteraction へ写る")
+    @Test("再読み込みはホストへ委譲する専用の種類へ写る")
+    @MainActor
+    func reloadMapsToReload() {
+        #expect(Self.mapKind(of: .reload)?.kind == .reload)
+    }
+
+    @Test("戻る/進む・フォーム送信は .otherInteraction へ写る")
     @MainActor
     func interactiveNavigationsMapToOtherInteraction() {
-        let types: [WKNavigationType] = [.reload, .backForward, .formSubmitted, .formResubmitted]
+        let types: [WKNavigationType] = [.backForward, .formSubmitted, .formResubmitted]
         for type in types {
             #expect(
                 Self.mapKind(of: type)?.kind == .otherInteraction,
