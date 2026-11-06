@@ -1521,13 +1521,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a file to open in this tab."
+            "value": "Drop files here, or choose a file to open."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このタブで開くファイルを選択してください。"
+            "value": "ここにファイルをドロップするか、開くファイルを選択してください。"
           }
         }
       }

@@ -11,6 +11,7 @@ final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
         let window = ViewerWindowChrome.makeWindow(fileURL: nil)
         super.init(window: window)
         window.contentViewController = NSHostingController(rootView: BlankTabView())
+        DocumentFileDropView.install(on: window)
         ViewerWindowChrome.applyInitialFrame(nil, to: window, kind: .viewer, isOccupied: { _ in false })
         window.delegate = self
     }

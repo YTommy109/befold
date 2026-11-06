@@ -101,11 +101,7 @@ final class ViewerWindowController: NSWindowController {
     /// スライド窓の前後移動キー。**通常のビューア窓では nil**(TASK-593.3)。
     /// 取り付けは `ViewerWindowAssembler.wireEventMonitors(for:on:)`、停止は windowWillClose。
     var slideKeyMonitor: SlideKeyMonitor?
-    /// ツールバー(モード切替・戻る/進む・行番号)の構築とライブ状態更新を担う。
-    /// この窓のツールバー。**スライド窓では nil**(TASK-593.2)。
-    ///
-    /// Optional にしてあるのが「ツールバーを持たない窓がある」ことの担保で、
-    /// 暗黙アンラップのままだと利用側が無条件に触って落ちる。
+    /// モード切替・戻る/進む・行番号のツールバー。持たないスライド窓では nil。
     private(set) var toolbarController: ViewerToolbarController?
     /// この窓の描画面の束(proxy と adapter)。面が増えても窓が持つのはこれ 1 本のまま
     /// (TASK-564.6)。テスト(@testable)が差し込めるよう private にしない。
@@ -334,6 +330,7 @@ final class ViewerWindowController: NSWindowController {
         window.contentViewController = ViewerWindowAssembler.makeSplitViewController(
             for: self, contentOverride: makeContentView
         )
+        DocumentFileDropView.install(on: window)
         ViewerWindowChrome.applyInitialFrame(
             initialFrameDescriptor, to: window, kind: kind,
             isOccupied: ViewerWindowAssembler.isOriginOccupiedByAnotherViewer(excluding: window)

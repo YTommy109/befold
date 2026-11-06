@@ -161,6 +161,12 @@ final class ViewerWindowManager {
         )
     }
 
+    /// 非同期のファイル解決を待つ間に閉じられた窓を、タブの起点へ戻さないための照合。
+    func containsOpenWindow(_ window: NSWindow) -> Bool {
+        allControllers.contains { $0.window === window }
+            || blankTabs.controllers.contains { $0.window === window }
+    }
+
     /// controller を key のコントローラ群へ登録する。
     /// 辞書 `controllers` の書き換えはこのファイルの register / detach だけに閉じている
     /// (`private(set)` のまま extension から直接触らせないための入口)。

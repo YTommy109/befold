@@ -67,7 +67,7 @@ final class DocumentOpener {
     }
 
     /// 複数の URL を、渡された順にウィンドウが出るよう逐次に開く。
-    /// **複数の URL を開く入口はここ 1 本に揃える。** 1 件ずつ `openViewer(for:)` を呼ぶと
+    /// タブを開く `openInTabs` と同じ `SequentialOpener` で逐次化する。1 件ずつ `openViewer(for:)` を呼ぶと
     /// 呼び出しごとに Task が張られ、解決(実 FS アクセス)の完了順でウィンドウ順序が入れ替わる。
     func openSequentially(
         _ urls: [URL], options: CLIOpenOptions = CLIOpenOptions(),
@@ -109,7 +109,8 @@ final class DocumentOpener {
     }
 
     /// 選択順にタブを開き、最初の文書だけを選択する。空タブは最初の成功時に置き換える。
-    func openInTabs(_ urls: [URL], relativeTo sourceWindow: NSWindow) {
+    @discardableResult
+    func openInTabs(_ urls: [URL], relativeTo sourceWindow: NSWindow) -> Task<Void, Never> {
         Task {
             var anchor = sourceWindow
             var selected: NSWindow?
@@ -118,7 +119,8 @@ final class DocumentOpener {
                 let disposition: OpenDisposition = anchor.windowController is BlankTabWindowController
                     ? .currentTab : .newTab
                 guard let opened = await openViewer(
-                    for: url, options: CLIOpenOptions(), disposition: disposition, relativeTo: anchor
+                    for: url, options: CLIOpenOptions(), disposition: disposition, relativeTo: anchor,
+                    allowsDirectories: false
                 ), let window = opened.window else { return }
                 if selected == nil {
                     selected = window
@@ -137,13 +139,14 @@ final class DocumentOpener {
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
         disposition: OpenDisposition = .currentTab, placement: NewTabPlacement = .end,
-        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false
+        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false, allowsDirectories: Bool = true
     ) async -> ViewerWindowController? {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }
-        if let blank = sourceWindow?.windowController as? BlankTabWindowController, blank.isClosed { return nil }
+        if let sourceWindow, !windowManager.containsOpenWindow(sourceWindow) { return nil }
         let isDirectory = resolved.isDirectory
+        if isDirectory, !allowsDirectories { return nil }
         guard let target = resolved.target else {
             presentNoFileAlert()
             return nil
