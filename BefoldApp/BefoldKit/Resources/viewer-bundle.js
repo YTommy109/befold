@@ -24979,18 +24979,26 @@
   var MIN_WIDTH = 40;
   var LIVE_RESIZE_MAX_ROWS = 2e3;
   var widths = [];
+  var manualWidths = /* @__PURE__ */ new Map();
   var path = null;
   var cancelDrag;
   function prepareCsvResize(newPath) {
     cancelDrag?.();
     removeCsvScrollbar();
-    if (newPath === null || path !== newPath) widths = [];
+    if (newPath === null || path !== newPath) manualWidths.clear();
+    widths = [];
+    manualWidths.forEach((width, column) => {
+      widths[column] = width;
+    });
     path = newPath;
   }
   function applyWidths(table2) {
     if (widths.length === 0) return;
     var headers = table2.tHead.rows[0].cells;
     widths.length = Math.min(widths.length, headers.length);
+    for (var manualColumn of manualWidths.keys()) {
+      if (manualColumn >= headers.length) manualWidths.delete(manualColumn);
+    }
     for (var column = 0; column < headers.length; column++) {
       if (widths[column] === void 0)
         widths[column] = Math.max(MIN_WIDTH, headers[column].offsetWidth);
@@ -25019,6 +25027,7 @@
         (cell) => Math.max(MIN_WIDTH, cell.offsetWidth)
       );
     widths[index] = Math.max(MIN_WIDTH, width);
+    manualWidths.set(index, widths[index]);
     applyWidths(table2);
   }
   var FIT_SAMPLE = 200;
@@ -25090,6 +25099,8 @@
       return cells;
     });
     table2.parentElement.append(probe);
+    var hideDuringMeasurement = !table2.querySelector(".csv-resize-handle");
+    if (hideDuringMeasurement) table2.style.display = "none";
     var measured = samples.map((cells) => {
       var header = cells[0]?.offsetWidth ?? 0;
       var numeric = 0;
@@ -25107,14 +25118,14 @@
       };
     });
     probe.remove();
-    if (missing.length === headers.length) {
-      var naturalTotal = measured.reduce((sum, width) => sum + width.natural, 1);
-      if (naturalTotal <= tableContentWidth(table2)) return;
-    }
+    var kept = widths.slice(0, headers.length).reduce((sum, width) => sum + width, 1);
+    var fits = measured.reduce((sum, width) => sum + width.natural, kept) <= tableContentWidth(table2);
+    if (hideDuringMeasurement) table2.style.display = "";
+    if (fits && missing.length === headers.length) return;
     missing.forEach((index, sample) => {
       var width = measured[sample];
       if (width.initial > 0)
-        widths[index] = Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
+        widths[index] = fits ? Math.max(MIN_WIDTH, width.natural) : Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
     });
   }
   function tableContentWidth(table2) {

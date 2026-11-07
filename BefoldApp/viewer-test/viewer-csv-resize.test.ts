@@ -150,26 +150,27 @@ describe('CSV/TSV の列幅', () => {
     viewer.main.appendChunk('new,3000,extra\n', 'csv', ',');
     viewer.main.setViewMode('rendered');
     await viewer.main.render(CSV + 'new,3000,extra\n', 'csv', ',');
-    expect(columnWidths(viewer)).toEqual(['110px', '100px', '40px']);
+    // 手動の 1 列目だけ保持する。残りは測り直す（jsdom は layout が無く下限 40px）。
+    expect(columnWidths(viewer)).toEqual(['110px', '40px', '40px']);
     viewer.main._mmdSetRenderDocPath('/b.csv');
     await viewer.main.render(CSV, 'csv', ',');
     expect(columnWidths(viewer)).toEqual([]);
   });
 
   // TASK-666: 保存（内容変更）のたびに手で調整した幅を失わない。
-  test('同じパスの内容変更では列幅を保持し、列が減った分は捨て、増えた列は自然幅にする', async () => {
+  test('同じパスの内容変更では手動の幅を保持し、列が減った分は捨て、残りは測り直す', async () => {
     const viewer = loadViewerMain();
     viewer.main._mmdSetRenderDocPath('/a.csv');
     await viewer.main.render(CSV + 'x,1,2\n', 'csv', ',');
     measureHeaders(tableIn(viewer));
-    key(viewer, 0, 'ArrowRight');
+    key(viewer, 1, 'ArrowRight');
     await viewer.main.render(CSV + 'changed,9000\n', 'csv', ',');
-    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    expect(columnWidths(viewer)).toEqual(['40px', '110px']);
     await viewer.main.render('Name\n日本語\n', 'csv', ',');
-    expect(columnWidths(viewer)).toEqual(['110px']);
-    // 戻った 2 列目は捨てた幅を復活させず自然幅から始まる（jsdom は layout が無く下限 40px）。
+    expect(columnWidths(viewer)).toEqual(['40px']);
+    // 消えた列の手動の幅は復活しない。手動の幅が残らないので、測れない jsdom では幅が付かない。
     await viewer.main.render(CSV, 'csv', ',');
-    expect(columnWidths(viewer)).toEqual(['110px', '40px']);
+    expect(columnWidths(viewer)).toEqual([]);
   });
 
   test('文書のパスが不明（null）の再描画は別文書として列幅を捨てる', async () => {
@@ -510,8 +511,101 @@ describe('全列が表示領域に収まる表', () => {
     measureHeaders(tableIn(viewer));
     key(viewer, 0, 'ArrowRight');
     expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    // 手動の 110px を含めると 110 + 624 + 1 = 735px で、689px に収まらない。
     await viewer.main.render(NARROW, 'csv', ',');
-    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    expect(columnWidths(viewer)).toEqual(['110px', '360px']);
+  });
+
+  test('手動の幅を含めても収まるなら、残りの列は上限をかけず最大幅にする', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, 110 + 624 + 1);
+    viewer.main._mmdSetRenderDocPath('/narrow.csv');
+    await viewer.main.render(NARROW, 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    await viewer.main.render(NARROW, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '624px']);
+  });
+});
+
+describe('再描画での列幅の測り直し', () => {
+  const widthsAfter = async (first: string, second: string): Promise<string[]> => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    viewer.main._mmdSetRenderDocPath('/live.csv');
+    await viewer.main.render(first, 'csv', ',');
+    await viewer.main.render(second, 'csv', ',');
+    return columnWidths(viewer);
+  };
+
+  test('保存で値が長くなると、手動で変えていない列は広がる', async () => {
+    const widths = await widthsAfter('Name,Note\nab,cd\n', `Name,Note\n${'x'.repeat(20)},cd\n`);
+    expect(widths).toEqual(['224px', '64px']);
+  });
+
+  test('ヘッダーだけの CSV に行が増えると、値に合わせて広がる', async () => {
+    const widths = await widthsAfter('Name,Note\n', `Name,Note\n${'x'.repeat(20)},cd\n`);
+    expect(widths).toEqual(['224px', '64px']);
+  });
+
+  test('桁区切りの設定を変えると、数値の列は新しい表示に合わせて広がる', async () => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    viewer.main._mmdSetRenderDocPath('/number.csv');
+    viewer.window._mmdCsvGrouping = false;
+    viewer.main._mmdInitCsvNumberFormat();
+    await viewer.main.render('Name,N\nx,1234567890\n', 'csv', ',');
+    expect(columnWidths(viewer)[1]).toBe('124px');
+    viewer.window._mmdCsvGrouping = true;
+    viewer.main._mmdInitCsvNumberFormat();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(columnWidths(viewer)[1]).toBe('154px');
+  });
+
+  test('チャンク追記では自動の幅も手動の幅も動かさない', async () => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    viewer.main._mmdSetRenderDocPath('/chunk.csv');
+    await viewer.main.render('Name,Note\nab,cd\n', 'csv', ',');
+    viewer.main.appendChunk(`${'x'.repeat(20)},${'y'.repeat(20)}\n`, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['64px', '64px']);
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    viewer.main.appendChunk(`${'x'.repeat(30)},z\n`, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['74px', '64px']);
+  });
+
+  test('初回の測定中だけ本体の表を隠し、追記では隠さない（読んでいる位置を失わないため）', async () => {
+    const viewer = loadViewerMain();
+    const displays: string[] = [];
+    Object.defineProperty(viewer.window.HTMLTableCellElement.prototype, 'offsetWidth', {
+      get() {
+        displays.push(tableIn(viewer).style.display);
+        return 100;
+      },
+      configurable: true,
+    });
+    await viewer.main.render('Name\nab\n', 'csv', ',');
+    expect(displays[0]).toBe('none');
+    expect(tableIn(viewer).style.display).toBe('');
+    displays.length = 0;
+    viewer.main.appendChunk('cd,new\n', 'csv', ',');
+    expect(displays.length).toBeGreaterThan(0);
+    expect(displays.every((display) => display === '')).toBe(true);
+  });
+
+  test('手動で変えた列の幅は、別のパスへ移ると捨てる', async () => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    viewer.main._mmdSetRenderDocPath('/a.csv');
+    await viewer.main.render('Name,Note\nab,cd\n', 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    viewer.main._mmdSetRenderDocPath('/b.csv');
+    await viewer.main.render('Name,Note\nab,cd\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['64px', '64px']);
   });
 });
 
