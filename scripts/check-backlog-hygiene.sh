@@ -8,12 +8,14 @@ set -euo pipefail
 #   - backlog/ 配下の未コミットの変更（取り残し）
 #   - ブランチで追加・更新したタスクに priority が無い
 # 要判定（終了コード 0）: 機械的には確定せず、backlog-hygiene-reviewer に渡すもの
-#   - 未 push のコミットが 2 件以上ある（--amend でまとめるべきか）
 #   - 既存タスクの ordinal が変わっている（--ordinal で順序を表そうとしていないか）
 #   - feat / fix のコミットにタスクや Issue との対応が見当たらない
 #
 # 見ないもの: タスクや Issue がある feat / fix を Issue と backlog のどちらで管理すべきか。
-# 1 コミット内の無関係な混入。どちらも意味の判定なので、agent を明示的に呼んだときに見る。
+# コミットの分け方（--amend でまとめるべきか、1 コミット内の無関係な混入）。どちらも意味の
+# 判定なので、agent を明示的に呼んだときに見る。未 push の件数で要判定にすると、複数コミットの
+# ブランチを初めて push するたびに agent が起動する（実測 約 4.2 万トークン）一方、PR は
+# squash マージなので分け方の実害は小さい。
 #
 # 使い方: scripts/check-backlog-hygiene.sh [--base <rev>] [--self-test]
 # 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 実行できない
@@ -54,17 +56,6 @@ run_checks() {
       add_needs "ordinal が変わったタスク: $path"
     fi
   done < <(git -c core.quotepath=off diff --name-status --no-renames --diff-filter=AM "$merge_base" HEAD -- backlog/tasks/)
-
-  local unpushed_range unpushed_count
-  if git rev-parse --verify --quiet '@{u}' > /dev/null; then
-    unpushed_range='@{u}..HEAD'
-  else
-    unpushed_range="$merge_base..HEAD"
-  fi
-  unpushed_count="$(git rev-list --count --no-merges "$unpushed_range")"
-  if [ "$unpushed_count" -ge 2 ]; then
-    add_needs "未 push のコミットが $unpushed_count 件: --amend でまとめるべきか確認する"
-  fi
 
   local sha subject message
   while IFS= read -r sha; do
@@ -164,15 +155,7 @@ self_test() {
   start_branch
   tg commit -q --allow-empty -m 'chore: 1 件目'
   tg commit -q --allow-empty -m 'chore: 2 件目'
-  expect '未 push のコミットが 2 件' 0 0 1
-
-  tg checkout -q main
-  tg update-ref refs/remotes/origin/work work
-  tg config branch.work.remote origin
-  tg config branch.work.merge refs/heads/work
-  tg config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
-  tg checkout -q work
-  expect 'push 済みのコミットは --amend の対象にしない' 0 0 0
+  expect '複数コミットだけでは要判定にしない' 0 0 0
 
   [ "$fail" = 0 ] || return 1
   echo "self-test OK"
