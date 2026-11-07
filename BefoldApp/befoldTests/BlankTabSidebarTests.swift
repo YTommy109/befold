@@ -139,6 +139,34 @@ struct BlankTabSidebarTests {
         withExtendedLifetime(source.sidebar) {}
     }
 
+    /// 空タブにはフォーカスを取る部品が無く、first responder は窓自身になる。⌘S とツールバーの
+    /// ボタンは宛先なしのアクションなので、窓から split view へ届くことを測る(TASK-915)。
+    /// `toggleSidebar` を直接呼ぶテストはこの経路を通らない。
+    @Test("空タブの窓が受けたサイドバーの開閉が split view へ届き、利用者の操作として記録される")
+    func sidebarToggleFromWindowReachesSplitView() throws {
+        let fixture = MockedViewerWindowManager(files: [first])
+        defer { fixture.closeAll() }
+        let source = try makeSource(in: fixture, collapsed: true)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source.window)
+        defer { blank.close() }
+        let window = try #require(blank.window)
+        #expect(window.firstResponder === window)
+        #expect(blank.sidebarCollapsible?.isSidebarCollapsed == true)
+        // ⌘S とツールバーのボタンが灰色にならないこと。宛先なしのアクションは first responder
+        // (ここでは窓)の検証を通る。テストの窓はキーにならないので、検証は窓へ直接問う。
+        let item = NSMenuItem(title: "", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "")
+        #expect(window.validateUserInterfaceItem(item))
+
+        let handled = NSApp.sendAction(
+            #selector(NSSplitViewController.toggleSidebar(_:)), to: window.firstResponder, from: nil
+        )
+
+        #expect(handled)
+        #expect(blank.sidebarCollapsible?.isSidebarCollapsed == false)
+        #expect(!fixture.sidebarState.lastToggledCollapsed)
+        withExtendedLifetime(source.sidebar) {}
+    }
+
     /// 文書タブと同じく、移動先の先頭がファイルならそれを開く(TASK-310)。空タブでは置き換えになる。
     @Test("サイドバーのフォルダ移動で先頭がファイルなら空タブが文書へ置き換わる", testTimeLimit())
     func navigatingToFolderWithFileReplacesBlank() async throws {
