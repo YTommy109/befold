@@ -74,7 +74,7 @@ struct ViewerWindowControllerFixture {
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: initialSortOrder,
             inheriting: SidebarInheritance.Seed(
-                listing: initialListing, expansion: [:], sidebarCollapsed: nil, position: nil
+                listing: initialListing, expansion: [:], sidebarCollapsed: nil, replacement: nil
             ),
             showLineNumbersOverride: showLineNumbersOverride,
             cliOverrides: CLIDisplayOverrides(mode: displayModeOverride),
