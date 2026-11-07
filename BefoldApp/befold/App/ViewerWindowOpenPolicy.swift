@@ -6,23 +6,54 @@ import BefoldKit
 enum ViewerWindowOpenPolicy {
     /// 起点の窓を踏まえて解釈し直した disposition(TASK-615)。
     ///
+    /// 起点が空タブの `.currentTab` は `blankTabToReplace` の置き換えなので、`.newTab` として扱う
+    /// (同じタブグループの重複抑止とタブ結合はそのまま効く)。
+    ///
     /// 起点がタブへ合流しない種別(`joinsTabs == false`)なら、`.newTab` は成立しないので
     /// `.newWindow` として扱う。スライド窓の `tabbingMode = .disallowed` が止めるのは
     /// **自動**タブ化だけで、`NSWindow.addTabbedWindow(_:ordered:)` による明示的な結合は
     /// 通る(実測: `tabbingMode.rawValue == 2` のまま `tabGroup` が非 nil になった)。
     /// 器の側で防げないため、開く経路で倒す。
     ///
-    /// **起点の種別で分岐するのはここだけ。** 呼び出し側(`openViewer`)は戻り値を同名の
+    /// **起点の種別で分岐するのはこの型だけ。** 呼び出し側(`openViewer`)は戻り値を同名の
     /// ローカルで shadow し、以降の再利用判定・タブ結合・選択がすべて解釈後の値を見る形にする。
     @MainActor
     static func effectiveDisposition(
         _ disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
     ) -> OpenDisposition {
+        if blankTabToReplace(disposition, relativeTo: sourceWindow) != nil { return .newTab }
         guard disposition == .newTab,
               let controller = sourceWindow?.windowController as? ViewerWindowController,
               !controller.kind.joinsTabs
         else { return disposition }
         return .newWindow
+    }
+
+    /// この要求で置き換える空タブ。新しいタブ(`.newTab`)や別の窓の要求では置き換えない。
+    @MainActor
+    static func blankTabToReplace(
+        _ disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
+    ) -> BlankTabWindowController? {
+        disposition == .currentTab ? sourceWindow?.windowController as? BlankTabWindowController : nil
+    }
+
+    /// 複数の文書を順にタブへ開くときの要求。起点が空タブならそれを置き換え、以降は新しいタブ。
+    @MainActor
+    static func tabBatchDisposition(relativeTo sourceWindow: NSWindow) -> OpenDisposition {
+        sourceWindow.windowController is BlankTabWindowController ? .currentTab : .newTab
+    }
+
+    /// 起点の空タブが既に文書へ置き換わっていたら、置き換えた文書の隣を開き先にする。
+    /// 解決を待つ間に閉じた起点を、閉じた窓として捨てないため。空タブを起点に解決を待つのは
+    /// 置き換えとタブの一括オープンだけなので、要求は `.newTab` に読み替えてよい。
+    @MainActor
+    static func retargeted(
+        _ disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
+    ) -> (disposition: OpenDisposition, sourceWindow: NSWindow?) {
+        guard let replacement = (sourceWindow as? ViewerDocumentWindow)?.replacement else {
+            return (disposition, sourceWindow)
+        }
+        return (.newTab, replacement)
     }
 
     /// 同じファイルを表示中の候補から、再利用できるコントローラを選ぶ(nil なら新規に開く)。

@@ -98,6 +98,16 @@ struct WebKitSurfaceEventBridgeMappingTests {
         return navigation.requests.last
     }
 
+    /// actor 注釈が SDK の宣言とずれると、selector が公開されず WebKit が呼ばない。
+    /// Swift から直接呼ぶ他のテストは、この状態でも通ってしまう。
+    @Test("decidePolicy の selector が Objective-C へ公開されている")
+    @MainActor
+    func decidePolicySelectorIsExposed() {
+        #expect(ViewerRenderer().surfaceEventBridge.responds(
+            to: NSSelectorFromString("webView:decidePolicyForNavigationAction:decisionHandler:")
+        ))
+    }
+
     @Test("リンククリックは .linkActivated へ写る")
     @MainActor
     func linkActivatedMapsToLinkActivated() {

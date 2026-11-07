@@ -24,10 +24,6 @@ struct DocumentReloadTests {
         let delegate = Delegate()
         renderer.delegate = delegate
         var decisions: [SurfaceNavigationDecision] = []
-        #expect(renderer.surfaceEventBridge.responds(to: NSSelectorFromString(
-            "webView:decidePolicyForNavigationAction:decisionHandler:"
-        )))
-
         renderer.surfaceEventBridge.webView(
             SurfaceNavigationStubs.placeholderWebView,
             decidePolicyFor: SurfaceNavigationStubs.NavigationAction(

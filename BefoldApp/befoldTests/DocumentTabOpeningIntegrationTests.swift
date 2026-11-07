@@ -127,4 +127,29 @@ struct DocumentTabOpeningIntegrationTests {
         #expect(standalone.sidebarDirectory == nil)
         #expect(standalone.quickOpenAnchor == nil)
     }
+
+    /// 先のドロップが空タブを閉じても、解決中だった後のドロップを捨てない。
+    @Test("解決中の空タブへ続けてドロップしても後のファイルを失わない", testTimeLimit())
+    func consecutiveDropsOnBlankKeepEveryFile() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let firstDrop = try tmp.file(named: "first.md", contents: "fixture")
+        let secondDrop = try tmp.file(named: "second.md", contents: "fixture")
+        let fixture = MockedViewerWindowManager(files: [origin, firstDrop, secondDrop])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        // 本番と同じく、閉じたコントローラを誰も保持しない形で測る。窓だけを受け取る。
+        let window = try #require(fixture.manager.blankTabs.open(relativeTo: source).window)
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { nil })
+
+        let first = opener.openInTabs([firstDrop], relativeTo: window)
+        let second = opener.openInTabs([secondDrop], relativeTo: window)
+        await first.value
+        await second.value
+
+        let paths = Set(source.tabGroup?.windows.compactMap(ViewerTabGrouping.viewerPath) ?? [])
+        #expect(paths == Set([origin, firstDrop, secondDrop].map(\.normalizedPathKey)))
+        #expect(fixture.manager.blankTabs.controllers.isEmpty)
+    }
 }

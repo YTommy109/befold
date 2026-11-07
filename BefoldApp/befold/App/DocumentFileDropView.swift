@@ -42,10 +42,6 @@ final class DocumentFileDropView: NSView {
         files(from: sender.draggingPasteboard).isEmpty ? [] : .copy
     }
 
-    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        draggingEntered(sender)
-    }
-
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         acceptDrop(from: sender.draggingPasteboard)
     }

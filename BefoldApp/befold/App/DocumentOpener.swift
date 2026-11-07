@@ -127,11 +127,9 @@ final class DocumentOpener {
             var anchor = sourceWindow
             var selected: NSWindow?
             await SequentialOpener.open(urls) { url in
-                if let blank = anchor.windowController as? BlankTabWindowController, blank.isClosed { return }
-                let disposition: OpenDisposition = anchor.windowController is BlankTabWindowController
-                    ? .currentTab : .newTab
                 guard let opened = await openViewer(
-                    for: url, options: CLIOpenOptions(), disposition: disposition, relativeTo: anchor,
+                    for: url, options: CLIOpenOptions(),
+                    disposition: ViewerWindowOpenPolicy.tabBatchDisposition(relativeTo: anchor), relativeTo: anchor,
                     allowsDirectories: false
                 ), let window = opened.window else { return }
                 if selected == nil {
@@ -156,6 +154,8 @@ final class DocumentOpener {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }
+        // 解決を待つ間に、起点の空タブが別の要求で文書へ置き換わることがある(続けたドロップ)。
+        let (disposition, sourceWindow) = ViewerWindowOpenPolicy.retargeted(disposition, relativeTo: sourceWindow)
         if let sourceWindow, !windowManager.containsOpenWindow(sourceWindow) { return nil }
         let isDirectory = resolved.isDirectory
         if isDirectory, !allowsDirectories { return nil }

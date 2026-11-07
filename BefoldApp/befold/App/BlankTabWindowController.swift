@@ -63,6 +63,12 @@ final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
         return splitViewController
     }
 
+    /// 文書へ置き換わって閉じる。
+    func close(replacedBy window: NSWindow?) {
+        (self.window as? ViewerDocumentWindow)?.replacement = window
+        close()
+    }
+
     func windowWillClose(_ notification: Notification) {
         isClosed = true
         sidebarContext?.navigator.cancelPendingListing()
@@ -87,6 +93,7 @@ private struct BlankTabView: View {
             Image(systemName: "doc")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             Text(String(localized: "tab.empty.title", bundle: .l10n))
                 .font(.title2)
             Text(String(localized: "tab.empty.detail", bundle: .l10n))

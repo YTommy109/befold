@@ -36,7 +36,7 @@ enum MainMenuBuilder {
         ))
         mainMenu.addItem(makeEditMenuItem())
         mainMenu.addItem(makeViewMenuItem())
-        // 手で登録するブックマークは File の利用履歴から分け、View と Window の間へ置く。
+        // 手で登録するブックマークは File の履歴と性質が違うので独立させ、Safari と同じ位置へ置く(TASK-535)。
         mainMenu.addItem(makeBookmarksMenuItem(delegate: dynamicMenuDelegates.bookmarks))
         mainMenu.addItem(makeWindowMenuItem())
         mainMenu.addItem(makeHelpMenuItem(helpActions))
@@ -98,7 +98,7 @@ enum MainMenuBuilder {
             keyEquivalent: "p"
         )
 
-        // 開くコマンドと利用履歴を区切る。
+        // 開くコマンドと履歴を区切る。手で登録するブックマークはトップレベルのメニューへ出してある(TASK-535)。
         menu.addItem(.separator())
 
         menu.addLocalizedSubmenu("menu.file.openRecent", delegate: recentMenuDelegate)
