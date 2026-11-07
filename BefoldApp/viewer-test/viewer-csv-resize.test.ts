@@ -650,6 +650,16 @@ describe('切り取りと数値', () => {
   });
 });
 
+test('追記で増えた列は、201 行目以降でも追記された行の値で測る', async () => {
+  const viewer = loadViewerMain();
+  measureCellText(viewer);
+  const rows = Array.from({ length: 250 }, (_, index) => `a${index},b`).join('\n');
+  await viewer.main.render(`Name,Note\n${rows}\n`, 'csv', ',');
+  viewer.main.appendChunk(`c,d,${'x'.repeat(20)}\n`, 'csv', ',');
+  // 古い行にこの列のセルは無い。追記された 20 文字の値（224px）で測る。
+  expect(columnWidths(viewer)[2]).toBe('224px');
+});
+
 test('初期幅の分位点から空セルと空白だけのセルを除外する', async () => {
   const viewer = loadViewerMain();
   measureCellText(viewer);

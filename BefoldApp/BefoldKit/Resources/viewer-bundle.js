@@ -24996,6 +24996,8 @@
 
   // viewer-src/csv-resize.ts
   var MIN_WIDTH = 40;
+  var INITIAL_MAX_WIDTH = 360;
+  var INITIAL_WIDTH_PERCENTILE = 0.9;
   var LIVE_RESIZE_MAX_ROWS = 2e3;
   var widths = [];
   var manualWidths = /* @__PURE__ */ new Map();
@@ -25075,22 +25077,31 @@
     return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
   }
   function fitColumn(table2, index) {
-    const probe = table2.cloneNode(false);
-    if (!(probe instanceof HTMLTableElement)) return;
-    probe.classList.remove("csv-sized");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
+    const probe = createProbe(table2);
+    if (!probe) return;
     for (var cell of fitCandidates(table2, index)) {
-      var copy = cell.cloneNode(true);
-      if (!(copy instanceof HTMLTableCellElement)) continue;
-      copy.querySelector(".csv-resize-handle")?.remove();
-      copy.style.whiteSpace = "pre";
-      probe.insertRow().append(copy);
+      var copy = copyForMeasurement(cell);
+      if (copy) probe.insertRow().append(copy);
     }
     table2.parentElement.append(probe);
     var width = probe.offsetWidth || MIN_WIDTH;
     probe.remove();
     setWidth(table2, index, width);
+  }
+  function createProbe(table2) {
+    const probe = table2.cloneNode(false);
+    if (!(probe instanceof HTMLTableElement)) return null;
+    probe.classList.remove("csv-sized");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none";
+    return probe;
+  }
+  function copyForMeasurement(cell) {
+    const copy = cell.cloneNode(true);
+    if (!(copy instanceof HTMLTableCellElement)) return null;
+    copy.querySelector(".csv-resize-handle")?.remove();
+    copy.style.whiteSpace = "pre";
+    return copy;
   }
   function initialWidths(table2) {
     var headers = table2.tHead.rows[0].cells;
@@ -25098,20 +25109,16 @@
       (index) => widths[index] === void 0
     );
     if (missing.length === 0) return;
-    const probe = table2.cloneNode(false);
-    if (!(probe instanceof HTMLTableElement)) return;
-    probe.classList.remove("csv-sized");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.cssText = "position:absolute;visibility:hidden;display:table;width:max-content;table-layout:auto;pointer-events:none";
+    const probe = createProbe(table2);
+    if (!probe) return;
     var samples = missing.map((index) => {
       var cells = [];
-      for (var rowIndex = 0; rowIndex < Math.min(table2.rows.length, FIT_SAMPLE + 1); rowIndex++) {
+      for (var rowIndex = 0; rowIndex < table2.rows.length && cells.length <= FIT_SAMPLE; rowIndex++) {
         var original = table2.rows[rowIndex].cells[index];
-        if (!original) continue;
-        var copy = original.cloneNode(true);
-        if (!(copy instanceof HTMLTableCellElement)) continue;
-        copy.querySelector(".csv-resize-handle")?.remove();
-        copy.style.cssText = "display:block;width:max-content;white-space:pre";
+        var copy = original ? copyForMeasurement(original) : null;
+        if (!copy) continue;
+        copy.style.display = "block";
+        copy.style.width = "max-content";
         probe.insertRow().append(copy);
         cells.push(copy);
       }
@@ -25129,7 +25136,7 @@
         return width;
       });
       data.sort((a, b) => a - b);
-      var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
+      var typical = data[Math.max(0, Math.ceil(data.length * INITIAL_WIDTH_PERCENTILE) - 1)] ?? 0;
       return {
         initial: Math.max(header, typical),
         natural: Math.max(header, data.at(-1) ?? 0),
@@ -25144,7 +25151,7 @@
     missing.forEach((index, sample) => {
       var width = measured[sample];
       if (width.initial > 0)
-        widths[index] = fits ? Math.max(MIN_WIDTH, width.natural) : Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
+        widths[index] = fits ? Math.max(MIN_WIDTH, width.natural) : Math.max(MIN_WIDTH, Math.min(INITIAL_MAX_WIDTH, width.initial), width.numeric);
     });
   }
   function tableContentWidth(table2) {

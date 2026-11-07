@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-07T02:55:00Z'
-updated_date: '2026-11-07T02:59:00Z'
+updated_date: '2026-11-07T03:22:00Z'
 labels: []
 dependencies: []
 references:
@@ -35,4 +35,6 @@ ordinal: 866000
 
 <!-- SECTION:NOTES:BEGIN -->
 着手不可の理由: PR #748 が main へマージされていない。マージされれば着手できる。順序: 方針（幅の上限）→ 切り取りの目印 → 自動幅の測り直し、印刷と検索はその後。
+
+TASK-906.1〜906.6 はすべて Done。PR は #752 を最下層とするスタック。完了条件の「修正がすべて main に入るまでリリースしない」はマージ後に確認して Done にする。
 <!-- SECTION:NOTES:END -->

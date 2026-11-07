@@ -3,6 +3,9 @@ import { installCsvScrollbar, removeCsvScrollbar } from './csv-scrollbar.js';
 import { _mmdZoom } from './zoom.js';
 
 var MIN_WIDTH = 40;
+// 表示領域に収まらない表の初期幅の規則（initialWidths）。
+var INITIAL_MAX_WIDTH = 360;
+var INITIAL_WIDTH_PERCENTILE = 0.9;
 // これを超える行数の表は、ドラッグ中に幅を更新せず案内線だけ動かし、離したときに 1 回だけ確定する。
 // 幅変更 1 回は全行の再レイアウトで、実測（TASK-669）は 10,000 行で約 0.13 秒、50,000 行で
 // 約 0.37 秒。ライブで追従したときのフレーム時間は 1,000 行で 14ms、2,000 行で 20ms
@@ -116,25 +119,36 @@ function fitCandidates(table: HTMLTableElement, index: number): HTMLTableCellEle
  * 初回表示の既定幅の規則は {@link initialWidths} を参照。
  */
 function fitColumn(table: HTMLTableElement, index: number): void {
-  // セルを同じ CSS の下で折り返さず測る。WebKit の font shorthand や
-  // tabular-nums を canvas に転写せず、実際の書式と明示的改行をそのまま使う。
-  const probe = table.cloneNode(false);
-  if (!(probe instanceof HTMLTableElement)) return;
-  probe.classList.remove('csv-sized');
-  probe.setAttribute('aria-hidden', 'true');
-  probe.style.cssText =
-    'position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none';
+  const probe = createProbe(table);
+  if (!probe) return;
   for (var cell of fitCandidates(table, index)) {
-    var copy = cell.cloneNode(true);
-    if (!(copy instanceof HTMLTableCellElement)) continue;
-    copy.querySelector('.csv-resize-handle')?.remove();
-    copy.style.whiteSpace = 'pre';
-    probe.insertRow().append(copy);
+    var copy = copyForMeasurement(cell);
+    if (copy) probe.insertRow().append(copy);
   }
   table.parentElement!.append(probe);
   var width = probe.offsetWidth || MIN_WIDTH;
   probe.remove();
   setWidth(table, index, width);
+}
+
+// 実測用の不可視の表。セルを同じ CSS の下で折り返さず測る。WebKit の font shorthand や
+// tabular-nums を canvas に転写せず、実際の書式と明示的改行をそのまま使う。
+function createProbe(table: HTMLTableElement): HTMLTableElement | null {
+  const probe = table.cloneNode(false);
+  if (!(probe instanceof HTMLTableElement)) return null;
+  probe.classList.remove('csv-sized');
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText =
+    'position:absolute;visibility:hidden;display:table;table-layout:auto;width:max-content;padding-right:0;pointer-events:none';
+  return probe;
+}
+
+function copyForMeasurement(cell: HTMLTableCellElement): HTMLTableCellElement | null {
+  const copy = cell.cloneNode(true);
+  if (!(copy instanceof HTMLTableCellElement)) return null;
+  copy.querySelector('.csv-resize-handle')?.remove();
+  copy.style.whiteSpace = 'pre';
+  return copy;
 }
 
 /**
@@ -166,9 +180,8 @@ function fitColumn(table: HTMLTableElement, index: number): void {
  *   選んだ上位最大 200 セルを測定する。
  *
  * @remarks
- * 後続の行で新しい列が増えた場合、その列の幅だけを別途初期化する。
- * この場合も標本は表の先頭 200 データ行なので、それより後で初めて値が現れる列は
- * 下限の 40px から始まることがある。
+ * 後続の行で新しい列が増えた場合、その列の幅だけを別途初期化する。その列のセルが無い行は
+ * 標本に数えないので、追記された行の値で測る。
  */
 function initialWidths(table: HTMLTableElement): void {
   var headers = table.tHead!.rows[0]!.cells;
@@ -176,21 +189,17 @@ function initialWidths(table: HTMLTableElement): void {
     (index) => widths[index] === undefined,
   );
   if (missing.length === 0) return;
-  const probe = table.cloneNode(false);
-  if (!(probe instanceof HTMLTableElement)) return;
-  probe.classList.remove('csv-sized');
-  probe.setAttribute('aria-hidden', 'true');
-  probe.style.cssText =
-    'position:absolute;visibility:hidden;display:table;width:max-content;table-layout:auto;pointer-events:none';
+  const probe = createProbe(table);
+  if (!probe) return;
   var samples = missing.map((index) => {
     var cells: HTMLTableCellElement[] = [];
-    for (var rowIndex = 0; rowIndex < Math.min(table.rows.length, FIT_SAMPLE + 1); rowIndex++) {
+    // ヘッダー + データ FIT_SAMPLE 個。列のセルが無い行（追記で増えた列の古い行）は数えない。
+    for (var rowIndex = 0; rowIndex < table.rows.length && cells.length <= FIT_SAMPLE; rowIndex++) {
       var original = table.rows[rowIndex]!.cells[index];
-      if (!original) continue;
-      var copy = original.cloneNode(true);
-      if (!(copy instanceof HTMLTableCellElement)) continue;
-      copy.querySelector('.csv-resize-handle')?.remove();
-      copy.style.cssText = 'display:block;width:max-content;white-space:pre';
+      var copy = original ? copyForMeasurement(original) : null;
+      if (!copy) continue;
+      copy.style.display = 'block';
+      copy.style.width = 'max-content';
       probe.insertRow().append(copy);
       cells.push(copy);
     }
@@ -214,7 +223,7 @@ function initialWidths(table: HTMLTableElement): void {
         return width;
       });
     data.sort((a, b) => a - b);
-    var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
+    var typical = data[Math.max(0, Math.ceil(data.length * INITIAL_WIDTH_PERCENTILE) - 1)] ?? 0;
     return {
       initial: Math.max(header, typical),
       natural: Math.max(header, data.at(-1) ?? 0),
@@ -234,7 +243,7 @@ function initialWidths(table: HTMLTableElement): void {
     if (width.initial > 0)
       widths[index] = fits
         ? Math.max(MIN_WIDTH, width.natural)
-        : Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
+        : Math.max(MIN_WIDTH, Math.min(INITIAL_MAX_WIDTH, width.initial), width.numeric);
   });
 }
 
