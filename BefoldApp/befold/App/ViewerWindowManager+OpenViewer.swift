@@ -63,12 +63,12 @@ extension ViewerWindowManager {
         }
 
         // 起点の窓が同じフォルダを列挙済みなら、その結果を新しい窓の出発点にする
-        // (TASK-532)。disposition では絞らない——新規タブでも新規ウィンドウでも、
-        // 同じ一覧を出すなら空から作り直す理由が無い。
+        // (TASK-532)。一覧は disposition では絞らない——新規タブでも新規ウィンドウでも、
+        // 同じ一覧を出すなら空から作り直す理由が無い。開閉だけはタブに限って引き継ぐ。
         let controller = makeController(
             for: url, options: options, forceSidebarVisible: forceSidebarVisible,
             kind: disposition == .slide ? .slide : .viewer,
-            inheriting: SidebarInheritance.seed(from: sourceWindow)
+            inheriting: SidebarInheritance.seed(from: sourceWindow, opensAsTab: disposition == .newTab)
         )
         register(controller, forKey: key)
         controller.delegate = sessionSync
@@ -103,21 +103,14 @@ extension ViewerWindowManager {
         for url: URL, options: CLIOpenOptions, forceSidebarVisible: Bool,
         kind: ViewerWindowKind, inheriting seed: SidebarInheritance.Seed
     ) -> ViewerWindowController {
-        // 解決の規則は ViewerWindowOpenPolicy が持つ(純粋な判定)。記憶への書き戻しは
-        // 副作用なのでここに残す。**サイドバーを持たない種別は記憶しない**(TASK-593.2)。
-        // 畳んでいることは種別の帰結であって利用者の選択ではないので、per-file の記憶へ
-        // 書くと「そのファイルを次に通常窓で開くとサイドバーが畳まれている」状態が残る
-        // (ADR 0002「窓の状態」)。`recordToggle` 側は toggleSidebar が no-op になることで
-        // 構造的に届かないが、この `setCollapsed` は生成時に直接書くので明示的に飛ばす。
+        // 解決の規則は ViewerWindowOpenPolicy が持つ(純粋な判定)。ここでは記憶へ書き戻さない。
+        // 書くのは利用者の開閉操作だけ(ADR 0002「窓の状態」)で、スライド窓は toggleSidebar が
+        // no-op になることで構造的に届かない。
         let initialSidebarCollapsed = ViewerWindowOpenPolicy.initialSidebarCollapsed(
             kind: kind, showSidebar: options.showSidebar, forceSidebarVisible: forceSidebarVisible,
-            remembered: shared.perFileState.sidebar.initialCollapsed(
-                for: url, lastActivePathKey: sessionStore.savedActivePath()
-            )
+            sourceCollapsed: seed.sidebarCollapsed,
+            remembered: shared.sidebarState.lastToggledCollapsed
         )
-        if kind.allowsSidebar {
-            shared.perFileState.sidebar.setCollapsed(initialSidebarCollapsed, for: url)
-        }
         // 寸法はアプリ全体で 1 個。**ここで書き戻さない**——かつては解決結果をファイルへ
         // 書き戻しており、一度開いたファイルが自分の古い値に固定されていた(TASK-583)。
         // 再起動時に窓ごとの寸法を戻すのは SessionRestorer の仕事。

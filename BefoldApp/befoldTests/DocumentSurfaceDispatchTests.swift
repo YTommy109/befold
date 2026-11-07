@@ -293,7 +293,7 @@ struct DocumentSurfaceDispatchTests {
                     defaults: makeIsolatedDefaults(prefix: "DocumentSurfaceDispatchTests")
                 )
             ),
-            perFileState: PerFileStateStore(defaults: defaults),
+            zoomStore: ZoomStore(defaults: defaults),
             currentDocument: CurrentDocumentRef(
                 store: store, initialURL: URL(fileURLWithPath: "/mock/a.md")
             ),

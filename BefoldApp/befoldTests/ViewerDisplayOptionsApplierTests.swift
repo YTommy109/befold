@@ -41,10 +41,13 @@ struct ViewerDisplayOptionsApplierTests {
         fixture.manager.openViewer(for: file)
         let controller = try #require(fixture.manager.controllers[file.normalizedPathKey]?.first)
 
+        let sidebar = RecordingSidebarCollapsible()
+        controller.sidebarCollapsible = sidebar
+
         ViewerDisplayOptionsApplier.apply(
             CLIOpenOptions(showSidebar: false), to: controller, forceSidebarVisible: true
         )
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
+        #expect(sidebar.requests == [true])
     }
 }

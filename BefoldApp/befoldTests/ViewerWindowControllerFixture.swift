@@ -19,7 +19,6 @@ func placeholderViewerContent() -> AnyView {
 struct ViewerWindowControllerFixture {
     let defaults: UserDefaults
     let zoomStore: ZoomStore
-    let perFileState: PerFileStateStore
     let bookmarkStore: BookmarkStore
     let controller: ViewerWindowController
 
@@ -49,14 +48,9 @@ struct ViewerWindowControllerFixture {
     ) {
         let defaults = defaults ?? makeIsolatedDefaults(prefix: prefix)
         let zoomStore = zoomStore ?? ZoomStore(defaults: defaults)
-        let perFileState = PerFileStateStore(
-            zoom: zoomStore,
-            sidebar: SidebarStateStore(defaults: defaults)
-        )
         let bookmarkStore = bookmarkStore ?? BookmarkStore(defaults: defaults)
         self.defaults = defaults
         self.zoomStore = zoomStore
-        self.perFileState = perFileState
         self.bookmarkStore = bookmarkStore
 
         let store = realFileSystem
@@ -71,7 +65,7 @@ struct ViewerWindowControllerFixture {
             shared: makeViewerWindowDependencies(
                 defaults: defaults, displayDefaults: displayDefaults,
                 diffDisplayPreference: diffDisplayPreference,
-                perFileState: perFileState, bookmarkStore: bookmarkStore
+                zoomStore: zoomStore, bookmarkStore: bookmarkStore
             ),
             diffLoader: diffLoader,
             gitFileIndex: gitFileIndex,

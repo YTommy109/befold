@@ -234,49 +234,76 @@ struct ViewerWindowManagerTests {
         #expect(second.window?.isKeyWindow == false)
     }
 
-    @Test("新規ファイルを開くと、記録がなければ既定(閉じた状態)がサイドバー状態として記録される")
-    func openViewerPersistsDefaultClosedSidebarStateForNewFile() {
+    @Test("未操作なら閉じて開き、開くだけでは最後の操作を記録しない")
+    func openViewerDefaultsToClosedWithoutRecording() throws {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
 
-        fixture.manager.openViewer(for: file)
+        let controller = try #require(fixture.manager.openViewer(for: file))
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
+        #expect(controller.initialSidebarCollapsed)
+        #expect(fixture.defaults.object(forKey: "SidebarLastToggledCollapsed") == nil)
     }
 
-    @Test("既に保存済みのサイドバー状態があるファイルを開いても保存値は上書きされない")
-    func openViewerKeepsOwnSavedSidebarState() {
+    @Test("閉じた状態で開いたことのあるファイルも、再び開くときは最後の操作に従う")
+    func reopenedFileFollowsLastToggleInsteadOfItsPastState() throws {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
-        fixture.perFileState.sidebar.setCollapsed(false, for: file)
+        let first = try #require(fixture.manager.openViewer(for: file))
+        #expect(first.initialSidebarCollapsed)
+        first.close()
+        fixture.sidebarState.recordToggle(false)
 
-        fixture.manager.openViewer(for: file)
+        let reopened = try #require(fixture.manager.openViewer(for: file))
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
+        #expect(!reopened.initialSidebarCollapsed)
     }
 
-    @Test("初めて開くファイルは直近アクティブだったウィンドウのサイドバー状態を引き継ぐ")
-    func openViewerInheritsLastActiveWindowSidebarState() {
-        let activeFile = URL(fileURLWithPath: "/mock/active.mmd")
-        let newFile = URL(fileURLWithPath: "/mock/new.mmd")
-        let fixture = MockedViewerWindowManager(files: [activeFile, newFile])
+    @Test("タブは最後の操作ではなく起点の窓の現在の開閉状態で開く", arguments: [true, false])
+    func newTabFollowsSourceWindow(sourceCollapsed: Bool) throws {
+        let second = URL(fileURLWithPath: "/mock/second.mmd")
+        let fixture = MockedViewerWindowManager(files: [file, second])
         defer { fixture.closeAll() }
-        fixture.perFileState.sidebar.setCollapsed(false, for: activeFile)
-        fixture.sessionStore.noteActivated(activeFile, kind: .viewer)
+        let source = try #require(fixture.manager.openViewer(for: file))
+        let sidebar = RecordingSidebarCollapsible()
+        sidebar.resolvedSidebarCollapsed = sourceCollapsed
+        source.sidebarCollapsible = sidebar
+        fixture.sidebarState.recordToggle(!sourceCollapsed)
 
-        fixture.manager.openViewer(for: newFile)
+        let tab = try #require(fixture.manager.openViewer(
+            for: second, disposition: .newTab, relativeTo: source.window
+        ))
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: newFile) == false)
+        #expect(tab.initialSidebarCollapsed == sourceCollapsed)
     }
 
-    @Test("forceSidebarVisible は保存済み・引き継ぎ値より優先され、結果も記録される")
-    func openViewerForceSidebarVisibleOverridesResolvedDefault() {
+    @Test("別ウィンドウは起点の窓があっても最後の操作の開閉状態で開く")
+    func newWindowIgnoresSourceWindow() throws {
+        let second = URL(fileURLWithPath: "/mock/second.mmd")
+        let fixture = MockedViewerWindowManager(files: [file, second])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: file))
+        let sidebar = RecordingSidebarCollapsible()
+        sidebar.resolvedSidebarCollapsed = true
+        source.sidebarCollapsible = sidebar
+        fixture.sidebarState.recordToggle(false)
+
+        let window = try #require(fixture.manager.openViewer(
+            for: second, disposition: .newWindow, relativeTo: source.window
+        ))
+
+        #expect(!window.initialSidebarCollapsed)
+    }
+
+    @Test("forceSidebarVisible は最後の操作より優先され、最後の操作を書き換えない")
+    func openViewerForceSidebarVisibleDoesNotRecord() throws {
         let fixture = MockedViewerWindowManager(files: [file])
         defer { fixture.closeAll() }
 
-        fixture.manager.openViewer(for: file, forceSidebarVisible: true)
+        let controller = try #require(fixture.manager.openViewer(for: file, forceSidebarVisible: true))
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
+        #expect(!controller.initialSidebarCollapsed)
+        #expect(fixture.sidebarState.lastToggledCollapsed)
     }
 
     /// **高さは見ない。幅だけで測る。**

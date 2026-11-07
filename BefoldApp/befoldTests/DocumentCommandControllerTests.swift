@@ -71,23 +71,23 @@ struct DocumentCommandControllerTests {
     func persistsZoomReturnedByRenderer() {
         let renderer = FakeDocumentRenderer()
         let defaults = makeIsolatedDefaults(prefix: "DocumentCommandControllerTests")
-        let perFileState = PerFileStateStore(defaults: defaults)
+        let zoomStore = ZoomStore(defaults: defaults)
         let zoomChanges = ZoomChangeRecorder()
         let controller = makeDocumentCommandController(
-            renderer: renderer, perFileState: perFileState, zoomChanges: zoomChanges
+            renderer: renderer, zoomStore: zoomStore, zoomChanges: zoomChanges
         )
 
         // viewer.js が倍率を持つ通常モードでは nil が返り、保存も通知も JS からの経路に任せる
         renderer.zoomAfterChange = nil
         controller.zoomIn()
-        #expect(perFileState.zoom.zoom(for: documentCommandTestURL) == ZoomStore.defaultZoom)
+        #expect(zoomStore.zoom(for: documentCommandTestURL) == ZoomStore.defaultZoom)
         #expect(zoomChanges.values.isEmpty)
 
         // 直接 HTML モードでは適用後の倍率が返る。viewer.js からの通知が来ない経路なので、
         // ここで窓のライブ値も更新しないと画面と食い違ったまま取り残される。
         renderer.zoomAfterChange = 1.25
         controller.zoomIn()
-        #expect(perFileState.zoom.zoom(for: documentCommandTestURL) == 1.25)
+        #expect(zoomStore.zoom(for: documentCommandTestURL) == 1.25)
         #expect(zoomChanges.values == [1.25])
     }
 

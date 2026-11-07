@@ -36,7 +36,9 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(!controller.store.showLineNumbers)
         #expect(!controller.isSourceMode)
         #expect(controller.fileListModel.display.sortOrder == .foldersFirst)
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
+        #expect(controller.initialSidebarCollapsed)
+        let sidebar = RecordingSidebarCollapsible()
+        controller.sidebarCollapsible = sidebar
 
         fixture.manager.openViewer(for: file, options: allOptions)
 
@@ -45,7 +47,7 @@ struct ViewerWindowManagerDisplayOverridesTests {
         #expect(controller.store.showLineNumbers)
         #expect(controller.isSourceMode)
         #expect(controller.fileListModel.display.sortOrder == .alphabetical)
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
+        #expect(sidebar.requests == [false])
     }
 
     @Test("既存ウィンドウへの表示オプション適用でもツールバーが再同期される")
@@ -99,15 +101,19 @@ struct ViewerWindowManagerDisplayOverridesTests {
     /// フォルダーを開いた結果が既に開いているファイルへ解決される場合も、サイドバーの
     /// 強制表示は効く。options だけを適用して forceSidebarVisible を落とすと同型の穴が残る。
     @Test("既に開いているファイルでも forceSidebarVisible はサイドバーを開く")
-    func openViewerOnOpenWindowHonorsForceSidebarVisible() {
+    func openViewerOnOpenWindowHonorsForceSidebarVisible() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "OptionsForceSidebar")
         defer { fixture.closeAll() }
-        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: false))
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == true)
+        let controller = try #require(
+            fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: false))
+        )
+        #expect(controller.initialSidebarCollapsed)
+        let sidebar = RecordingSidebarCollapsible()
+        controller.sidebarCollapsible = sidebar
 
         fixture.manager.openViewer(for: file, forceSidebarVisible: true)
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
+        #expect(sidebar.requests == [false])
     }
 
     @Test("--diff / --compare は新規ウィンドウにも既存ウィンドウにも同じ結果で適用される")
@@ -202,26 +208,29 @@ struct ViewerWindowManagerDisplayOverridesTests {
         "新規ウィンドウは options.showSidebar に従って開閉状態が決まる",
         arguments: [(true, false), (false, true)]
     )
-    func sidebarVisibleOverrideDeterminesInitialCollapse(visible: Bool, expectedCollapsed: Bool) {
+    func sidebarVisibleOverrideDeterminesInitialCollapse(visible: Bool, expectedCollapsed: Bool) throws {
         let fixture = MockedViewerWindowManager(
             files: [file], prefix: "SidebarOverrideInitial-\(visible)"
         )
         defer { fixture.closeAll() }
 
-        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: visible))
+        let controller = try #require(
+            fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: visible))
+        )
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == expectedCollapsed)
+        #expect(controller.initialSidebarCollapsed == expectedCollapsed)
     }
 
-    @Test("showSidebar 未指定(nil)なら保存済み開閉状態を維持する")
-    func sidebarVisibleOverrideNilKeepsSavedState() {
+    @Test("showSidebar 未指定(nil)なら最後の操作の開閉状態で開く")
+    func sidebarVisibleOverrideNilUsesLastToggle() throws {
         let fixture = MockedViewerWindowManager(files: [file], prefix: "SidebarOverrideNil")
         defer { fixture.closeAll() }
-        // 事前に「開いた状態(collapsed=false)」を保存しておく。
-        fixture.perFileState.sidebar.setCollapsed(false, for: file)
+        fixture.sidebarState.recordToggle(false)
 
-        fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: nil))
+        let controller = try #require(
+            fixture.manager.openViewer(for: file, options: CLIOpenOptions(showSidebar: nil))
+        )
 
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: file) == false)
+        #expect(!controller.initialSidebarCollapsed)
     }
 }

@@ -5,7 +5,7 @@ import Foundation
 /// 粒度は `NavigationHistory` / `SidebarSelectionMemory` と同族の
 /// 「どこを見ているか」に付随するナビゲーション状態なので、アプリ全体で共有する
 /// `SidebarDisplayDefaults`(不可視ファイル・変更のみ表示)とは分ける。
-/// 永続化する場合は `SidebarStateStore` のファイルごとのパターンに倣うこと
+/// 永続化する場合は `ZoomStore`（`PathKeyedDictionary`）のファイルごとのパターンに倣うこと
 /// (TASK-361.4 の AC)。
 ///
 /// `@Observable` にはしない。サイドバーの描画の真実の源は

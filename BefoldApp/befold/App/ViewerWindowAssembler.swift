@@ -103,7 +103,7 @@ enum ViewerWindowAssembler {
             // WKWebView と JS の詳細は adapter に閉じ（ADR 0002 段 4）、どの面へ届けるかの
             // 決定は束（DocumentSurfaces）に閉じる（TASK-564.6）。
             surfaces: controller.surfaces,
-            perFileState: controller.perFileState,
+            zoomStore: controller.zoomStore,
             // 現在 URL は rename/switch で書き換わる。窓と同じ共有参照を渡し、旧値を捕捉しない。
             currentDocument: controller.currentDocument,
             onZoomChanged: { [weak controller] zoom in controller?.store.zoom = zoom },
@@ -121,7 +121,7 @@ enum ViewerWindowAssembler {
     /// 生成した split view controller は `controller.sidebarCollapsible` にも設定する
     /// （CLI の `--sidebar` / `--no-sidebar` 適用が後から参照するため）。
     static func makeSplitViewController(
-        for controller: ViewerWindowController, contentOverride: (() -> AnyView)?
+        for controller: ViewerWindowController, sidebarState: SidebarStateStore, contentOverride: (() -> AnyView)?
     ) -> NSViewController {
         let onSelectFile: (URL) -> Void = { [weak controller] url in controller?.switchFile(to: url) }
         let onNavigateToFolder: (URL) -> Void = { [weak controller] url in controller?.navigateToFolder(url) }
@@ -163,10 +163,7 @@ enum ViewerWindowAssembler {
             content: content,
             initialCollapsed: controller.initialSidebarCollapsed,
             allowsSidebar: controller.kind.allowsSidebar,
-            onCollapsedChange: { [weak controller] collapsed in
-                guard let controller else { return }
-                controller.perFileState.sidebar.recordToggle(collapsed, for: controller.fileURL)
-            },
+            onCollapsedChange: { collapsed in sidebarState.recordToggle(collapsed) },
             onSidebarDidReveal: { [weak controller] in
                 controller?.fileListModel.tableFocuser.focus()
             },

@@ -23,11 +23,11 @@ struct SlideWindowIntegrationTests {
 
     /// 「slide で 1 回開く」だけで決まる性質をまとめて測る（窓を 1 枚だけ作る）。
     /// どれか 1 つが崩れても、その #expect が個別に落ちる。
-    @Test("スライド窓は種別 .slide で、ツールバー・サイドバー・per-file の記憶・セッションの記録を持たない")
+    @Test("スライド窓は種別 .slide で、ツールバー・サイドバー・セッションの記録を持たず、保存値を読み書きしない")
     func slideWindowProperties() throws {
         let fixture = makeFixture()
         defer { fixture.closeAll() }
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
+        fixture.sidebarState.recordToggle(false)
 
         let controller = try #require(
             fixture.manager.openViewer(for: first, disposition: .slide)
@@ -39,27 +39,27 @@ struct SlideWindowIntegrationTests {
         #expect(window.toolbar == nil)
         // 種別そのものの allowsSidebar は ViewerWindowKindTests が窓なしで測る。
         #expect(controller.initialSidebarCollapsed)
-        // 折りたたみは種別の帰結であって利用者の選択ではないので、per-file の記憶へ
-        // 書いてはならない（ADR 0002）。書くと、そのファイルを次に通常窓で開いたときに
-        // サイドバーが畳まれた状態で開く。
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) == nil)
+        // 折りたたみは種別の帰結であって利用者の選択ではないので、保存値を読まず書き換えもしない
+        // （ADR 0002）。上で「開く」を記録してあるので、読めば initial が false になる。
+        #expect(!fixture.sidebarState.lastToggledCollapsed)
         #expect(ViewerTabGrouping.viewerPath(of: window) == nil)
         #expect(ViewerTabGrouping.tabGroup(of: window) == nil)
     }
 
     /// 上のテストと対にして測る。片方だけだと「そもそもツールバーが付いていない」
-    /// 「そもそも誰も記憶へ書かない」のか、「種別で外れている」のか区別できない。
-    @Test("通常のビューア窓はツールバーを持ち、per-file の記憶へ書き、セッションの記録に入る")
+    /// 「そもそも誰も保存値を読まない」のか、「種別で外れている」のか区別できない。
+    @Test("通常のビューア窓はツールバーを持ち、保存値を読み、セッションの記録に入る")
     func viewerWindowCounterparts() throws {
         let fixture = makeFixture()
         defer { fixture.closeAll() }
+        fixture.sidebarState.recordToggle(false)
 
         let controller = try #require(fixture.manager.openViewer(for: first))
         let window = try #require(controller.window)
 
         #expect(controller.toolbarController != nil)
         #expect(window.toolbar != nil)
-        #expect(fixture.perFileState.sidebar.isCollapsed(for: first) != nil)
+        #expect(!controller.initialSidebarCollapsed)
         #expect(ViewerTabGrouping.viewerPath(of: window) == first.normalizedPathKey)
     }
 

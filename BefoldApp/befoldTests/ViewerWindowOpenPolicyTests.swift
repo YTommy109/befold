@@ -55,4 +55,22 @@ struct ViewerWindowOpenPolicyTests {
 
         #expect(reused == nil)
     }
+
+    private func resolve(
+        kind: ViewerWindowKind = .viewer, showSidebar: Bool? = nil, force: Bool = false, source: Bool? = nil
+    ) -> Bool {
+        ViewerWindowOpenPolicy.initialSidebarCollapsed(
+            kind: kind, showSidebar: showSidebar, forceSidebarVisible: force,
+            sourceCollapsed: source, remembered: false
+        )
+    }
+
+    @Test("開閉の解決順は 種別 > CLI > フォルダー強制 > 起点の窓 > 最後の操作")
+    func initialSidebarCollapsedResolutionOrder() {
+        #expect(resolve(kind: .slide, showSidebar: true, force: true, source: false))
+        #expect(resolve(showSidebar: false, force: true, source: false))
+        #expect(!resolve(force: true, source: true))
+        #expect(resolve(source: true))
+        #expect(!resolve())
+    }
 }

@@ -90,9 +90,9 @@ extension ViewerWindowController {
         applyURLToWindow(newURL)
 
         // 実体は同じファイルなので旧パスの表示状態を新パスへ引き継ぐ(旧パスはもう存在しない)。
-        // 永続の 3 つ(倍率・サイドバー開閉・ウィンドウフレーム)と、この窓の生存期間だけの
+        // 永続の倍率と、この窓の生存期間だけの
         // 記憶(スクロール位置・表示モード)は寿命が違うので引き継ぎも 2 本立てになる。
-        perFileState.migrate(from: oldURL, to: newURL)
+        zoomStore.migrateZoom(from: oldURL, to: newURL)
         documentPresenter.migratePresentationMemory(from: oldURL, to: newURL)
         // 描画状態(描画済みミラー・JS 側の文書パス)も同じ同期区間で新パスへ追随させる。
         // 呼ばないと、リネーム再描画がファイル切替として扱われてスクロール位置が

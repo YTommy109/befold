@@ -58,8 +58,7 @@ struct ViewerWindowKindTests {
 /// 開閉の経路は 3 本ある——⌘S（メニュー）・⌘←（フォーカス移動）・`setSidebarCollapsed(_:)`
 /// （CLI の `--sidebar` と `forceSidebarVisible` がここへ来る）。メニュー側の 2 本は
 /// `ViewerMenuValidatorTests` が測り、ここでは**実際に開かせない側**——
-/// `ViewerSplitViewController.toggleSidebar(_:)` の早期 return——を測る。
-/// `setSidebarCollapsed(_:)` は `toggleSidebar` を呼ぶので同じ 1 箇所を通る。
+/// `ViewerSplitViewController.toggleSidebar(_:)` と `setSidebarCollapsed(_:)` の早期 return——を測る。
 ///
 /// **ウィンドウへ載せない。** `NSSplitViewItem.isCollapsed` の代入は AppKit が
 /// `NSSplitView` の subview 配列を触るため、表示していないコントローラでは落ちる
@@ -98,9 +97,8 @@ struct SlideWindowSidebarGuardTests {
         #expect(toggles.values.isEmpty)
     }
 
-    /// `setSidebarCollapsed(_:)` は「現在と違うときだけ `toggleSidebar` を呼ぶ」実装なので、
-    /// **現在と違う値を渡す**こと。同じ値だと自身の早期 return で止まり、
-    /// `allowsSidebar` のガードを一度も通らないまま緑になる。
+    /// **現在と違う値を渡す**こと。同じ値だと現在値の比較で止まり、`allowsSidebar` の
+    /// ガードを測らないまま緑になる。ガードを外すと AppKit へ到達してこのテストが落ちる。
     @Test("スライド窓では setSidebarCollapsed も同じガードで止まる")
     func setSidebarCollapsedReturnsEarly() {
         let toggles = RecordedToggles()

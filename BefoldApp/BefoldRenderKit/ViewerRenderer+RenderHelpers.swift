@@ -34,7 +34,7 @@ extension ViewerRenderer {
     ///   (提示開始時の保存値へ巻き戻さない = TASK-401)。
     /// - JS 側の文書パスも即時に差し替えるため、リネーム再描画の確定前に発火した
     ///   スクロール通知も新パスをキーに保存される(旧パスのキーは
-    ///   `perFileState.migrate` 済みで、もう読まれない = TASK-393)。
+    ///   `ZoomStore.migrateZoom` 済みで、もう読まれない = TASK-393)。
     ///
     /// 描画済みの文書が oldURL と別(未描画・別文書へ切替中)の場合は何もしない。
     public func handleRename(from oldURL: URL, to newURL: URL) {

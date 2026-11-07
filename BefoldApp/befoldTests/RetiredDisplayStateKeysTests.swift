@@ -9,13 +9,14 @@ import Testing
 /// - スクロール位置・表示モード（TASK-565）: 永続化そのものをやめたので移行先が無い
 /// - `WindowFrames`（TASK-583）: ファイル単位の寸法。実測 104 件あったが、そのどれを
 ///   「アプリ全体で 1 個」の値に選ぶかに根拠が無い
+/// - `SidebarCollapsedStates`（TASK-909）: ファイル単位の開閉。全体の値は `SidebarLastToggledCollapsed`
 @Suite
 @MainActor
 struct RetiredDisplayStateKeysTests {
     private let markdown = URL(fileURLWithPath: "/mock/note.md")
 
     /// 旧値があれば消える。1 つでも取りこぼすと、次に同名のキーを再利用したとき誤って読まれる。
-    @Test("旧値のある 6 キーがすべて defaults から消える")
+    @Test("旧値のある 7 キーがすべて defaults から消える")
     func removesAllRetiredKeys() {
         let defaults = makeIsolatedDefaults(prefix: "RetiredDisplayStateKeys.present")
         defaults.set([markdown.normalizedPathKey: 120.0], forKey: "ViewerScrollPositions.rendered")
@@ -24,6 +25,7 @@ struct RetiredDisplayStateKeysTests {
         defaults.set([markdown.normalizedPathKey: true], forKey: "ViewerSourceModes")
         defaults.set(true, forKey: "SourceDiffEnabled")
         defaults.set([markdown.normalizedPathKey: "0 0 900 700 0 0 1920 1080"], forKey: "WindowFrames")
+        defaults.set([markdown.normalizedPathKey: false], forKey: "SidebarCollapsedStates")
 
         AppStores.removeRetiredDisplayStateKeys(from: defaults)
 
@@ -52,11 +54,13 @@ struct RetiredDisplayStateKeysTests {
     func keepsTheLiveKeyWhenAlreadyMigrated() {
         let defaults = makeIsolatedDefaults(prefix: "RetiredDisplayStateKeys.migrated")
         defaults.set("0 0 1400 1000 0 0 1920 1080", forKey: "WindowFrameLastUserAdjusted")
+        defaults.set(false, forKey: "SidebarLastToggledCollapsed")
         defaults.set([markdown.normalizedPathKey: "0 0 900 700 0 0 1920 1080"], forKey: "WindowFrames")
 
         AppStores.removeRetiredDisplayStateKeys(from: defaults)
 
         #expect(defaults.string(forKey: "WindowFrameLastUserAdjusted") == "0 0 1400 1000 0 0 1920 1080")
+        #expect(defaults.object(forKey: "SidebarLastToggledCollapsed") as? Bool == false)
         #expect(defaults.object(forKey: "WindowFrames") == nil)
     }
 
@@ -70,6 +74,7 @@ struct RetiredDisplayStateKeysTests {
             "ViewerSourceModes",
             "SourceDiffEnabled",
             "WindowFrames",
+            "SidebarCollapsedStates",
         ])
     }
 }

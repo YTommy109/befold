@@ -21,7 +21,7 @@ struct CLICheckAndBookmarkDefaultsIntegrationTests {
         #expect(result.message.contains("b.md"))
     }
 
-    /// 実パスへの正規化は BookmarkStore の責務で、PerFileStateStoreSymlinkIntegrationTests が
+    /// 実パスへの正規化は BookmarkStore の責務で、PathKeyedStoreSymlinkIntegrationTests が
     /// 単独で検証している。ここで固定するのは CLI 側の責務、すなわち
     /// 「与えられたパスを解決せずそのまま addBookmark へ渡し、成功なら exit 0 を返す」こと。
     /// CLI が先回りして解決すると正規化規則が 2 箇所に分かれ、食い違う余地が生まれる。

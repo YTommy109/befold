@@ -98,13 +98,13 @@ struct ViewerWindowStateIndependenceTests {
         defer { fixture.closeAll() }
         // 提示開始で読む値と、その後に他窓が書く値を別にしておく。既定値のまま開くと
         // 「読んでいない」と「読み直していない」を区別できない(このテストが空振りになる)。
-        fixture.perFileState.zoom.setZoom(1.25, for: shared)
+        fixture.zoomStore.setZoom(1.25, for: shared)
         fixture.manager.openViewer(for: shared)
         let controller = try #require(fixture.manager.allControllers.first)
         #expect(controller.store.zoom == 1.25)
 
         // 他窓が倍率を変えた状況(保存ストアはアプリ全体で 1 つ)。
-        fixture.perFileState.zoom.setZoom(1.75, for: shared)
+        fixture.zoomStore.setZoom(1.75, for: shared)
 
         #expect(controller.store.zoom == 1.25)
     }
@@ -143,7 +143,7 @@ struct ViewerWindowStateIndependenceTests {
             files: [shared], prefix: "DocumentStateIndependence.reopen", contents: "let a = 1"
         )
         defer { fixture.closeAll() }
-        fixture.perFileState.zoom.setZoom(1.5, for: shared)
+        fixture.zoomStore.setZoom(1.5, for: shared)
 
         fixture.manager.openViewer(for: shared)
         let first = try #require(fixture.manager.allControllers.first)

@@ -23,10 +23,8 @@ import SwiftUI
 final class ViewerWindowController: NSWindowController {
     /// 表示状態(ファイル種別・ソース表示可否・行番号表示)。ViewerToolbarHost 経由でツールバーにも公開する。
     let store: ViewerStore
-    /// ファイル毎の永続表示状態(倍率・表示モード・スクロール位置・サイドバー開閉・
-    /// ウィンドウフレーム)の束。読み書きするのは `ViewerDocumentPresenter` / `+FileNavigation` /
-    /// `+Renderer` / `+WindowDelegate` と、WebView コマンドへの受け渡し(`ViewerWindowAssembler`)。
-    let perFileState: PerFileStateStore
+    /// ファイル毎の永続表示状態(倍率)。全ウィンドウ共有。
+    let zoomStore: ZoomStore
     /// git 差分の取得・世代管理・レイアウト設定。差分に関する状態はすべて向こう側に置く。
     /// 生成は init 1 箇所きり(host に self を要るため lazy)。
     lazy var diffPresenter = ViewerDiffPresenter(
@@ -113,7 +111,7 @@ final class ViewerWindowController: NSWindowController {
     /// 表示モード・倍率・スクロール位置の遷移(ADR 0002 段 1)。提示状態の判断はすべて向こう側。
     /// documentCommands の生成後にしか作れないため lazy(参照はどれも init の後段以降)。
     lazy var documentPresenter = ViewerDocumentPresenter(
-        store: store, perFileState: perFileState, documentCommands: documentCommands,
+        store: store, zoomStore: zoomStore, documentCommands: documentCommands,
         currentDocument: currentDocument,
         canSelect: { [weak self] mode in self?.canSelect(mode) ?? false },
         refreshToolbar: { [weak self] in self?.refreshUIState() },
@@ -288,7 +286,7 @@ final class ViewerWindowController: NSWindowController {
         },
         externalOpener: @escaping (URL) -> Void = { url in NSWorkspace.shared.open(url) }
     ) {
-        perFileState = shared.perFileState
+        zoomStore = shared.zoomStore
         diffDisplayPreference = shared.diffDisplayPreference
         self.diffLoader = diffLoader
         findOptionsPreference = shared.findOptionsPreference
@@ -328,7 +326,7 @@ final class ViewerWindowController: NSWindowController {
         // contentViewController の設定でウィンドウがビューのフィッティングサイズに
         // リサイズされるため、フレームの確定はその後に行う。
         window.contentViewController = ViewerWindowAssembler.makeSplitViewController(
-            for: self, contentOverride: makeContentView
+            for: self, sidebarState: shared.sidebarState, contentOverride: makeContentView
         )
         DocumentFileDropView.install(on: window)
         ViewerWindowChrome.applyInitialFrame(
