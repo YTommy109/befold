@@ -99,8 +99,7 @@ final class ViewerWindowController: NSWindowController {
     /// スライド窓の前後移動キー。**通常のビューア窓では nil**(TASK-593.3)。
     /// 取り付けは `ViewerWindowAssembler.wireEventMonitors(for:on:)`、停止は windowWillClose。
     var slideKeyMonitor: SlideKeyMonitor?
-    /// モード切替・戻る/進む・行番号のツールバー。**スライド窓では nil**(TASK-593.2)。
-    /// Optional が「持たない窓がある」ことの担保で、暗黙アンラップだと利用側が無条件に触って落ちる。
+    /// ツールバー。**スライド窓では nil**(TASK-593.2)で、Optional が「持たない窓がある」ことの担保。
     private(set) var toolbarController: ViewerToolbarController?
     /// この窓の描画面の束(proxy と adapter)。面が増えても窓が持つのはこれ 1 本のまま
     /// (TASK-564.6)。テスト(@testable)が差し込めるよう private にしない。

@@ -109,6 +109,45 @@ struct BlankTabSidebarTests {
         withExtendedLifetime(source.sidebar) {}
     }
 
+    /// 置き換えた窓の表は空タブの表と別物なので、フォーカスを渡し直さないとキー操作が続かない。
+    @Test("サイドバーから置き換えた文書タブでは、サイドバーの表がフォーカスを受ける")
+    func replacedDocumentSidebarTakesFocus() throws {
+        let fixture = MockedViewerWindowManager(files: [first, second])
+        defer { fixture.closeAll() }
+        let source = try makeSource(in: fixture, collapsed: false)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source.window)
+        defer { blank.close() }
+
+        #expect(blank.performFileSwitch(to: second).isSwitched)
+
+        let replaced = try #require(fixture.manager.controllers[second.normalizedPathKey]?.first)
+        #expect(replaced.fileListModel.tableFocuser.focusPending)
+        withExtendedLifetime(source.sidebar) {}
+    }
+
+    /// 同じグループで開いている既存のタブを再利用するとき、そのタブのサイドバーが閉じていれば
+    /// フォーカスを移さない。見えない一覧が矢印キーを受けて、黙ってファイルが切り替わるため。
+    @Test("再利用した既存のタブのサイドバーが閉じていれば、表へフォーカスを移さない")
+    func reusedTabWithCollapsedSidebarKeepsFocus() throws {
+        let fixture = MockedViewerWindowManager(files: [first, second])
+        defer { fixture.closeAll() }
+        let source = try makeSource(in: fixture, collapsed: false)
+        let existing = try #require(fixture.manager.openViewer(
+            for: second, disposition: .newTab, relativeTo: source.window
+        ))
+        let existingSidebar = RecordingSidebarCollapsible()
+        existingSidebar.resolvedSidebarCollapsed = true
+        existing.sidebarCollapsible = existingSidebar
+        let blank = fixture.manager.blankTabs.open(relativeTo: source.window)
+        defer { blank.close() }
+
+        #expect(blank.performFileSwitch(to: second).isSwitched)
+
+        #expect(blank.isClosed)
+        #expect(!existing.fileListModel.tableFocuser.focusPending)
+        withExtendedLifetime((source.sidebar, existingSidebar)) {}
+    }
+
     @Test("存在しないファイルを選んでも空タブは残る")
     func missingFileKeepsBlank() throws {
         let fixture = MockedViewerWindowManager(files: [first])

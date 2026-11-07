@@ -26,10 +26,15 @@ extension BlankTabWindowController: SidebarNavigatorHost {
         nil
     }
 
+    /// サイドバーから開いた文書タブも、文書タブのサイドバーと同じくフォーカスを表に残す
+    /// (TASK-581)。閉じる空タブの表に当てても、置き換えた窓の表には誰もフォーカスしない。
+    /// 再利用した既存のタブのサイドバーが閉じていれば、`focusSidebar` が何もしない。
     @discardableResult
     func performFileSwitch(to url: URL) -> FileSwitchOutcome {
         guard let sidebarContext, let window else { return .failed }
-        return sidebarContext.replaceWithDocument(url, window) ? .switched : .failed
+        guard let replaced = sidebarContext.replaceWithDocument(url, window) else { return .failed }
+        replaced.focusSidebar(nil)
+        return .switched
     }
 
     func historyStateDidChange() {}
