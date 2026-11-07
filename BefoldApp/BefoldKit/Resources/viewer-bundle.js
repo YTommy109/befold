@@ -14455,7 +14455,20 @@
   var highlightResize = null;
   var highlightStyles = null;
   var printingHighlights = false;
+  var revealedCell = null;
+  function revealClippedCell(cell) {
+    cell.style.textOverflow = "clip";
+    revealedCell = cell;
+  }
+  function resetRevealedCell() {
+    if (revealedCell) {
+      revealedCell.style.textOverflow = "";
+      revealedCell.scrollLeft = 0;
+    }
+    revealedCell = null;
+  }
   function clearNativeHighlights() {
+    resetRevealedCell();
     CSS.highlights.delete("mmd-find-match");
     CSS.highlights.delete("mmd-find-match-current");
     nativeMatches = [];
@@ -14841,6 +14854,12 @@
     });
   }
   function moveFindHighlight(current) {
+    resetRevealedCell();
+    var cell = current.startContainer.parentElement?.closest(
+      "table.csv-sized td, table.csv-sized th"
+    );
+    if (cell instanceof HTMLTableCellElement && cell.scrollWidth > cell.clientWidth)
+      revealClippedCell(cell);
     var highlight = new Highlight(new StaticRange(current));
     highlight.priority = 1;
     CSS.highlights.delete("mmd-find-match-current");

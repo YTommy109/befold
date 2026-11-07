@@ -16,8 +16,27 @@ var highlightFrame: number | null = null;
 var highlightResize: ResizeObserver | null = null;
 var highlightStyles: MutationObserver | null = null;
 var printingHighlights = false;
+// ヒットを見せるために開いている切り取りセル。省略記号があると隠れた文字の矩形が幅 0 に
+// 潰れてスクロール量を計算できないので（実測: 本来 1185px の位置が省略記号の 408px になる）、
+// その間だけ省略記号を外す。スクロールバーが無くユーザーには戻せないので、値の先頭が
+// 欠けたまま残らないよう、次のヒットへ移るときと検索を終えるときに戻す。
+var revealedCell: HTMLTableCellElement | null = null;
+
+export function revealClippedCell(cell: HTMLTableCellElement): void {
+  cell.style.textOverflow = 'clip';
+  revealedCell = cell;
+}
+
+export function resetRevealedCell(): void {
+  if (revealedCell) {
+    revealedCell.style.textOverflow = '';
+    revealedCell.scrollLeft = 0;
+  }
+  revealedCell = null;
+}
 
 export function clearNativeHighlights(): void {
+  resetRevealedCell();
   CSS.highlights.delete('mmd-find-match');
   CSS.highlights.delete('mmd-find-match-current');
   nativeMatches = [];

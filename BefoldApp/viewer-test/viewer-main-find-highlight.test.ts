@@ -417,4 +417,66 @@ describe('native find highlights', () => {
     expect(scrollHorizontal).toHaveBeenCalledWith({ left: 350, top: 0, behavior: 'smooth' });
     expect(scrollViewer).toHaveBeenCalledWith({ left: 0, top: 1010, behavior: 'smooth' });
   });
+
+  describe('切り取られたセルの内部スクロール', () => {
+    // jsdom にレイアウトは無いので、切り取られたセルの形だけを与える。scrollTo は位置を記録する。
+    function clippedCells(tableClass = 'csv-sized') {
+      const found = nativeFind(
+        `<table class="${tableClass}"><tr><td id="a">match one</td><td id="b">match two</td></tr></table>`,
+      );
+      const { document, window } = found;
+      window.Range.prototype.getBoundingClientRect = () => new window.DOMRect(500, 0, 50, 20);
+      const cells = ['a', 'b'].map((id) => {
+        const cell = document.getElementById(id)!;
+        cell.style.overflowX = 'hidden';
+        Object.defineProperty(cell, 'scrollWidth', { value: 800 });
+        Object.defineProperty(cell, 'clientWidth', { value: 100 });
+        Object.defineProperty(cell, 'offsetWidth', { value: 100 });
+        Object.defineProperty(cell, 'scrollLeft', { value: 0, writable: true });
+        cell.getBoundingClientRect = () => new window.DOMRect(0, 0, 100, 20);
+        cell.scrollTo = ((options: ScrollToOptions) => {
+          cell.scrollLeft = options.left ?? 0;
+        }) as typeof cell.scrollTo;
+        return cell;
+      });
+      return { ...found, cells };
+    }
+
+    test('ヒットへ移るとセルを内部スクロールし、次のヒットへ移ると先頭へ戻す', () => {
+      const { main, query, cells } = clippedCells();
+      query('match');
+      expect(cells[0]!.scrollLeft).toBeGreaterThan(0);
+      expect(cells[0]!.style.textOverflow).toBe('clip');
+      main._mmdFind.next();
+      expect(cells[0]!.scrollLeft).toBe(0);
+      expect(cells[0]!.style.textOverflow).toBe('');
+      expect(cells[1]!.scrollLeft).toBeGreaterThan(0);
+    });
+
+    test('検索を閉じると先頭へ戻す', () => {
+      const { main, query, cells } = clippedCells();
+      query('match');
+      expect(cells[0]!.scrollLeft).toBeGreaterThan(0);
+      main._mmdCloseFind();
+      expect(cells[0]!.scrollLeft).toBe(0);
+      expect(cells[0]!.style.textOverflow).toBe('');
+    });
+
+    test('ヒットが無くなる再検索でも先頭へ戻す', () => {
+      const { query, cells } = clippedCells();
+      query('match');
+      query('nothing');
+      expect(cells[0]!.scrollLeft).toBe(0);
+    });
+
+    test('切り取りのない表のセルには触らない', () => {
+      const { main, query, cells } = clippedCells('');
+      query('match');
+      const scrolled = cells[0]!.scrollLeft;
+      expect(scrolled).toBeGreaterThan(0);
+      expect(cells[0]!.style.textOverflow).toBe('');
+      main._mmdCloseFind();
+      expect(cells[0]!.scrollLeft).toBe(scrolled);
+    });
+  });
 });
