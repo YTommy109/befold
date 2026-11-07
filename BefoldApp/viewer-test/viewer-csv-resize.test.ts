@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, test } from '@jest/globals';
 
 import { loadViewerMain, type LoadedViewer } from './support/viewerMainHarness.js';
@@ -509,6 +512,36 @@ describe('全列が表示領域に収まる表', () => {
     expect(columnWidths(viewer)).toEqual(['110px', '100px']);
     await viewer.main.render(NARROW, 'csv', ',');
     expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+  });
+});
+
+describe('切り取りと数値', () => {
+  test('数値の列は分位点ではなく標本の最大幅を使い、上限 360px も適用しない', async () => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    const small = Array.from({ length: 9 }, (_, index) => `${index + 1}`);
+    const rows = [...small, '1234567890'].map((amount) => `x,${amount}`).join('\n');
+    await viewer.main.render(`Name,Amount\n${rows}\n`, 'csv', ',');
+    // 90% 点は 1 文字（ヘッダーの 84px が勝つ）だが、最大の 1,234,567,890（13 文字）に合わせる。
+    expect(columnWidths(viewer)[1]).toBe('154px');
+    const huge = '1'.repeat(50);
+    viewer.main._mmdSetRenderDocPath('/huge.csv');
+    await viewer.main.render(`Name,Amount\nx,1\ny,${huge}\n`, 'csv', ',');
+    // 50 桁 + 桁区切り 16 個で 66 文字。上限 360px を超えても桁を欠かさない。
+    expect(columnWidths(viewer)[1]).toBe('684px');
+  });
+
+  test('文字列の列は従来どおり 90 パーセンタイルと上限 360px のまま', async () => {
+    const viewer = loadViewerMain();
+    measureCellText(viewer);
+    const rows = [100, 20, 12, 19, 13, 18, 14, 17, 15, 16].map((n) => 'a'.repeat(n)).join('\n');
+    await viewer.main.render(`Text\n${rows}\n`, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['224px']);
+  });
+
+  test('style.css は切り取ったセルに省略記号を付ける', () => {
+    const css = readFileSync(join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'), 'utf8');
+    expect(css).toMatch(/table\.csv-sized td \{[^}]*text-overflow: ellipsis/u);
   });
 });
 

@@ -1021,10 +1021,11 @@ body {
 #diagram-wrap.csv-body table.csv-sized th,
 #diagram-wrap.csv-body table.csv-sized td {
   /* 画面外の長い値で全行の高さが増えないよう、自動折り返しをしない。
-     データ内の明示的な改行は保持し、長い行は列幅を広げるまで切り取る。 */
+     データ内の明示的な改行は保持し、長い行は省略記号を付けて切り取る。
+     目印が無いと、桁の欠けた数値が別の値に読める。 */
   white-space: pre;
   overflow: hidden;
-  text-overflow: clip;
+  text-overflow: ellipsis;
   min-width: 0;
 }
 

@@ -25092,12 +25092,18 @@
     table2.parentElement.append(probe);
     var measured = samples.map((cells) => {
       var header = cells[0]?.offsetWidth ?? 0;
-      var data = cells.slice(1).filter((cell) => cell.textContent?.trim()).map((cell) => cell.offsetWidth);
+      var numeric = 0;
+      var data = cells.slice(1).filter((cell) => cell.textContent?.trim()).map((cell) => {
+        var width = cell.offsetWidth;
+        if (cell.classList.contains("csv-num")) numeric = Math.max(numeric, width);
+        return width;
+      });
       data.sort((a, b) => a - b);
       var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
       return {
         initial: Math.max(header, typical),
-        natural: Math.max(header, data.at(-1) ?? 0)
+        natural: Math.max(header, data.at(-1) ?? 0),
+        numeric
       };
     });
     probe.remove();
@@ -25106,8 +25112,9 @@
       if (naturalTotal <= tableContentWidth(table2)) return;
     }
     missing.forEach((index, sample) => {
-      var width = measured[sample].initial;
-      if (width > 0) widths[index] = Math.max(MIN_WIDTH, Math.min(360, width));
+      var width = measured[sample];
+      if (width.initial > 0)
+        widths[index] = Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
     });
   }
   function tableContentWidth(table2) {
