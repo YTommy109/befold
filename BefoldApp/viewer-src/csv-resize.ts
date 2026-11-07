@@ -9,15 +9,22 @@ var MIN_WIDTH = 40;
 // （30fps の目安 33ms 以内）、10,000 行で約 105ms。2,000 行は余裕を持って追従できる上限。
 var LIVE_RESIZE_MAX_ROWS = 2000;
 var widths: number[] = [];
+// widths のうち、ユーザーが変えた列の幅。自動の幅は内容から決まるので再描画で捨てる。
+var manualWidths = new Map<number, number>();
 var path: string | null = null;
 var cancelDrag: (() => void) | undefined;
 
-// 幅の持ち主は文書のパス。同じパスの再描画（保存による内容変更・表示切替）では保持する。
-// パス不明（null）は別文書かもしれないので、常に捨てる。
+// 手動の幅の持ち主は文書のパス。同じパスの再描画（保存による内容変更・表示切替）では保持する。
+// パス不明（null）は別文書かもしれないので、常に捨てる。自動の幅は再描画のたびに測り直す。
+// チャンク追記はここを通らないので、読んでいる表の幅は動かない。
 function prepareCsvResize(newPath: string | null): void {
   cancelDrag?.();
   removeCsvScrollbar();
-  if (newPath === null || path !== newPath) widths = [];
+  if (newPath === null || path !== newPath) manualWidths.clear();
+  widths = [];
+  manualWidths.forEach((width, column) => {
+    widths[column] = width;
+  });
   path = newPath;
 }
 
@@ -26,6 +33,9 @@ function applyWidths(table: HTMLTableElement): void {
   var headers = table.tHead!.rows[0]!.cells;
   // 列が減った再描画では、消えた列の幅を合計に残さない。
   widths.length = Math.min(widths.length, headers.length);
+  for (var manualColumn of manualWidths.keys()) {
+    if (manualColumn >= headers.length) manualWidths.delete(manualColumn);
+  }
   // 列幅を書き込む前に自然幅をまとめて読む（交互に行うと列ごとに全行を再レイアウトする）。
   for (var column = 0; column < headers.length; column++) {
     if (widths[column] === undefined)
@@ -60,6 +70,7 @@ function setWidth(table: HTMLTableElement, index: number, width: number): void {
       Math.max(MIN_WIDTH, cell.offsetWidth),
     );
   widths[index] = Math.max(MIN_WIDTH, width);
+  manualWidths.set(index, widths[index]);
   applyWidths(table);
 }
 
@@ -133,6 +144,8 @@ function fitColumn(table: HTMLTableElement, index: number): void {
  * - 書式設定とセル内余白を含む、実際に描画される幅を測る。
  * - 全列の標本の最大幅の合計が表示領域に収まるなら、幅を設定しない。表は自動レイアウトの
  *   ままで、内容を切り取らない。追記や再描画のたびに判定し直す。
+ * - 手動で変えた列があれば、その幅と残りの列の最大幅の合計で判定する。収まれば残りの列は
+ *   最大幅にする。
  * - 以降は収まらない表の規則。
  * - 標本のおよそ 90% が収まる幅として、90 パーセンタイルの幅を採用する。
  * - ヘッダーの方が広ければ、ヘッダーの幅を採用する。
@@ -184,6 +197,11 @@ function initialWidths(table: HTMLTableElement): void {
     return cells;
   });
   table.parentElement!.append(probe);
+  // 測定で本体の表まで自動レイアウトさせない（実測: 10,000 行の再描画が 375ms から 3,300ms に
+  // 悪化した）。追記では隠さない。文書が縮んで読んでいる位置が失われ、render と違って
+  // 復元する経路が無いため。設置済みの表はハンドルの有無で分かる。
+  var hideDuringMeasurement = !table.querySelector('.csv-resize-handle');
+  if (hideDuringMeasurement) table.style.display = 'none';
   var measured = samples.map((cells) => {
     var header = cells[0]?.offsetWidth ?? 0;
     var numeric = 0;
@@ -204,17 +222,19 @@ function initialWidths(table: HTMLTableElement): void {
     };
   });
   probe.remove();
+  // border-collapse の外枠 1px は applyWidths の合計と同じ。手動の幅も表の幅に含める。
+  var kept = widths.slice(0, headers.length).reduce((sum, width) => sum + width, 1);
+  var fits = measured.reduce((sum, width) => sum + width.natural, kept) <= tableContentWidth(table);
+  if (hideDuringMeasurement) table.style.display = '';
   // 全列が収まるなら幅を決めず、表を自動レイアウトのままにする。
-  if (missing.length === headers.length) {
-    // border-collapse の外枠 1px は applyWidths の合計と同じ。
-    var naturalTotal = measured.reduce((sum, width) => sum + width.natural, 1);
-    if (naturalTotal <= tableContentWidth(table)) return;
-  }
+  if (fits && missing.length === headers.length) return;
   missing.forEach((index, sample) => {
     // 非表示のビューアは幅を実測できないため、表示状態で再描画されたときに再試行する。
     var width = measured[sample]!;
     if (width.initial > 0)
-      widths[index] = Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
+      widths[index] = fits
+        ? Math.max(MIN_WIDTH, width.natural)
+        : Math.max(MIN_WIDTH, Math.min(360, width.initial), width.numeric);
   });
 }
 
