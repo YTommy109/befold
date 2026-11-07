@@ -27,6 +27,17 @@ function measureHeaders(table: HTMLTableElement): void {
   });
 }
 
+// 初期幅の方針は本番の render 経由で検証し、jsdom に無い実測だけを置き換える。
+// 文字幅 10px + セル内余白 24px として、分位点・上下限の差を観測できるようにする。
+function measureCellText(viewer: LoadedViewer): void {
+  Object.defineProperty(viewer.window.HTMLTableCellElement.prototype, 'offsetWidth', {
+    get(this: HTMLTableCellElement) {
+      return (this.textContent?.length ?? 0) * 10 + 24;
+    },
+    configurable: true,
+  });
+}
+
 function key(viewer: LoadedViewer, index: number, value: string): void {
   const handle = tableIn(viewer).querySelectorAll('.csv-resize-handle')[index]!;
   handle.dispatchEvent(new viewer.window.KeyboardEvent('keydown', { key: value, bubbles: true }));
@@ -74,13 +85,13 @@ describe('CSV/TSV の列幅', () => {
     const annotatedAtMeasurement: number[] = [];
     Object.defineProperty(viewer.window.HTMLTableCellElement.prototype, 'offsetWidth', {
       get() {
-        annotatedAtMeasurement.push(viewer.document.querySelectorAll('.befold-path-ref').length);
+        annotatedAtMeasurement.push(tableIn(viewer).querySelectorAll('.befold-path-ref').length);
         return 120;
       },
       configurable: true,
     });
     await viewer.main.render('Path,Count\nsrc/app.ts,1\n', 'csv', ',');
-    expect(annotatedAtMeasurement).toEqual([1, 1]);
+    expect(annotatedAtMeasurement).toEqual([1, 1, 1, 1]);
   });
 
   test('ハンドルを追加する前に全列の自然幅を測り、列ごとの再レイアウトを避ける', async () => {
@@ -96,7 +107,7 @@ describe('CSV/TSV の列幅', () => {
       configurable: true,
     });
     await viewer.main.render('A,B,C\n1,2,3\n', 'csv', ',');
-    expect(handleCountsAtMeasurement).toEqual([0, 0, 0]);
+    expect(handleCountsAtMeasurement).toEqual([0, 0, 0, 0, 0, 0]);
     expect(
       Array.from(tableIn(viewer).querySelectorAll('.csv-resize-handle'), (handle) =>
         handle.getAttribute('aria-valuenow'),
@@ -106,7 +117,7 @@ describe('CSV/TSV の列幅', () => {
     viewer.main.appendChunk('4,5,6\n', 'csv', ',');
     expect(handleCountsAtMeasurement).toEqual([]);
     viewer.main.appendChunk('7,8,9,10\n', 'csv', ',');
-    expect(handleCountsAtMeasurement).toEqual([3]);
+    expect(handleCountsAtMeasurement).toEqual([3, 3]);
   });
 
   test.each([',', '\t'])(
@@ -394,13 +405,168 @@ describe('CSV/TSV の列幅', () => {
 
   test('ラベルを注入し、Markdown 表にはハンドルを付けない', async () => {
     const viewer = loadViewerMain({
-      uiStrings: { csvResizeColumn: '列 {column} の幅を変更', csvResizeHint: '幅を変更' },
+      uiStrings: {
+        csvResizeColumn: '列 {column} の幅を変更',
+        csvResizeHint: '幅を変更',
+        csvScrollHorizontally: '表を横方向にスクロール',
+      },
     });
     await viewer.main.render(CSV, 'csv', ',');
     const handle = tableIn(viewer).querySelector('.csv-resize-handle')!;
     expect(handle.getAttribute('aria-label')).toBe('列 1 の幅を変更');
     expect(handle.getAttribute('title')).toBe('幅を変更');
+    expect(
+      viewer.document.querySelector('.csv-viewport-scrollbar')!.getAttribute('aria-label'),
+    ).toBe('表を横方向にスクロール');
     await viewer.main.render('| A | B |\n|---|---|\n|1|2|', 'md');
     expect(viewer.document.querySelector('.csv-resize-handle')).toBeNull();
   });
+});
+
+test('初期幅は中央値や最大値ではなく 90 パーセンタイルを使い、追記時も手動調整を保持する', async () => {
+  const viewer = loadViewerMain();
+  measureCellText(viewer);
+  viewer.main._mmdSetRenderDocPath('/sizing.csv');
+  await viewer.main.render(
+    'Code,Description\n' +
+      [100, 20, 12, 19, 13, 18, 14, 17, 15, 16]
+        .map((length) => 'AB,' + 'x'.repeat(length))
+        .join('\n'),
+    'csv',
+    ',',
+  );
+  // 12〜20 文字と外れ値 100 文字。90% 点は 20 文字で、中央値でも最大値でもない。
+  expect(columnWidths(viewer)).toEqual(['64px', '224px']);
+  measureHeaders(tableIn(viewer));
+  key(viewer, 1, 'ArrowRight');
+  viewer.main.appendChunk('CD,' + 'y'.repeat(200) + '\n', 'csv', ',');
+  expect(columnWidths(viewer)).toEqual(['64px', '234px']);
+  viewer.main._mmdSetRenderDocPath('/wide.tsv');
+  await viewer.main.render('A\tB\n' + 'z'.repeat(100) + '\t1', 'csv', '\t');
+  expect(columnWidths(viewer)).toEqual(['360px', '40px']);
+});
+
+test('初期幅の分位点から空セルと空白だけのセルを除外する', async () => {
+  const viewer = loadViewerMain();
+  measureCellText(viewer);
+  const rows = Array.from({ length: 90 }, (_, index) => `${index % 2 === 0 ? '' : '   '},${index}`);
+  rows.push(...Array.from({ length: 10 }, (_, index) => `${'x'.repeat(12 + index)},${90 + index}`));
+  await viewer.main.render(`Value,Row\n${rows.join('\n')}\n`, 'csv', ',');
+  // 非空セル 10 個の 90% 点は 20 文字。空白を含めるとヘッダー幅まで縮んでしまう。
+  expect(columnWidths(viewer)[0]).toBe('224px');
+});
+
+test('初期幅はヘッダーより狭くせず、ヘッダー自体にも 360px の上限を適用する', async () => {
+  const viewer = loadViewerMain();
+  measureCellText(viewer);
+  await viewer.main.render(`${'H'.repeat(40)},Header,A\nx,x,x\n`, 'csv', ',');
+  expect(columnWidths(viewer)).toEqual(['360px', '84px', '40px']);
+});
+
+test('初期幅の標本は空セルを含む先頭 200 データ行で、200 行目は含め 201 行目は含めない', async () => {
+  const viewer = loadViewerMain();
+  measureCellText(viewer);
+  const rows = Array.from({ length: 199 }, (_, index) => `,${index + 1}`);
+  rows.push(`${'x'.repeat(20)},200`, `${'x'.repeat(100)},201`);
+  await viewer.main.render(`Value,Row\n${rows.join('\n')}\n`, 'csv', ',');
+  // 200 行目を落とすとヘッダー幅、201 行目まで含めると上限 360px になる。
+  expect(columnWidths(viewer)[0]).toBe('224px');
+});
+
+test('横スクロールバーは幅超過時に表示され、双方向に同期し、モード切替で解除される', async () => {
+  const viewer = loadViewerMain();
+  await viewer.main.render(CSV, 'csv', ',');
+  const scroller = viewer.document.querySelector<HTMLElement>('.csv-scroll')!;
+  const bar = viewer.document.querySelector<HTMLElement>('.csv-viewport-scrollbar')!;
+  expect(bar.getAttribute('aria-label')).toBe('Scroll table horizontally');
+  Object.defineProperties(scroller, {
+    scrollWidth: { value: 1400, configurable: true },
+    clientWidth: { value: 600 },
+  });
+  viewer.document.querySelector<HTMLElement>('.viewer')!.getBoundingClientRect = () =>
+    ({ bottom: 768 }) as DOMRect;
+  scroller.getBoundingClientRect = () =>
+    ({ left: 20, right: 620, top: 0, bottom: 5000 }) as DOMRect;
+  viewer.window.dispatchEvent(new viewer.window.Event('resize'));
+  expect(bar.hidden).toBe(false);
+  scroller.scrollLeft = 300;
+  scroller.dispatchEvent(new viewer.window.Event('scroll'));
+  expect(bar.scrollLeft).toBe(300);
+  bar.scrollLeft = 700;
+  bar.dispatchEvent(new viewer.window.Event('scroll'));
+  expect(scroller.scrollLeft).toBe(700);
+  Object.defineProperty(scroller, 'scrollWidth', { value: 600 });
+  viewer.window.dispatchEvent(new viewer.window.Event('resize'));
+  expect(bar.hidden).toBe(true);
+  viewer.main.setViewMode('source');
+  await viewer.main.render(CSV, 'csv', ',');
+  expect(viewer.document.querySelector('.csv-viewport-scrollbar')).toBeNull();
+});
+
+test('横スクロールバーは追加読み込みバナーの表示・高さ変更・非表示に追従する', async () => {
+  const viewer = loadViewerMain();
+  const observers: TestResizeObserver[] = [];
+  class TestResizeObserver implements ResizeObserver {
+    readonly targets = new Set<Element>();
+    disconnected = false;
+    constructor(private readonly callback: ResizeObserverCallback) {
+      observers.push(this);
+    }
+    observe(target: Element): void {
+      this.targets.add(target);
+    }
+    unobserve(target: Element): void {
+      this.targets.delete(target);
+    }
+    disconnect(): void {
+      this.disconnected = true;
+      this.targets.clear();
+    }
+    notify(): void {
+      this.callback([], this);
+    }
+  }
+  Object.defineProperty(viewer.window, 'ResizeObserver', { value: TestResizeObserver });
+  await viewer.main.render(CSV, 'csv', ',');
+  const scroller = viewer.document.querySelector<HTMLElement>('.csv-scroll')!;
+  const bar = viewer.document.querySelector<HTMLElement>('.csv-viewport-scrollbar')!;
+  const banner = viewer.document.getElementById('mmd-truncated-banner')!;
+  const viewportHeight = viewer.window.innerHeight;
+  let bannerHeight = 32;
+  Object.defineProperties(scroller, {
+    scrollWidth: { value: 1400 },
+    clientWidth: { value: 600 },
+  });
+  viewer.document.querySelector<HTMLElement>('.viewer')!.getBoundingClientRect = () =>
+    new viewer.window.DOMRect(0, 0, 1024, viewportHeight);
+  scroller.getBoundingClientRect = () => new viewer.window.DOMRect(20, 0, 600, 5000);
+  banner.getBoundingClientRect = () => {
+    const height = banner.style.display === 'none' ? 0 : bannerHeight;
+    return new viewer.window.DOMRect(0, viewportHeight - height, 1024, height);
+  };
+  const observer = observers.find((candidate) => candidate.targets.has(scroller))!;
+  expect(observer.targets.has(banner)).toBe(true);
+  observer.notify();
+  expect(bar.hidden).toBe(false);
+  expect(bar.style.bottom).toBe('0px');
+
+  viewer.main._mmdSetTruncated(true, 1000, false);
+  observer.notify();
+  expect(bar.hidden).toBe(false);
+  expect(viewportHeight - Number(bar.style.bottom.replace('px', ''))).toBe(
+    banner.getBoundingClientRect().top,
+  );
+  expect(bar.style.bottom).toBe('32px');
+
+  bannerHeight = 64;
+  observer.notify();
+  expect(bar.style.bottom).toBe('64px');
+  viewer.main._mmdSetTruncated(false, 1000, false);
+  observer.notify();
+  expect(bar.style.bottom).toBe('0px');
+
+  await viewer.main.render('# Another document', 'md');
+  expect(observer.disconnected).toBe(true);
+  expect(observer.targets.size).toBe(0);
+  expect(viewer.document.querySelector('.csv-viewport-scrollbar')).toBeNull();
 });

@@ -24907,6 +24907,74 @@
     }
   }
 
+  // viewer-src/csv-scrollbar.ts
+  var cleanup;
+  var activeTable;
+  function removeCsvScrollbar() {
+    cleanup?.();
+    cleanup = void 0;
+    activeTable = void 0;
+  }
+  function installCsvScrollbar(table2) {
+    if (activeTable === table2) return;
+    removeCsvScrollbar();
+    var scroller = table2.closest(".csv-scroll");
+    if (!scroller) return;
+    activeTable = table2;
+    var banner = document.getElementById("mmd-truncated-banner");
+    var bar = document.createElement("div");
+    bar.className = "csv-viewport-scrollbar";
+    bar.tabIndex = 0;
+    bar.setAttribute("role", "region");
+    bar.setAttribute(
+      "aria-label",
+      window._mmdUIStrings?.csvScrollHorizontally || "Scroll table horizontally"
+    );
+    var track = document.createElement("div");
+    bar.append(track);
+    document.body.append(bar);
+    function syncFromTable() {
+      bar.scrollLeft = scroller.scrollLeft;
+    }
+    function syncFromBar() {
+      scroller.scrollLeft = bar.scrollLeft;
+    }
+    function update(event) {
+      if (event?.target === bar) return;
+      var rect = scroller.getBoundingClientRect();
+      var viewer = table2.closest(".viewer")?.getBoundingClientRect();
+      var bottom = Math.min(window.innerHeight, viewer?.bottom ?? window.innerHeight);
+      var bannerRect = banner?.getBoundingClientRect();
+      if (bannerRect && bannerRect.height > 0) bottom = Math.min(bottom, bannerRect.top);
+      var left = Math.max(0, rect.left);
+      var right = Math.min(window.innerWidth, rect.right);
+      bar.hidden = scroller.scrollWidth <= scroller.clientWidth + 1 || rect.bottom <= 0 || rect.top >= bottom || right <= left;
+      bar.style.left = left + "px";
+      bar.style.width = Math.max(0, right - left) + "px";
+      bar.style.bottom = Math.max(0, window.innerHeight - bottom) + "px";
+      track.style.width = Math.max(0, right - left + scroller.scrollWidth - scroller.clientWidth) + "px";
+      syncFromTable();
+    }
+    bar.addEventListener("scroll", syncFromBar);
+    scroller.addEventListener("scroll", syncFromTable);
+    window.addEventListener("resize", update);
+    document.addEventListener("scroll", update, true);
+    var observer = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver(() => {
+      update();
+    });
+    observer?.observe(scroller);
+    observer?.observe(table2);
+    if (banner) observer?.observe(banner);
+    update();
+    cleanup = () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+      document.removeEventListener("scroll", update, true);
+      scroller.removeEventListener("scroll", syncFromTable);
+      bar.remove();
+    };
+  }
+
   // viewer-src/csv-resize.ts
   var MIN_WIDTH = 40;
   var LIVE_RESIZE_MAX_ROWS = 2e3;
@@ -24915,6 +24983,7 @@
   var cancelDrag;
   function prepareCsvResize(newPath) {
     cancelDrag?.();
+    removeCsvScrollbar();
     if (newPath === null || path !== newPath) widths = [];
     path = newPath;
   }
@@ -24978,7 +25047,7 @@
     return [header, ...ranked.slice(0, FIT_SAMPLE).map((entry) => entry.cell)];
   }
   function fitColumn(table2, index) {
-    var probe = table2.cloneNode(false);
+    const probe = table2.cloneNode(false);
     if (!(probe instanceof HTMLTableElement)) return;
     probe.classList.remove("csv-sized");
     probe.setAttribute("aria-hidden", "true");
@@ -24995,9 +25064,49 @@
     probe.remove();
     setWidth(table2, index, width);
   }
+  function initialWidths(table2) {
+    var headers = table2.tHead.rows[0].cells;
+    var missing = Array.from(headers, (_, index) => index).filter(
+      (index) => widths[index] === void 0
+    );
+    if (missing.length === 0) return;
+    const probe = table2.cloneNode(false);
+    if (!(probe instanceof HTMLTableElement)) return;
+    probe.classList.remove("csv-sized");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;display:table;width:max-content;table-layout:auto;pointer-events:none";
+    var samples = missing.map((index) => {
+      var cells = [];
+      for (var rowIndex = 0; rowIndex < Math.min(table2.rows.length, FIT_SAMPLE + 1); rowIndex++) {
+        var original = table2.rows[rowIndex].cells[index];
+        if (!original) continue;
+        var copy = original.cloneNode(true);
+        if (!(copy instanceof HTMLTableCellElement)) continue;
+        copy.querySelector(".csv-resize-handle")?.remove();
+        copy.style.cssText = "display:block;width:max-content;white-space:pre";
+        probe.insertRow().append(copy);
+        cells.push(copy);
+      }
+      return cells;
+    });
+    table2.parentElement.append(probe);
+    var measured = samples.map((cells) => {
+      var header = cells[0]?.offsetWidth ?? 0;
+      var data = cells.slice(1).filter((cell) => cell.textContent?.trim()).map((cell) => cell.offsetWidth);
+      data.sort((a, b) => a - b);
+      var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
+      return Math.max(header, typical);
+    });
+    probe.remove();
+    missing.forEach((index, sample) => {
+      if (measured[sample] > 0)
+        widths[index] = Math.max(MIN_WIDTH, Math.min(360, measured[sample]));
+    });
+  }
   function installCsvResize(table2) {
     var headers = table2.tHead?.rows[0]?.cells;
     if (!headers) return;
+    initialWidths(table2);
     var strings = window._mmdUIStrings || {};
     var measuredWidths = Array.from(
       headers,
@@ -25087,6 +25196,7 @@
       header.append(handle);
     });
     applyWidths(table2);
+    installCsvScrollbar(table2);
   }
 
   // viewer-src/render.ts
