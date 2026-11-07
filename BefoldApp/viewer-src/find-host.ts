@@ -2,6 +2,7 @@
 // コントローラの状態は引数で受け取り、ここでは保持しない。
 
 import { wireBarControls } from './bar-controls.js';
+import { resetRevealedCell, revealClippedCell } from './find-highlight.js';
 import { buildFindRegExp, walk } from './find-scan.js';
 import type { FindOptions } from './find-scan.js';
 import { isComposingKeyEvent } from './ime.js';
@@ -131,6 +132,12 @@ export function wireFindControls(h: FindControlHandlers): void {
 // 一覧側の Highlight には触れないので、マッチが何万件あっても走査は起きない。
 // 中央寄せ・smooth はジャンプバー（navigation.ts の moveCurrentHighlight）と同じ見え方。
 export function moveFindHighlight(current: StaticRangeInit): void {
+  resetRevealedCell();
+  var cell = current.startContainer.parentElement?.closest(
+    'table.csv-sized td, table.csv-sized th',
+  );
+  if (cell instanceof HTMLTableCellElement && cell.scrollWidth > cell.clientWidth)
+    revealClippedCell(cell);
   var highlight = new Highlight(new StaticRange(current));
   highlight.priority = 1;
   // Older WebKit does not repaint replacement entries (webkit.org/b/321567).
