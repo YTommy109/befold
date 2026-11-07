@@ -2,8 +2,10 @@
 
 引数: $ARGUMENTS（省略可。`--force` | `--no-fetch` | `--keep-branch`）
 
-完了した（main にマージ済み、または上流ブランチ削除済みの）git worktree を掃除する。
+完了した（作業がすべて main に入っている）git worktree を掃除する。
 完了判定・保護（未コミット変更のスキップ）・削除はすべてスクリプト内で行われる。
+完了判定は `scripts/lib/branch-completion.sh` にあり、`/worktree-reset` と共有している。
+上流ブランチの削除（`[gone]`）だけでは完了としない。
 
 ## 手順
 
@@ -29,6 +31,8 @@
 
 - main リポジトリ・現在の worktree は対象外
 - 未コミット変更がある worktree は `--force` でもスキップ
+- 上流が `[gone]` でも main に入っていない変更があるブランチはスキップし、理由を表示する
+  （squash merge 後に積んだ未プッシュコミットを消さないため。実例: TASK-528）
 - `--force` を明示しない限り削除は行われない
 
 削除対象の作業内容を確認したい場合は、先に `/worktree-status` を実行する
