@@ -43,17 +43,50 @@ enum ViewerWindowOpenPolicy {
         sourceWindow.windowController is BlankTabWindowController ? .currentTab : .newTab
     }
 
-    /// 起点の空タブが既に文書へ置き換わっていたら、置き換えた文書の隣を開き先にする。
-    /// 解決を待つ間に閉じた起点を、閉じた窓として捨てないため。空タブを起点に解決を待つのは
-    /// 置き換えとタブの一括オープンだけなので、要求は `.newTab` に読み替えてよい。
+    /// 起点を読み替えた後の要求。
+    struct Origin {
+        let disposition: OpenDisposition
+        let sourceWindow: NSWindow?
+        /// 置き換え先の文書へ読み替えたか。読み替えたタブは置き換え先の直後に置く。
+        let redirectedToReplacement: Bool
+        /// 読み替えた要求を手前に出すか。元が置き換え(`.currentTab`)の要求だけで、利用者が最後に
+        /// 選んだ文書を背面に置かない。新しいタブ(⌘ クリック)の要求は背面のまま(TASK-611)。
+        let selectsNewTab: Bool
+    }
+
+    /// 起点の窓が要求の後に消えたときの行き先(TASK-917)。**開く経路はすべて
+    /// `ViewerWindowManager.openViewer` の入口でここを通る**ので、経路ごとに閉じた起点を判定しない。
+    ///
+    /// - 起点の空タブが既に文書へ置き換わっていれば、置き換えた文書の直後の新しいタブ。元が
+    ///   置き換えの要求なら手前に出す
+    /// - 起点が閉じていれば(置き換え先も閉じたときを含む)、起点なしで開く。要求は捨てず、
+    ///   閉じた窓のタブも作らない。新しい窓・スライドの要求はその種類のまま開く
+    ///
+    /// 判定するのは befold の窓(`ViewerDocumentWindow`)だけ。それ以外の窓はそのまま通す。
     @MainActor
-    static func retargeted(
-        _ disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
-    ) -> (disposition: OpenDisposition, sourceWindow: NSWindow?) {
-        guard let replacement = (sourceWindow as? ViewerDocumentWindow)?.replacement else {
-            return (disposition, sourceWindow)
+    static func resolveOrigin(
+        _ disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?, isOpen: (NSWindow) -> Bool
+    ) -> Origin {
+        let unchanged = Origin(
+            disposition: disposition, sourceWindow: sourceWindow, redirectedToReplacement: false, selectsNewTab: false
+        )
+        guard let window = sourceWindow as? ViewerDocumentWindow else { return unchanged }
+        let target = window.replacement ?? window
+        // 起点に依存するのは現在のタブと新しいタブだけ。新しい窓・スライドの要求はそのまま開く。
+        guard isOpen(target) else {
+            let detached: OpenDisposition = disposition == .newTab ? .currentTab : disposition
+            return Origin(
+                disposition: detached,
+                sourceWindow: nil,
+                redirectedToReplacement: false,
+                selectsNewTab: false
+            )
         }
-        return (.newTab, replacement)
+        guard target !== window else { return unchanged }
+        return Origin(
+            disposition: .newTab, sourceWindow: target,
+            redirectedToReplacement: true, selectsNewTab: disposition == .currentTab
+        )
     }
 
     /// 同じファイルを表示中の候補から、再利用できるコントローラを選ぶ(nil なら新規に開く)。
