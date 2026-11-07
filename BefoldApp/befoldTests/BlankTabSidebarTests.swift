@@ -231,6 +231,68 @@ struct BlankTabSidebarTests {
         #expect(fixture.manager.allControllers.contains { $0.fileURL.lastPathComponent == "inner.md" })
     }
 
+    /// 文書タブはサイドバーの行を選んでも表示中のフォルダを動かさない(TASK-465)。空タブを挟んで
+    /// ツリーのルートが選んだファイルの親へ移り、展開が消えるとこの規則が空タブだけ破れる。
+    @Test("空タブのツリーで子のファイルを選ぶと、置き換えた文書タブのルートと展開が保たれる", testTimeLimit())
+    func replacingFromTreeKeepsRootAndExpansion() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let inner = try tmp.file(atPath: "sub/inner.md", contents: "fixture")
+        let folder = inner.deletingLastPathComponent()
+        let fixture = MockedViewerWindowManager(files: [origin, inner], directories: [folder])
+        defer { fixture.closeAll() }
+        fixture.displayDefaults.record { $0.layoutMode = .tree }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let navigator = try #require(blank.inheritableSidebar)
+        await navigator.awaitSettled()
+        navigator.expandFolder(folder.normalizedPathKey, at: folder)
+        await navigator.awaitSettled()
+        let root = navigator.fileListModel.currentDirectory.normalizedPathKey
+
+        #expect(blank.performFileSwitch(to: inner).isSwitched)
+
+        let replaced = try #require(fixture.manager.controllers[inner.normalizedPathKey]?.first)
+        await replaced.sidebar.awaitSettled()
+        #expect(replaced.fileListModel.currentDirectory.normalizedPathKey == root)
+        #expect(replaced.fileListModel.rootDirectory.normalizedPathKey == root)
+        #expect(replaced.sidebar.expandedFolderURLs[folder.normalizedPathKey] != nil)
+        #expect(replaced.fileListModel.selection?.normalizedPathKey == inner.normalizedPathKey)
+    }
+
+    /// 引き継ぐのは、文書タブでもフォルダを動かさない場合だけ。閉じたフォルダの中や一覧の外の
+    /// ファイルは今の一覧から選べないので、文書タブと同じくファイルの親から始める。
+    @Test("空タブの一覧から選べないファイルは、置き換えた文書タブがファイルの親から始まる", testTimeLimit(), arguments: [false, true])
+    func unreachableFileStartsAtItsParent(outsideFolder: Bool) async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let inner = try tmp.file(atPath: "sub/inner.md", contents: "fixture")
+        let elsewhere = try TempDir()
+        defer { withExtendedLifetime(elsewhere) {} }
+        let outside = try elsewhere.file(named: "outside.md", contents: "fixture")
+        let target = outsideFolder ? outside : inner
+        let fixture = MockedViewerWindowManager(
+            files: [origin, inner, outside], directories: [inner.deletingLastPathComponent()]
+        )
+        defer { fixture.closeAll() }
+        fixture.displayDefaults.record { $0.layoutMode = .tree }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        await blank.inheritableSidebar?.awaitSettled()
+
+        #expect(blank.performFileSwitch(to: target).isSwitched)
+
+        let replaced = try #require(fixture.manager.controllers[target.normalizedPathKey]?.first)
+        #expect(
+            replaced.fileListModel.currentDirectory.normalizedPathKey
+                == target.deletingLastPathComponent().normalizedPathKey
+        )
+    }
+
     /// 展開と一覧の採取が文書タブに限られていると、空タブを挟んだだけで失われる。
     @Test("空タブからの引き継ぎの束に一覧と展開が入る")
     func seedReadsBlankTabSidebar() throws {
@@ -243,7 +305,7 @@ struct BlankTabSidebarTests {
         let folder = first.deletingLastPathComponent().appendingPathComponent("sub", isDirectory: true)
         navigator.expandFolder(folder.normalizedPathKey, at: folder)
 
-        let seed = SidebarInheritance.seed(from: blank.window, opensAsTab: true)
+        let seed = SidebarInheritance.seed(from: blank.window, opensAsTab: true, replacing: nil, opening: nil)
 
         #expect(seed.expansion[folder.normalizedPathKey] == folder)
         withExtendedLifetime(source.sidebar) {}

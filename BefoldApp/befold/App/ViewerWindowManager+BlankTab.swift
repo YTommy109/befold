@@ -12,7 +12,7 @@ extension ViewerWindowManager {
                 displayDefaults: shared.displayDefaults,
                 git: ViewerWindowAssembler.makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
             ),
-            seed: SidebarInheritance.seed(from: sourceWindow, opensAsTab: true),
+            seed: SidebarInheritance.seed(from: sourceWindow, opensAsTab: true, replacing: nil, opening: nil),
             sidebarState: shared.sidebarState,
             replaceWithDocument: { [weak self] url, window in
                 self?.openViewer(for: url, disposition: .currentTab, relativeTo: window)

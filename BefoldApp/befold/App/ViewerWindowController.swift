@@ -271,11 +271,9 @@ final class ViewerWindowController: NSWindowController {
         // CLI の `--hidden-files`/`--no-hidden-files` による初期値の指定。
         // nil なら保存された既定値から始める。この起動限りの上書きで既定値は書き換えない。
         initialShowHiddenFiles: Bool? = nil,
-        // 起点となった窓が列挙済みの一覧。同じフォルダなら出発点として引き継ぎ、
-        // 「空 → 列挙 → 描画」の 2 段階を通らせない(TASK-532)。引き継げるかの判定は
-        // SidebarListingSeed.canApply(to:) が持つ。nil なら従来どおり空から始める。
-        initialListing: SidebarListingSeed? = nil,
-        initialExpansion: [String: URL] = [:],
+        // 起点となった窓から引き継ぐ一覧・展開・位置(TASK-532 / TASK-914)。一覧を引き継げるかの
+        // 判定は SidebarListingSeed.canApply(to:) が持つ。既定は空から始める。
+        inheriting seed: SidebarInheritance.Seed = .none,
         showLineNumbersOverride: Bool? = nil,
         cliOverrides: CLIDisplayOverrides = .none,
         store: ViewerStore? = nil,
@@ -308,12 +306,10 @@ final class ViewerWindowController: NSWindowController {
         if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
         self.store = store
         currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
+        let git = sidebarGit ?? SidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
-            fileURL: fileURL, home: shared.home, displayDefaults: shared.displayDefaults,
-            overrides: SidebarDisplayOverrides(
-                sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles
-            ),
-            gitFileIndex: gitFileIndex, gitStatusStore: gitStatusStore, sidebarGit: sidebarGit
+            fileURL: fileURL, position: seed.position, shared: shared, git: git,
+            overrides: SidebarDisplayOverrides(sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles)
         )
         let window = ViewerWindowChrome.makeWindow(fileURL: fileURL, kind: kind)
 
@@ -340,7 +336,7 @@ final class ViewerWindowController: NSWindowController {
         ViewerWindowAssembler.wireEventMonitors(for: self, on: window)
         ViewerWindowAssembler.wirePresentationTargetChange(for: self)
         ViewerWindowAssembler.openInitialDocument(
-            for: self, at: fileURL, adopting: initialListing, expanding: initialExpansion
+            for: self, at: fileURL, adopting: seed.listing, expanding: seed.expansion
         )
         // クリック時解決(pathResolver)の git 追跡ファイル索引を先読みしておく。
         referenceCoordinator.warm(forFileAt: fileURL)

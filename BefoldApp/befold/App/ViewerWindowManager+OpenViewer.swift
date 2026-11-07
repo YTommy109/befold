@@ -62,10 +62,13 @@ extension ViewerWindowManager {
         // 起点の窓が同じフォルダを列挙済みなら、その結果を新しい窓の出発点にする
         // (TASK-532)。一覧は disposition では絞らない——新規タブでも新規ウィンドウでも、
         // 同じ一覧を出すなら空から作り直す理由が無い。開閉だけはタブに限って引き継ぐ。
+        let seed = SidebarInheritance.seed(
+            from: sourceWindow, opensAsTab: disposition == .newTab, replacing: blank, opening: url
+        )
         let controller = makeController(
             for: url, options: options, forceSidebarVisible: forceSidebarVisible,
             kind: disposition == .slide ? .slide : .viewer,
-            inheriting: SidebarInheritance.seed(from: sourceWindow, opensAsTab: disposition == .newTab)
+            inheriting: seed
         )
         register(controller, forKey: key)
         controller.delegate = sessionSync
@@ -124,8 +127,7 @@ extension ViewerWindowManager {
             initialFrameDescriptor: initialFrameDescriptor,
             initialSortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
             initialShowHiddenFiles: options.showHiddenFiles,
-            initialListing: seed.listing,
-            initialExpansion: seed.expansion,
+            inheriting: seed,
             showLineNumbersOverride: options.showLineNumbers,
             cliOverrides: CLIDisplayOverrides(options),
             store: makeStore?(url),
