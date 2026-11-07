@@ -1498,40 +1498,6 @@
         }
       }
     },
-    "tab.empty.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open a document"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "文書を開く"
-          }
-        }
-      }
-    },
-    "tab.empty.detail": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drop files here, or choose a file to open."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ここにファイルをドロップするか、開くファイルを選択してください。"
-          }
-        }
-      }
-    },
     "menu.file.open": {
       "extractionState": "manual",
       "localizations": {
@@ -3535,6 +3501,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "フォルダーのアクセス権を確認してください。"
+          }
+        }
+      }
+    },
+    "tab.empty.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a document"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文書を開く"
+          }
+        }
+      }
+    },
+    "tab.empty.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop files here, or choose a file to open."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここにファイルをドロップするか、開くファイルを選択してください。"
           }
         }
       }

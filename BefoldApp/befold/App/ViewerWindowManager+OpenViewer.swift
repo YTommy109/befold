@@ -36,11 +36,8 @@ extension ViewerWindowManager {
 
         // 起点の窓の種別で disposition を解釈し直す(TASK-615)。**引数を shadow するのが要点**で、
         // 以降の再利用判定・タブ結合・選択はすべてこの値を見る(元の要求へは触れなくなる)。
-        let blank = disposition == .currentTab
-            ? sourceWindow?.windowController as? BlankTabWindowController : nil
-        let disposition = ViewerWindowOpenPolicy.effectiveDisposition(
-            blank == nil ? disposition : .newTab, relativeTo: sourceWindow
-        )
+        let blank = ViewerWindowOpenPolicy.blankTabToReplace(disposition, relativeTo: sourceWindow)
+        let disposition = ViewerWindowOpenPolicy.effectiveDisposition(disposition, relativeTo: sourceWindow)
 
         let key = url.normalizedPathKey
         // 既存ウィンドウを再利用できる条件は disposition ごとに reusableController が決める。
@@ -58,7 +55,7 @@ extension ViewerWindowManager {
             if let window = existing.window {
                 ViewerTabGrouping.selectTab(window)
             }
-            blank?.close()
+            blank?.close(replacedBy: existing.window)
             return existing
         }
 
@@ -84,7 +81,7 @@ extension ViewerWindowManager {
         }
         sessionSync.noteOpened(url, in: controller)
         recentRepositories.recordIfNeeded(for: url, controller: controller)
-        blank?.close()
+        blank?.close(replacedBy: controller.window)
         return controller
     }
 

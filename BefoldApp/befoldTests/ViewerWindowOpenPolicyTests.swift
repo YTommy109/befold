@@ -73,4 +73,30 @@ struct ViewerWindowOpenPolicyTests {
         #expect(resolve(source: true))
         #expect(!resolve())
     }
+
+    @Test("空タブの現在のタブへの要求は置き換えで、新しいタブや別の窓の要求は置き換えない")
+    func blankTabIsReplacedOnlyByCurrentTabRequest() throws {
+        let fixture = MockedViewerWindowManager(files: [], prefix: "ViewerWindowOpenPolicyBlank")
+        defer { fixture.closeAll() }
+        let blank = fixture.manager.blankTabs.open(relativeTo: nil)
+        defer { blank.close() }
+        let window = try #require(blank.window)
+
+        #expect(ViewerWindowOpenPolicy.blankTabToReplace(.currentTab, relativeTo: window) === blank)
+        #expect(ViewerWindowOpenPolicy.blankTabToReplace(.newTab, relativeTo: window) == nil)
+        #expect(ViewerWindowOpenPolicy.blankTabToReplace(.newWindow, relativeTo: window) == nil)
+        #expect(ViewerWindowOpenPolicy.effectiveDisposition(.currentTab, relativeTo: window) == .newTab)
+        #expect(ViewerWindowOpenPolicy.tabBatchDisposition(relativeTo: window) == .currentTab)
+    }
+
+    @Test("文書の窓を起点にした現在のタブへの要求とタブの一括オープンは読み替えない")
+    func documentSourceIsNotReinterpreted() throws {
+        let fixture = MockedViewerWindowManager(files: [file], prefix: "ViewerWindowOpenPolicyDocument")
+        defer { fixture.closeAll() }
+        let window = try #require(fixture.manager.openViewer(for: file)?.window)
+
+        #expect(ViewerWindowOpenPolicy.blankTabToReplace(.currentTab, relativeTo: window) == nil)
+        #expect(ViewerWindowOpenPolicy.effectiveDisposition(.currentTab, relativeTo: window) == .currentTab)
+        #expect(ViewerWindowOpenPolicy.tabBatchDisposition(relativeTo: window) == .newTab)
+    }
 }

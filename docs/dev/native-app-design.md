@@ -29,6 +29,7 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14.2+)
   │     ├── ViewerWindowManager      # ウィンドウ生成・管理（正規化パス → コントローラ辞書）
   │     │     ├── ViewerWindowSessionSync    # 開閉・rename・キー化に伴うセッション/履歴/ブックマークの追随
   │     │     ├── GlobalDisplayBroadcaster   # アプリの好み（ブックマーク・フォント）を全ウィンドウへ配る
+  │     │     ├── BlankTabCoordinator        # 文書を持たない空タブの寿命の管理
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
   │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
@@ -217,7 +218,7 @@ BefoldApp/
 | `ViewerTabGrouping` | タブグループ規則（結合・タブ構成スナップショットの組み立て・Window メニューを選択中タブだけに揃える・Space からはぐれた窓の救出）。新しいタブ（`.newTab`）は**背面で開き、表示も焦点も起点に留める**（Safari の cmd+クリックと同じ。`present(select: false)` が表示後に起点タブへ選択を戻す）。セッション保存/復元と最近使ったリポジトリが同じ解釈を共有する単一の置き場。結合の置き場所は `NewTabPlacement`（同じファイルに置く）を**必須引数**で受け、`.end` はグループ末尾、`.afterSource` は起点タブの直後（同じ起点から続けて開いたときは直前の派生タブの直後で、クリック順に並ぶ。起点の `ViewerWindowController.lastSpawnedTab` が直前の派生タブを weak で覚え、同じグループに残っている間だけ使う）。開いた元が決める値で、サイドバー由来（`ViewerWindowController+FileList`）は `.end`、文書内リンク由来（`ViewerWindowController+References`）は `.afterSource` を `openFileElsewhere` クロージャで渡す（TASK-611。Safari がリンク由来のタブを現在のタブの隣に開くのと同じ考え方） |
 | `ViewerDisplayOptionsApplier` | 既に開いているウィンドウへの CLI 表示オプション適用規則 |
 | `ViewerWindowDependencies` | 窓の生成経路（`ViewerWindowManager` → `ViewerWindowController`）を素通しする共有物（アプリ全体で 1 つの表示設定・ストア）の束。init に既定値を持たないことが「渡し忘れが静かに別インスタンスになる」を塞ぐ担保（TASK-319 / TASK-558） |
-| `ViewerWindowOpenPolicy` | 窓を開くときの純粋な判定（disposition の解釈・既存ウィンドウの再利用規則・サイドバー初期開閉の解決順）。副作用は持たず、候補も記憶も引数で受ける。再利用の判定は 2 段で、**種別の絞り込み（`acceptsReopen`）が disposition に関係なく先に掛かり**、そのあとに disposition ごとの規則が続く（TASK-613 / TASK-614）。`effectiveDisposition(_:relativeTo:)` は起点の窓の種別を見て `.newTab` を解釈し直し、起点がタブへ合流しない種別（スライド窓）なら `.newWindow` へ倒す。**起点の種別で分岐するのはここだけ**で、`openViewer` は戻り値を同名のローカルで shadow して以降が元の要求へ触れないようにする（TASK-615） |
+| `ViewerWindowOpenPolicy` | 窓を開くときの純粋な判定（disposition の解釈・置き換える空タブの判定・既存ウィンドウの再利用規則・サイドバー初期開閉の解決順）。副作用は持たず、候補も記憶も引数で受ける。再利用の判定は 2 段で、**種別の絞り込み（`acceptsReopen`）が disposition に関係なく先に掛かり**、そのあとに disposition ごとの規則が続く（TASK-613 / TASK-614）。`effectiveDisposition(_:relativeTo:)` は起点の窓の種別を見て `.newTab` を解釈し直し、起点がタブへ合流しない種別（スライド窓）なら `.newWindow` へ倒す。**起点の種別で分岐するのはこの型だけ**で、`openViewer` は戻り値を同名のローカルで shadow して以降が元の要求へ触れないようにする（TASK-615） |
 | `SessionRestorer` | 前回セッションのウィンドウ/タブ構成のスナップショット保存と復元 |
 | `AppUpdaterController` | Sparkle アップデータの保持・起動と、チャンネル別 appcast フィード URL の供給（`SPUUpdaterDelegate` 準拠。詳細は「自動アップデート」節） |
 | `DocumentController` | `NSDocumentController` のサブクラス。Recent Documents からのオープンを `AppDelegate` に委譲 |
@@ -251,7 +252,10 @@ BefoldApp/
 | `ViewerWindowChrome` | `NSWindow` そのものの生成・外観・タイトル追従・初期フレーム決定。窓を 1 枚しか知らず、文書の状態にも他の窓にも触れない（重なり判定は述語で受け取る） |
 | `ViewerWindowKind` | ビューア窓の種別（`.viewer` / `.slide`）。生成時に決まり以後変わらない（`let` で受ける）。`allowsSidebar` / `hasToolbar` / `joinsTabs` / `isRestorable` / `recordsUsageHistory` / `acceptsReopen` の 6 つの述語と `defaultContentSize`（`.viewer` は 1100×850、`.slide` は 1280×720 = 16:9）を持ち、**呼び出し側で `kind == .slide` と書かない**。`.slide` はプレゼン用のスライド窓で、サイドバー無し・ツールバー無し・タブ合流なし・セッション復元の対象外・利用履歴に残さない・再オープンの受け皿にならない。`joinsTabs` は**両方向をこの 1 つで決める**——既存のグループへ合流する側（`ViewerWindowChrome` の `tabbingMode`）と、この窓のグループへ他の窓が加わる側（`ViewerWindowOpenPolicy.effectiveDisposition`）。器の `tabbingMode = .disallowed` は**自動**タブ化しか止めず、`NSWindow.addTabbedWindow(_:ordered:)` の明示的な結合は通る（TASK-615）。`recordsUsageHistory` は「最近使った項目」と「最近使ったリポジトリ」の両方を 1 つの述語で扱い、判定は各履歴ストア（`RecentDocumentsStore.noteOpened(_:kind:)` は `kind` を必須引数で受け、`RecentRepositoryRecorder.recordIfNeeded(for:controller:)` は解決を始める前に弾く）の中に置く（TASK-610） |
 | `SlideKeyAction` / `SlideKeyMonitor` | スライド窓の前後移動キー。判定は keyCode の純粋な表（Space・↓ が次、Shift+Space・Backspace・↑ が前、⌘/⌥/⌃ 付きとテキスト入力中は素通し）で、検知は `SwipeHistoryMonitor` と同じローカルイベントモニタ。**`characters` ではなく keyCode で判定する**（矢印の characters は非印字でレイアウトにも依る）。扱ったイベントは消費するので、JS 側の `spaceScroll` と `viewer-src/keyboard.ts` の矢印スクロールには届かない |
-| `SidebarInheritance` | 新しい窓を開くときに起点の窓から引き継ぐ材料の採取。運ぶのは 3 つ——列挙の材料（`SidebarListingSeed`）と、ツリーの展開状態（pathKey → URL）と、タブとして開くときのサイドバー開閉。**展開は seed に混ぜない**（seed の `canApply(to:)` は「列挙の入力が同じか」を問うもので、展開は列挙の入力ではない）。表示 4 値はここを通らず `SidebarDisplayOverrides` が運ぶ |
+| `SidebarInheritance` | 新しい窓を開くときに起点の窓（`SidebarInheritanceSource`。文書タブと空タブ）から引き継ぐ材料の採取。運ぶのは 3 つ——列挙の材料（`SidebarListingSeed`）と、ツリーの展開状態（pathKey → URL）と、タブとして開くときのサイドバー開閉。**展開は seed に混ぜない**（seed の `canApply(to:)` は「列挙の入力が同じか」を問うもので、展開は列挙の入力ではない）。表示 4 値はここを通らず `SidebarDisplayOverrides` が運ぶ |
+| `BlankTabCoordinator` / `BlankTabWindowController` | ⌘T とタブバーの + が開く、文書を持たないタブ。`ViewerStore` と描画面を持たない構造で、ファイルを選ぶまで WebKit と文書の監視を作らない。文書タブから開くとサイドバーを持ち（`SidebarNavigatorHost` / `FileListViewDelegate` を自身が実装）、起点の窓が無ければ持たない。文書へ置き換わるときは `ViewerDocumentWindow.replacement` に置き換え先を残し、解決中だった別の要求が起点を読み替える |
+| `ViewerDocumentWindow` | ビューアの `NSWindow`。タブバーの + と ⌘T を同じ生成経路（`AppDelegate.newWindowForTab`）へ送る |
+| `DocumentFileDropView` | 描画面の上でファイルのドロップだけを受けるオーバーレイ。`hitTest` は常に nil で、通常のマウス入力は下へ通す。`install(on:)` が窓の内容を子として包み、`NSSplitView` の分割ペインを増やさない |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController`。幅は 200〜480pt で `splitView.autosaveName` により起動をまたいで永続化する。`allowsSidebar` が false の種別では `toggleSidebar(_:)` と `setSidebarCollapsed(_:)` が no-op になり、**CLI の `--sidebar` を含む全開閉経路が止まる**。保存値へ記録するのは利用者の操作である `toggleSidebar(_:)` だけ。止まると `onCollapsedChange` が発火せず `SidebarStateStore.recordToggle` にも届かない |
 | `ReferenceContextMenu` | ビューア本文のリンク/パス参照の ctrl+クリック(右クリック)で出す `NSMenu` の項目定義。並び・文言はサイドバーのコンテキストメニューと揃える |
 | `GitCommandRunner` | git 実行を一元化する薄い `Process` ラッパ（無害化オプション前置・タイムアウト・プロセスグループ打ち切り）。git を呼ぶ全機能の共通土台 |

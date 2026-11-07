@@ -69,6 +69,25 @@ struct BlankDocumentTabTests {
         #expect(fixture.manager.blankTabs.controllers.isEmpty)
     }
 
+    @Test("同じタブグループで開いているファイルを選ぶと、既存のタブを選んで空タブを閉じる")
+    func openingExistingFileSelectsItAndClosesBlank() throws {
+        let file = URL(fileURLWithPath: "/mock/first.md")
+        let fixture = MockedViewerWindowManager(files: [file])
+        defer { fixture.closeAll() }
+        let first = try #require(fixture.manager.openViewer(for: file)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: first)
+        defer { blank.close() }
+        let blankWindow = try #require(blank.window)
+
+        let opened = fixture.manager.openViewer(for: file, disposition: .currentTab, relativeTo: blankWindow)
+
+        #expect(opened?.window === first)
+        #expect(first.tabGroup?.windows == [first])
+        #expect(blank.isClosed)
+        #expect((blankWindow as? ViewerDocumentWindow)?.replacement === first)
+        #expect(fixture.manager.allControllers.count == 1)
+    }
+
     @Test("単独の空タブは閉じると管理台帳から消える")
     func standaloneBlankIsReleasedOnClose() {
         let fixture = MockedViewerWindowManager(files: [])
