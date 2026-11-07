@@ -47,17 +47,14 @@ final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
         guard let sidebarContext else { return NSHostingController(rootView: BlankTabView()) }
         let navigator = sidebarContext.navigator
         let sidebarState = sidebarContext.sidebarState
-        let splitViewController = ViewerSplitViewController(
-            sidebar: FileListView(model: navigator.fileListModel, delegate: self),
-            content: BlankTabView(),
+        let splitViewController = ViewerWindowAssembler.makeSidebarSplit(
+            sidebar: FileListView(model: navigator.fileListModel, delegate: self), content: BlankTabView(),
             initialCollapsed: ViewerWindowOpenPolicy.initialSidebarCollapsed(
                 kind: .viewer, showSidebar: nil, forceSidebarVisible: false,
                 sourceCollapsed: sidebarContext.seed.sidebarCollapsed,
                 remembered: sidebarState.lastToggledCollapsed
             ),
-            onCollapsedChange: { collapsed in sidebarState.recordToggle(collapsed) },
-            onSidebarDidReveal: { navigator.fileListModel.tableFocuser.focus() },
-            onSidebarDidHide: { navigator.fileListModel.tableFocuser.cancelPendingFocus() }
+            allowsSidebar: ViewerWindowKind.viewer.allowsSidebar, sidebarState: sidebarState
         )
         sidebarCollapsible = splitViewController
         return splitViewController

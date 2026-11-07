@@ -40,8 +40,9 @@ final class SidebarTableFocuser {
         focusPending = false
     }
 
-    /// 未成立のフォーカス要求。参照が現れるまで保持する。
-    private var focusPending = false
+    /// 未成立のフォーカス要求。参照が現れるまで保持する。読み取りはテストのため
+    /// (表示していない窓では first responder が成立しないので、要求の有無で配線を測る)。
+    private(set) var focusPending = false
 
     private func applyPendingFocus() {
         guard focusPending, let tableView, let window = tableView.window else { return }

@@ -83,6 +83,7 @@ struct SlideWindowSidebarGuardTests {
             initialCollapsed: true,
             allowsSidebar: false,
             onCollapsedChange: { collapsed in recordedToggles.values.append(collapsed) },
+            onSidebarDidReveal: {},
             onSidebarDidHide: {}
         )
     }
