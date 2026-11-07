@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-07T04:18:00Z'
-updated_date: '2026-11-07T04:26:00Z'
+updated_date: '2026-11-07T05:44:00Z'
 labels:
   - test
   - bug
@@ -51,3 +51,23 @@ CI が通常 6〜8 分のジョブで 30 分待たされ、失敗の情報も残
 
 設計の根拠: 未完了 108 件に待つものの無い軽いテストが含まれるので、メインスレッドまたはメインアクターが止まっている形。所要時間が 60 秒で揃っていたのは経過時間と同じなだけで、BEFOLD_TEST_TIMEOUT_SECONDS とは無関係（成功した回は全体で 90 秒）。発生は直近 200 回の CI で数回。
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実測 1（手元で再現）: test-watchdog を通した全体実行で 2 回ハングを捉えた。どちらも本体のスレッド 145 本のうち 130 本が PDFKit の解析で止まっていた（-[PDFView visiblePagesChanged:] → PDFPageAnalyzerV2 → VNImageRequestHandler が 66〜74 本、VNRequest performInContext の semaphore_wait が 64 本）。Dispatch Thread Soft Limit: 64 に全サンプルで到達。実 WKWebView の面は loadFileURL のあと didFinish が 0 件で、abortedRenderDoesNotLeaveOptionsInJS が isReady を待ち続け、loadOneShot は #diagram-wrap が null で失敗した。
+
+実測 2（因果）: 成功した回の途中の sample では解析スレッドは 0〜6 本で、弁別材料になる（TASK-673 の NSAnimation と違う）。ワーカーを塞ぐ一時テスト: 0 本で 0.10 秒、30 本で 0.10 秒、80 本で 39.7 秒（塞いだスレッドの 40 秒後に解放と一致）。
+
+実測 3（A/B、空のユーザーキャッシュ CFFIXED_USER_HOME）: 全テスト 5/6 でハング、PDF を除く 0/3、PDF だけ 0/3。修正後の CI と同じ 3 プロセス構成: 0/6（1963 + 103 + 83 件すべて成功）。
+
+外れた仮説（記録）: 60 秒の揃いは BEFOLD_TEST_TIMEOUT_SECONDS と無関係（所要時間 ≒ 経過時間）。メインスレッドの停止ではない（ランループは回っている）。リビルド直後も打ち切り直後も再現しない（各 3/3 で成功）。
+
+CI のログの限界: swift test の出力はパイプだとブロックバッファになり、止まると末尾が失われる。CI で見えた「未完了 108 件」は実際より多い。元の CI の回に sample は無いので、同じ原因という判断は、未完了に同じテストがあること・実 WebView の待ちであること・CI のランナーがキャッシュの無い環境であることからの推定。
+
+CI での確認（一時コミットでメインスレッドを塞いだ run 42343123345）: 300 秒で打ち切り、ログにメインスレッドのスタック、artifact に診断が残ることを default / strict とも確認。一時コミットは取り除いた。self-test は macOS 専用なので build-and-test へ置いた（Linux の type-group-size では落ちた）。
+
+TASK-675 との関係: 同じ原因と考える。TSan ジョブも同じ分離にした。TSan + 負荷での再発なしは未測定なので、TASK-675 は閉じていない。
+
+native-app-design.md への反映は不要（CI とテストの構成のみ）。
+<!-- SECTION:NOTES:END -->

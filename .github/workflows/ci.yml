@@ -166,11 +166,6 @@ jobs:
       - name: worktree-clean の削除対象の self-test を通す
         run: scripts/worktree-clean.sh --self-test
 
-      # テストのハングを捉える仕組みが働くこと(TASK-907)。ハングは稀なので、
-      # 壊れていても普段は気づけない。
-      - name: test-watchdog の検知の self-test を通す
-        run: scripts/test-watchdog.sh --self-test
-
       # 終了コード 2 は「不要になった恒久例外が残っている」。判定が緩むのはその 1 グループ
       # だけで、返済した側を赤くするのは筋が悪いのでここでは落とさず警告に留める。
       - name: 型グループの行数が閾値以内であることを確認する
@@ -224,6 +219,12 @@ jobs:
 
       - name: アプリをビルドする（SwiftLint も実行される）
         run: swift build
+
+      # テストのハングを捉える仕組みが働くこと(TASK-907)。ハングは稀なので、壊れていても
+      # 普段は気づけない。macOS の script を使うので、Linux のジョブには置けない。
+      - name: test-watchdog の検知の self-test を通す
+        if: matrix.pool == 'default'
+        run: ../scripts/test-watchdog.sh --self-test
 
       # ソースだけを見る検査なので、2 つのレッグで重ねて回さない。
       - name: SwiftFormat の整形を検証する

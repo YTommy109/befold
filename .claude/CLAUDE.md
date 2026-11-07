@@ -203,6 +203,10 @@ NSWindowDelegate / ArgumentParser など）は静的な呼び出し元を持た�
 ## テスト規約
 
 - **ユニットテスト**: `befoldTests/` — Swift Testing フレームワーク
+- **CI は PDF のテストを別プロセスで回す**（`--skip PDF` と `--filter PDF`）。PDFView の Vision 解析が、
+  キャッシュの無い環境で libdispatch のワーカーを使い切り、同じプロセスの実 WKWebView のロードを
+  止めるため（TASK-907）。PDFView を作るテストは名前に PDF を含める（`PDFTestIsolationGuardTests` が見る）。
+  手元の `swift test` が固まったら、`scripts/test-watchdog.sh` を通すと止まった場所が分かる
 - テスト関数名は英語 camelCase（SwiftLint の `identifier_name` が非 ASCII 開始の名前を弾く）。
   日本語の説明が必要なら `@Test("日本語の説明")` の表示名で付ける
 - FileWatcher: 一時ファイルによる実ファイルシステムテスト

@@ -3,6 +3,7 @@
 # テストのハングは再現が稀で、CI のタイムアウトで打ち切られると何を待っていたかが残らない
 # （TASK-907。同型の TASK-424 / TASK-607 / TASK-673 でも止まった時点の情報が無かった）。
 #
+# macOS 専用（script の引数と sample に依存する）。
 # 使い方: scripts/test-watchdog.sh [--quiet-seconds N] --diagnostics DIR -- コマンド...
 #   --quiet-seconds : 出力が止まったと見なす秒数（既定 300）
 #   --diagnostics   : 診断の保存先。止まったときだけ作る
