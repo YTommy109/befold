@@ -63,6 +63,7 @@ const EXPECTED_MENU_ITEMS: {
     modifiers: ['.command', '.option'],
   },
   { localizationKey: 'menu.app.quit', keyEquivalent: '"q"', modifiers: null },
+  { localizationKey: 'menu.file.newTab', keyEquivalent: '"t"', modifiers: null },
   { localizationKey: 'menu.file.open', keyEquivalent: '"o"', modifiers: null },
   { localizationKey: 'menu.file.quickOpen', keyEquivalent: '"p"', modifiers: null },
   { localizationKey: 'menu.file.close', keyEquivalent: '"w"', modifiers: null },

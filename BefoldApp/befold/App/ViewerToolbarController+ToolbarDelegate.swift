@@ -27,7 +27,14 @@ extension ViewerToolbarController {
         }
         // 生成直後のアイテムはまだ toolbar.items に含まれないため、
         // refreshToolbarState() では拾えない。ここで直接反映する。
-        spec.applyState(self, item)
+        if host == nil {
+            item.autovalidates = false
+            item.isEnabled = false
+            (item.view as? NSControl)?.isEnabled = false
+            item.menuFormRepresentation?.isEnabled = false
+        } else {
+            spec.applyState(self, item)
+        }
         return item
     }
 
@@ -82,7 +89,7 @@ extension ViewerToolbarController {
     private static let segmentWidth: CGFloat = 32
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        Self.layout.map(\.identifier)
+        Self.layout.map(\.identifier).filter { host != nil || $0 != .sidebarTrackingSeparator }
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {

@@ -67,7 +67,7 @@ final class DocumentOpener {
     }
 
     /// 複数の URL を、渡された順にウィンドウが出るよう逐次に開く。
-    /// **複数の URL を開く入口はここ 1 本に揃える。** 1 件ずつ `openViewer(for:)` を呼ぶと
+    /// タブを開く `openInTabs` と同じ `SequentialOpener` で逐次化する。1 件ずつ `openViewer(for:)` を呼ぶと
     /// 呼び出しごとに Task が張られ、解決(実 FS アクセス)の完了順でウィンドウ順序が入れ替わる。
     func openSequentially(
         _ urls: [URL], options: CLIOpenOptions = CLIOpenOptions(),
@@ -88,6 +88,7 @@ final class DocumentOpener {
     /// 無ければ（未オープン含む）ホームディレクトリを使う。
     func presentOpenPanel() {
         let controller = activeViewer()
+        let blank = NSApp.keyWindow?.windowController as? BlankTabWindowController
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.directoryURL = OpenPanelDirectoryResolver.resolve(
@@ -96,33 +97,66 @@ final class DocumentOpener {
         )
         panel.begin { [weak self] response in
             guard response == .OK else { return }
+            if let blank {
+                guard !blank.isClosed, let window = blank.window else { return }
+                self?.openInTabs(panel.urls, relativeTo: window)
+                return
+            }
             // 複数選択は選択順にウィンドウが出る必要がある。1 件ずつ openViewer(for:) を
             // 呼ぶと呼び出しごとに Task が張られ、順序が任意になる(openSequentially の doc)。
             self?.openSequentially(panel.urls)
         }
     }
 
+    /// 選択順にタブを開き、最初の文書だけを選択する。空タブは最初の成功時に置き換える。
+    @discardableResult
+    func openInTabs(_ urls: [URL], relativeTo sourceWindow: NSWindow) -> Task<Void, Never> {
+        Task {
+            var anchor = sourceWindow
+            var selected: NSWindow?
+            await SequentialOpener.open(urls) { url in
+                if let blank = anchor.windowController as? BlankTabWindowController, blank.isClosed { return }
+                let disposition: OpenDisposition = anchor.windowController is BlankTabWindowController
+                    ? .currentTab : .newTab
+                guard let opened = await openViewer(
+                    for: url, options: CLIOpenOptions(), disposition: disposition, relativeTo: anchor,
+                    allowsDirectories: false
+                ), let window = opened.window else { return }
+                if selected == nil {
+                    selected = window
+                    anchor = window
+                    ViewerTabGrouping.selectTab(window)
+                }
+            }
+            if let selected { ViewerTabGrouping.selectTab(selected) }
+        }
+    }
+
     /// ディレクトリ判定とオープン対象の解決は実 FS の存在確認・列挙を伴い、ネットワーク
     /// ボリューム上ではウィンドウを出す前に停止しうる。解決だけメインアクターの外へ逃がし、
     /// ウィンドウ生成は戻ってから行う。
+    @discardableResult
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
         disposition: OpenDisposition = .currentTab, placement: NewTabPlacement = .end,
-        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false
-    ) async {
+        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false, allowsDirectories: Bool = true
+    ) async -> ViewerWindowController? {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }
+        if let sourceWindow, !windowManager.containsOpenWindow(sourceWindow) { return nil }
         let isDirectory = resolved.isDirectory
+        if isDirectory, !allowsDirectories { return nil }
         guard let target = resolved.target else {
             presentNoFileAlert()
-            return
+            return nil
         }
         let controller = windowManager.openViewer(
             for: target, options: options, disposition: disposition, relativeTo: sourceWindow,
             tabPlacement: placement, forceSidebarVisible: isDirectory
         )
         if focusesContent { controller?.focusContentSurface(nil) }
+        return controller
     }
 
     private func presentNoFileAlert() {

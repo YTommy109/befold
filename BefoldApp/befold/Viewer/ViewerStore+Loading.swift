@@ -43,7 +43,8 @@ extension ViewerStore {
     /// pendingURL の読み込みを予約する。I/O・デコードはバックグラウンドで行い、
     /// 完了後にメインアクターで表示状態へ一括適用する。呼び出しごとに世代番号を進め、
     /// 追い越された古い読み込みの結果は破棄する。
-    func loadContent() {
+    /// 明示的な再読み込みでは、同じバイト列でも相対画像等を再描画する。
+    func loadContent(forceRefresh: Bool = false) {
         guard let target = pendingURL else { return }
         loadGeneration += 1
         let generation = loadGeneration
@@ -58,17 +59,23 @@ extension ViewerStore {
                 isPDFReadable: PDFDataProbe.isReadable
             )
         ) { [weak self] outcome in
-            self?.applyLoaded(outcome, url: target, fileType: fileType, generation: generation)
+            self?.applyLoaded(
+                outcome,
+                url: target,
+                fileType: fileType,
+                generation: generation,
+                forceRefresh: forceRefresh
+            )
         }
     }
 
     /// 読み込み結果を表示状態へ適用する。世代が追い越されていれば捨てる。
     private func applyLoaded(
-        _ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType, generation: Int
+        _ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType, generation: Int, forceRefresh: Bool
     ) {
         // close() でキャンセルされた、または新しい読み込みに追い越された結果は捨てる。
         guard generation == loadGeneration else { return }
-        apply(outcome, url: url, fileType: fileType)
+        apply(outcome, url: url, fileType: fileType, forceRefresh: forceRefresh)
     }
 
     /// 読み込み結果を表示状態(filePath / fileType / content / rejectReason / isTruncated /
@@ -78,14 +85,14 @@ extension ViewerStore {
     /// filePath / fileType を content と同時にここで確定させることで、旧ファイルの content に
     /// 新ファイルの filePath や fileType が組み合わさった中間状態が描画されないようにする
     /// (task: HTML 表示直後の切替で空白表示になる不具合の再発防止)。
-    private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType) {
+    private func apply(_ outcome: ViewerLoadPipeline.Outcome, url: URL, fileType: FileType, forceRefresh: Bool) {
         contentState.finishLoading(url: url)
         // nil はファイルが消えていた場合。表示状態の話ではないのでここで扱う。
         guard let state = ViewerContentState.DisplayState(outcome: outcome, fileType: fileType) else {
             scheduleFileGone()
             return
         }
-        guard contentState.applyDisplayState(state) else { return }
+        guard contentState.applyDisplayState(state, forceRefresh: forceRefresh) else { return }
         fileGoneWatchdog.cancel()
         // rejectReason / content(表示状態)が確定した後に通知する。
         onContentReloaded?()

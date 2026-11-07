@@ -26,9 +26,12 @@ public protocol ViewerRendererDelegate: AnyObject {
     func renderer(_ renderer: ViewerRenderer, resolveReferences paths: [String]) async -> [String: String]
     /// JS 側「続きを読み込む」が押された。次チャンクと更新後の表示状態を返す。
     func rendererDidRequestMoreLines(_ renderer: ViewerRenderer) async -> LoadMoreLinesResult?
+    /// 表示中の文書を読み直す。viewer.html ではなくホストが持つファイルを対象にする。
+    func rendererDidRequestReload(_ renderer: ViewerRenderer)
 }
 
 public extension ViewerRendererDelegate {
+    func rendererDidRequestReload(_: ViewerRenderer) {}
     func renderer(_: ViewerRenderer, didChangeZoom _: Double, for _: URL?) {}
     func renderer(_: ViewerRenderer, didActivateReference _: String, disposition _: OpenDisposition) {}
     func renderer(_: ViewerRenderer, didRequestContextMenuFor _: String) {}

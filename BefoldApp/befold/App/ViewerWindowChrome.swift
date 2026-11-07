@@ -17,8 +17,8 @@ enum ViewerWindowChrome {
     ///
     /// ウィンドウの実サイズは `contentViewController` の設定後に確定させるため、
     /// ここでの `contentRect` はプレースホルダ。
-    static func makeWindow(fileURL: URL, kind: ViewerWindowKind = .viewer) -> NSWindow {
-        let window = NSWindow(
+    static func makeWindow(fileURL: URL?, kind: ViewerWindowKind = .viewer) -> NSWindow {
+        let window = ViewerDocumentWindow(
             contentRect: .zero,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -43,7 +43,11 @@ enum ViewerWindowChrome {
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
         // 生成時点では一覧がまだ届いておらず、出すのは開こうとしている文書。
-        applyURL(fileURL, presenting: .undetermined, to: window)
+        if let fileURL {
+            applyURL(fileURL, presenting: .undetermined, to: window)
+        } else {
+            window.title = String(localized: "menu.file.newTab", bundle: .l10n)
+        }
         return window
     }
 

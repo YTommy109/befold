@@ -9,6 +9,33 @@ import Testing
 @Suite
 @MainActor
 struct ViewerStoreLoadingTests {
+    @Test("明示的な再読み込みは同じ内容でも再描画し、監視の再読み込みは省略する", arguments: ["md", "html", "csv", "swift", "svg"])
+    func explicitReloadPublishesUnchangedContent(fileExtension: String) async {
+        let file = URL(fileURLWithPath: "/files/reload.\(fileExtension)")
+        let reader = InMemoryFileReader()
+        reader.setFile("reload fixture", at: file)
+        let store = makeStore(reader: reader)
+        defer { store.close() }
+        store.openFile(file)
+        await awaitLoad(store)
+        let initialRevision = store.contentState.contentRevision
+
+        store.loadContent()
+        await awaitLoad(store)
+        #expect(store.contentState.contentRevision == initialRevision)
+
+        store.loadContent(forceRefresh: true)
+        await awaitLoad(store)
+        #expect(store.contentState.contentRevision == initialRevision + 1)
+        #expect(store.contentState.content == "reload fixture")
+
+        reader.setFile("updated fixture", at: file)
+        store.loadContent(forceRefresh: true)
+        await awaitLoad(store)
+        #expect(store.contentState.content == "updated fixture")
+        #expect(store.contentState.contentRevision == initialRevision + 2)
+    }
+
     @Test("openFile 直後は isLoading = true、読込完了後は false になる")
     func isLoadingReflectsInFlightLoad() async {
         let file = URL(fileURLWithPath: "/files/loading.md")

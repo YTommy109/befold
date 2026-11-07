@@ -153,11 +153,12 @@ final class ViewerContentState {
     }
 
     /// 表示状態を一括更新する。同一内容(dataHash・fileType が一致し、直前のチャンク読込も
-    /// 失敗していない)の再読込では何も書き換えず false を返す。
+    /// 失敗していない)の再読込では何も書き換えず false を返す。明示的な再読み込みは
+    /// forceRefresh でこの省略を解除し、相対リソースも再描画する。
     /// 表示状態のタプルを書き換えるのはこのメソッドだけにする。
     /// 呼んでよいのは `ViewerStore+Loading` の apply。
-    func applyDisplayState(_ state: DisplayState) -> Bool {
-        if isUnchanged(state) { return false }
+    func applyDisplayState(_ state: DisplayState, forceRefresh: Bool = false) -> Bool {
+        if !forceRefresh, isUnchanged(state) { return false }
         fileType = state.fileType
         contentHash = state.contentHash
         chunkSession = state.chunkSession

@@ -72,11 +72,12 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     weak var host: ViewerToolbarHost?
 
     /// ツールバーの生成・デリゲート設定・ウィンドウへの取り付けまでをここで行う。
+    /// 空タブは host を nil とし、同じ構成の文書操作を無効にする。
     ///
     /// この 3 手順には順序制約があり、`delegate` を設定する前に `window.toolbar` へ
     /// 代入するとアイテムが空のままになる。呼び出し側で 3 行に並べると順序を入れ替えても
     /// コンパイルは通ってしまうため、初期化子の中へ閉じて破れない形にしている。
-    init(window: NSWindow, host: ViewerToolbarHost) {
+    init(window: NSWindow, host: ViewerToolbarHost?) {
         self.window = window
         self.host = host
         super.init()
@@ -85,5 +86,9 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
         toolbar.delegate = self
         window.toolbarStyle = .unified
         window.toolbar = toolbar
+        // 空タブには split view が無いため、AppKit の自動配置に頼らず先頭へ揃える。
+        if host == nil {
+            toolbar.items.first { $0.itemIdentifier == .toggleSidebar }?.isNavigational = true
+        }
     }
 }
