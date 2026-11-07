@@ -12,7 +12,8 @@ set -euo pipefail
 
 err() { echo "エラー: $*" >&2; exit 1; }
 
-MAIN_BRANCH="main"
+# shellcheck source=lib/branch-completion.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib/branch-completion.sh"
 
 NEW_BRANCH=""
 FORCE=false
@@ -48,7 +49,8 @@ run_self_test() {
   (
     cd "$tmp/main"
     git switch -q -c main
-    printf 'a\n' > f.txt && git add f.txt && git commit -q -m base
+    mkdir sub && printf 's\n' > sub/s.txt
+    printf 'a\n' > f.txt && git add f.txt sub && git commit -q -m base
     git push -q origin main
     git worktree add -q -b feature "$tmp/wt"
     # feature: f.txt を変えたコミットを 1 つ積む
@@ -79,7 +81,12 @@ run_self_test() {
     echo "self-test 失敗: 未プッシュコミットを持つブランチを --force なしで切り直してしまいました" >&2
     fail=1
   fi
-  [ "$fail" -eq 0 ] && echo "self-test OK: squash 済みは切り直せ、未プッシュコミットがあれば中断する"
+  # (c) (b) と同じ状態をサブディレクトリから実行しても中断する（内容の照合がルート基準であること）
+  if (cd "$tmp/wt/sub" && PATH="$tmp/bin:$PATH" FAKE_PR_HEAD="$tip" bash "$self" next-c >/dev/null 2>&1); then
+    echo "self-test 失敗: サブディレクトリからの実行で未プッシュコミットを持つブランチを切り直してしまいました" >&2
+    fail=1
+  fi
+  [ "$fail" -eq 0 ] && echo "self-test OK: squash 済みは切り直せ、未プッシュコミットがあれば実行場所によらず中断する"
   return "$fail"
 }
 if $SELF_TEST; then run_self_test; exit; fi
@@ -105,59 +112,10 @@ if $FETCH; then
 fi
 
 # 起点は origin/main を優先し、無ければローカル main にフォールバックする
-if git rev-parse --verify --quiet "refs/remotes/origin/$MAIN_BRANCH" >/dev/null; then
-  BASE="origin/$MAIN_BRANCH"
-elif git rev-parse --verify --quiet "refs/heads/$MAIN_BRANCH" >/dev/null; then
-  BASE="$MAIN_BRANCH"
-else
-  err "起点ブランチが見つかりません（origin/$MAIN_BRANCH も $MAIN_BRANCH も無し）。"
-fi
+BASE="$(branch_completion_base)" \
+  || err "起点ブランチが見つかりません（origin/main も main も無し）。"
 
-# GitHub 上でマージ済みの PR の head が、いまのブランチ先端と同じ SHA か。
-# 同じなら PR に含まれない作業は無い。後続の PR が同じファイルを変更していても
-# 影響されない（下のファイル内容の照合は、その場合に未マージと誤判定する）。
-# squash 後に未プッシュコミットを積んでいれば先端が PR head とずれるので一致しない。
-# gh が無い・オフライン（--no-fetch）・取得失敗は「一致しない」側へ倒し、下の照合へ落とす。
-pr_merged_at_tip() {
-  $FETCH && command -v gh >/dev/null 2>&1 || return 1
-  local tip heads
-  tip="$(git rev-parse "$1")"
-  heads="$(gh pr list --head "$1" --state merged --json headRefOid -q '.[].headRefOid' 2>/dev/null || true)"
-  printf '%s\n' "$heads" | grep -qx "$tip"
-}
-
-# 完了判定: OLD_BRANCH が BASE の祖先（fast-forward 相当）か、先端がマージ済み PR の head と
-# 一致するか、OLD_BRANCH がその
-# merge-base から変更したファイルすべてが BASE の現在の内容と一致するか（squash merge
-# を含む）で決める。
-#
-# 上流の追跡状態（[gone]）は判定に使わない。squash merge された PR の後、同じ
-# ローカルブランチへ**さらに別の未プッシュコミットを積む**ことがあり、その場合も
-# 上流はとっくに削除済みのまま [gone] を示し続けるため、安全の根拠にならない
-# （実例: TASK-528 の実装 2 コミットを squash-merge 済みブランチへ追記したまま
-# [gone] 判定で切り直され、reflog からの復旧を要した）。中身を見て判定する。
-REASON=""
-if git merge-base --is-ancestor "$OLD_BRANCH" "$BASE" 2>/dev/null; then
-  REASON="merged"
-elif pr_merged_at_tip "$OLD_BRANCH"; then
-  REASON="squashed"
-else
-  MERGE_BASE="$(git merge-base "$OLD_BRANCH" "$BASE" 2>/dev/null || true)"
-  if [ -n "$MERGE_BASE" ]; then
-    # -z + read -d '' でファイル名の空白・非 ASCII 文字を壊さず配列へ集める
-    # （bash 3.2 は mapfile/readarray を持たないため手書きループにする。macOS 既定の
-    # /bin/bash が 3.2 のままなことは把握しておくこと）。
-    TOUCHED_FILES=()
-    while IFS= read -r -d '' file; do
-      TOUCHED_FILES+=("$file")
-    done < <(git diff -z --name-only "$MERGE_BASE" "$OLD_BRANCH")
-    if [ ${#TOUCHED_FILES[@]} -eq 0 ]; then
-      REASON="merged"
-    elif git diff --quiet "$BASE" "$OLD_BRANCH" -- "${TOUCHED_FILES[@]}"; then
-      REASON="squashed"
-    fi
-  fi
-fi
+REASON="$(branch_completion_reason "$OLD_BRANCH" "$BASE" "$FETCH")"
 
 if [ -z "$REASON" ]; then
   if ! $FORCE; then
