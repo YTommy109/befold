@@ -27,6 +27,10 @@ tools: Read, Grep, Glob, Bash
 - **協調スレッドプールの枯渇**: `Task.detached` 内で同期的に塞ぐと、全スイート pass でも
   «unknown» issue で run が落ちる。`LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`
   で幅 1 にすると決定的に再現する（TASK-424 / 427 / 516）。
+- **ワーカースレッドの枯渇**: PDFView の Vision 解析が、キャッシュの無い環境で libdispatch の
+  ワーカー上限 64 本を使い切り、同じプロセスの実 WKWebView のロードが止まる（TASK-907）。
+  CI は PDF のテストを別プロセスで回す形。`CFFIXED_USER_HOME` に空のディレクトリを渡すと
+  手元でも再現する。止まった時点の診断は `scripts/test-watchdog.sh` で取れる。
 - **環境依存の実測値**: 窓寸法・画面サイズなど、AppKit がディスプレイに合わせて
   変える値をアサートしている（TASK-593.5）。
 
