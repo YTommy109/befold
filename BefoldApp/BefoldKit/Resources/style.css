@@ -1206,6 +1206,22 @@ pre .befold-link-dead {
     display: block;
   }
 
+  /* CSV の列幅と切り取りは画面の横スクロールのためのもの。紙はスクロールできないので
+     内容を失わないよう、用紙の幅に収めて折り返す。手動で変えた幅も同じ扱いにする。 */
+  #diagram-wrap.csv-body table.csv-sized {
+    table-layout: auto;
+    width: auto !important;
+  }
+  #diagram-wrap.csv-body table.csv-sized col {
+    width: auto !important;
+  }
+  #diagram-wrap.csv-body table.csv-sized th,
+  #diagram-wrap.csv-body table.csv-sized td {
+    white-space: pre-line;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+
   /* 画面に重ねるだけの UI は紙に出さない */
   .mmd-bar,
   .mmd-truncated-banner,

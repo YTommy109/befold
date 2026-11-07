@@ -637,6 +637,17 @@ describe('切り取りと数値', () => {
     const css = readFileSync(join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'), 'utf8');
     expect(css).toMatch(/table\.csv-sized td \{[^}]*text-overflow: ellipsis/u);
   });
+
+  // @media print は jsdom で適用されない。実際の PDF での確認は TASK-906.4 の Notes を参照。
+  test('style.css は印刷時に列幅と切り取りを解除する', () => {
+    const css = readFileSync(join(__dirname, '..', 'BefoldKit', 'Resources', 'style.css'), 'utf8');
+    const print = css.slice(css.indexOf('@media print'));
+    expect(print).toMatch(/table\.csv-sized \{[^}]*table-layout: auto[^}]*width: auto !important/u);
+    expect(print).toMatch(/table\.csv-sized col \{[^}]*width: auto !important/u);
+    expect(print).toMatch(
+      /table\.csv-sized td \{[^}]*white-space: pre-line[^}]*overflow: visible/u,
+    );
+  });
 });
 
 test('初期幅の分位点から空セルと空白だけのセルを除外する', async () => {
