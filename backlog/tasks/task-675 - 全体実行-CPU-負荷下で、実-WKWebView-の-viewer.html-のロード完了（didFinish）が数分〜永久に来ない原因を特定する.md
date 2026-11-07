@@ -3,8 +3,8 @@ id: TASK-675
 title: 全体実行 + CPU 負荷下で、実 WKWebView の viewer.html のロード完了（didFinish）が数分〜永久に来ない原因を特定する
 status: To Do
 assignee: []
-created_date: '2026-10-07 00:58'
-updated_date: '2026-10-14 07:42'
+created_date: 2026-10-07 00:58
+updated_date: '2026-11-07T04:18:00Z'
 labels:
   - test
   - bug
@@ -31,3 +31,9 @@ TASK-673 から切り出した原因探索。TSan + CPU 負荷 40 本（yes）�
 - [ ] #2 原因が特定でき、直せるものなら直した上で、同じ負荷・複数回の全体実行で再発しないことを実測している。直せない（WebKit / OS 側）なら、その根拠が記録されている
 - [ ] #3 実験の運用（ビルド・テストの並走をしない、止め忘れを確認する）が守られた有効な標本だけで判断している
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-07: 通常の CI ジョブ（TSan・追加負荷なし）で、同じ原因かもしれないハングを 1 回観測した。実 WKWebView を使うスイートも未完了に含まれる。sample が無いので同一とは確認できていない。詳細は TASK-907。
+<!-- SECTION:NOTES:END -->
