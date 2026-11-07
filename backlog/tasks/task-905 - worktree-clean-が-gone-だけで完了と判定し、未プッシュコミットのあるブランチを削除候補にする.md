@@ -1,11 +1,11 @@
 ---
 id: TASK-905
 title: worktree の完了判定を 1 か所にまとめ、worktree-clean が [gone] だけで完了と判定する問題を塞ぐ
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-07T02:30:00Z'
-updated_date: '2026-11-07T02:37:00Z'
+updated_date: '2026-11-07T02:39:00Z'
 labels: []
 dependencies: []
 priority: medium
@@ -32,11 +32,11 @@ ordinal: 865000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ブランチの完了判定が 1 か所にあり、`worktree-reset` と `worktree-clean` の両方がそれを使う
-- [ ] #2 上流が `[gone]` で、マージ済み PR に含まれない未プッシュコミットがあるブランチは `worktree-clean` の削除候補に入らない
-- [ ] #3 squash merge 済みで未プッシュコミットが無いブランチは、後続の PR が同じファイルを変更していても `worktree-clean` の削除候補に入る
-- [ ] #4 上記の判定を検証するテストがあり、判定の置き場所を変更すると CI で実行される
-- [ ] #5 `worktree-reset` と `worktree-clean` の手順書の完了判定の説明が実装と一致している
+- [x] #1 ブランチの完了判定が 1 か所にあり、`worktree-reset` と `worktree-clean` の両方がそれを使う
+- [x] #2 上流が `[gone]` で、マージ済み PR に含まれない未プッシュコミットがあるブランチは `worktree-clean` の削除候補に入らない
+- [x] #3 squash merge 済みで未プッシュコミットが無いブランチは、後続の PR が同じファイルを変更していても `worktree-clean` の削除候補に入る
+- [x] #4 上記の判定を検証するテストがあり、判定の置き場所を変更すると CI で実行される
+- [x] #5 `worktree-reset` と `worktree-clean` の手順書の完了判定の説明が実装と一致している
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -58,4 +58,28 @@ ordinal: 865000
 
 <!-- SECTION:NOTES:BEGIN -->
 着手時の確認: worktree-clean.sh --force は候補に git worktree remove と git branch -D を実行するため、未プッシュコミットは実際に失われる（起票時の未確認事項が解消）。worktree-reset.sh にも別経路の消失を実測で確認した。サブディレクトリから実行すると git diff の pathspec が cwd 基準になって一致扱いになる。
+
+方針: 判定を worktree-clean にだけ移植せず lib へ移した。CLAUDE.md の「同型のバグが 2 回目に出たら構造で塞ぐ」に従う。
+
+単純化の検討: [gone] の分岐を消すだけなら worktree-clean の修正は小さいが、squash 済みブランチが候補に入らなくなり（完了条件 3）、判定を移植すると 2 か所に戻るため採らなかった。
+
+検証: 判定を 6 種類壊して self-test が落ちることを実測（cwd 基準の pathspec / PR head 照合なし（2 スクリプト）/ --no-fetch でも gh を使う / [gone] を完了扱い / スキップ理由の表示なし）。修正前の worktree-reset をサブディレクトリから実行するとブランチが削除されることも再現した。CI run 42330306184 の type-group-size ジョブで両 self-test が success。ci.yml の検出正規表現は worktree-clean.sh と lib に一致、無関係な lib には不一致。bash 3.2 で実行。
+
+動作の変更: worktree-clean の基準をローカル main から origin/main 優先へ変更。ローカルの main にしか入っていないブランチは候補から外れる（安全側）。
+
+未実施: shellcheck（手元に無い）。Swift の変更なしのため Swift のテストと swiftlint は対象外。
+
+native-app-design.md への反映は不要（開発用スクリプトのみで、アプリの構成に変化なし。docs/dev に worktree スクリプトへの言及なし）。
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+ブランチの完了判定を scripts/lib/branch-completion.sh へまとめ、worktree-reset と worktree-clean の両方から使うようにした。
+
+塞いだ経路は 2 つ。worktree-clean --force が上流 [gone] だけで未プッシュコミットのあるブランチを削除する経路と、worktree-reset をサブディレクトリから実行すると未マージでも squashed と判定して削除する経路（着手時に実測で発見）。
+
+両スクリプトの self-test を CI で実行する。判定を壊すと落ちることを 6 種類の変更で確認した。
+
+残るリスク: 切り直す前のブランチにある古い版のスクリプトは引き続き動く（手順書に確認方法を記載）。
+<!-- SECTION:FINAL_SUMMARY:END -->
