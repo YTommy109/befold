@@ -125,8 +125,9 @@ extension ViewerWindowController {
         documentCommands.focusSurface()
     }
 
-    /// View > サイドバーへフォーカス（⌘←）。畳んでいるときは項目が無効（`ViewerMenuValidator`）。
+    /// サイドバーへフォーカス（⌘← と空タブからの置き換え）。畳んでいれば何もしない（見えない一覧が矢印キーを受ける）。
     @objc func focusSidebar(_ sender: Any?) {
+        guard sidebarCollapsible?.resolvedSidebarCollapsed == false else { return }
         fileListModel.tableFocuser.focus()
     }
 

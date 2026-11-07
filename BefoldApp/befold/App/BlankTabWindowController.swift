@@ -8,8 +8,8 @@ struct BlankTabSidebarContext {
     let navigator: SidebarNavigator
     let seed: SidebarInheritance.Seed
     let sidebarState: SidebarStateStore
-    /// このタブを文書へ置き換える。開けたら true。
-    let replaceWithDocument: (URL, NSWindow) -> Bool
+    /// このタブを文書へ置き換え、置き換えた文書タブを返す。開けなければ nil。
+    let replaceWithDocument: (URL, NSWindow) -> ViewerWindowController?
     let openElsewhere: (URL, OpenDisposition, NSWindow) -> Void
 }
 

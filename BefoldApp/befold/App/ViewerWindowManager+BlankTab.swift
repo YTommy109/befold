@@ -15,7 +15,7 @@ extension ViewerWindowManager {
             seed: SidebarInheritance.seed(from: sourceWindow, opensAsTab: true),
             sidebarState: shared.sidebarState,
             replaceWithDocument: { [weak self] url, window in
-                self?.openViewer(for: url, disposition: .currentTab, relativeTo: window) != nil
+                self?.openViewer(for: url, disposition: .currentTab, relativeTo: window)
             },
             openElsewhere: { [weak self] url, disposition, window in
                 self?.openViewer(for: url, disposition: disposition, relativeTo: window)
