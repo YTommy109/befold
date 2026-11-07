@@ -215,8 +215,15 @@ function _mmdInitCsvNumberFormat(): void {
 // 以降の append*Chunk は、追記できたら true、DOM が見つからず何もしなかったら false を返す
 // (false のとき appendChunk は _mmdChunkTail の記録も参照解決も行わずに戻る)。
 function appendMarkdownChunk(diagramWrap: HTMLElement, text: string): boolean {
+  var previousLastChild = diagramWrap.lastChild;
   diagramWrap.insertAdjacentHTML('beforeend', markdownRenderer().render(text));
-  _annotatePathRefs();
+  // 既存本文の再走査を避け、追記量に比例する仕事だけでパスを注釈する。
+  var next = previousLastChild ? previousLastChild.nextSibling : diagramWrap.firstChild;
+  while (next) {
+    var node = next;
+    next = node.nextSibling;
+    _walkTextNodes(node, false);
+  }
   // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
   // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
   void _mmdRunMermaid(diagramWrap, true);
@@ -323,8 +330,8 @@ function appendCodeChunk(
 
 // 追加読み込みされたチャンクを既存 DOM に追記する(Swift の ViewerBridge から呼ばれる)。
 // HTML 組み立ては純粋関数(csvRowsHtml / buildLineNumberRows / codeChunkInnerHtml)に
-// 委ね、ここでは DOM 挿入のみ行う。パス注釈は追記した行だけを _walkTextNodes で
-// 処理し、追記コストを O(チャンク) に抑える。
+// 委ね、ここでは DOM 挿入のみ行う。通常の追記では新しい範囲だけを _walkTextNodes で
+// 処理し、読み込み済み本文の量に比例する再走査を避ける。
 //
 // `type` は render() と同じ呼び出し形(ViewerBridge.contentCallScript)で届くだけで、
 // **追記先の分岐には使わない**。同じ type でも表示モードや差分の有無で DOM の形は

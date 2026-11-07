@@ -17,8 +17,8 @@ func fingerprint(_ data: Data) -> [String: Any] {
     ["bytes": data.count, "sha256": SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()]
 }
 
-guard CommandLine.arguments.count == 3, CommandLine.arguments[2] == "mermaid" else {
-    fail("Usage: benchmark-markdown-append Resources mermaid")
+guard CommandLine.arguments.count == 3, ["mermaid", "paths"].contains(CommandLine.arguments[2]) else {
+    fail("Usage: benchmark-markdown-append Resources mermaid|paths")
 }
 
 let resources = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
@@ -44,9 +44,12 @@ let chunks = (0 ..< 20).map { index in
     "## Chapter \(index)\n\n```mermaid\ngraph LR; A\(index)-->B\(index)\n```\n\n"
 }
 
-let initial = chunks[0]
-let additions = Array(chunks.dropFirst())
-let checks = #"""
+let paragraph = "Paragraph `src/sample.swift` with **bold** text and `inline code`.\n\n"
+let initial = scenario == "mermaid" ? chunks[0] : String(repeating: paragraph, count: 15000)
+let additions = scenario == "mermaid"
+    ? Array(chunks.dropFirst())
+    : Array(repeating: String(repeating: paragraph, count: 500), count: 10)
+let checks = scenario == "mermaid" ? #"""
 const diagrams = [...wrap.querySelectorAll('.mermaid')];
 const wrappers = [...wrap.querySelectorAll('.diagram-zoom-wrap')];
 const indices = wrappers.map(node => Number(node.dataset.diagramIndex));
@@ -57,6 +60,16 @@ if (diagrams.length !== 20 || diagrams.some(node => !node.querySelector('svg')) 
 return {steps, totalMs: steps.reduce((sum, ms) => sum + ms, 0),
     diagrams: diagrams.length, wrappers: wrappers.length, indices, firstPreserved,
     nestedWrappers: wrap.querySelectorAll('.diagram-zoom-wrap .diagram-zoom-wrap').length,
+    userAgent: navigator.userAgent, visibility: document.visibilityState};
+"""# : #"""
+const paths = wrap.querySelectorAll('.befold-path-ref').length;
+const expectedText = 'Paragraph src/sample.swift with bold text and inline code.\n'.repeat(20000);
+if (paths !== 20000 || wrap.textContent !== expectedText || !first.isConnected) {
+    throw new Error('Appended Markdown text, references or original DOM changed');
+}
+return {steps, totalMs: steps.reduce((sum, ms) => sum + ms, 0),
+    paths, elements: wrap.querySelectorAll('*').length, firstPreserved: first.isConnected,
+    html: wrap.innerHTML, text: wrap.textContent,
     userAgent: navigator.userAgent, visibility: document.visibilityState};
 """#
 
@@ -104,39 +117,49 @@ final class Benchmark: NSObject, WKNavigationDelegate {
     func webView(_: WKWebView, didFinish _: WKNavigation!) {
         Task { @MainActor in
             do {
-                let result = try await webView.callAsyncJavaScript(#"""
-                setViewMode('rendered');
-                await render(initial, 'md');
-                const wrap = document.getElementById('diagram-wrap');
-                const first = wrap.querySelector('.diagram-zoom-wrap');
-                first.querySelector('.diagram-zoom-in').click();
-                const initialZoom = first.querySelector('.diagram-zoom-inner').style.zoom;
-                void wrap.getBoundingClientRect().height;
-                const steps = [];
-                for (let i = 0; i < additions.length; i++) {
-                    // appendChunk は同期 API。新しい図の SVG とラッパーが揃うまで待つ。
-                    // MutationObserver は実装内の完了フックや固定 sleep を必要としない。
-                    const done = new Promise(resolve => {
-                        const observer = new MutationObserver(() => {
-                            const diagrams = wrap.querySelectorAll('.mermaid');
-                            const last = diagrams[diagrams.length - 1];
-                            if (diagrams.length === i + 2 && last.querySelector('svg') && last.closest('.diagram-zoom-wrap')) {
-                                observer.disconnect();
-                                resolve();
-                            }
-                        });
-                        observer.observe(wrap, {childList: true, subtree: true});
-                    });
-                    const start = performance.now();
-                    appendChunk(additions[i], 'md');
-                    await done;
+                let result = try await webView.callAsyncJavaScript(
+                    #"""
+                    setViewMode('rendered');
+                    await render(initial, 'md');
+                    const wrap = document.getElementById('diagram-wrap');
+                    const first = scenario === 'mermaid' ? wrap.querySelector('.diagram-zoom-wrap') : wrap.firstChild;
+                    if (scenario === 'mermaid') first.querySelector('.diagram-zoom-in').click();
+                    const initialZoom = scenario === 'mermaid' ? first.querySelector('.diagram-zoom-inner').style.zoom : '';
                     void wrap.getBoundingClientRect().height;
-                    steps.push(performance.now() - start);
-                    if (document.getElementById('mmd-error').textContent) throw new Error('Mermaid render failed');
+                    const steps = [];
+                    for (let i = 0; i < additions.length; i++) {
+                        // appendChunk は同期 API。新しい図の SVG とラッパーが揃うまで待つ。
+                        // MutationObserver は実装内の完了フックや固定 sleep を必要としない。
+                        const done = scenario === 'mermaid' ? new Promise(resolve => {
+                            const observer = new MutationObserver(() => {
+                                const diagrams = wrap.querySelectorAll('.mermaid');
+                                const last = diagrams[diagrams.length - 1];
+                                if (diagrams.length === i + 2 && last.querySelector('svg') && last.closest('.diagram-zoom-wrap')) {
+                                    observer.disconnect();
+                                    resolve();
+                                }
+                            });
+                            observer.observe(wrap, {childList: true, subtree: true});
+                        }) : null;
+                        const start = performance.now();
+                        appendChunk(additions[i], 'md');
+                        if (done) await done;
+                        void wrap.getBoundingClientRect().height;
+                        steps.push(performance.now() - start);
+                        if (document.getElementById('mmd-error').textContent) throw new Error('Mermaid render failed');
+                    }
+                    \#(checks)
+                    """#,
+                    arguments: ["initial": initial, "additions": additions, "scenario": scenario],
+                    in: nil,
+                    contentWorld: .page
+                )
+                guard var result = result as? [String: Any] else { fail("Missing benchmark result") }
+                for key in ["html", "text"] {
+                    if let value = result.removeValue(forKey: key) as? String {
+                        result[key + "Fingerprint"] = fingerprint(Data(value.utf8))
+                    }
                 }
-                \#(checks)
-                """#, arguments: ["initial": initial, "additions": additions], in: nil, contentWorld: .page)
-                guard let result = result as? [String: Any] else { fail("Missing benchmark result") }
                 emit(["type": "result", "result": result])
                 emit(["type": "complete"])
                 window.orderOut(nil)
