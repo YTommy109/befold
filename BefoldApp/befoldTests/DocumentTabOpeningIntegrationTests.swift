@@ -21,7 +21,7 @@ struct DocumentTabOpeningIntegrationTests {
         let blank = replacingBlank ? fixture.manager.blankTabs.open(relativeTo: original) : nil
         defer { blank?.close() }
         let source = blank?.window ?? original
-        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil })
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { nil })
 
         await opener.openInTabs(Array(files.dropFirst()), relativeTo: source).value
 
@@ -41,7 +41,7 @@ struct DocumentTabOpeningIntegrationTests {
         defer { fixture.closeAll() }
         let blank = fixture.manager.blankTabs.open(relativeTo: nil)
         let window = try #require(blank.window)
-        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil })
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { nil })
         let opening = opener.openInTabs([file], relativeTo: window)
         blank.close()
 
@@ -62,11 +62,69 @@ struct DocumentTabOpeningIntegrationTests {
         let blank = fixture.manager.blankTabs.open(relativeTo: nil)
         defer { blank.close() }
         let window = try #require(blank.window)
-        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil })
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { nil })
 
         await opener.openInTabs([folder], relativeTo: window).value
 
         #expect(fixture.manager.allControllers.isEmpty)
         #expect(fixture.manager.blankTabs.controllers.count == 1)
+    }
+
+    @Test("UI の経路は手前の空タブを置き換える", testTimeLimit())
+    func uiRouteReplacesActiveBlank() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let chosen = try tmp.file(named: "chosen.md", contents: "fixture")
+        let fixture = MockedViewerWindowManager(files: [origin, chosen])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { blank })
+
+        opener.openViewer(for: chosen)
+        await waitForDeliveryOnMainActor { blank.isClosed }
+
+        #expect(blank.isClosed)
+        let replaced = try #require(fixture.manager.controllers[chosen.normalizedPathKey]?.first?.window)
+        #expect(source.tabGroup?.windows == [source, replaced])
+    }
+
+    @Test("Finder と CLI の経路は空タブを置き換えない", testTimeLimit())
+    func externalRouteKeepsBlank() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let chosen = try tmp.file(named: "chosen.md", contents: "fixture")
+        let fixture = MockedViewerWindowManager(files: [origin, chosen])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { blank })
+
+        opener.openSequentially([chosen])
+        await waitForDeliveryOnMainActor { fixture.manager.controllers[chosen.normalizedPathKey] != nil }
+
+        #expect(!blank.isClosed)
+    }
+
+    @Test("空タブのフォルダが ⌘O と Quick Open の起点になり、サイドバーが無ければ起点も無い")
+    func blankTabAnchorsFollowSidebarFolder() throws {
+        let origin = URL(fileURLWithPath: "/mock/folder/origin.md")
+        let fixture = MockedViewerWindowManager(files: [origin])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let standalone = fixture.manager.blankTabs.open(relativeTo: nil)
+        defer { standalone.close() }
+        let folder = origin.deletingLastPathComponent().normalizedPathKey
+
+        #expect(blank.sidebarDirectory?.normalizedPathKey == folder)
+        #expect(blank.quickOpenAnchor?.deletingLastPathComponent().normalizedPathKey == folder)
+        #expect(standalone.sidebarDirectory == nil)
+        #expect(standalone.quickOpenAnchor == nil)
     }
 }

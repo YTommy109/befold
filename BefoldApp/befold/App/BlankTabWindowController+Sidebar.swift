@@ -7,6 +7,17 @@ extension BlankTabWindowController: SidebarInheritanceSource {
     var inheritableSidebar: SidebarNavigator? {
         sidebarContext?.navigator
     }
+
+    /// サイドバーが見ているフォルダ。⌘O と Quick Open の起点にする。サイドバーが無ければ nil。
+    var sidebarDirectory: URL? {
+        sidebarContext?.navigator.fileListModel.currentDirectory
+    }
+
+    /// Quick Open の候補の起点。文書が無いので、フォルダ直下の存在しないファイルで表す
+    /// (起点はファイルの親フォルダとして読まれ、ファイル自体は開かれない)。
+    var quickOpenAnchor: URL? {
+        sidebarDirectory?.appendingPathComponent(".befold-blank-tab")
+    }
 }
 
 extension BlankTabWindowController: SidebarNavigatorHost {

@@ -38,7 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windowManager = ViewerWindowManagerFactory.make(stores: stores)
         let documentOpener = DocumentOpener(
             windowManager: windowManager,
-            activeViewer: ActiveViewerProvider.fromMainWindow
+            activeViewer: ActiveViewerProvider.fromMainWindow,
+            activeBlankTab: ActiveViewerProvider.blankTabFromMainWindow
         )
         let sessionRestorer = SessionRestorer(sessionStore: stores.sessionStore, windowManager: windowManager)
         self.stores = stores
@@ -53,7 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stores: stores,
             gitIndex: windowManager.gitFileIndex,
             activeViewer: ActiveViewerProvider.fromMainWindow,
-            openInNewWindow: { documentOpener.openViewer(for: $0, focusesContent: true) }
+            activeBlankTab: ActiveViewerProvider.blankTabFromMainWindow,
+            openWithoutViewer: { documentOpener.openViewer(for: $0, focusesContent: true) }
         )
         // 購読はここで始める。起動処理の後段へ倒すと、起動と同時に届いた CLI 要求の
         // ACK を取りこぼして再送を待たせることになる(AppCLIRequestReceiver の doc)。

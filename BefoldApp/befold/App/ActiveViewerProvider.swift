@@ -9,6 +9,8 @@ import AppKit
 enum ActiveViewerProvider {
     /// 現在のビューアウィンドウを返す手続き。無ければ nil。
     typealias Provide = @MainActor () -> ViewerWindowController?
+    /// 手前の空タブを返す手続き。無ければ nil。
+    typealias ProvideBlankTab = @MainActor () -> BlankTabWindowController?
 
     /// Quick Open パネル(`NSPanel`, `canBecomeMain = false`)がキーを奪っている間も
     /// `NSApp.mainWindow` は元のビューアウィンドウを指し続けるため、パネル表示中でも
@@ -16,5 +18,11 @@ enum ActiveViewerProvider {
     @MainActor
     static func fromMainWindow() -> ViewerWindowController? {
         NSApp.mainWindow?.windowController as? ViewerWindowController
+    }
+
+    /// 手前の窓が空タブならそれを返す。UI から文書を開く経路の置き換え先。
+    @MainActor
+    static func blankTabFromMainWindow() -> BlankTabWindowController? {
+        NSApp.mainWindow?.windowController as? BlankTabWindowController
     }
 }

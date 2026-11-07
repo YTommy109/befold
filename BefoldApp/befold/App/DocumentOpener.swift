@@ -10,16 +10,23 @@ import BefoldKit
 final class DocumentOpener {
     private let windowManager: ViewerWindowManager
     private let activeViewer: ActiveViewerProvider.Provide
+    private let activeBlankTab: ActiveViewerProvider.ProvideBlankTab
 
     /// - Parameters:
     ///   - windowManager: ウィンドウ生成先。全ウィンドウで共有する 1 個を渡す
     ///     (既定値を持たせない。渡し忘れがコンパイルエラーにならず別インスタンスになるため)。
     ///   - activeViewer: ファイル選択パネルの初期ディレクトリを決めるための現在のビューア。
-    init(windowManager: ViewerWindowManager, activeViewer: @escaping ActiveViewerProvider.Provide) {
+    init(
+        windowManager: ViewerWindowManager, activeViewer: @escaping ActiveViewerProvider.Provide,
+        activeBlankTab: @escaping ActiveViewerProvider.ProvideBlankTab
+    ) {
         self.windowManager = windowManager
         self.activeViewer = activeViewer
+        self.activeBlankTab = activeBlankTab
     }
 
+    /// Quick Open・Open Recent・ブックマークなど UI から開く経路の入口。手前が空タブならそれを
+    /// 置き換える。Finder と CLI(`openSequentially`)は外部からの要求なので置き換えない。
     /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
     /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
     /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
@@ -28,7 +35,12 @@ final class DocumentOpener {
     ///   CLI と Quick Open は true（サイドバーを操作して開いたわけではない）。
     ///   サイドバー由来のオープンは false のままで、フォーカスはサイドバーに残る（TASK-581）。
     func openViewer(for url: URL, focusesContent: Bool = false) {
-        Task { await openViewer(for: url, options: CLIOpenOptions(), focusesContent: focusesContent) }
+        let blankWindow = activeBlankTab()?.window
+        Task {
+            await openViewer(
+                for: url, options: CLIOpenOptions(), relativeTo: blankWindow, focusesContent: focusesContent
+            )
+        }
     }
 
     /// 参照クリック由来のオープン。disposition/relativeTo をそのまま ViewerWindowManager へ通す。
@@ -84,15 +96,15 @@ final class DocumentOpener {
     }
 
     /// ファイル選択パネルを表示し、選択されたファイルをビューアで開く。
-    /// 初期ディレクトリはキーウィンドウが表示中のファイルのディレクトリ、
+    /// 初期ディレクトリは手前の窓が表示中のファイルのディレクトリか空タブのサイドバーのフォルダ、
     /// 無ければ（未オープン含む）ホームディレクトリを使う。
     func presentOpenPanel() {
         let controller = activeViewer()
-        let blank = NSApp.keyWindow?.windowController as? BlankTabWindowController
+        let blank = activeBlankTab()
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.directoryURL = OpenPanelDirectoryResolver.resolve(
-            currentFileDirectory: controller?.fileURL.deletingLastPathComponent(),
+            currentFileDirectory: controller?.fileURL.deletingLastPathComponent() ?? blank?.sidebarDirectory,
             homeDirectory: FileManager.default.homeDirectoryForCurrentUser
         )
         panel.begin { [weak self] response in
