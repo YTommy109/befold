@@ -101,7 +101,7 @@ func makeViewerWindowDependencies(
     defaults: UserDefaults,
     displayDefaults: SidebarDisplayDefaults? = nil,
     diffDisplayPreference: DiffDisplayPreference? = nil,
-    perFileState: PerFileStateStore? = nil,
+    zoomStore: ZoomStore? = nil,
     bookmarkStore: BookmarkStore? = nil,
     home: URL = FileManager.default.temporaryDirectory
 ) -> ViewerWindowDependencies {
@@ -112,8 +112,22 @@ func makeViewerWindowDependencies(
         headingJumpLevelDefaults: HeadingJumpLevelDefaults(defaults: defaults),
         codeFontPreference: CodeFontPreference(defaults: defaults),
         csvNumberFormatPreference: CsvNumberFormatPreference(defaults: defaults),
-        perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
+        zoomStore: zoomStore ?? ZoomStore(defaults: defaults),
+        sidebarState: SidebarStateStore(defaults: defaults),
         bookmarkStore: bookmarkStore ?? BookmarkStore(defaults: defaults),
         home: home
     )
+}
+
+/// サイドバーの開閉要求を記録する。実物は AppKit のアニメーション完了を待たないと値が確定しないため、
+/// 「どの開閉が要求されたか」と「起点の窓の値」をここで測る。`sidebarCollapsible` は weak なので呼び出し側が保持する。
+@MainActor
+final class RecordingSidebarCollapsible: SidebarCollapsible {
+    private(set) var requests: [Bool] = []
+    var isSidebarCollapsed = false
+    var resolvedSidebarCollapsed = false
+
+    func setSidebarCollapsed(_ collapsed: Bool) {
+        requests.append(collapsed)
+    }
 }

@@ -96,7 +96,8 @@ struct SharedDependencyDefaultsTests {
             "headingJumpLevelDefaults: HeadingJumpLevelDefaults",
             "codeFontPreference: CodeFontPreference",
             "csvNumberFormatPreference: CsvNumberFormatPreference",
-            "perFileState: PerFileStateStore",
+            "zoomStore: ZoomStore",
+            "sidebarState: SidebarStateStore",
             "bookmarkStore: BookmarkStore",
         ]
         for member in expected {

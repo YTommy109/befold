@@ -11,7 +11,7 @@ final class DocumentCommandController {
     /// この窓の描画面の束。**宛先の決定はこの型が持つ**ので、ここでは種別を見ない
     /// (ADR 0002 段 2 の「条件は 1 箇所」を宛先にも適用する / TASK-564.6)。
     private let surfaces: DocumentSurfaces
-    private let perFileState: PerFileStateStore
+    private let zoomStore: ZoomStore
     /// 提示中の文書 URL への共有参照。rename/switch で書き換わるため値を捕捉せず都度参照する。
     private let currentDocument: CurrentDocumentRef
     /// いま何ができるか。判断は ViewerWindowController.capabilities が唯一の導出元で、
@@ -32,14 +32,14 @@ final class DocumentCommandController {
 
     init(
         surfaces: DocumentSurfaces,
-        perFileState: PerFileStateStore,
+        zoomStore: ZoomStore,
         currentDocument: CurrentDocumentRef,
         onZoomChanged: @escaping (Double) -> Void,
         onScrollPositionSaved: @escaping (Double, URL, ViewerBridge.ViewMode) -> Void,
         capabilities: @escaping () -> ViewerCapabilities = { .none }
     ) {
         self.surfaces = surfaces
-        self.perFileState = perFileState
+        self.zoomStore = zoomStore
         self.currentDocument = currentDocument
         self.onZoomChanged = onZoomChanged
         self.onScrollPositionSaved = onScrollPositionSaved
@@ -86,7 +86,7 @@ final class DocumentCommandController {
         guard capabilities().canZoom else { return }
         guard let newZoom = renderer.changeZoom(change) else { return }
         onZoomChanged(newZoom)
-        perFileState.zoom.setZoom(newZoom, for: currentDocument.url)
+        zoomStore.setZoom(newZoom, for: currentDocument.url)
     }
 
     func zoomIn() {

@@ -6,7 +6,7 @@ import Foundation
 ///
 /// `PathKeyedDictionary` を土台に載せ替えないのは、「メモリと UserDefaults の
 /// どちらが真実か」という新しい不変条件を作らないため。あちらは全ウィンドウ共有の
-/// `PerFileStateStore` が使う永続の器で、こちらは窓の生存期間だけの器。重なるのは
+/// `ZoomStore` などが使う永続の器で、こちらは窓の生存期間だけの器。重なるのは
 /// 辞書操作 3 行だけなので、共通化より分離を採る。
 struct PathKeyedTable<Value> {
     private var values: [String: Value] = [:]

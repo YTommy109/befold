@@ -22,7 +22,8 @@ struct AppStores {
     let headingJumpLevelDefaults = HeadingJumpLevelDefaults()
     let codeFontPreference = CodeFontPreference()
     let csvNumberFormatPreference = CsvNumberFormatPreference()
-    let perFileState = PerFileStateStore()
+    let zoomStore = ZoomStore(defaults: .standard)
+    let sidebarState = SidebarStateStore(defaults: .standard)
     /// 新しいウィンドウの出発点になる寸法。アプリ全体で 1 個(TASK-583)。
     let windowFrame = WindowFrameStore(defaults: .standard)
     /// 「最近使ったリポジトリ」メニューの階層化に使う worktree 一覧キャッシュ。
@@ -45,6 +46,9 @@ struct AppStores {
     ///
     /// `WindowFrames` はファイル単位のウィンドウ寸法(TASK-583 で廃止)。**移行しない**——
     /// 記録は実測 104 件あったが、そのどれを「アプリ全体で 1 個」の値に選ぶかに根拠が無い。
+    ///
+    /// `SidebarCollapsedStates` はファイル単位のサイドバー開閉(TASK-909 で廃止)。**移行しない**——
+    /// `WindowFrames` と同じ理由で、全体の値は `SidebarLastToggledCollapsed` に既にある。
     static func removeRetiredDisplayStateKeys(from defaults: UserDefaults) {
         for key in retiredDisplayStateKeys {
             defaults.removeObject(forKey: key)
@@ -59,5 +63,6 @@ struct AppStores {
         "ViewerSourceModes",
         "SourceDiffEnabled",
         "WindowFrames",
+        "SidebarCollapsedStates",
     ]
 }

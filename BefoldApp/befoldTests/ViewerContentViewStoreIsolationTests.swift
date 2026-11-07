@@ -32,10 +32,10 @@ struct ViewerContentViewStoreIsolationTests {
 
     private static let isolatedPaths = [contentViewPath, surfaceStackPath]
 
-    /// 参照を禁じる識別子。`perFileState` は 2 つのストアの入れ物なので、
+    /// 参照を禁じる識別子。`ZoomStore` は文書の状態の保存先なので、
     /// 束ねて渡す抜け道もここで塞ぐ。
     private static let forbiddenSymbols = [
-        "ZoomStore", "WindowPresentationMemory", "PerFileStateStore", "perFileState",
+        "ZoomStore", "WindowPresentationMemory",
     ]
 
     /// doc コメント・行コメントを除いたコード行。禁止語は doc コメントで

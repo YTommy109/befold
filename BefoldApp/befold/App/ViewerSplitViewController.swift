@@ -8,6 +8,9 @@ protocol SidebarCollapsible: AnyObject {
     func setSidebarCollapsed(_ collapsed: Bool)
     /// サイドバーが畳まれているか。⌘← の有効判定に使う（畳んでいるなら移り先が無い）。
     var isSidebarCollapsed: Bool { get }
+    /// 表示前も含めた、この窓の開閉状態。**表示前の窓では `isSidebarCollapsed` が初期値と
+    /// 食い違う**（初期値を当てるのが viewWillAppear のため）。窓の状態を別の窓へ引き継ぐときはこちらを読む。
+    var resolvedSidebarCollapsed: Bool { get }
 }
 
 final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitViewController {
@@ -91,10 +94,10 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
         sidebarItem.isCollapsed = initialCollapsed
     }
 
-    /// サイドバーの開閉。**開かせない窓ではここで止める**(TASK-593.2)。
+    /// 利用者の開閉操作。開閉したうえで保存値へ記録する。
     ///
-    /// `setSidebarCollapsed(_:)` もこれを呼ぶので、CLI の `--sidebar` と
-    /// `forceSidebarVisible` を含む**すべての開閉経路がこの 1 箇所を通る**。
+    /// **開かせない窓ではここで止める**(TASK-593.2)。`setSidebarCollapsed(_:)` も同じガードを
+    /// 持つので、CLI の `--sidebar` と `forceSidebarVisible` を含む**すべての開閉経路が止まる**。
     /// メニュー検証(⌘S の無効化)は利用者に押させないための表示側の手当てで、
     /// 実際に開かせない担保はこちら。
     ///
@@ -103,13 +106,18 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     /// (ADR 0002)は、別のガードではなくこの構造が担保している。
     override func toggleSidebar(_ sender: Any?) {
         guard allowsSidebar else { return }
+        performToggle(sender)
+        onCollapsedChange(sidebarItem.isCollapsed)
+    }
+
+    /// 開閉そのものと、開閉に伴うフォーカスの後始末。記録はしない。
+    private func performToggle(_ sender: Any?) {
         let wasCollapsed = sidebarItem.isCollapsed
         if Self.shouldAnimateSidebarToggle(in: view.window) {
             super.toggleSidebar(sender)
         } else {
             sidebarItem.isCollapsed.toggle()
         }
-        onCollapsedChange(sidebarItem.isCollapsed)
         if wasCollapsed, !sidebarItem.isCollapsed {
             // 開いた直後にサイドバー(アウトラインビュー)へフォーカスを移し、フォルダー名を
             // アクティブ(黒)表示にして矢印キー操作を可能にする(task-118)。フォーカス先の解決は
@@ -146,10 +154,15 @@ extension ViewerSplitViewController: SidebarCollapsible {
         sidebarItem.isCollapsed
     }
 
-    /// 望む開閉状態と現在が異なるときだけ toggleSidebar を再利用して切り替える。
-    /// これにより状態永続化(onCollapsedChange)とフォーカス移動の挙動を一本化する。
+    var resolvedSidebarCollapsed: Bool {
+        didForceInitialCollapse ? sidebarItem.isCollapsed : initialCollapsed
+    }
+
+    /// CLI とフォルダーオープンからの開閉。望む状態と現在が異なるときだけ切り替える。
+    /// **記録しない。** どちらもこの起動限りの指定で、利用者が操作した値ではない
+    /// (`SidebarDisplayState.applyCLIOverride` と同じ区別)。
     func setSidebarCollapsed(_ collapsed: Bool) {
-        guard sidebarItem.isCollapsed != collapsed else { return }
-        toggleSidebar(nil)
+        guard allowsSidebar, sidebarItem.isCollapsed != collapsed else { return }
+        performToggle(nil)
     }
 }

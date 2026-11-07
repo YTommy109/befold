@@ -140,8 +140,8 @@ self_test() {
   cat > "$tmp" <<'EOF'
 削除済みの例: `BookmarkShortcut.keyEquivalent(isSourceDiffEnabled:)`
 実在する例: `ModeSegments.symbol(for:isSideBySide:)`
-実在する init: `PerFileStateStore.init(defaults:)`
-存在しないラベルの init: `PerFileStateStore.init(nonexistentLabel:)`
+実在する init: `ZoomStore.init(defaults:)`
+存在しないラベルの init: `ZoomStore.init(nonexistentLabel:)`
 EOF
   local out
   out="$(FAILED=0; check_doc "$tmp" 2>&1 1>/dev/null || true)"

@@ -29,7 +29,8 @@ struct ViewerWindowDependencies {
     let headingJumpLevelDefaults: HeadingJumpLevelDefaults
     let codeFontPreference: CodeFontPreference
     let csvNumberFormatPreference: CsvNumberFormatPreference
-    let perFileState: PerFileStateStore
+    let zoomStore: ZoomStore
+    let sidebarState: SidebarStateStore
     let bookmarkStore: BookmarkStore
     /// サイドバーの上位フォルダー移動の上限(TASK-705)。本番値を指定するのは `ViewerWindowManagerFactory` だけ。
     let home: URL

@@ -66,7 +66,7 @@ struct MockedViewerWindowManager {
     let fileReader: InMemoryFileReader
     let sessionStore: SessionStore
     let recentDocumentsStore: RecentDocumentsStore
-    let perFileState: PerFileStateStore
+    let zoomStore: ZoomStore
     let windowFrame: WindowFrameStore
     let displayDefaults: SidebarDisplayDefaults
     /// 生成される全ウィンドウが共有する差分表示設定。機能ゲートに依存しないよう
@@ -119,7 +119,7 @@ struct MockedViewerWindowManager {
         self.fileReader = fileReader
         sessionStore = SessionStore(defaults: defaults)
         recentDocumentsStore = RecentDocumentsStore(defaults: defaults, noteSystemRecent: { _ in })
-        perFileState = PerFileStateStore(defaults: defaults)
+        zoomStore = ZoomStore(defaults: defaults)
         windowFrame = WindowFrameStore(defaults: defaults)
         displayDefaults = SidebarDisplayDefaults(defaults: defaults)
         let diffDisplayPreference = DiffDisplayPreference(defaults: defaults)
@@ -140,7 +140,7 @@ struct MockedViewerWindowManager {
             shared: makeViewerWindowDependencies(
                 defaults: defaults, displayDefaults: displayDefaults,
                 diffDisplayPreference: diffDisplayPreference,
-                perFileState: perFileState, bookmarkStore: bookmarkStore
+                zoomStore: zoomStore, bookmarkStore: bookmarkStore
             ),
             diffLoader: diffLoader,
             windowFrame: windowFrame,
@@ -158,5 +158,12 @@ struct MockedViewerWindowManager {
     /// テスト終了時にウィンドウを閉じる。openViewer した全テストで呼ぶこと。
     func closeAll() {
         manager.allControllers.forEach { $0.close() }
+    }
+}
+
+extension MockedViewerWindowManager {
+    /// 窓が書き込むものと同じ defaults を見る。保存値の実体は defaults だけなので別インスタンスでよい。
+    var sidebarState: SidebarStateStore {
+        SidebarStateStore(defaults: defaults)
     }
 }

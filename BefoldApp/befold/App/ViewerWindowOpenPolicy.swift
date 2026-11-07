@@ -69,7 +69,10 @@ enum ViewerWindowOpenPolicy {
     /// 新規ウィンドウのサイドバー初期開閉状態。
     ///
     /// 解決順: 種別 > CLI の明示指定(`--sidebar`/`--no-sidebar`) > フォルダーオープンに
-    /// よる強制表示 > 記憶の引き継ぎ。
+    /// よる強制表示 > 起点の窓の現在値(タブだけ) > 利用者が最後に操作した値。
+    ///
+    /// `sourceCollapsed` を必須にしてあるのは、起点を持つ経路が渡し忘れると、同じタブグループで
+    /// タブを切り替えるたびにサイドバーが開閉して見えるため(ADR 0002「窓の状態」)。
     ///
     /// **サイドバーを持たない種別は記憶を読まない**(TASK-593.2)。畳んでいることは種別の
     /// 帰結であって利用者の選択ではない(ADR 0002「窓の状態」)。`remembered` を
@@ -78,11 +81,12 @@ enum ViewerWindowOpenPolicy {
         kind: ViewerWindowKind,
         showSidebar: Bool?,
         forceSidebarVisible: Bool,
+        sourceCollapsed: Bool?,
         remembered: @autoclosure () -> Bool
     ) -> Bool {
         guard kind.allowsSidebar else { return true }
         if let showSidebar { return !showSidebar }
         if forceSidebarVisible { return false }
-        return remembered()
+        return sourceCollapsed ?? remembered()
     }
 }

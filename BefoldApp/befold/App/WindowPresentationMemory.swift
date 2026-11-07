@@ -18,8 +18,8 @@ import Foundation
 /// **`UserDefaults` を引数にも stored property にも持たない。** 永続化できないことを
 /// 型の依存で担保する。
 ///
-/// **永続化する表示状態（倍率・サイドバー開閉・ウィンドウフレーム）はここに入れない。**
-/// それらは内容に依存しないユーザーの意図なので `PerFileStateStore` 側が持つ。
+/// **永続化する表示状態（倍率など）はここに入れない。**
+/// それらは内容に依存しないユーザーの意図なので `ZoomStore` などの永続ストアが持つ。
 /// 新しい候補が出たら、どちらの寿命なのかを決めてから足すこと。
 ///
 /// 所有者は `ViewerDocumentPresenter`（窓ごとに 1 個）。`AppStores` から配ると
@@ -81,7 +81,7 @@ final class WindowPresentationMemory {
     }
 
     /// ファイルの rename / move に伴い、旧パスの記憶（位置 2 モード分・表示モード・回転）を
-    /// 新パスへ引き継ぐ。永続側の引き継ぎは `PerFileStateStore.migrate` が別に行う。
+    /// 新パスへ引き継ぐ。永続側の引き継ぎは `ZoomStore.migrateZoom` が別に行う。
     func migrate(from oldURL: URL, to newURL: URL) {
         renderedPositions.migrateValue(from: oldURL, to: newURL)
         sourcePositions.migrateValue(from: oldURL, to: newURL)

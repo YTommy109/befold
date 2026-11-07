@@ -18,7 +18,8 @@ enum ViewerWindowManagerFactory {
                 headingJumpLevelDefaults: stores.headingJumpLevelDefaults,
                 codeFontPreference: stores.codeFontPreference,
                 csvNumberFormatPreference: stores.csvNumberFormatPreference,
-                perFileState: stores.perFileState,
+                zoomStore: stores.zoomStore,
+                sidebarState: stores.sidebarState,
                 bookmarkStore: stores.bookmarkStore,
                 home: DirectoryLister.defaultHome
             ),

@@ -1,58 +1,28 @@
 import Foundation
 
-/// サイドバーの開閉状態をファイル(ウィンドウ)毎に UserDefaults へ永続化し、再起動後の復元と
-/// 新規ウィンドウのデフォルト値解決に使う。パスはシンボリックリンク解決後の絶対パスで正規化して保持する。
+/// サイドバー開閉の保存値。ADR 0002 の「窓の状態」で、アプリ全体に 1 つだけ持つ。
+///
+/// ライブ値は窓ごと(`ViewerSplitViewController`)にあり、ここは起点の窓が無い新規ウィンドウと
+/// 再起動後の初期値にしか使わない。書くのは利用者の開閉操作だけで、窓を開いただけでは
+/// 書かない。窓を開くたびに解決結果を書くと、利用者の選択ではない値が保存値を上書きする。
 @MainActor
 final class SidebarStateStore {
     private static let lastToggledKey = "SidebarLastToggledCollapsed"
 
     private let defaults: UserDefaults
-    private let collapsedStates: PathKeyedDictionary<Bool>
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
-        collapsedStates = PathKeyedDictionary(defaults: defaults, key: "SidebarCollapsedStates")
     }
 
-    /// 指定ファイルの保存済み開閉状態を返す。保存がなければ nil。
-    func isCollapsed(for url: URL) -> Bool? {
-        collapsedStates.value(for: url)
-    }
-
-    /// 指定ファイルの開閉状態を保存する。ウィンドウを開いた時点の解決結果を記録する用途で使い、
-    /// 「ユーザーが最後に操作した開閉状態」(lastToggledCollapsed)は書き換えない。
-    func setCollapsed(_ collapsed: Bool, for url: URL) {
-        collapsedStates.setValue(collapsed, for: url)
-    }
-
-    /// ユーザーがサイドバーを明示的に開閉操作したときに呼ぶ。ファイル単位の記録に加え、
-    /// 「ユーザーが最後に操作した開閉状態」としても記録する。
-    func recordToggle(_ collapsed: Bool, for url: URL) {
-        setCollapsed(collapsed, for: url)
+    /// 利用者がサイドバーを明示的に開閉したときに呼ぶ。
+    func recordToggle(_ collapsed: Bool) {
         defaults.set(collapsed, forKey: Self.lastToggledKey)
     }
 
-    /// ユーザーが最後に操作した開閉状態。未操作なら既定(閉じた状態 = true)。
+    /// 利用者が最後に操作した開閉状態。未操作なら既定(閉じた状態 = true)。
     var lastToggledCollapsed: Bool {
         guard defaults.object(forKey: Self.lastToggledKey) != nil else { return true }
         return defaults.bool(forKey: Self.lastToggledKey)
-    }
-
-    /// 新規ウィンドウの初期開閉状態を、
-    /// (1) このファイル自身の保存値 → (2) 直近アクティブだったウィンドウ(ファイル)の保存値 →
-    /// (3) ユーザーが最後に操作した開閉状態、の優先順で解決する。
-    func initialCollapsed(for url: URL, lastActivePathKey: String?) -> Bool {
-        if let saved = isCollapsed(for: url) { return saved }
-        if let lastActivePathKey,
-           let activeCollapsed = isCollapsed(for: URL(fileURLWithPath: lastActivePathKey))
-        {
-            return activeCollapsed
-        }
-        return lastToggledCollapsed
-    }
-
-    /// ファイルの rename / move に伴い、旧パスの開閉状態を新パスへ引き継ぐ。
-    func migrateCollapsed(from oldURL: URL, to newURL: URL) {
-        collapsedStates.migrateValue(from: oldURL, to: newURL)
     }
 }

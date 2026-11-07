@@ -140,7 +140,7 @@ final class ScrollSaveRecorder {
 @MainActor
 func makeDocumentCommandController(
     renderer: FakeDocumentRenderer,
-    perFileState: PerFileStateStore? = nil,
+    zoomStore: ZoomStore? = nil,
     zoomChanges: ZoomChangeRecorder = ZoomChangeRecorder(),
     scrollSaves: ScrollSaveRecorder = ScrollSaveRecorder(),
     capabilities: @escaping () -> ViewerCapabilities = { .allEnabledForTesting }
@@ -153,7 +153,7 @@ func makeDocumentCommandController(
             webRenderer: renderer,
             findOptions: FindOptionsPreference(defaults: defaults)
         ),
-        perFileState: perFileState ?? PerFileStateStore(defaults: defaults),
+        zoomStore: zoomStore ?? ZoomStore(defaults: defaults),
         currentDocument: CurrentDocumentRef(
             store: ViewerStore(defaults: defaults), initialURL: documentCommandTestURL
         ),

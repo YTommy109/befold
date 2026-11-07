@@ -19,8 +19,8 @@ import Foundation
 final class ViewerDocumentPresenter {
     /// 表示状態の唯一の真実の源。
     private let store: ViewerStore
-    /// ファイル毎の永続表示状態（倍率・サイドバー開閉・ウィンドウフレーム）。全ウィンドウ共有。
-    private let perFileState: PerFileStateStore
+    /// ファイル毎の永続表示状態（倍率）。全ウィンドウ共有。
+    private let zoomStore: ZoomStore
     /// この窓の生存期間だけのファイル単位の記憶（スクロール位置・表示モード）。
     /// **窓ごとに 1 個をここが所有する。** 外から注入しないのは、共有インスタンスを
     /// 渡す経路をそもそも作らないため（`WindowPresentationMemory` の doc 参照）。
@@ -49,7 +49,7 @@ final class ViewerDocumentPresenter {
 
     init(
         store: ViewerStore,
-        perFileState: PerFileStateStore,
+        zoomStore: ZoomStore,
         documentCommands: DocumentCommandController,
         currentDocument: CurrentDocumentRef,
         canSelect: @escaping (ViewerDisplayMode) -> Bool,
@@ -58,7 +58,7 @@ final class ViewerDocumentPresenter {
         refreshGitStatuses: @escaping () -> Void
     ) {
         self.store = store
-        self.perFileState = perFileState
+        self.zoomStore = zoomStore
         self.documentCommands = documentCommands
         self.currentDocument = currentDocument
         self.canSelect = canSelect
@@ -90,7 +90,7 @@ final class ViewerDocumentPresenter {
     /// （引き継ぐのは保存値ではなくライブ値。表示モードが同じ理由で読まない = TASK-369）。
     /// スクロール位置のキーは(パス, モード)粒度なので、表示モード確定後に呼ぶこと。
     func beginPresentingDocument(at url: URL) {
-        store.zoom = perFileState.zoom.zoom(for: url)
+        store.zoom = zoomStore.zoom(for: url)
         store.scrollPositionToRestore = restoredScrollPosition(for: url, isSourceMode: store.isSourceMode)
         store.pdfRotation = presentationMemory.rotation(for: url)
     }
@@ -135,7 +135,7 @@ final class ViewerDocumentPresenter {
         if url.normalizedPathKey == currentDocument.url.normalizedPathKey {
             store.zoom = zoom
         }
-        perFileState.zoom.setZoom(zoom, for: url)
+        zoomStore.setZoom(zoom, for: url)
     }
 
     /// 面を 90 度単位で回し、回した結果(ファイル自身の向きに足した角度)をライブ値へ追随させる。
@@ -156,7 +156,7 @@ final class ViewerDocumentPresenter {
     }
 
     /// ファイルの rename / move に伴い、この窓の記憶を新パスへ引き継ぐ。
-    /// 永続側（倍率・サイドバー・フレーム）の引き継ぎは `PerFileStateStore.migrate` が行う。
+    /// 永続側（倍率）の引き継ぎは `ZoomStore.migrateZoom` が行う。
     func migratePresentationMemory(from oldURL: URL, to newURL: URL) {
         presentationMemory.migrate(from: oldURL, to: newURL)
     }
