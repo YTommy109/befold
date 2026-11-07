@@ -25,20 +25,31 @@ final class DocumentOpener {
         self.activeBlankTab = activeBlankTab
     }
 
-    /// Quick Open・Open Recent・ブックマークなど UI から開く経路の入口。手前が空タブならそれを
-    /// 置き換える。Finder と CLI(`openSequentially`)は外部からの要求なので置き換えない。
-    /// 指定 URL のファイルをビューアウィンドウで開く(DocumentController・Recent メニューからも呼ばれる)。
-    /// ディレクトリが渡された場合は、フォルダー内最初のファイルを開く(CLI シム経由の想定)。
-    /// 拡張子を問わずウィンドウは開かれ、未対応の内容ならビューア側でプレースホルダー表示する。
-    /// - Parameter focusesContent: 開いたあとキーボードのフォーカスを本文へ置くか。
-    ///   **契機を知っているのは呼び出し元**なので、ここは受け取るだけにする。
-    ///   CLI と Quick Open は true（サイドバーを操作して開いたわけではない）。
-    ///   サイドバー由来のオープンは false のままで、フォーカスはサイドバーに残る（TASK-581）。
-    func openViewer(for url: URL, focusesContent: Bool = false) {
+    /// Open Recent・ブックマーク・DocumentController など、記憶済みのリストから開く入口。
+    ///
+    /// 既にどこかの窓で開いていればその窓を前面に出す(手前が文書タブでも空タブでも同じ結果に
+    /// する。空タブは残す)。開いていなければ手前の空タブを置き換える。ディレクトリが渡された
+    /// 場合は、フォルダー内最初のファイルを開く。拡張子を問わずウィンドウは開かれ、未対応の内容
+    /// ならビューア側でプレースホルダー表示する。フォーカスは本文へ移さない(本文へ移す
+    /// Quick Open と CLI はそれぞれ `openInActiveTab` と `openPaths` を通る)。
+    @discardableResult
+    func openViewer(for url: URL) -> Task<Void, Never> {
+        openFromInterface(url, focusesContent: false, prefersExistingWindow: true)
+    }
+
+    /// Quick Open の入口。手前のタブで開く。文書タブの Quick Open が別の窓の同じファイルを前面に
+    /// 出さずに手前で切り替えるのと同じ規則で、手前が空タブならそれを置き換える。
+    @discardableResult
+    func openInActiveTab(_ url: URL) -> Task<Void, Never> {
+        openFromInterface(url, focusesContent: true, prefersExistingWindow: false)
+    }
+
+    private func openFromInterface(_ url: URL, focusesContent: Bool, prefersExistingWindow: Bool) -> Task<Void, Never> {
         let blankWindow = activeBlankTab()?.window
-        Task {
+        return Task {
             await openViewer(
-                for: url, options: CLIOpenOptions(), relativeTo: blankWindow, focusesContent: focusesContent
+                for: url, options: CLIOpenOptions(), relativeTo: blankWindow, focusesContent: focusesContent,
+                prefersExistingWindow: prefersExistingWindow
             )
         }
     }
@@ -149,13 +160,18 @@ final class DocumentOpener {
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
         disposition: OpenDisposition = .currentTab, placement: NewTabPlacement = .end,
-        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false, allowsDirectories: Bool = true
+        relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false, allowsDirectories: Bool = true,
+        prefersExistingWindow: Bool = false
     ) async -> ViewerWindowController? {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }
+        // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。起点が閉じていても
+        // 要求を捨てないよう、閉じた起点の判定より前に決める。
+        let reusesExisting = prefersExistingWindow && resolved.target.map(windowManager.hasReusableWindow(for:)) == true
         // 解決を待つ間に、起点の空タブが別の要求で文書へ置き換わることがある(続けたドロップ)。
-        let (disposition, sourceWindow) = ViewerWindowOpenPolicy.retargeted(disposition, relativeTo: sourceWindow)
+        let (disposition, sourceWindow) = reusesExisting
+            ? (.currentTab, nil) : ViewerWindowOpenPolicy.retargeted(disposition, relativeTo: sourceWindow)
         if let sourceWindow, !windowManager.containsOpenWindow(sourceWindow) { return nil }
         let isDirectory = resolved.isDirectory
         if isDirectory, !allowsDirectories { return nil }

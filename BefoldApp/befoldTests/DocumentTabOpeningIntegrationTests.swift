@@ -152,4 +152,53 @@ struct DocumentTabOpeningIntegrationTests {
         #expect(paths == Set([origin, firstDrop, secondDrop].map(\.normalizedPathKey)))
         #expect(fixture.manager.blankTabs.controllers.isEmpty)
     }
+
+    /// Open Recent とブックマークは、手前のタブの種類に関わらず既存の窓を前面に出す(TASK-916)。
+    /// Quick Open は手前のタブで開く規則なので、別の窓で開いていても空タブを置き換える。
+    @Test("別の窓で開いているファイルは、記憶済みのリストからなら既存の窓を出し、Quick Open なら空タブを置き換える", testTimeLimit(), arguments: [true, false])
+    func fileOpenElsewhereFollowsRoute(fromRecent: Bool) async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let elsewhere = try tmp.file(named: "elsewhere.md", contents: "fixture")
+        let fixture = MockedViewerWindowManager(files: [origin, elsewhere])
+        defer { fixture.closeAll() }
+        let other = try #require(fixture.manager.openViewer(for: elsewhere, disposition: .newWindow)?.window)
+        let source = try #require(fixture.manager.openViewer(for: origin, disposition: .newWindow)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { blank })
+
+        let opening = fromRecent ? opener.openViewer(for: elsewhere) : opener.openInActiveTab(elsewhere)
+        await opening.value
+
+        let copies = fixture.manager.controllers[elsewhere.normalizedPathKey]?.count
+        #expect(copies == (fromRecent ? 1 : 2))
+        #expect(blank.isClosed == !fromRecent)
+        withExtendedLifetime(other) {}
+    }
+
+    /// 1 回目が空タブを置き換えた後、2 回目は置き換えた文書を起点に読み替えられる。そのとき
+    /// 既存の窓を出す判定が起点だけ外して要求を新しいタブのまま残すと、重複した窓が開く。
+    @Test("空タブで同じ項目を続けて選んでも、重複した窓やタブが開かない", testTimeLimit())
+    func repeatedRecentOpenDoesNotDuplicate() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let origin = try tmp.file(named: "origin.md", contents: "fixture")
+        let chosen = try tmp.file(named: "chosen.md", contents: "fixture")
+        let fixture = MockedViewerWindowManager(files: [origin, chosen])
+        defer { fixture.closeAll() }
+        let source = try #require(fixture.manager.openViewer(for: origin)?.window)
+        let blank = fixture.manager.blankTabs.open(relativeTo: source)
+        defer { blank.close() }
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { blank })
+
+        let first = opener.openViewer(for: chosen)
+        let second = opener.openViewer(for: chosen)
+        await first.value
+        await second.value
+
+        #expect(fixture.manager.controllers[chosen.normalizedPathKey]?.count == 1)
+        #expect(source.tabGroup?.windows.count == 2)
+    }
 }
