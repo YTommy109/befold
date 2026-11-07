@@ -1,6 +1,6 @@
 ---
 name: backlog-hygiene-reviewer
-description: befold の CLAUDE.md で定めた Issue Tracking の使い分け・コミット粒度・backlog タスクの運用ルール（priority と依存・タスクファイルのコミット）に、直前の作業が沿っているかをレビューする。PR 作成前や作業の区切りで使う。
+description: befold の CLAUDE.md で定めた Issue Tracking の使い分け・コミット粒度・backlog タスクの運用ルール（priority と依存）に、直前の作業が沿っているかを意味の面からレビューする。`scripts/check-backlog-hygiene.sh` が要判定を出したとき、またはユーザーが依頼したときに使う。機械的な検査だけならスクリプトで足りるので起動しない。
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -24,21 +24,20 @@ tools: Read, Grep, Glob, Bash
 
 ## 手順
 
-1. `git log` で直近のコミット群（未 push、または今回のセッションで作成した範囲）
-   を確認する。
+1. `scripts/check-backlog-hygiene.sh` を実行する。未コミットの `backlog/` 変更と
+   priority の欠落はこの違反として報告し、自分で調べ直さない。以降は「要判定」の
+   項目と、ユーザーから依頼された範囲を見る。
 2. 各コミットについて、コミットメッセージと差分内容から
    「ユーザー視点の不具合・要望」か「開発側都合の内部作業」かを判定し、
    対応する Issue/backlog タスクが正しい方に作成されているか
    （`gh issue list` / `backlog task list` で突き合わせる）を確認する。
 3. 連続するコミットが論理的に同じ作業なのに別コミットに分かれていないか、
    逆に無関係な変更が `--amend` で1つのコミットに混ざっていないかを
-   `git log --oneline` と各コミットの diff から判定する。ただし push 済みの
-   コミットへの amend は既に禁止行為なので、push 済みかどうかを
-   `git log origin/HEAD..HEAD` で必ず確認してから指摘する。
+   `git log --oneline` と各コミットの diff から判定する。push 済みのコミットへの
+   amend は既に禁止行為なので、スクリプトが未 push として数えた範囲だけを指摘する。
 4. 今回のセッションで新規作成・更新した backlog タスクがあれば、priority が重要度に
    見合っているか、着手順の制約が `--dep` で表されているか（ordinal で表そうとして
-   いないか）を確認する。`git status` で `backlog/` 配下が未コミットで残って
-   いないかを見る。起票と実装が同じコミットにあることは違反ではない。
+   いないか）を確認する。起票と実装が同じコミットにあることは違反ではない。
 
 ## 出力
 
