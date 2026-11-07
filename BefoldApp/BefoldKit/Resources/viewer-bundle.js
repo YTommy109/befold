@@ -16808,6 +16808,9 @@
   }
   function _mmdWrapDiagrams(diagramWrap) {
     diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
+      if (el.closest(".diagram-zoom-wrap")) {
+        return;
+      }
       var wrap = document.createElement("div");
       wrap.className = "diagram-zoom-wrap";
       wrap.dataset.diagramIndex = String(i);
