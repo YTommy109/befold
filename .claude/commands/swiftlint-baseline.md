@@ -62,4 +62,4 @@ echo "=== 解消したもの ==="; comm -23 "$SCRATCH/n-main.txt" "$SCRATCH/n-he
   上記のプラグイン同梱バイナリを直接呼ぶ（`.build` が無ければ先に `swift build`）
 - 行番号がずれただけの差分を除くため `sed` で正規化してから diff する
 - swiftformat と衝突する指摘は手で往復せず、先に swiftformat の fix モードを回す
-  （`.claude/CLAUDE.md` の Swift コーディング規約を参照）
+  （`.claude/rules/swift.md` を参照）

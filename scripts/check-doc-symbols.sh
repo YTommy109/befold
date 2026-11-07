@@ -21,8 +21,8 @@ ROOT="$(git rev-parse --show-toplevel)"
 SOURCE_DIR="$ROOT/BefoldApp"
 ALLOWLIST="$ROOT/scripts/doc-symbol-allowlist.txt"
 
-# 既定の検査対象は「規約文書」= リポジトリ直下と .claude の CLAUDE.md。
-DEFAULT_DOCS=("$ROOT/CLAUDE.md" "$ROOT/.claude/CLAUDE.md")
+# 既定の検査対象は「規約文書」= リポジトリ直下と .claude の CLAUDE.md、.claude/rules の各ルール。
+DEFAULT_DOCS=("$ROOT/CLAUDE.md" "$ROOT/.claude/CLAUDE.md" "$ROOT"/.claude/rules/*.md)
 
 command -v rg > /dev/null 2>&1 || { echo "エラー: rg (ripgrep) が必要です" >&2; exit 1; }
 

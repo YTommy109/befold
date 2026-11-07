@@ -1,3 +1,8 @@
+---
+description: /bump — バージョン bump & リリースタグ
+disable-model-invocation: true
+---
+
 # /bump — バージョン bump & リリースタグ
 
 引数: $ARGUMENTS（patch | minor | major | dev）

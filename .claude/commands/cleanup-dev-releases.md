@@ -1,3 +1,8 @@
+---
+description: /cleanup-dev-releases — 古い dev リリースの一括削除
+disable-model-invocation: true
+---
+
 # /cleanup-dev-releases — 古い dev リリースの一括削除
 
 引数: $ARGUMENTS（しきい値バージョン、例: `1.19.0`。`--dry-run` を先頭に付けると削除せず対象一覧のみ表示）

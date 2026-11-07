@@ -13,6 +13,7 @@
     "docs/dev/**/*.md",
     // Claude Code が読み込む指示ファイル群（手書き管理）
     ".claude/agents/*.md",
+    ".claude/rules/*.md",
     ".claude/commands/*.md",
     ".claude/skills/**/*.md",
     "site/**/*.md"

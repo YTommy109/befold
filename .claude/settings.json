@@ -29,6 +29,10 @@
       "mcp__dagayn__architecture_analysis_tool",
       "Read(/private/tmp/claude-501/**)",
       "Read(/Users/tokutomi/.claude/projects/*/memory/**)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.dev.vars)"
     ]
   },
   "hooks": {
@@ -42,7 +46,12 @@
           },
           {
             "type": "command",
-            "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&(' '\\n\\n\\n\\n' | grep -qE '^[[:space:]]*(rtk[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash([[:space:])]|$)' && ! printf '%s' \"$c\" | grep -qE 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash[[:space:]]+(list|show)'; then echo 'BLOCK: git stash は worktree 間で共有されるため、別セッションの stash を pop する事故が起きます（.claude/CLAUDE.md の swiftlint 節）。退避はスクラッチパッドへコピー、main 側の取得は git archive origin/main | tar -x -C <スクラッチパッド> を使ってください' >&2; exit 2; fi"
+            "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&(' '\\n\\n\\n\\n' | grep -qE '^[[:space:]]*(rtk[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash([[:space:])]|$)' && ! printf '%s' \"$c\" | grep -qE 'git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+stash[[:space:]]+(list|show)'; then echo 'BLOCK: git stash は worktree 間で共有されるため、別セッションの stash を pop する事故が起きます（.claude/rules/swift.md の swiftlint 節）。退避はスクラッチパッドへコピー、main 側の取得は git archive origin/main | tar -x -C <スクラッチパッド> を使ってください' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "c=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$c\" | tr ';|&(' '\\n\\n\\n\\n' | grep -qE '^[[:space:]]*(rtk[[:space:]]+)?git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:])]|$)'; then \"${CLAUDE_PROJECT_DIR:-.}/scripts/check-type-group-size.sh\" --check >&2 || { echo 'BLOCK: 型グループの検査に失敗しました（CI でも落ちます）。上の出力に従って直してから push してください' >&2; exit 2; }; fi",
+            "statusMessage": "型グループのサイズ検査 (git push 前)"
           }
         ]
       },
@@ -127,7 +136,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "m=\"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build/.claude-swift-dirty\"; [ -f \"$m\" ] || exit 0; rm -f \"$m\"; cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; }",
+            "command": "m=\"${CLAUDE_PROJECT_DIR:-.}/BefoldApp/.build/.claude-swift-dirty\"; [ -f \"$m\" ] || exit 0; rm -f \"$m\"; cd \"${CLAUDE_PROJECT_DIR:-.}/BefoldApp\" && { out=$(swift test --skip Integration --skip FileWatcherTests --skip PDF 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }; }",
             "statusMessage": "swift test (unit、このターンで Swift を編集した場合のみ)",
             "timeout": 300
           }
