@@ -317,6 +317,10 @@ function _mmdBuildDiagramControls(wrap: HTMLElement): HTMLElement {
 // （mermaid.run() 完了後）に呼ぶこと。
 function _mmdWrapDiagrams(diagramWrap: HTMLElement): void {
   diagramWrap.querySelectorAll<HTMLElement>('.mermaid').forEach(function (el, i) {
+    // 追記で既存の図を包み直すとズームが多重にかかる。全図の順番は倍率のキーに保つ。
+    if (el.closest('.diagram-zoom-wrap')) {
+      return;
+    }
     var wrap = document.createElement('div');
     wrap.className = 'diagram-zoom-wrap';
     wrap.dataset.diagramIndex = String(i);
