@@ -22,10 +22,13 @@
    - コミットが 0 件の場合は、未コミットの変更を先にコミットしてよいかユーザーに確認する
    - **マージ済みの作業が混ざっていないこと**を確認する。混ざったまま PR を作ると、
      差分に無関係なパスが入って `on.paths` に一致し、CI が余分に走る
-3. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
-4. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
-5. 対応する backlog タスクの `References` に GitHub Issue の URL が記載されていれば、その Issue 番号を控える（`backlog task view <ID> --plain` で確認）
-6. `gh pr create --label <type> --assignee YTommy109` で PR を作成し、URL を報告する
+3. `scripts/check-backlog-hygiene.sh` を実行する
+   - **違反**（終了コード 1）は直してから進む
+   - **要判定**が出たら `backlog-hygiene-reviewer` に渡し、指摘を確認する。何も出なければ起動しない
+4. 未 push のコミットがあれば `git push -u origin <ブランチ名>` する
+5. PR タイトルの Conventional Commits type（`feat` / `fix` / `chore` / `refactor` / `docs` / `test` / `ci` / `perf`）に対応するラベルを 1 つ選ぶ
+6. 対応する backlog タスクの `References` に GitHub Issue の URL が記載されていれば、その Issue 番号を控える（`backlog task view <ID> --plain` で確認）
+7. `gh pr create --label <type> --assignee YTommy109` で PR を作成し、URL を報告する
 
 Issue 番号が見つかった場合、本文の「概要」節の直後に `Closes #<番号>`（複数あれば `Closes #A, Closes #B` のように列挙）を必ず入れる。マージ時に GitHub が自動で Issue をクローズするため、Final Summary や検証節への言及だけで済ませない。
 

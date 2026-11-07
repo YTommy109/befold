@@ -16,6 +16,7 @@ on:
       - 'scripts/worktree-clean.sh'
       - 'scripts/lib/branch-completion.sh'
       - 'scripts/test-watchdog.sh'
+      - 'scripts/check-backlog-hygiene.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -35,6 +36,7 @@ on:
       - 'scripts/worktree-clean.sh'
       - 'scripts/lib/branch-completion.sh'
       - 'scripts/test-watchdog.sh'
+      - 'scripts/check-backlog-hygiene.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -108,7 +110,7 @@ jobs:
             exit 0
           fi
           files=$(printf '%s' "$compare" | jq -r '.files[]?.filename')
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-no-home-test-dirs\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh|worktree-clean\.sh|lib/branch-completion\.sh|test-watchdog\.sh)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-no-home-test-dirs\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh|worktree-clean\.sh|lib/branch-completion\.sh|test-watchdog\.sh|check-backlog-hygiene\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -165,6 +167,11 @@ jobs:
       # 未プッシュコミットを持つブランチが [gone] でも残ること(TASK-905)。
       - name: worktree-clean の削除対象の self-test を通す
         run: scripts/worktree-clean.sh --self-test
+
+      # /pr が backlog-hygiene-reviewer を起動するかをこの判定で決めるので、
+      # 判定が壊れて違反も要判定も出なくなった状態を防ぐ。
+      - name: backlog 運用の機械検査の self-test を通す
+        run: scripts/check-backlog-hygiene.sh --self-test
 
       # 終了コード 2 は「不要になった恒久例外が残っている」。判定が緩むのはその 1 グループ
       # だけで、返済した側を赤くするのは筋が悪いのでここでは落とさず警告に留める。

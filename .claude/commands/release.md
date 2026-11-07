@@ -1,5 +1,7 @@
 ---
+description: /release — バージョン bump & GitHub リリース作成
 argument-hint: patch | minor | major | dev
+disable-model-invocation: true
 ---
 
 # /release — バージョン bump & GitHub リリース作成

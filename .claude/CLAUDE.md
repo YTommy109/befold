@@ -94,102 +94,21 @@ SPM がディレクトリを走査するため通ってしまい、`.app` バン
 配下の別バンドルと**混在させない**——同一セッションで両方を起動すると、どちらを見て
 いるのか分からなくなる。
 
-## JS/TS コーディング規約（Oxlint / Oxfmt）
+## パス別の規約（`.claude/rules/`）
 
-方針は **リポジトリルートの `.oxlintrc.json` と `.oxfmtrc.json` が単一の情報源**。
-`site/.oxlintrc.json` と `BefoldApp/.oxlintrc.json` がそれを `extends` して、
-検査対象（`ignorePatterns`）と面ごとの緩和だけを持つ。
+次の節は `.claude/rules/` へ移した。該当するファイルを Read / Edit すると自動で読み込まれる。
+ファイルに触る前に方針を決めるとき（設計・レビュー）は、先に該当するルールを読むこと。
 
-- カテゴリは correctness / suspicious / perf / pedantic を error。style と
-  restriction は入れない（`no-magic-numbers`・`sort-keys`・`no-null` のように、
-  このコードベースが意図して選んでいる書き方を否定するため）
-- **ルールを個別に無効化するときは必ず理由を書く。** 理由の無い無効化は、次に
-  そのルールが必要になったときに「意図して外したのか、たまたま鳴って外したのか」を
-  区別できなくする。設定ファイル内の既存の無効化はすべて理由つきになっている
-- **`viewer-src/` は全モジュールが TypeScript（TASK-499）。** TASK-498 で入れていた
-  暫定緩和の override は撤去済みで、`BefoldApp/.oxlintrc.json` に残る**緩和**は
-  `no-underscore-dangle`（`_mmd` 接頭辞が Swift との契約）と
-  `prefer-query-selector`（`getElementById` は意図した選択）の 2 つだけ。
-  どちらも移行と無関係な恒久的な選択で、TS 化しても消えない。
-  `viewer-src/**` にはもう 1 つ override があるが、そちらは緩和ではなく
-  **type-aware ルールの再有効化**（TASK-508。下の `no-unsafe-*` の項を参照）
-- **`site/` と `BefoldApp/` の両方で型情報を使う lint（`oxlint --type-aware`）を回している。**
-  目的はどちらも `no-floating-promises` / `no-misused-promises` / `await-thenable` の
-  3 つ。site/ は await し忘れた D1 書き込みがリクエスト終了で黙って消えるため（TASK-505）、
-  BefoldApp/ は描画の完了を待たない Promise が「たまに古い内容が残る」形で出るため
-  （TASK-499）。導入時の実測で viewer-src の 2 箇所が引っかかり、どちらも意図した
-  fire-and-forget だったので `void` を置いて明示した
-- **`no-unsafe-*` はプロジェクトレベルでは両面とも off。** BefoldApp の
-  `no-unsafe-*` は実測（TASK-623.4、2026-09-15）で viewer-src 0 件・`viewer-test` 47 件・
-  `scripts/*.mjs` 94 件。viewer-test はテストも support もすべて .ts（TASK-623）で、
-  残る 47 件のうち 39 件は `no-unsafe-type-assertion`（DOM の取得結果やブリッジの
-  payload を `as` で絞る書き方）。scripts は型情報の無い .mjs で、その TS 化は別の判断。
-  件数のある面で error にしないため、プロジェクトレベルでは off にする
-- **プロジェクトレベルの off の一覧は `site/.oxlintrc.json` と
-  `BefoldApp/.oxlintrc.json` で揃える**（片方だけ緩めると、どちらの面が厳しいのか
-  分からなくなる）。一方で、**型情報が揃っているディレクトリでの再有効化は
-  override 側で行い、両面で揃えない**。実際 `BefoldApp/viewer-src/**` では
-  `no-unsafe-*` ほか 12 ルールを error に戻してあるが（TASK-508）、site/ は外部
-  JSON（GitHub API・Access の JWKS）を any から絞る箇所で `no-unsafe-*` が
-  100 件超残るため同じことができない。**override へルールを足すときは、その
-  ディレクトリでの実測件数を必ずコメントに書く**。件数のあるルールを持ち込むと、
-  override が「直すべき指摘の置き場」に変わってしまう
-- 整形のセミコロンは面ごとに違う（`site/` は無し、`BefoldApp/` は有り）。
-  どちらも既存の慣習をそのまま固定したもので、揃えようとしない
-- oxfmt の対象は **JS/TS だけ**。Markdown は markdownlint-cli2 が持っている
-  （既定のままだと oxfmt が backlog と docs の .md 812 件まで書き換える）
-- CI（`ci.yml` の js-test / `site.yml` の test）と pre-commit（`scripts/oxc-lint.sh`）の
-  両方で落とす。lint も整形もその場で機械的に直せるので、警告に留めない
+| 節 | 置き場 | 読み込まれる条件 |
+|---|---|---|
+| JS/TS コーディング規約（Oxlint / Oxfmt） | `.claude/rules/js-ts.md` | JS/TS・oxlint/oxfmt の設定ファイル |
+| Swift コーディング規約 | `.claude/rules/swift.md` | `.swift` / `.xcstrings` |
+| UserDefaults キーの廃止・改名 | `.claude/rules/userdefaults.md` | `.swift` |
 
-## Swift コーディング規約
+理由: 3 節で本ファイルの約 3 分の 1 を占め、サイトだけ・文書だけの作業でも毎回読み込まれていた。
 
-- Swift 6 strict concurrency（`SWIFT_STRICT_CONCURRENCY: complete`）
-- `@MainActor @Observable` を ViewerStore に使用
-- FileWatcher は `@unchecked Sendable`（内部 GCD キューでスレッド安全性を保証）
-- UI コンポーネントは SwiftUI、ウィンドウ管理は AppKit（NSWindowController）
-- 複数行にまたがる `if` / `guard` の条件は、`guard ... else { return }` の 1 行化か
-  ヘルパー抽出で避ける。swiftformat が `{` を独立行へ送り、swiftlint の `opening_brace` が
-  新規警告になる（両者の設定が衝突する箇所であり、どちらかを直すと他方が鳴る）
-- **swiftformat と swiftlint が逆を要求したら、手で整形して往復しない。**
-  多行コレクションの trailing comma・brace 位置などで両者の指摘が衝突する。
-  `cd BefoldApp && swift package plugin --allow-writing-to-package-directory swiftformat`
-  （fix モード）を回して機械に決めさせ、その結果に対して swiftlint 差分を測る。
-  それでも swiftlint が鳴る構文は、リテラル・多行条件そのものを避ける形に書き換える
-  （1 行に収める / 変数へ分解する / ヘルパーへ抽出する）
-  - **編集ごとの PostToolUse フックは一部ターゲットしか lint しない**（`befold` /
-    `befoldTests` が含まれず、コミット時の全ターゲット実行で初めて落ちる）。
-    コミット前に上記コマンドを 1 回流し、`-- --lint` でゼロ件を確認してから commit する
-- swiftlint は警告の絶対数では判定できない（main 時点でも既存の警告が数十件ある）。
-  変更前後で一覧を取り、**main とのベースライン差分がゼロ**であることを確認する
-  - **手順は `/swiftlint-baseline` にまとめてある。まずこれを使う。**
-    以下はその中身の説明であって、手で組み直すための手順書ではない
-    （手で組んで 1 回目を誤った実績がある）
-  - swiftlint は `Package.swift` の `SwiftLintPlugins` がビルド時に実行するもので、
-    単体ではインストールされていない（`brew install` すると CI とバージョンがずれる）。
-    手元で一覧を取るにはプラグイン同梱のバイナリを直接呼ぶ:
-    `(cd BefoldApp && .build/artifacts/swiftlintplugins/SwiftLintBinary/SwiftLintBinary.artifactbundle/macos/swiftlint lint --quiet)`
-    **必ず `BefoldApp/` を CWD にする。** swiftlint は CWD 配下を走査するため、
-    リポジトリルートで実行すると `.build` の生成物まで数えて実測 15,910 件になる
-    （正しくは 54 件）。件数が 2 桁違うので気づけるが、気づかなければ差分ゼロの判定が壊れる
-  - **ベースライン（main 側）を取るのに `git stash` を使わない。** stash は worktree 間で
-    共有されるため、作業ツリーが clean だと `git stash push -u` が何も退避せず、続く
-    `git stash pop` が**別のセッション・別プロジェクトの stash** を取り出して
-    コンフリクトさせる。`git archive origin/main | tar -x -C <スクラッチパッド>` で
-    別ディレクトリへ展開し、そちらで測る
-- **機能を足すと既存ファイルが `file_length` / `type_body_length` /
-  `cyclomatic_complexity` を超えることがある。** 閾値を緩めるのではなく、
-  `Type+Feature.swift` の extension へ分割する（前例: `SidebarNavigator+FolderNavigation`、
-  `MainMenuBuilder+ViewMenu`、`FileListModel+Snapshot`。
-  テストは `DirectoryListerAppendingOpenFileTests` が同じ理由で分かれている）
-  - **Swift の `private` はファイルスコープ**なので、分割した extension からは
-    参照できない。移すメソッド本体だけでなく、**それが触る stored property・
-    ヘルパーも internal へ上げる**必要がある。上げたものには
-    「外から呼んでよいのはどれか」を doc コメントで明示して補う
-    （実測: TASK-361 の分割 6 回のうち 3 回、この取りこぼしでビルドを往復した）
-  - 分割は新規ファイルの追加なので `xcodegen generate` を忘れない
-- **`Localizable.xcstrings` に文字列を追加するときはキー順にソートし直さない。**
-  Xcode の出力は厳密なキー順ではないため、sort すると 200 行超の無関係な並べ替え差分が出る。
-  既存の並び順を保ち、近縁キー（同じ prefix のもの）の直後に挿入する
+サブエージェントを worktree で動かす場合など、パス条件が効くかが不確かなときは、
+プロンプトで該当するルールファイルを読むよう指示する。
 
 ## 知識グラフ（dagayn）の Swift での限界
 
@@ -299,45 +218,6 @@ bug 7 件のうち 5 件（71%）は設計文の突き合わせで導ける型�
 確定漏れ（TASK-320 → 334 → 336）は、列挙式判定・await 前確定・中断時の記録漏れと
 形を変えて再発し、部分更新オーバーロードの撤去で終息した。どちらも 2 件目の時点で
 構造対策へ切り替えていれば 3 件目は生まれていない（計 2 件が防げた）。
-
-## UserDefaults キーの廃止・改名
-
-永続化キーを消す・改名する・意味を変える（値の型や粒度を変える、app-global を
-per-file へ移す等）変更では、**キーの読み手を消した時点で移行の可否を確定させる**。
-書き手だけを新キーへ差し替えて旧キーを放置すると、ビルドは通り、テストも通り、
-既存ユーザーの設定だけが黙って失われる。
-
-変更のたびに次を満たす。
-
-- **旧キーの読み手をすべて洗う。** 新キーを足したら `rg '"<旧キー名>"'` で旧キー
-  リテラルの出現箇所を数え、読み手が 0 になっていないかを確認する。0 になったキーは
-  「移行する」か「移行しない」のどちらかを**明示的に決める**（決めた結果を
-  タスクの Implementation Notes に残す）。判断を保留したまま次へ進まない。
-- **移行するなら、旧値の意味を保って新形式へ写す。** 旧キーが複数ある場合は
-  組み合わせを潰さない（例: app-global の「差分 ON」と per-file の「source 表示」の
-  積が `.diff` にあたる、という関係を落とさない）。
-- **移行経路は 1 本に畳む。** 既存の一度きり移行があるならそこへ合流させ、
-  キーごとに移行関数を増やさない。
-- **旧キーは `removeObject(forKey:)` で必ず削除する。** 移行がスキップされる経路
-  （新キーが既にある等の早期 return）でも消えるよう `defer` に置く。残した stale キーは
-  次に同名のキーを再利用したとき誤って読まれる。
-- **ユニットテストで担保する。** 最低 3 ケース——(a) 旧値あり → 新形式へ移行される、
-  (b) 旧値なし → 既定値のまま何も起きない、(c) 移行済み（新キーあり）→ 移行は
-  走らないが stale キーは消える。テストは `makeIsolatedDefaults(prefix:)` の
-  分離された `UserDefaults` 上で書く（standard を汚さない）。
-
-参考実装（移行しない側）: `AppStores.removeRetiredDisplayStateKeys` が
-「移行先が無いので移行せず、旧キーを一括削除する」形
-（`RetiredDisplayStateKeysTests` が旧値あり／旧値なし／一覧の縮みを見る）。
-移行する側の前例は表示モードの一度きり移行にあった（合流した移行 + `defer` での
-stale キー削除 + 3 ケースのテスト）が、TASK-565 で表示モードの永続化ごと廃止したため
-コードには残っていない。読みたい場合は git 履歴の `DisplayModeStore.swift` を参照すること。
-
-根拠（TASK-372 の実測）: 差分表示のユーザー設定を app-global の `SourceDiffEnabled`
-から per-file の表示モードへ移す際、per-file の旧 source Bool だけを移行し、
-app-global キーの読み手が消えたまま残った。結果、旧状態で「差分 ON + source 表示」
-だったファイルが `.diff` として移行されず plain source で開き、stale キーも defaults に
-残り続けた。設計段階でこの節のチェックを 1 回通していれば実装前に気づけた型。
 
 ## 設計文書の三層構造と、現在仕様の集約
 
