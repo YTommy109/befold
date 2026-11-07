@@ -44,14 +44,14 @@ final class ViewerSplitViewController<Sidebar: View, Content: View>: NSSplitView
     private let onSidebarDidReveal: () -> Void
     private let onSidebarDidHide: () -> Void
 
-    /// `onSidebarDidHide` に既定値を持たせない。これは `onSidebarDidReveal` の対で、
-    /// 渡し忘れると「開いた要求が保留のまま、閉じた後に成立する」形が静かに戻る
-    /// (TASK-563)。渡し忘れをコンパイルエラーにする。
+    /// 3 つのコールバックに既定値を持たせない。渡し忘れると、開閉が記録されない・開いても表へ
+    /// フォーカスが移らない・「開いた要求が保留のまま、閉じた後に成立する」(TASK-563)形が静かに
+    /// 戻る。本番の配線は `ViewerWindowAssembler.makeSidebarSplit` の 1 箇所に置く。
     init(
         sidebar: Sidebar, content: Content, initialCollapsed: Bool = true,
         allowsSidebar: Bool = true,
-        onCollapsedChange: @escaping (Bool) -> Void = { _ in },
-        onSidebarDidReveal: @escaping () -> Void = {},
+        onCollapsedChange: @escaping (Bool) -> Void,
+        onSidebarDidReveal: @escaping () -> Void,
         onSidebarDidHide: @escaping () -> Void
     ) {
         self.initialCollapsed = initialCollapsed

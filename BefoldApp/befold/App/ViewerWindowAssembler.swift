@@ -158,28 +158,41 @@ enum ViewerWindowAssembler {
             ),
             diffDisplayPreference: controller.diffDisplayPreference
         ))
-        let splitViewController = ViewerSplitViewController(
-            sidebar: FileListView(model: controller.fileListModel, delegate: controller),
-            content: content,
-            initialCollapsed: controller.initialSidebarCollapsed,
-            allowsSidebar: controller.kind.allowsSidebar,
-            onCollapsedChange: { collapsed in sidebarState.recordToggle(collapsed) },
-            onSidebarDidReveal: { [weak controller] in
-                controller?.fileListModel.tableFocuser.focus()
-            },
-            onSidebarDidHide: makeSidebarDidHide(for: controller)
+        let splitViewController = makeSidebarSplit(
+            sidebar: FileListView(model: controller.fileListModel, delegate: controller), content: content,
+            initialCollapsed: controller.initialSidebarCollapsed, allowsSidebar: controller.kind.allowsSidebar,
+            sidebarState: sidebarState
         )
         controller.sidebarCollapsible = splitViewController
         return splitViewController
     }
 
-    /// サイドバーを畳んだときの後始末。保留中のフォーカス要求を捨てる。
+    /// サイドバーとコンテンツを並べる split view。文書タブと空タブが共有する。
+    /// **開閉の記録とフォーカスの配線はここ 1 箇所に置く。** 片方だけを直すと、開閉の記録や
+    /// 畳んだときの後始末(TASK-563)が窓の種類によってずれる。
     ///
-    /// 保留のまま残すと「開いた要求が、閉じた後に成立する」形になる(TASK-563)。
-    private static func makeSidebarDidHide(for controller: ViewerWindowController) -> () -> Void {
-        { [weak controller] in
-            controller?.fileListModel.tableFocuser.cancelPendingFocus()
-        }
+    /// - 開閉は利用者の操作だけを記録する(記録しない開閉は `setSidebarCollapsed`)
+    /// - 開いたら表へフォーカスを移す(task-118)
+    /// - 畳んだら保留中のフォーカス要求を捨てる。保留のまま残すと「開いた要求が、閉じた後に
+    ///   成立する」形になる(TASK-563)
+    ///
+    /// 一覧は組み立て済みの `FileListView` で受ける。モデルと受け手を別々に受けると、別の窓の
+    /// モデルと受け手を組み合わせられてしまう。
+    static func makeSidebarSplit<Content: View>(
+        sidebar: FileListView, content: Content,
+        initialCollapsed: Bool, allowsSidebar: Bool, sidebarState: SidebarStateStore
+    ) -> ViewerSplitViewController<FileListView, Content> {
+        let model = sidebar.model
+        return ViewerSplitViewController(
+            sidebar: sidebar,
+            content: content,
+            initialCollapsed: initialCollapsed,
+            allowsSidebar: allowsSidebar,
+            onCollapsedChange: { collapsed in sidebarState.recordToggle(collapsed) },
+            // モデルは組み立て時に捕まえる。文書タブ・空タブとも navigator とモデルが `let` で差し替わらない前提。
+            onSidebarDidReveal: { [weak model] in model?.tableFocuser.focus() },
+            onSidebarDidHide: { [weak model] in model?.tableFocuser.cancelPendingFocus() }
+        )
     }
 
     // MARK: - 配線

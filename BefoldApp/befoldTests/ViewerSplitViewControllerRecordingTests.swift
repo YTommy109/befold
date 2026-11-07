@@ -1,5 +1,6 @@
 import AppKit
 @testable import befold
+import BefoldTestSupport
 import SwiftUI
 import Testing
 
@@ -18,6 +19,7 @@ struct ViewerSplitViewControllerRecordingTests {
         let controller = ViewerSplitViewController(
             sidebar: EmptyView(), content: EmptyView(), initialCollapsed: initialCollapsed,
             onCollapsedChange: { recorded.values.append($0) },
+            onSidebarDidReveal: {},
             onSidebarDidHide: {}
         )
         let window = NSWindow()
@@ -47,9 +49,45 @@ struct ViewerSplitViewControllerRecordingTests {
     func resolvedStateBeforeAppearanceIsInitialValue(initialCollapsed: Bool) {
         let controller = ViewerSplitViewController(
             sidebar: EmptyView(), content: EmptyView(), initialCollapsed: initialCollapsed,
-            onSidebarDidHide: {}
+            onCollapsedChange: { _ in }, onSidebarDidReveal: {}, onSidebarDidHide: {}
         )
 
         #expect(controller.resolvedSidebarCollapsed == initialCollapsed)
+    }
+
+    /// 文書タブと空タブが共有する配線(TASK-920)。コールバックを取り違えても既存のテストは
+    /// 通ってしまうので、組み立て関数そのものを測る。開閉の初期状態は autosave に左右されるので、
+    /// 記録しない `setSidebarCollapsed` で先に決める。待つのはキュー 1 回分だけにし、配線が
+    /// 外れたら時間切れではなくその場で落とす。
+    @Test("共通の組み立ては開閉を記録し、開くとフォーカスを要求し、畳むと要求を捨てる", testTimeLimit())
+    func sharedAssemblyWiresRecordingAndFocus() async {
+        let defaults = makeIsolatedDefaults(prefix: "ViewerSplitViewControllerRecordingTests.shared")
+        let sidebarState = SidebarStateStore(defaults: defaults)
+        let model = FileListModel(currentDirectory: URL(fileURLWithPath: "/mock"), entries: [], selection: nil)
+        let delegate = FileListViewDelegateSpy()
+        let controller = ViewerWindowAssembler.makeSidebarSplit(
+            sidebar: FileListView(model: model, delegate: delegate), content: EmptyView(),
+            initialCollapsed: true, allowsSidebar: true, sidebarState: sidebarState
+        )
+        let window = NSWindow()
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentViewController = controller
+        controller.setSidebarCollapsed(true)
+        #expect(controller.isSidebarCollapsed)
+
+        controller.toggleSidebar(nil)
+        #expect(!sidebarState.lastToggledCollapsed)
+        await Self.drainMainQueue()
+        #expect(model.tableFocuser.focusPending, "開いてもフォーカスを要求しなかった")
+
+        controller.toggleSidebar(nil)
+        #expect(sidebarState.lastToggledCollapsed)
+        #expect(!model.tableFocuser.focusPending, "畳んでも保留中の要求が残った")
+    }
+
+    /// 開いた通知は `DispatchQueue.main.async` で届く。同じキューへ積んで、その後ろまで進める。
+    private static func drainMainQueue() async {
+        await withCheckedContinuation { continuation in DispatchQueue.main.async { continuation.resume() } }
     }
 }
