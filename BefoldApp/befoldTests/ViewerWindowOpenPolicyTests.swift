@@ -99,4 +99,51 @@ struct ViewerWindowOpenPolicyTests {
         #expect(ViewerWindowOpenPolicy.effectiveDisposition(.currentTab, relativeTo: window) == .currentTab)
         #expect(ViewerWindowOpenPolicy.tabBatchDisposition(relativeTo: window) == .newTab)
     }
+
+    @Test("起点の行き先: 置き換え済みなら置き換え先の新しいタブ、閉じていれば起点なし、開いていればそのまま")
+    func resolveOriginCoversVanishedSource() {
+        let source = ViewerDocumentWindow()
+        let replacement = ViewerDocumentWindow()
+        source.isReleasedWhenClosed = false
+        replacement.isReleasedWhenClosed = false
+        let open = { (window: NSWindow) in window === replacement }
+
+        let live = ViewerWindowOpenPolicy.resolveOrigin(.currentTab, relativeTo: replacement, isOpen: open)
+        #expect(live.sourceWindow === replacement && live.disposition == .currentTab && !live.selectsNewTab)
+
+        let closed = ViewerWindowOpenPolicy.resolveOrigin(.newTab, relativeTo: source, isOpen: open)
+        #expect(closed.sourceWindow == nil && closed.disposition == .currentTab)
+
+        source.replacement = replacement
+        let replaced = ViewerWindowOpenPolicy.resolveOrigin(.currentTab, relativeTo: source, isOpen: open)
+        #expect(replaced.sourceWindow === replacement && replaced.disposition == .newTab && replaced.selectsNewTab)
+
+        let gone = ViewerWindowOpenPolicy.resolveOrigin(.currentTab, relativeTo: source, isOpen: { _ in false })
+        #expect(gone.sourceWindow == nil && gone.disposition == .currentTab)
+    }
+
+    /// 起点に依存しない要求の種類は、起点が閉じても変えない。新しいタブ(⌘ クリック)は読み替えても
+    /// 背面のまま。befold の窓でなければ判定しない。
+    @Test("起点が閉じても新しい窓とスライドの要求はそのまま、読み替えた新しいタブは背面のまま")
+    func resolveOriginKeepsIntentOfRequest() {
+        let source = ViewerDocumentWindow()
+        let replacement = ViewerDocumentWindow()
+        source.isReleasedWhenClosed = false
+        replacement.isReleasedWhenClosed = false
+        let closed = { (_: NSWindow) in false }
+
+        for kind in [OpenDisposition.newWindow, .slide] {
+            let origin = ViewerWindowOpenPolicy.resolveOrigin(kind, relativeTo: source, isOpen: closed)
+            #expect(origin.disposition == kind && origin.sourceWindow == nil)
+        }
+
+        source.replacement = replacement
+        let cmdClick = ViewerWindowOpenPolicy.resolveOrigin(.newTab, relativeTo: source, isOpen: { $0 === replacement })
+        #expect(cmdClick.redirectedToReplacement && !cmdClick.selectsNewTab)
+
+        let foreign = NSWindow()
+        foreign.isReleasedWhenClosed = false
+        let passed = ViewerWindowOpenPolicy.resolveOrigin(.newTab, relativeTo: foreign, isOpen: closed)
+        #expect(passed.sourceWindow === foreign && passed.disposition == .newTab)
+    }
 }

@@ -36,8 +36,14 @@ extension ViewerWindowManager {
 
         // 起点の窓の種別で disposition を解釈し直す(TASK-615)。**引数を shadow するのが要点**で、
         // 以降の再利用判定・タブ結合・選択はすべてこの値を見る(元の要求へは触れなくなる)。
-        let blank = ViewerWindowOpenPolicy.blankTabToReplace(disposition, relativeTo: sourceWindow)
-        let disposition = ViewerWindowOpenPolicy.effectiveDisposition(disposition, relativeTo: sourceWindow)
+        let origin = ViewerWindowOpenPolicy.resolveOrigin(
+            disposition,
+            relativeTo: sourceWindow,
+            isOpen: containsOpenWindow
+        )
+        let sourceWindow = origin.sourceWindow
+        let blank = ViewerWindowOpenPolicy.blankTabToReplace(origin.disposition, relativeTo: sourceWindow)
+        let disposition = ViewerWindowOpenPolicy.effectiveDisposition(origin.disposition, relativeTo: sourceWindow)
 
         let key = url.normalizedPathKey
         // 既存ウィンドウを再利用できる条件は disposition ごとに reusableController が決める。
@@ -78,7 +84,8 @@ extension ViewerWindowManager {
         // 新しいタブは背面で開き、表示も焦点も起点に留める(Safari の cmd+クリックと同じ。TASK-611)。
         ViewerTabGrouping.present(
             controller.window, asTabOf: disposition == .newTab ? sourceWindow : nil,
-            placement: blank == nil ? tabPlacement : .afterSource, select: blank != nil || disposition != .newTab
+            placement: blank != nil || origin.redirectedToReplacement ? .afterSource : tabPlacement,
+            select: origin.selectsNewTab || blank != nil || disposition != .newTab
         ) {
             controller.showWindow(nil)
         }

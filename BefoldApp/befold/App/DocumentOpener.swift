@@ -11,6 +11,26 @@ final class DocumentOpener {
     private let windowManager: ViewerWindowManager
     private let activeViewer: ActiveViewerProvider.Provide
     private let activeBlankTab: ActiveViewerProvider.ProvideBlankTab
+    /// 空タブを起点にした直前の要求。解決はファイルごとに時間が違うので、続けて選ぶと後の要求が
+    /// 先に開いて手前を奪われる。空タブを起点にする要求(UI からのオープン・ドロップ・パネル)だけを
+    /// 選んだ順に開く。起点が文書タブなら待たない(遅いボリュームの解決で他の要求を止めない)。
+    private var lastBlankTabOpen: Task<Void, Never>?
+
+    /// 空タブを起点にする要求を、前の要求の後に並べる。
+    private func enqueueBlankTabOpen(
+        from sourceWindow: NSWindow?, _ work: @escaping @MainActor () async -> Void
+    ) -> Task<Void, Never> {
+        let isBlankOrigin = sourceWindow?.windowController is BlankTabWindowController
+            || (sourceWindow as? ViewerDocumentWindow)?.replacement != nil
+        guard isBlankOrigin else { return Task { await work() } }
+        let previous = lastBlankTabOpen
+        let opening = Task {
+            await previous?.value
+            await work()
+        }
+        lastBlankTabOpen = opening
+        return opening
+    }
 
     /// - Parameters:
     ///   - windowManager: ウィンドウ生成先。全ウィンドウで共有する 1 個を渡す
@@ -46,7 +66,7 @@ final class DocumentOpener {
 
     private func openFromInterface(_ url: URL, focusesContent: Bool, prefersExistingWindow: Bool) -> Task<Void, Never> {
         let blankWindow = activeBlankTab()?.window
-        return Task {
+        return enqueueBlankTabOpen(from: blankWindow) { [self] in
             await openViewer(
                 for: url, options: CLIOpenOptions(), relativeTo: blankWindow, focusesContent: focusesContent,
                 prefersExistingWindow: prefersExistingWindow
@@ -121,7 +141,8 @@ final class DocumentOpener {
         panel.begin { [weak self] response in
             guard response == .OK else { return }
             if let blank {
-                guard !blank.isClosed, let window = blank.window else { return }
+                // パネルの表示中に空タブが閉じても置き換わっても、行き先は openViewer の入口が決める。
+                guard let window = blank.window else { return }
                 self?.openInTabs(panel.urls, relativeTo: window)
                 return
             }
@@ -134,7 +155,7 @@ final class DocumentOpener {
     /// 選択順にタブを開き、最初の文書だけを選択する。空タブは最初の成功時に置き換える。
     @discardableResult
     func openInTabs(_ urls: [URL], relativeTo sourceWindow: NSWindow) -> Task<Void, Never> {
-        Task {
+        enqueueBlankTabOpen(from: sourceWindow) { [self] in
             var anchor = sourceWindow
             var selected: NSWindow?
             await SequentialOpener.open(urls) { url in
@@ -166,21 +187,18 @@ final class DocumentOpener {
         let resolved = await withBlockingWork {
             (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
         }
-        // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。起点が閉じていても
-        // 要求を捨てないよう、閉じた起点の判定より前に決める。
+        // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。
         let reusesExisting = prefersExistingWindow && resolved.target.map(windowManager.hasReusableWindow(for:)) == true
-        // 解決を待つ間に、起点の空タブが別の要求で文書へ置き換わることがある(続けたドロップ)。
-        let (disposition, sourceWindow) = reusesExisting
-            ? (.currentTab, nil) : ViewerWindowOpenPolicy.retargeted(disposition, relativeTo: sourceWindow)
-        if let sourceWindow, !windowManager.containsOpenWindow(sourceWindow) { return nil }
         let isDirectory = resolved.isDirectory
         if isDirectory, !allowsDirectories { return nil }
         guard let target = resolved.target else {
             presentNoFileAlert()
             return nil
         }
+        // 解決を待つ間に起点が閉じた・置き換わった場合の行き先は、openViewer の入口が決める(TASK-917)。
         let controller = windowManager.openViewer(
-            for: target, options: options, disposition: disposition, relativeTo: sourceWindow,
+            for: target, options: options, disposition: reusesExisting ? .currentTab : disposition,
+            relativeTo: reusesExisting ? nil : sourceWindow,
             tabPlacement: placement, forceSidebarVisible: isDirectory
         )
         if focusesContent { controller?.focusContentSurface(nil) }
