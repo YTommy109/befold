@@ -304,11 +304,13 @@ final class ViewerWindowController: NSWindowController {
         // store が呼び出し元から明示注入された場合でも上書きが反映されるよう、
         // store の生成元にかかわらずここで一律に適用する(sourceModeOverride と同じ方針)。
         if let showLineNumbersOverride { store.lineNumbersSetting.applyOverride(showLineNumbersOverride) }
+        // 空タブで変えた比較基準は、最初の git 状態と差分の取得より前、CLI の上書きより前に当てる。
+        if let target = seed.replacement?.comparisonTarget { store.comparisonTarget = target }
         self.store = store
         currentDocument = CurrentDocumentRef(store: store, initialURL: fileURL)
         let git = sidebarGit ?? SidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
         sidebar = ViewerWindowAssembler.makeSidebarNavigator(
-            fileURL: fileURL, position: seed.position, shared: shared, git: git,
+            fileURL: fileURL, position: seed.replacement?.position, shared: shared, git: git,
             overrides: SidebarDisplayOverrides(sortOrder: initialSortOrder, showHiddenFiles: initialShowHiddenFiles)
         )
         let window = ViewerWindowChrome.makeWindow(fileURL: fileURL, kind: kind)

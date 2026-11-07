@@ -19,7 +19,7 @@ extension ViewerWindowController: SidebarInheritanceSource {
 ///
 /// `ViewerWindowManager` から分けているのは行数の都合ではなく、ここが扱うのが
 /// 「窓を開く手順」ではなく**引き継ぎの対象と条件**だからである。入力は起点の
-/// `NSWindow` と「タブとして開くか」だけで、CLI のオプションは知らない。
+/// `NSWindow`・「タブとして開くか」・置き換える空タブと開く文書だけで、CLI のオプションは知らない。
 ///
 /// 運ぶものが分かれているのが要点。
 ///
@@ -30,7 +30,9 @@ extension ViewerWindowController: SidebarInheritanceSource {
 ///   一致条件——「列挙の入力が同じか」——の意味が濁る。
 ///
 /// 開閉は窓の現在値をそのまま読むだけで、引き継ぐのは開き先がタブのときだけ
-/// (別の窓は保存値から始まる。ADR 0002「窓の状態」)。
+/// (別の窓は保存値から始まる。ADR 0002「窓の状態」)。空タブを置き換えるときだけは
+/// `Replacement` も運ぶ。サイドバーの状態ではない比較基準も含むが、「空タブで操作した窓の状態を
+/// 置き換えた文書タブへ渡す」という同じ関心なのでここに置く。
 ///
 /// 表示 4 値(並び順・不可視・変更のみ・レイアウト)は**ここを通らない**。あちらは
 /// `SidebarDisplayOverrides` が既に持つ器で、CLI の上書きと同じ経路で窓へ届く。
@@ -45,11 +47,25 @@ enum SidebarInheritance {
         var expansion: [String: URL]
         /// サイドバーの開閉。タブとして開かないなら nil。
         var sidebarCollapsed: Bool?
-        /// 空タブを同じ位置で文書へ置き換えるときの、空タブのサイドバーの位置。置き換えでなければ nil。
-        var position: SidebarPosition?
+        /// 空タブを同じ位置で文書へ置き換えるときに引き継ぐもの。置き換えでなければ nil。
+        var replacement: Replacement?
 
         /// 引き継ぐものが無い。起点の窓が無い経路(CLI・Finder・セッション復元)はこれ。
-        static let none = Seed(listing: nil, expansion: [:], sidebarCollapsed: nil, position: nil)
+        static let none = Seed(
+            listing: nil,
+            expansion: [:],
+            sidebarCollapsed: nil,
+            replacement: nil
+        )
+    }
+
+    /// 空タブを文書タブへ置き換えるときだけ引き継ぐ、空タブで操作した窓の状態(TASK-914 / TASK-919)。
+    /// 戻る/進む履歴は運ばない。新しいタブはどの経路でも履歴を空で始めるため。
+    struct Replacement {
+        /// サイドバーの位置。選んだファイルが今の一覧から選べないなら nil(ファイルの親から始める)。
+        var position: SidebarPosition?
+        /// git の比較基準。空タブで利用者が変えた値を捨てない。
+        var comparisonTarget: GitComparisonTarget
     }
 
     /// 起点の窓から引き継げるものを 1 度に採る。
@@ -63,7 +79,12 @@ enum SidebarInheritance {
         return Seed(
             listing: listing, expansion: expansion(from: sourceWindow),
             sidebarCollapsed: opensAsTab ? sidebarCollapsed(from: sourceWindow) : nil,
-            position: position(replacing: blank, opening: url, listing: listing)
+            replacement: blank.map {
+                Replacement(
+                    position: position(replacing: $0, opening: url, listing: listing),
+                    comparisonTarget: $0.comparisonTarget
+                )
+            }
         )
     }
 
@@ -100,9 +121,9 @@ enum SidebarInheritance {
     /// 位置は一覧の引き継ぎ(`listing`)のフォルダから作り、一覧を引き継げないなら位置も引き継がない。
     /// 位置だけを引き継ぐと展開が落ち、閉じたツリーの中で選んだファイルが見えなくなる。
     private static func position(
-        replacing blank: BlankTabWindowController?, opening url: URL?, listing: SidebarListingSeed?
+        replacing blank: BlankTabWindowController, opening url: URL?, listing: SidebarListingSeed?
     ) -> SidebarPosition? {
-        guard let url, let listing, let model = blank?.inheritableSidebar?.fileListModel else { return nil }
+        guard let url, let listing, let model = blank.inheritableSidebar?.fileListModel else { return nil }
         guard listing.directory.normalizedPathKey == model.currentDirectory.normalizedPathKey else { return nil }
         guard model.isReachableInCurrentListing(url) else { return nil }
         return SidebarPosition(currentDirectory: listing.directory, rootDirectory: model.rootDirectory)
