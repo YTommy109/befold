@@ -1,9 +1,11 @@
 ---
 id: TASK-907
 title: CI の build-and-test (default) がテスト実行中に固まり、30 分のタイムアウトで打ち切られる
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-11-07T04:18:00Z'
+updated_date: '2026-11-07T05:50:00Z'
 labels:
   - test
   - bug
@@ -33,7 +35,53 @@ CI が通常 6〜8 分のジョブで 30 分待たされ、失敗の情報も残
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 固まった回に、どのテストが何を待っているかを後から確認できる情報が CI に残る
-- [ ] #2 実際に固まった回の情報で原因が特定され、TASK-675 と同じか別かが Notes に記録されている
-- [ ] #3 直せる原因なら直し、複数回の全体実行で再発しないことを実測している。直せないなら根拠と回避策が記録されている
+- [x] #1 固まった回に、どのテストが何を待っているかを後から確認できる情報が CI に残る
+- [x] #2 実際に固まった回の情報で原因が特定され、TASK-675 と同じか別かが Notes に記録されている
+- [x] #3 直せる原因なら直し、複数回の全体実行で再発しないことを実測している。直せないなら根拠と回避策が記録されている
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. scripts/test-watchdog.sh を追加する: コマンドを実行し、出力が一定時間止まったら sample（テスト本体・WebContent）、未完了テスト、ps を保存してからプロセスを止め、終了コード 124 で失敗する
+2. --self-test を足し、CI で実行する（CI の実行条件にも追加）
+3. CI のテスト実行をこのスクリプト経由にし、診断結果を artifact へ、メインスレッドのスタックをログへ出す
+4. メインスレッドを塞ぐテストで、手元と CI の両方で診断が取れることを確認する（確認用のコミットは残さない）
+5. 完了条件 2・3 は実際に固まった回の情報が要る。手元での再現を試み、再現しなければ着手条件を Notes に残す
+
+設計の根拠: 未完了 108 件に待つものの無い軽いテストが含まれるので、メインスレッドまたはメインアクターが止まっている形。所要時間が 60 秒で揃っていたのは経過時間と同じなだけで、BEFOLD_TEST_TIMEOUT_SECONDS とは無関係（成功した回は全体で 90 秒）。発生は直近 200 回の CI で数回。
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+実測 1（手元で再現）: test-watchdog を通した全体実行で 2 回ハングを捉えた。どちらも本体のスレッド 145 本のうち 130 本が PDFKit の解析で止まっていた（-[PDFView visiblePagesChanged:] → PDFPageAnalyzerV2 → VNImageRequestHandler が 66〜74 本、VNRequest performInContext の semaphore_wait が 64 本）。Dispatch Thread Soft Limit: 64 に全サンプルで到達。実 WKWebView の面は loadFileURL のあと didFinish が 0 件で、abortedRenderDoesNotLeaveOptionsInJS が isReady を待ち続け、loadOneShot は #diagram-wrap が null で失敗した。
+
+実測 2（因果）: 成功した回の途中の sample では解析スレッドは 0〜6 本で、弁別材料になる（TASK-673 の NSAnimation と違う）。ワーカーを塞ぐ一時テスト: 0 本で 0.10 秒、30 本で 0.10 秒、80 本で 39.7 秒（塞いだスレッドの 40 秒後に解放と一致）。
+
+実測 3（A/B、空のユーザーキャッシュ CFFIXED_USER_HOME）: 全テスト 5/6 でハング、PDF を除く 0/3、PDF だけ 0/3。修正後の CI と同じ 3 プロセス構成: 0/6（1963 + 103 + 83 件すべて成功）。
+
+外れた仮説（記録）: 60 秒の揃いは BEFOLD_TEST_TIMEOUT_SECONDS と無関係（所要時間 ≒ 経過時間）。メインスレッドの停止ではない（ランループは回っている）。リビルド直後も打ち切り直後も再現しない（各 3/3 で成功）。
+
+CI のログの限界: swift test の出力はパイプだとブロックバッファになり、止まると末尾が失われる。CI で見えた「未完了 108 件」は実際より多い。元の CI の回に sample は無いので、同じ原因という判断は、未完了に同じテストがあること・実 WebView の待ちであること・CI のランナーがキャッシュの無い環境であることからの推定。
+
+CI での確認（一時コミットでメインスレッドを塞いだ run 42343123345）: 300 秒で打ち切り、ログにメインスレッドのスタック、artifact に診断が残ることを default / strict とも確認。一時コミットは取り除いた。self-test は macOS 専用なので build-and-test へ置いた（Linux の type-group-size では落ちた）。
+
+TASK-675 との関係: 同じ原因と考える。TSan ジョブも同じ分離にした。TSan + 負荷での再発なしは未測定なので、TASK-675 は閉じていない。
+
+native-app-design.md への反映は不要（CI とテストの構成のみ）。
+
+最終確認: PR #761 の CI（run 42344016898、コミット 01d5c8f8）がすべて成功。build-and-test は 3 プロセスに分かれ、1963 + 103 + 83 件が成功し、watchdog の self-test も成功。
+
+残る不確かさ: 発生が稀なので、CI での再発なしは今後の運用でしか確かめられない。再発すれば watchdog が診断を残す。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+CI のハングの原因を特定して修正した。PDFView の Vision 解析がキャッシュの無い環境で libdispatch のワーカー上限 64 本を使い切り、同じプロセスの実 WKWebView のロードを止めていた。空のユーザーキャッシュで、一緒に回すと 5/6 でハング、分けると 0/6。
+
+CI は PDF のテストを別プロセスで回す（TSan ジョブも）。分離の漏れはガードのテストが落とす。今後のハングは test-watchdog.sh が 300 秒で打ち切り、スタックと未完了のテストを残す。上限なしの待ちはキャンセルを見るようにした。
+
+残るリスク: 元の CI の回に sample は無く、同じ原因という判断は推定。CI での再発なしは今後の運用で確かめる。TASK-675（TSan + 負荷）は未測定なので開いたまま。手元の swift test は全テストを 1 プロセスで回すので、キャッシュが空なら同じハングが起きうる。
+<!-- SECTION:FINAL_SUMMARY:END -->

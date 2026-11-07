@@ -15,6 +15,7 @@ on:
       - 'scripts/worktree-reset.sh'
       - 'scripts/worktree-clean.sh'
       - 'scripts/lib/branch-completion.sh'
+      - 'scripts/test-watchdog.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -33,6 +34,7 @@ on:
       - 'scripts/worktree-reset.sh'
       - 'scripts/worktree-clean.sh'
       - 'scripts/lib/branch-completion.sh'
+      - 'scripts/test-watchdog.sh'
       # Oxlint / Oxfmt の共通方針。ここを変えると BefoldApp の lint 結果が
       # 変わるので、BefoldApp/** を触らない設定変更でも検査を回す。
       - '.oxlintrc.json'
@@ -106,7 +108,7 @@ jobs:
             exit 0
           fi
           files=$(printf '%s' "$compare" | jq -r '.files[]?.filename')
-          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-no-home-test-dirs\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh|worktree-clean\.sh|lib/branch-completion\.sh)$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(BefoldApp/|\.github/workflows/ci\.yml$|\.ox(lint|fmt)rc\.json$|scripts/(check-type-group-size\.sh|type-group-exceptions\.txt|check-no-detached-blocking\.sh|check-no-home-test-dirs\.sh|check-befoldkit-platform-free\.sh|check-app-no-cli-dependency\.sh|worktree-reset\.sh|worktree-clean\.sh|lib/branch-completion\.sh|test-watchdog\.sh)$)'; then
             echo 'app=true' >> "$GITHUB_OUTPUT"
           else
             echo 'app=false' >> "$GITHUB_OUTPUT"
@@ -218,6 +220,12 @@ jobs:
       - name: アプリをビルドする（SwiftLint も実行される）
         run: swift build
 
+      # テストのハングを捉える仕組みが働くこと(TASK-907)。ハングは稀なので、壊れていても
+      # 普段は気づけない。macOS の script を使うので、Linux のジョブには置けない。
+      - name: test-watchdog の検知の self-test を通す
+        if: matrix.pool == 'default'
+        run: ../scripts/test-watchdog.sh --self-test
+
       # ソースだけを見る検査なので、2 つのレッグで重ねて回さない。
       - name: SwiftFormat の整形を検証する
         if: matrix.pool == 'default'
@@ -241,13 +249,34 @@ jobs:
       # befoldCLITests は別プロセスで回す(TASK-664)。実 Distributed Notification の
       # 配送はメインランループの一巡を待つため、同じプロセスで befoldTests の
       # @MainActor テストがメインを 70 秒塞いだ回に ACK 待ち 2 件が予算切れで落ちた。
+      #
+      # PDF のテストも別プロセスで回す(TASK-907)。PDFView はページごとに Vision の解析を
+      # libdispatch のワーカーで走らせ、キャッシュの無い環境(= CI のランナー)ではこれが
+      # 上限の 64 本を使い切って、同じプロセスの実 WKWebView のロードを止める。
+      # 実測(空のユーザーキャッシュ): 一緒に回すと 5/6 でハング、PDF を除くと 0/3、
+      # PDF だけなら 0/3。ワーカーを塞ぐとロードはその解放まで進まないことも実測で確認した。
+      # 分離の漏れは PDFTestIsolationGuardTests が落とす。
+      #
+      # テストは test-watchdog.sh 経由で回す(TASK-907)。出力が 300 秒止まったら、その時点の
+      # sample と未完了のテストを残して打ち切る。正常時の出力の間隔は最大 54 秒(実測)で、
+      # job の timeout-minutes まで待つと何を待っていたかが何も残らない。
       - name: テストを実行する（${{ matrix.pool }}）
         run: |
           if [ '${{ matrix.pool }}' = strict ]; then
             export LIBDISPATCH_COOPERATIVE_POOL_STRICT=1
           fi
-          swift test --skip befoldCLITests
-          swift test --filter befoldCLITests
+          ../scripts/test-watchdog.sh --diagnostics "$RUNNER_TEMP/test-hang/main" -- swift test --skip befoldCLITests --skip PDF
+          ../scripts/test-watchdog.sh --diagnostics "$RUNNER_TEMP/test-hang/pdf" -- swift test --skip befoldCLITests --filter PDF
+          ../scripts/test-watchdog.sh --diagnostics "$RUNNER_TEMP/test-hang/cli" -- swift test --filter befoldCLITests
+
+      - name: テストのハングの診断を保存する
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-hang-${{ matrix.pool }}-attempt${{ github.run_attempt }}
+          path: ${{ runner.temp }}/test-hang
+          if-no-files-found: ignore
+          retention-days: 30
 
   js-test:
     # viewer.js は純粋ロジックのため安価な Ubuntu ランナーで回す
@@ -351,7 +380,8 @@ jobs:
       # FileWatcher / Debouncer は GCD/DispatchSource でスレッド安全性を保証しており、
       # データ競合の回帰を ThreadSanitizer で検出する。
       - name: ThreadSanitizer 付きでテストを実行する
-        # befoldCLITests を分ける理由は build-and-test と同じ(TASK-664)。
+        # befoldCLITests と PDF を分ける理由は build-and-test と同じ(TASK-664 / TASK-907)。
         run: |
-          swift test --sanitize=thread --skip befoldCLITests
+          swift test --sanitize=thread --skip befoldCLITests --skip PDF
+          swift test --sanitize=thread --skip befoldCLITests --filter PDF
           swift test --sanitize=thread --filter befoldCLITests

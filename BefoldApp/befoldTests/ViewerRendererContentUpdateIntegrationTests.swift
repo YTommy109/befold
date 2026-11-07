@@ -21,10 +21,12 @@ struct ViewerRendererContentUpdateIntegrationTests {
     /// ランループが回らずロードが前進しないため。
     ///
     /// ハング対策はスイートの `testTimeLimit()` が担う。上限を外した無限ループにしない
-    /// 一般則(テスト規約)に対する、この経路固有の例外として扱う。
+    /// 一般則(テスト規約)に対する、この経路固有の例外として扱う。打ち切りが効くよう
+    /// キャンセルは必ず見る(見ないと time limit の後も回り続け、run が終わらない)。
     @MainActor
-    private static func waitForWebViewLoad(_ condition: () -> Bool) async {
+    private static func waitForWebViewLoad(_ condition: () -> Bool) async throws {
         while !condition() {
+            try Task.checkCancellation()
             await Task.yield()
         }
     }
@@ -41,7 +43,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
     func abortedRenderDoesNotLeaveOptionsInJS() async throws {
         let renderer = ViewerRenderer()
         let webView = ViewerRendererMessageStubs.makeWebView(with: renderer)
-        await Self.waitForWebViewLoad { renderer.readiness.isReady }
+        try await Self.waitForWebViewLoad { renderer.readiness.isReady }
 
         let markdownURL = URL(fileURLWithPath: "/tmp/task336-abort/doc.md")
         let fileReader = SlowFileReader.makeGatedImageFileReader(markdownURL: markdownURL)
@@ -61,7 +63,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
             )
         )
         update()
-        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        try await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
 
         // 2 回目: 差分 ON で描画を始め、画像埋め込みのゲートで中断させる。
         let gate = BlockingGate()
@@ -75,14 +77,14 @@ struct ViewerRendererContentUpdateIntegrationTests {
         let diffText = "diff --git a/doc.md b/doc.md\n--- a/doc.md\n+++ b/doc.md\n@@ -1 +1 @@\n-old\n+new\n"
         renderer.diffState = ViewerRenderer.DiffState(text: diffText, layout: .inline)
         update()
-        await Self.waitForWebViewLoad { entered.get() }
+        try await Self.waitForWebViewLoad { entered.get() }
 
         // 中断中に差分を OFF へ戻す。この更新は incoming == rendered(差分なしのまま)で
         // 早期 return するが、世代だけは進むため、中断していた 2 回目は世代ガードで抜ける。
         renderer.diffState = .none
         update()
         gate.open()
-        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
+        try await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 1 }
         await yieldMainActor()
 
         // ミラーは「差分なし」を指している。JS も同じでなければ、次の描画で
@@ -99,7 +101,7 @@ struct ViewerRendererContentUpdateIntegrationTests {
             hasDeclaredHTMLCharset: nil, isSourceMode: false, showLineNumbers: false,
             truncation: Self.truncation
         )
-        await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 2 }
+        try await Self.waitForWebViewLoad { renderer.rendered.contentRevision == 2 }
         let appliedDiffInJS = try await webView.evaluateJavaScript("String(_mmdViewOptions.diff())")
         #expect(appliedDiffInJS as? String == diffText)
     }

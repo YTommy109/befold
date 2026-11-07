@@ -4,7 +4,7 @@ title: 全体実行 + CPU 負荷下で、実 WKWebView の viewer.html のロー
 status: To Do
 assignee: []
 created_date: 2026-10-07 00:58
-updated_date: '2026-11-07T04:18:00Z'
+updated_date: '2026-11-07T05:44:00Z'
 labels:
   - test
   - bug
@@ -36,4 +36,6 @@ TASK-673 から切り出した原因探索。TSan + CPU 負荷 40 本（yes）�
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-11-07: 通常の CI ジョブ（TSan・追加負荷なし）で、同じ原因かもしれないハングを 1 回観測した。実 WKWebView を使うスイートも未完了に含まれる。sample が無いので同一とは確認できていない。詳細は TASK-907。
+
+2026-11-07: 原因の有力な候補を TASK-907 で特定した。PDFView の Vision 解析が libdispatch のワーカー上限 64 本を使い切り、実 WKWebView のロードが止まる（ワーカーを塞ぐ実験で再現。成功した回でも didFinish が実行の最後に届く観測とも整合）。TSan ジョブも PDF を別プロセスに分けた。TSan + 負荷 40 本での再発なしは未測定なので、本タスクの完了条件 2 は未達。
 <!-- SECTION:NOTES:END -->
