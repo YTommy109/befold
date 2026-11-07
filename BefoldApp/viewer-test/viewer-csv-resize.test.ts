@@ -446,6 +446,72 @@ test('初期幅は中央値や最大値ではなく 90 パーセンタイルを�
   expect(columnWidths(viewer)).toEqual(['360px', '40px']);
 });
 
+describe('全列が表示領域に収まる表', () => {
+  // jsdom はレイアウトを持たないので、.csv-scroll の幅と余白だけを本番の形で与える。
+  function withContentWidth(viewer: LoadedViewer, contentWidth: number): void {
+    const padding = 32;
+    const style = viewer.document.createElement('style');
+    style.textContent = `.csv-scroll { padding-right: ${padding}px; }`;
+    viewer.document.head.append(style);
+    Object.defineProperty(viewer.window.HTMLDivElement.prototype, 'clientWidth', {
+      get: () => contentWidth + padding,
+      configurable: true,
+    });
+    measureCellText(viewer);
+  }
+  const isNaturalLayout = (viewer: LoadedViewer): boolean =>
+    columnWidths(viewer).length === 0 && !tableIn(viewer).classList.contains('csv-sized');
+  // 列幅は 1 文字 10px + 余白 24px（measureCellText）。Code が 64px、60 文字の値が 624px。
+  const NARROW = `Code,Description\nAB,${'x'.repeat(60)}\n`;
+  const NARROW_TOTAL = 64 + 624 + 1;
+
+  test('合計が内容幅ちょうどなら幅を設定せず、上限 360px も分位点も適用しない', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, NARROW_TOTAL);
+    await viewer.main.render(NARROW, 'csv', ',');
+    expect(isNaturalLayout(viewer)).toBe(true);
+  });
+
+  test('内容幅を 1px でも超えれば、従来の初期幅を設定する', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, NARROW_TOTAL - 1);
+    await viewer.main.render(NARROW, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['64px', '360px']);
+    expect(tableIn(viewer).classList.contains('csv-sized')).toBe(true);
+  });
+
+  test('判定は分位点ではなく最大幅で行い、外れ値が収まらなければ切り取る側へ倒す', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, 500);
+    const rows = [100, 20, 12, 19, 13, 18, 14, 17, 15, 16].map((n) => 'AB,' + 'x'.repeat(n));
+    await viewer.main.render('Code,Description\n' + rows.join('\n'), 'csv', ',');
+    // 90% 点の 224px なら収まるが、最大の 1024px は収まらない。
+    expect(columnWidths(viewer)).toEqual(['64px', '224px']);
+  });
+
+  test('追記しても収まる間は切り取らず、列が増えて収まらなくなると全列に幅を設定する', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, NARROW_TOTAL);
+    await viewer.main.render(NARROW, 'csv', ',');
+    viewer.main.appendChunk(`CD,${'y'.repeat(60)}\n`, 'csv', ',');
+    expect(isNaturalLayout(viewer)).toBe(true);
+    viewer.main.appendChunk('EF,z,extra\n', 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['64px', '360px', '74px']);
+  });
+
+  test('自動レイアウトの表でも手動で幅を変えられ、以後の再描画で保持する', async () => {
+    const viewer = loadViewerMain();
+    withContentWidth(viewer, NARROW_TOTAL);
+    viewer.main._mmdSetRenderDocPath('/narrow.csv');
+    await viewer.main.render(NARROW, 'csv', ',');
+    measureHeaders(tableIn(viewer));
+    key(viewer, 0, 'ArrowRight');
+    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+    await viewer.main.render(NARROW, 'csv', ',');
+    expect(columnWidths(viewer)).toEqual(['110px', '100px']);
+  });
+});
+
 test('初期幅の分位点から空セルと空白だけのセルを除外する', async () => {
   const viewer = loadViewerMain();
   measureCellText(viewer);

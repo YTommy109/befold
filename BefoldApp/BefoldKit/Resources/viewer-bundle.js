@@ -25095,13 +25095,28 @@
       var data = cells.slice(1).filter((cell) => cell.textContent?.trim()).map((cell) => cell.offsetWidth);
       data.sort((a, b) => a - b);
       var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
-      return Math.max(header, typical);
+      return {
+        initial: Math.max(header, typical),
+        natural: Math.max(header, data.at(-1) ?? 0)
+      };
     });
     probe.remove();
+    if (missing.length === headers.length) {
+      var naturalTotal = measured.reduce((sum, width) => sum + width.natural, 1);
+      if (naturalTotal <= tableContentWidth(table2)) return;
+    }
     missing.forEach((index, sample) => {
-      if (measured[sample] > 0)
-        widths[index] = Math.max(MIN_WIDTH, Math.min(360, measured[sample]));
+      var width = measured[sample].initial;
+      if (width > 0) widths[index] = Math.max(MIN_WIDTH, Math.min(360, width));
     });
+  }
+  function tableContentWidth(table2) {
+    var scroller = table2.parentElement;
+    var style = getComputedStyle(scroller);
+    return scroller.clientWidth - pixels(style.paddingLeft) - pixels(style.paddingRight);
+  }
+  function pixels(value) {
+    return Number(value.replace("px", ""));
   }
   function installCsvResize(table2) {
     var headers = table2.tHead?.rows[0]?.cells;

@@ -131,6 +131,9 @@ function fitColumn(table: HTMLTableElement, index: number): void {
  *
  * - 読み込み済みデータ行の先頭最大 200 行を標本とし、その列の空白セルを除外する。
  * - 書式設定とセル内余白を含む、実際に描画される幅を測る。
+ * - 全列の標本の最大幅の合計が表示領域に収まるなら、幅を設定しない。表は自動レイアウトの
+ *   ままで、内容を切り取らない。追記や再描画のたびに判定し直す。
+ * - 以降は収まらない表の規則。
  * - 標本のおよそ 90% が収まる幅として、90 パーセンタイルの幅を採用する。
  * - ヘッダーの方が広ければ、ヘッダーの幅を採用する。
  * - 最後に 40〜360px の範囲へ制限する。ヘッダーがそれ以上の幅を必要としても同じ。
@@ -187,14 +190,34 @@ function initialWidths(table: HTMLTableElement): void {
       .map((cell) => cell.offsetWidth);
     data.sort((a, b) => a - b);
     var typical = data[Math.max(0, Math.ceil(data.length * 0.9) - 1)] ?? 0;
-    return Math.max(header, typical);
+    return {
+      initial: Math.max(header, typical),
+      natural: Math.max(header, data.at(-1) ?? 0),
+    };
   });
   probe.remove();
+  // 全列が収まるなら幅を決めず、表を自動レイアウトのままにする。
+  if (missing.length === headers.length) {
+    // border-collapse の外枠 1px は applyWidths の合計と同じ。
+    var naturalTotal = measured.reduce((sum, width) => sum + width.natural, 1);
+    if (naturalTotal <= tableContentWidth(table)) return;
+  }
   missing.forEach((index, sample) => {
     // 非表示のビューアは幅を実測できないため、表示状態で再描画されたときに再試行する。
-    if (measured[sample]! > 0)
-      widths[index] = Math.max(MIN_WIDTH, Math.min(360, measured[sample]!));
+    var width = measured[sample]!.initial;
+    if (width > 0) widths[index] = Math.max(MIN_WIDTH, Math.min(360, width));
   });
+}
+
+// 表が横スクロールなしで使える幅。.csv-scroll の右端の余白は表の幅に含めない。
+function tableContentWidth(table: HTMLTableElement): number {
+  var scroller = table.parentElement!;
+  var style = getComputedStyle(scroller);
+  return scroller.clientWidth - pixels(style.paddingLeft) - pixels(style.paddingRight);
+}
+
+function pixels(value: string): number {
+  return Number(value.replace('px', ''));
 }
 
 function installCsvResize(table: HTMLTableElement): void {
