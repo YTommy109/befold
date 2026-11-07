@@ -10,7 +10,8 @@ final class QuickOpenCoordinator {
     private let stores: AppStores
     private let gitIndex: any GitFileIndexing
     private let activeViewer: ActiveViewerProvider.Provide
-    private let openInNewWindow: @MainActor (URL) -> Void
+    private let activeBlankTab: ActiveViewerProvider.ProvideBlankTab
+    private let openWithoutViewer: @MainActor (URL) -> Void
     private lazy var panelController = QuickOpenPanelController(
         makeEnvironment: { [weak self] in self?.makeEnvironment() },
         onOpen: { [weak self] url in self?.open(url) }
@@ -19,17 +20,19 @@ final class QuickOpenCoordinator {
     /// - Parameters:
     ///   - gitIndex: ウィンドウと共有する git 追跡ファイルの索引。パネルを開くたびに
     ///     index の列挙と照合索引の構築をやり直さないため、必ず共有インスタンスを渡す(既定値は持たせない)。
-    ///   - openInNewWindow: 開くべきビューアウィンドウが 1 枚も無いときの開き先。
+    ///   - openWithoutViewer: 手前に文書タブが無いときの開き先。手前の空タブの置き換えもここが担う。
     init(
         stores: AppStores,
         gitIndex: any GitFileIndexing,
         activeViewer: @escaping ActiveViewerProvider.Provide,
-        openInNewWindow: @escaping @MainActor (URL) -> Void
+        activeBlankTab: @escaping ActiveViewerProvider.ProvideBlankTab,
+        openWithoutViewer: @escaping @MainActor (URL) -> Void
     ) {
         self.stores = stores
         self.gitIndex = gitIndex
         self.activeViewer = activeViewer
-        self.openInNewWindow = openInNewWindow
+        self.activeBlankTab = activeBlankTab
+        self.openWithoutViewer = openWithoutViewer
     }
 
     /// File > Quick Open(⌘P)。パス入力と fuzzy 検索のパネルを開閉する。
@@ -43,7 +46,8 @@ final class QuickOpenCoordinator {
         // パネルは canBecomeMain=false のため、表示中でも mainWindow は元のビューアの
         // まま。専用の状態を持たず activeViewer から都度引く。
         let controller = activeViewer()
-        let currentFileURL = controller?.fileURL
+        let blank = activeBlankTab()
+        let currentFileURL = controller?.fileURL ?? blank?.quickOpenAnchor
         if let currentFileURL {
             gitIndex.warm(forFileAt: currentFileURL)
         }
@@ -52,18 +56,19 @@ final class QuickOpenCoordinator {
             recentDocumentsStore: stores.recentDocumentsStore,
             bookmarkStore: stores.bookmarkStore,
             // 窓があればその窓のライブ値、無ければ次に開く窓の初期値(保存された既定値)。
-            includesHiddenFiles: controller?.fileListModel.display.showHiddenFiles
+            includesHiddenFiles: (controller?.fileListModel ?? blank?.inheritableSidebar?.fileListModel)?.display
+                .showHiddenFiles
                 ?? stores.displayDefaults.settings.showHiddenFiles,
             currentFileURL: currentFileURL
         )
     }
 
     /// Quick Open の決定先を開く。決定時点で操作対象のビューアウィンドウがあればそこで
-    /// 切り替え、無ければ(全ウィンドウを閉じた場合など)新規ウィンドウを開く。
+    /// 切り替え、無ければ(全ウィンドウを閉じた場合・手前が空タブの場合)`openWithoutViewer` へ渡す。
     /// 決定経路(onOpen)はパネルを畳んでから呼ばれるため、mainWindow は残存ビューアを指す。
     private func open(_ url: URL) {
         guard let controller = activeViewer() else {
-            openInNewWindow(url)
+            openWithoutViewer(url)
             return
         }
         controller.focusWindow()

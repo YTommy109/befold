@@ -15,7 +15,8 @@ final class AppQuickOpenEnvironment: QuickOpenEnvironment {
     /// 持って読むと、前面の窓と食い違う候補集合になる(TASK-480.3)。
     private let includesHiddenFiles: Bool
     private let fileReader: any FileReading
-    /// いま開いているファイル。ウィンドウが 1 枚も無ければ nil。
+    /// 候補の起点。いま開いているファイルか、空タブならサイドバーのフォルダ直下の仮のファイル。
+    /// 起点が無ければ nil。
     private let currentFileURL: URL?
 
     init(
