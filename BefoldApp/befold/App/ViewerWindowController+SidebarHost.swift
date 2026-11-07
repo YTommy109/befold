@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 extension ViewerWindowController: SidebarNavigatorHost {
     /// SidebarNavigator が現在ファイルを都度参照するための橋渡し。
-    var currentFileURL: URL {
+    var currentFileURL: URL? {
         fileURL
     }
 

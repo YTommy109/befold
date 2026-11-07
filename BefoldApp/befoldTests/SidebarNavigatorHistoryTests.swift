@@ -129,7 +129,7 @@ struct SidebarNavigatorHistoryTests {
 
         #expect(navigator.fileListModel.previewTarget == .file)
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
-        #expect(host.currentFileURL.lastPathComponent == "child.mmd")
+        #expect(host.currentFileURL?.lastPathComponent == "child.mmd")
     }
 
     @Test("履歴の適用は moveCurrentDirectory を通り、離れるフォルダーの選択を記憶する")

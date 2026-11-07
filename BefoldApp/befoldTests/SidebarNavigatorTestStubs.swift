@@ -49,7 +49,7 @@ struct SidebarGitReadingStub: SidebarGitReading {
 @MainActor
 final class SidebarNavigatorStubHost: SidebarNavigatorHost {
     /// 本番同様、切替が成立したら追従する(SidebarNavigator は切替後にこの値を読む)。
-    private(set) var currentFileURL: URL
+    private(set) var currentFileURL: URL?
     /// ファイル切替が何回起きたかの検証に使う。
     private(set) var performFileSwitchCallCount = 0
     /// 切替を失敗させたいテスト用。既定は常に成功。

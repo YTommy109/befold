@@ -55,7 +55,7 @@ enum ViewerWindowAssembler {
         for controller: ViewerWindowController, on window: NSWindow
     ) -> ViewerToolbarController? {
         guard controller.kind.hasToolbar else { return nil }
-        return ViewerToolbarController(window: window, host: controller)
+        return ViewerToolbarController(window: window, host: controller, hasSidebar: controller.kind.allowsSidebar)
     }
 
     static func makeSidebarNavigator(

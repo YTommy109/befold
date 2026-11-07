@@ -1,31 +1,78 @@
 import AppKit
+import BefoldKit
 import SwiftUI
 
-/// 空タブの表示と閉じる通知。文書を選ぶまでレンダラ・ファイル監視は生成しない。
+/// 空タブのサイドバーの材料。起点の窓が無い空タブには列挙するフォルダが無いので、これも無い。
+@MainActor
+struct BlankTabSidebarContext {
+    let navigator: SidebarNavigator
+    let seed: SidebarInheritance.Seed
+    let sidebarState: SidebarStateStore
+    /// このタブを文書へ置き換える。開けたら true。
+    let replaceWithDocument: (URL, NSWindow) -> Bool
+    let openElsewhere: (URL, OpenDisposition, NSWindow) -> Void
+}
+
+/// 空タブの表示と閉じる通知。文書を選ぶまでレンダラと文書のファイル監視は生成しない
+/// (`ViewerStore` も描画面も持たない)。サイドバーは文書タブと同じ部品を使う。
 final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
     private let onClose: (BlankTabWindowController) -> Void
     private(set) var isClosed = false
     private var toolbarController: ViewerToolbarController?
+    let sidebarContext: BlankTabSidebarContext?
+    /// 実体は contentViewController が保持するので weak。
+    weak var sidebarCollapsible: (any SidebarCollapsible)?
+    /// サイドバーの git 状態の比較基準。新しいタブと同じく既定値から始める。
+    var comparisonTarget = GitComparisonTarget.windowDefault
 
-    init(onClose: @escaping (BlankTabWindowController) -> Void) {
+    init(sidebar sidebarContext: BlankTabSidebarContext? = nil, onClose: @escaping (BlankTabWindowController) -> Void) {
         self.onClose = onClose
+        self.sidebarContext = sidebarContext
         let window = ViewerWindowChrome.makeWindow(fileURL: nil)
         super.init(window: window)
-        window.contentViewController = NSHostingController(rootView: BlankTabView())
+        toolbarController = ViewerToolbarController(window: window, host: nil, hasSidebar: sidebarContext != nil)
+        window.contentViewController = makeContent()
         DocumentFileDropView.install(on: window)
-        toolbarController = ViewerToolbarController(window: window, host: nil)
         ViewerWindowChrome.applyInitialFrame(nil, to: window, kind: .viewer, isOccupied: { _ in false })
         window.delegate = self
+        if let sidebarContext {
+            sidebarContext.navigator.attach(
+                to: self, adopting: sidebarContext.seed.listing, expanding: sidebarContext.seed.expansion
+            )
+            sidebarContext.navigator.refreshFileList()
+        }
+    }
+
+    private func makeContent() -> NSViewController {
+        guard let sidebarContext else { return NSHostingController(rootView: BlankTabView()) }
+        let navigator = sidebarContext.navigator
+        let sidebarState = sidebarContext.sidebarState
+        let splitViewController = ViewerSplitViewController(
+            sidebar: FileListView(model: navigator.fileListModel, delegate: self),
+            content: BlankTabView(),
+            initialCollapsed: ViewerWindowOpenPolicy.initialSidebarCollapsed(
+                kind: .viewer, showSidebar: nil, forceSidebarVisible: false,
+                sourceCollapsed: sidebarContext.seed.sidebarCollapsed,
+                remembered: sidebarState.lastToggledCollapsed
+            ),
+            onCollapsedChange: { collapsed in sidebarState.recordToggle(collapsed) },
+            onSidebarDidReveal: { navigator.fileListModel.tableFocuser.focus() },
+            onSidebarDidHide: { navigator.fileListModel.tableFocuser.cancelPendingFocus() }
+        )
+        sidebarCollapsible = splitViewController
+        return splitViewController
     }
 
     func windowWillClose(_ notification: Notification) {
         isClosed = true
+        sidebarContext?.navigator.cancelPendingListing()
         onClose(self)
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
         guard let window else { return }
         ViewerTabGrouping.syncWindowsMenuMembership(among: ViewerTabGrouping.tabWindows(of: window))
+        sidebarContext?.navigator.refreshFileList()
     }
 
     @available(*, unavailable)

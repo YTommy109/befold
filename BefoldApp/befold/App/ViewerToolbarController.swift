@@ -70,24 +70,27 @@ final class ViewerToolbarController: NSObject, NSToolbarDelegate {
     /// 状態参照・アクション委譲の先。循環参照を避けるため weak。
     /// 分割した extension から参照するため internal。この型の外からは触らない。
     weak var host: ViewerToolbarHost?
+    let hasSidebar: Bool
 
     /// ツールバーの生成・デリゲート設定・ウィンドウへの取り付けまでをここで行う。
     /// 空タブは host を nil とし、同じ構成の文書操作を無効にする。
+    /// `hasSidebar` は窓が split view を持つか。起点の窓が無い空タブだけ false になる。
     ///
     /// この 3 手順には順序制約があり、`delegate` を設定する前に `window.toolbar` へ
     /// 代入するとアイテムが空のままになる。呼び出し側で 3 行に並べると順序を入れ替えても
     /// コンパイルは通ってしまうため、初期化子の中へ閉じて破れない形にしている。
-    init(window: NSWindow, host: ViewerToolbarHost?) {
+    init(window: NSWindow, host: ViewerToolbarHost?, hasSidebar: Bool) {
         self.window = window
         self.host = host
+        self.hasSidebar = hasSidebar
         super.init()
         let toolbar = NSToolbar(identifier: "ViewerToolbar")
         toolbar.displayMode = .iconOnly
         toolbar.delegate = self
         window.toolbarStyle = .unified
         window.toolbar = toolbar
-        // 空タブには split view が無いため、AppKit の自動配置に頼らず先頭へ揃える。
-        if host == nil {
+        // split view が無いと AppKit の自動配置が効かないため、先頭へ揃える。
+        if !hasSidebar {
             toolbar.items.first { $0.itemIdentifier == .toggleSidebar }?.isNavigational = true
         }
     }

@@ -1,6 +1,20 @@
 import AppKit
 import Foundation
 
+/// 引き継ぎの材料を持つ窓。文書タブと空タブが該当する。サイドバーを持たない窓は nil を返す。
+@MainActor
+protocol SidebarInheritanceSource: AnyObject {
+    var inheritableSidebar: SidebarNavigator? { get }
+    var sidebarCollapsible: (any SidebarCollapsible)? { get }
+}
+
+/// 文書タブの準拠も、引き継ぎの関心としてここへ置く(`ViewerMenuValidator` の準拠と同じ形)。
+extension ViewerWindowController: SidebarInheritanceSource {
+    var inheritableSidebar: SidebarNavigator? {
+        sidebar
+    }
+}
+
 /// 新しい窓を開くときに、**起点の窓から引き継ぐ材料**を採取する(TASK-593.2)。
 ///
 /// `ViewerWindowManager` から分けているのは行数の都合ではなく、ここが扱うのが
@@ -45,33 +59,40 @@ enum SidebarInheritance {
     }
 
     /// 起点ウィンドウのサイドバーが列挙済みの一覧(引き継ぎの材料)。
-    /// ビューアウィンドウでない・まだ一覧が届いていないなら nil。
+    /// サイドバーを持たない窓・まだ一覧が届いていないなら nil。
     static func listingSeed(from sourceWindow: NSWindow?) -> SidebarListingSeed? {
-        guard let controller = viewerController(of: sourceWindow),
-              controller.fileListModel.hasLoadedEntries
+        guard let navigator = navigator(of: sourceWindow), navigator.fileListModel.hasLoadedEntries
         else { return nil }
-        let model = controller.fileListModel
+        let model = navigator.fileListModel
         return SidebarListingSeed(
             directory: model.entriesDirectory,
-            listing: controller.sidebar.lastListing,
+            listing: navigator.lastListing,
             sortOrder: model.display.sortOrder,
             showHiddenFiles: model.display.showHiddenFiles
         )
     }
 
-    /// 起点ウィンドウのツリー展開(pathKey → URL)。ビューアウィンドウでなければ空。
+    /// 起点ウィンドウのツリー展開(pathKey → URL)。サイドバーを持たない窓なら空。
     static func expansion(from sourceWindow: NSWindow?) -> [String: URL] {
-        viewerController(of: sourceWindow)?.sidebar.expandedFolderURLs ?? [:]
+        navigator(of: sourceWindow)?.expandedFolderURLs ?? [:]
     }
 
-    /// 起点の窓のサイドバー開閉。ビューア窓でなければ nil。
+    /// 起点の窓のサイドバー開閉。サイドバーを持たない窓なら nil。
     static func sidebarCollapsed(from sourceWindow: NSWindow?) -> Bool? {
-        viewerController(of: sourceWindow)?.sidebarCollapsible?.resolvedSidebarCollapsed
+        source(of: sourceWindow)?.sidebarCollapsible?.resolvedSidebarCollapsed
     }
 
-    /// 起点の窓がビューア窓なら、そのコントローラ。**採取ごとに同じ判定を持たない**
-    /// ようにここへ寄せる。
-    private static func viewerController(of window: NSWindow?) -> ViewerWindowController? {
-        window?.windowController as? ViewerWindowController
+    /// 起点の窓のサイドバーが見ているフォルダ。サイドバーを持たない窓なら nil。
+    static func currentDirectory(of sourceWindow: NSWindow?) -> URL? {
+        navigator(of: sourceWindow)?.fileListModel.currentDirectory
+    }
+
+    /// **採取ごとに同じ判定を持たない**ようにここへ寄せる。
+    private static func source(of window: NSWindow?) -> (any SidebarInheritanceSource)? {
+        window?.windowController as? any SidebarInheritanceSource
+    }
+
+    private static func navigator(of window: NSWindow?) -> SidebarNavigator? {
+        source(of: window)?.inheritableSidebar
     }
 }
