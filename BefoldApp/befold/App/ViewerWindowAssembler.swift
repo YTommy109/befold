@@ -34,7 +34,7 @@ enum ViewerWindowAssembler {
     static func openInitialDocument(
         for controller: ViewerWindowController, at fileURL: URL,
         adopting initialListing: SidebarListingSeed?,
-        expanding initialExpansion: [String: URL] = [:]
+        expanding initialExpansion: [String: URL]
     ) {
         controller.sidebar.attach(
             to: controller, adopting: initialListing, expanding: initialExpansion
@@ -58,24 +58,22 @@ enum ViewerWindowAssembler {
         return ViewerToolbarController(window: window, host: controller, hasSidebar: controller.kind.allowsSidebar)
     }
 
+    /// - Parameter position: 空タブを置き換えるときの位置。nil ならファイルの親フォルダから始める。
+    /// - Parameter shared: 上位フォルダー移動の上限(`home`)と表示 4 値の既定値を読む。
     static func makeSidebarNavigator(
-        fileURL: URL,
-        home: URL,
-        displayDefaults: SidebarDisplayDefaults,
-        overrides: SidebarDisplayOverrides,
-        gitFileIndex: any GitFileIndexing,
-        gitStatusStore: GitStatusStore,
-        sidebarGit: (any SidebarGitReading)? = nil
+        fileURL: URL, position: SidebarPosition?, shared: ViewerWindowDependencies,
+        git: any SidebarGitReading, overrides: SidebarDisplayOverrides
     ) -> SidebarNavigator {
         // 初期一覧は空で始め、attach 直後の refreshFileList()（非同期の DirectoryLister.listingAsync）に
         // 埋めさせる。ウィンドウ生成時だけ同期列挙する経路を持たないことで、ネットワーク
         // ボリューム上のフォルダでもウィンドウ表示がディレクトリ列挙を待たない。
-        SidebarNavigator(
-            currentDirectory: fileURL.deletingLastPathComponent(), entries: [], selection: fileURL,
-            home: home,
-            displayDefaults: displayDefaults, overrides: overrides,
-            git: sidebarGit ?? makeSidebarGitReader(fileIndex: gitFileIndex, statusStore: gitStatusStore)
+        let navigator = SidebarNavigator(
+            currentDirectory: position?.currentDirectory ?? fileURL.deletingLastPathComponent(),
+            entries: [], selection: fileURL, home: shared.home,
+            displayDefaults: shared.displayDefaults, overrides: overrides, git: git
         )
+        if let position { navigator.updateRootDirectory(with: position.rootDirectory) }
+        return navigator
     }
 
     /// その原点に既に別のビューアウィンドウが居るか。

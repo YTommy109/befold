@@ -45,16 +45,25 @@ enum SidebarInheritance {
         var expansion: [String: URL]
         /// サイドバーの開閉。タブとして開かないなら nil。
         var sidebarCollapsed: Bool?
+        /// 空タブを同じ位置で文書へ置き換えるときの、空タブのサイドバーの位置。置き換えでなければ nil。
+        var position: SidebarPosition?
 
         /// 引き継ぐものが無い。起点の窓が無い経路(CLI・Finder・セッション復元)はこれ。
-        static let none = Seed(listing: nil, expansion: [:], sidebarCollapsed: nil)
+        static let none = Seed(listing: nil, expansion: [:], sidebarCollapsed: nil, position: nil)
     }
 
     /// 起点の窓から引き継げるものを 1 度に採る。
-    static func seed(from sourceWindow: NSWindow?, opensAsTab: Bool) -> Seed {
-        Seed(
-            listing: listingSeed(from: sourceWindow), expansion: expansion(from: sourceWindow),
-            sidebarCollapsed: opensAsTab ? sidebarCollapsed(from: sourceWindow) : nil
+    /// - Parameters:
+    ///   - replacing: この要求で置き換える空タブ。置き換えでなければ nil。
+    ///   - opening: 開く文書。空タブのサイドバーの位置を引き継げるかの判定に使う。
+    static func seed(
+        from sourceWindow: NSWindow?, opensAsTab: Bool, replacing blank: BlankTabWindowController?, opening url: URL?
+    ) -> Seed {
+        let listing = listingSeed(from: sourceWindow)
+        return Seed(
+            listing: listing, expansion: expansion(from: sourceWindow),
+            sidebarCollapsed: opensAsTab ? sidebarCollapsed(from: sourceWindow) : nil,
+            position: position(replacing: blank, opening: url, listing: listing)
         )
     }
 
@@ -82,6 +91,23 @@ enum SidebarInheritance {
         source(of: sourceWindow)?.sidebarCollapsible?.resolvedSidebarCollapsed
     }
 
+    /// 空タブを置き換えるときのサイドバーの位置。
+    ///
+    /// 文書タブはサイドバーの行を選んでも、選んだファイルが今の一覧から選べる限り表示中のフォルダを
+    /// 動かさない(TASK-465)。空タブを挟んだだけで、ツリーのルートが選んだファイルの親へ移って
+    /// 展開が消えないよう、同じ規則で引き継ぐ(TASK-914)。
+    ///
+    /// 位置は一覧の引き継ぎ(`listing`)のフォルダから作り、一覧を引き継げないなら位置も引き継がない。
+    /// 位置だけを引き継ぐと展開が落ち、閉じたツリーの中で選んだファイルが見えなくなる。
+    private static func position(
+        replacing blank: BlankTabWindowController?, opening url: URL?, listing: SidebarListingSeed?
+    ) -> SidebarPosition? {
+        guard let url, let listing, let model = blank?.inheritableSidebar?.fileListModel else { return nil }
+        guard listing.directory.normalizedPathKey == model.currentDirectory.normalizedPathKey else { return nil }
+        guard model.isReachableInCurrentListing(url) else { return nil }
+        return SidebarPosition(currentDirectory: listing.directory, rootDirectory: model.rootDirectory)
+    }
+
     /// 起点の窓のサイドバーが見ているフォルダ。サイドバーを持たない窓なら nil。
     static func currentDirectory(of sourceWindow: NSWindow?) -> URL? {
         navigator(of: sourceWindow)?.fileListModel.currentDirectory
@@ -95,4 +121,10 @@ enum SidebarInheritance {
     private static func navigator(of window: NSWindow?) -> SidebarNavigator? {
         source(of: window)?.inheritableSidebar
     }
+}
+
+/// サイドバーが表示しているフォルダと、その窓でこれまでに到達した最上位のフォルダ。
+struct SidebarPosition {
+    let currentDirectory: URL
+    let rootDirectory: URL
 }
