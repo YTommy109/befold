@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             gitIndex: windowManager.gitFileIndex,
             activeViewer: ActiveViewerProvider.fromMainWindow,
             activeBlankTab: ActiveViewerProvider.blankTabFromMainWindow,
-            openWithoutViewer: { documentOpener.openViewer(for: $0, focusesContent: true) }
+            openWithoutViewer: { documentOpener.openInActiveTab($0) }
         )
         // 購読はここで始める。起動処理の後段へ倒すと、起動と同時に届いた CLI 要求の
         // ACK を取りこぼして再送を待たせることになる(AppCLIRequestReceiver の doc)。

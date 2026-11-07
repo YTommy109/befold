@@ -164,6 +164,13 @@ final class ViewerWindowManager {
         )
     }
 
+    /// このファイルを起点なしで開いたときに前面へ出す既存の窓があるか。
+    func hasReusableWindow(for url: URL) -> Bool {
+        let candidates = controllers[url.normalizedPathKey] ?? []
+        return ViewerWindowOpenPolicy
+            .reusableController(from: candidates, disposition: .currentTab, relativeTo: nil) != nil
+    }
+
     /// 非同期のファイル解決を待つ間に閉じられた窓を、タブの起点へ戻さないための照合。
     func containsOpenWindow(_ window: NSWindow) -> Bool {
         allControllers.contains { $0.window === window }
