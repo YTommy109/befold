@@ -5,7 +5,8 @@ import Foundation
 @MainActor
 protocol SidebarNavigatorHost: AnyObject {
     /// 現在表示中のファイル URL。performFileSwitch により変化するため都度参照する。
-    var currentFileURL: URL { get }
+    /// 文書を持たない窓(空タブ)では nil。
+    var currentFileURL: URL? { get }
     /// サイドバー選択・履歴から要求されたファイル切替の実処理。
     /// 別ウィンドウで開いている・存在しないなど切替できなかった理由は結果で返る。
     @discardableResult

@@ -89,7 +89,7 @@ extension ViewerToolbarController {
     private static let segmentWidth: CGFloat = 32
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        Self.layout.map(\.identifier).filter { host != nil || $0 != .sidebarTrackingSeparator }
+        Self.layout.map(\.identifier).filter { hasSidebar || $0 != .sidebarTrackingSeparator }
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {

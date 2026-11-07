@@ -68,9 +68,9 @@ final class SidebarHistoryController {
         case .folder:
             .folder(fileListModel.selection)
         case .file:
-            .file(fileListModel.selection ?? host.currentFileURL)
+            (fileListModel.selection ?? host.currentFileURL).map(HistoryPresentation.file) ?? .folder(nil)
         case .undetermined:
-            .file(host.currentFileURL)
+            host.currentFileURL.map(HistoryPresentation.file) ?? .folder(nil)
         }
     }
 
@@ -93,7 +93,7 @@ final class SidebarHistoryController {
         // 別ウィンドウが同じファイルを開いていても自ウィンドウで切り替える(他ウィンドウの
         // 前面化はしない)。利用者はこのウィンドウの履歴を辿っているだけなので奪わない。
         let fileToOpen = entry.file.flatMap {
-            $0.normalizedPathKey == host.currentFileURL.normalizedPathKey ? nil : $0
+            $0.normalizedPathKey == host.currentFileURL?.normalizedPathKey ? nil : $0
         }
         if let fileToOpen {
             guard case .switched = host.performFileSwitch(to: fileToOpen) else { return false }

@@ -133,7 +133,7 @@ final class SidebarListingCoordinator {
                 return entries.contains { $0.pathKey == selectionKey }
             } ?? false
             guard !selectionStillValid else { return }
-            self.fileListModel.selection = self.fileListModel.matchingEntryURL(for: host.currentFileURL)
+            self.fileListModel.selection = host.currentFileURL.map(self.fileListModel.matchingEntryURL(for:))
         }
     }
 
