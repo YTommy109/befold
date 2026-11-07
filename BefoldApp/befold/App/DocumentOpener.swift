@@ -153,12 +153,17 @@ final class DocumentOpener {
     }
 
     /// 選択順にタブを開き、最初の文書だけを選択する。空タブは最初の成功時に置き換える。
+    ///
+    /// 閉じた起点の扱いは `openViewer` の入口(`ViewerWindowOpenPolicy.resolveOrigin`)が決める。
+    /// ここが持つのは「残りをどこへまとめるか」だけで、最初の文書が既存の無関係な窓を再利用した
+    /// ときは、その窓を残りの起点にしない。利用者はその窓を選んでいない(TASK-922)。
     @discardableResult
     func openInTabs(_ urls: [URL], relativeTo sourceWindow: NSWindow) -> Task<Void, Never> {
         enqueueBlankTabOpen(from: sourceWindow) { [self] in
             var anchor = sourceWindow
             var selected: NSWindow?
             await SequentialOpener.open(urls) { url in
+                let alreadyOpen = Set(windowManager.allControllers.map(ObjectIdentifier.init))
                 guard let opened = await openViewer(
                     for: url, options: CLIOpenOptions(),
                     disposition: ViewerWindowOpenPolicy.tabBatchDisposition(relativeTo: anchor), relativeTo: anchor,
@@ -166,7 +171,9 @@ final class DocumentOpener {
                 ), let window = opened.window else { return }
                 if selected == nil {
                     selected = window
-                    anchor = window
+                    let reusedElsewhere = alreadyOpen.contains(ObjectIdentifier(opened))
+                        && !ViewerTabGrouping.tabWindows(of: anchor).contains(window)
+                    if !reusedElsewhere { anchor = window }
                     ViewerTabGrouping.selectTab(window)
                 }
             }
