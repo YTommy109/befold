@@ -73,6 +73,8 @@ describe('Markdown 追記のパス注釈', () => {
   );
 });
 
+type ViewerMain = ReturnType<typeof loadViewerMain>['main'];
+
 const fence = (name: string) => `\`\`\`mermaid\ngraph TD; ${name}-->${name}2;\n\`\`\`\n\n`;
 const errorState = (document: Document) => ({
   error: document.getElementById('mmd-error')!.textContent,
@@ -193,6 +195,39 @@ describe('Mermaid の実行が重なったときの図の枠', () => {
     expect(runNodes.filter((nodes) => nodes.includes(latest))).toHaveLength(1);
     expect(latest.querySelector('svg')).not.toBeNull();
     expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+  });
+
+  describe('生 HTML で data-processed が付いた図', () => {
+    const preRendered = '<div class="mermaid" data-processed="true"><svg></svg></div>\n\n';
+
+    test.each([
+      [
+        '最初の render',
+        (main: ViewerMain) => {
+          void main.render(preRendered, 'md');
+          return Promise.resolve();
+        },
+      ],
+      [
+        '追記',
+        async (main: ViewerMain) => {
+          await main.render('# t\n', 'md');
+          main.appendChunk(preRendered + fence('A'), 'md');
+        },
+      ],
+    ])('%sでは描画済みとして扱い、描き直さない', async (_name, show) => {
+      const { main, document, runNodes, finishMermaidLoad, releaseAll, flush } = setUp();
+      await show(main);
+      const processed = document.querySelector<HTMLElement>('.mermaid[data-processed]')!;
+      await flush();
+      if (document.querySelector('script[src="mermaid.min.js"]')) {
+        await finishMermaidLoad();
+        await releaseAll();
+      }
+
+      expect(runNodes.flat()).not.toContain(processed);
+      expect(processed.closest('.diagram-zoom-wrap')).toBeNull();
+    });
   });
 
   describe('置き換えられた文書の実行', () => {

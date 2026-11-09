@@ -24737,27 +24737,20 @@
     }
   }
   var _mermaidRunTail = Promise.resolve();
-  function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
-    var selector = onlyUnprocessed ? ".mermaid:not([data-processed])" : ".mermaid";
-    var elements = diagramWrap.querySelectorAll(selector);
+  function _mmdRunMermaid(diagramWrap) {
+    var elements = diagramWrap.querySelectorAll(".mermaid:not([data-processed])");
     if (elements.length === 0) {
       return Promise.resolve();
     }
     function run() {
-      return _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed);
+      return _mmdRenderAndWrap(diagramWrap, elements);
     }
     _mermaidRunTail = _mermaidRunTail.then(run, run);
     return _mermaidRunTail;
   }
-  async function _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed) {
+  async function _mmdRenderAndWrap(diagramWrap, elements) {
     try {
       await _mmdEnsureMermaidLoaded();
-      elements.forEach(function(el, i) {
-        if (!onlyUnprocessed) {
-          delete el.dataset.processed;
-        }
-        el.id = "mmd-" + i + "-" + Date.now();
-      });
       var nodes = Array.from(elements);
       await mermaid.run({ nodes }).catch(function(err) {
         if (nodes.some((node) => node.isConnected)) {
@@ -25380,7 +25373,7 @@
       next = node.nextSibling;
       _walkTextNodes(node, false);
     }
-    void _mmdRunMermaid(diagramWrap, true);
+    void _mmdRunMermaid(diagramWrap);
     return true;
   }
   function appendCsvChunk(diagramWrap, text3, lang) {

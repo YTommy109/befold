@@ -235,7 +235,7 @@ function appendMarkdownChunk(diagramWrap: HTMLElement, text: string): boolean {
   }
   // 追記分に ```mermaid フェンスがあれば描画する。render() と違い appendChunk は
   // 同期関数のため await せず、描画済みの図は対象外にする(全図の再描画を避ける)。
-  void _mmdRunMermaid(diagramWrap, true);
+  void _mmdRunMermaid(diagramWrap);
   return true;
 }
 
