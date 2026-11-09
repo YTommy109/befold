@@ -24728,7 +24728,6 @@
       document.head.append(script);
     }).then(function() {
       mermaid.initialize(_mmdMermaidConfig());
-      mermaid.parseError = _mmdMermaidParseError;
     });
     return _mermaidLoadPromise;
   }
@@ -24759,7 +24758,12 @@
         }
         el.id = "mmd-" + i + "-" + Date.now();
       });
-      await mermaid.run({ nodes: Array.from(elements) });
+      var nodes = Array.from(elements);
+      await mermaid.run({ nodes }).catch(function(err) {
+        if (nodes.some((node) => node.isConnected)) {
+          _mmdMermaidParseError(err);
+        }
+      });
     } catch (e) {
     }
     _mmdWrapDiagrams(diagramWrap, elements);
@@ -25297,7 +25301,10 @@
     }
     _mmdJump.refresh(modeJustSwitched);
   }
+  var _mmdLatestRender = 0;
   async function render(content, type, lang) {
+    _mmdLatestRender += 1;
+    var generation = _mmdLatestRender;
     _mmdDocPath.adoptPending();
     prepareCsvResize(_mmdDocPath.current());
     _mmdJump.invalidate();
@@ -25339,6 +25346,9 @@
       _renderMarkdown(diagramWrap, content);
     }
     await _mmdRunMermaid(diagramWrap);
+    if (generation !== _mmdLatestRender) {
+      return;
+    }
     _annotatePathRefs();
     _mmdResolveReferences();
     if (shape === "csv-table") {

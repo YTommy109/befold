@@ -11,10 +11,9 @@ import { _mmdWrapDiagrams } from './zoom.js';
 interface MermaidGlobal {
   initialize(config: MermaidConfig): void;
   run(options: { nodes: HTMLElement[] }): Promise<void>;
-  parseError?: (err: MermaidParseErrorLike) => void;
 }
 
-// mermaid が parseError へ渡すエラー。message / str のどちらで来るかは
+// mermaid.run が reject するエラー。message / str のどちらで来るかは
 // 発生箇所で異なるため、どちらも省略可能にしてある。
 interface MermaidParseErrorLike {
   message?: string;
@@ -102,7 +101,6 @@ function _mmdEnsureMermaidLoaded(): Promise<void> {
     // oxlint-disable-next-line promise/always-return
   }).then(function () {
     mermaid.initialize(_mmdMermaidConfig());
-    mermaid.parseError = _mmdMermaidParseError;
   });
   return _mermaidLoadPromise;
 }
@@ -153,9 +151,17 @@ async function _mmdRenderAndWrap(
       }
       el.id = 'mmd-' + i + '-' + Date.now();
     });
-    await mermaid.run({ nodes: Array.from(elements) });
+    // 全実行で共有の mermaid.parseError では、どの実行のエラーか区別できない。
+    // 置き換えられた文書のエラーが、新しい文書のエラー表示と表示状態を壊さないよう
+    // 実行ごとに受ける。render は図を DOM ごと置き換えるので、残っていれば現在の文書の図。
+    var nodes = Array.from(elements);
+    await mermaid.run({ nodes }).catch(function (err: MermaidParseErrorLike) {
+      if (nodes.some((node) => node.isConnected)) {
+        _mmdMermaidParseError(err);
+      }
+    });
   } catch (e) {
-    // parseError callback handles parse-time display; load failure falls through silently
+    // mermaid.min.js のロード失敗は表示しない
   }
   _mmdWrapDiagrams(diagramWrap, elements);
 }
