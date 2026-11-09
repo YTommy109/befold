@@ -169,6 +169,8 @@ describe('native find highlights', () => {
     flushHighlights();
     expect(highlights.size).toBe(0);
     main._mmdFind.next();
+    // 図の描画(mermaid のロード開始)は、前の実行を待つ次の microtask で始まる。
+    await Promise.resolve();
     document
       .querySelector('script[src="mermaid.min.js"]')!
       .dispatchEvent(new window.Event('error'));

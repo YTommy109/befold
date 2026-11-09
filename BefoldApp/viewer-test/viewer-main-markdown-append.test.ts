@@ -72,3 +72,194 @@ describe('Markdown 追記のパス注釈', () => {
     },
   );
 });
+
+const fence = (name: string) => `\`\`\`mermaid\ngraph TD; ${name}-->${name}2;\n\`\`\`\n\n`;
+const errorState = (document: Document) => ({
+  error: document.getElementById('mmd-error')!.textContent,
+  wrapDisplay: document.getElementById('diagram-wrap')!.style.display,
+});
+
+describe('Mermaid の実行が重なったときの図の枠', () => {
+  const RENDERED_HEIGHT = 600;
+  const SOURCE_HEIGHT = 20;
+
+  // 本物の mermaid.run と同じ形の偽物: 図を 1 個ずつ処理し、data-processed は描画の
+  // await より前に付く。実行どうしは直列化しない。描画は release で 1 件ずつ終える。
+  // 'broken' を含む図があれば、実行の最後に parseError を呼んでから reject する
+  // (本物の run と同じ順)。
+  function setUp() {
+    const loaded = loadViewerMain();
+    const { window, document } = loaded;
+    const pending: Array<() => void> = [];
+    const runNodes: HTMLElement[][] = [];
+    const fakeMermaid = {
+      initialize: () => {},
+      parseError: undefined as ((err: Error) => void) | undefined,
+      run: async ({ nodes }: { nodes: HTMLElement[] }) => {
+        runNodes.push(nodes);
+        let failed = false;
+        for (const node of nodes) {
+          if (node.dataset.processed) continue;
+          node.dataset.processed = 'true';
+          failed ||= node.textContent.includes('broken');
+          // 本物と同じく図を 1 個ずつ順に描画する。
+          // oxlint-disable-next-line no-await-in-loop
+          await new Promise<void>((resolve) => {
+            pending.push(resolve);
+          });
+          node.innerHTML = '<svg></svg>';
+        }
+        if (failed) {
+          const error = new Error('parse failed');
+          fakeMermaid.parseError?.(error);
+          throw error;
+        }
+      },
+    };
+    Object.assign(window, { mermaid: fakeMermaid });
+    Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.querySelector('svg') ? RENDERED_HEIGHT : SOURCE_HEIGHT;
+      },
+    });
+    const flush = () =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
+    const finishMermaidLoad = async () => {
+      await flush();
+      document
+        .querySelector('script[src="mermaid.min.js"]')!
+        .dispatchEvent(new window.Event('load'));
+      await flush();
+    };
+    const releaseAll = async () => {
+      while (pending.length > 0) {
+        pending.shift()!();
+        // 描画を 1 件ずつ終え、そのたびに後続の継続を走らせるため順番に待つ。
+        // oxlint-disable-next-line no-await-in-loop
+        await flush();
+      }
+    };
+    const naturalHeights = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('#diagram-wrap .diagram-zoom-wrap'),
+        (wrap) => Number(wrap.dataset.naturalHeight),
+      );
+    return { ...loaded, pending, runNodes, finishMermaidLoad, releaseAll, naturalHeights, flush };
+  }
+
+  test('先の実行の完了時に、後から追記した描画前の図を包まない', async () => {
+    const { main, pending, finishMermaidLoad, releaseAll, naturalHeights, flush } = setUp();
+    await main.render('# t\n', 'md');
+    main.appendChunk(fence('A'), 'md');
+    await finishMermaidLoad();
+    main.appendChunk(fence('B'), 'md');
+    await flush();
+
+    pending.shift()!();
+    await flush();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+
+    await releaseAll();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT, RENDERED_HEIGHT]);
+  });
+
+  test('図 2 個の実行の途中で追記しても、残りの図を奪って描画前に包まない', async () => {
+    const { main, finishMermaidLoad, releaseAll, naturalHeights, flush } = setUp();
+    await main.render('# t\n', 'md');
+    main.appendChunk(fence('A') + fence('B'), 'md');
+    await finishMermaidLoad();
+    main.appendChunk(fence('C'), 'md');
+    await flush();
+
+    await releaseAll();
+
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT, RENDERED_HEIGHT, RENDERED_HEIGHT]);
+  });
+
+  test('render が重なっても、最新の DOM の図を 1 度しか描画しない', async () => {
+    const { main, document, runNodes, finishMermaidLoad, releaseAll, naturalHeights } = setUp();
+    void main.render(fence('A'), 'md');
+    void main.render(fence('B'), 'md');
+    const last = main.render(fence('C'), 'md');
+    const latest = document.querySelector<HTMLElement>('#diagram-wrap .mermaid')!;
+    await finishMermaidLoad();
+
+    await releaseAll();
+    await last;
+
+    expect(runNodes.filter((nodes) => nodes.includes(latest))).toHaveLength(1);
+    expect(latest.querySelector('svg')).not.toBeNull();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+  });
+
+  describe('置き換えられた文書の実行', () => {
+    test('ロード待ちの間に置き換えられた文書のパースエラーを出さない', async () => {
+      const { main, document, finishMermaidLoad, releaseAll, naturalHeights } = setUp();
+      const stale = main.render('graph TD; broken', 'mmd');
+      const last = main.render('graph TD; A-->B;', 'mmd');
+      await finishMermaidLoad();
+
+      await releaseAll();
+      await Promise.all([stale, last]);
+
+      expect(errorState(document)).toEqual({ error: '', wrapDisplay: 'block' });
+      expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+    });
+
+    test('描画の途中で置き換えられた文書のパースエラーを出さない', async () => {
+      const { main, document, finishMermaidLoad, releaseAll, flush } = setUp();
+      const stale = main.render('graph TD; broken', 'mmd');
+      await finishMermaidLoad();
+      const last = main.render('graph TD; A-->B;', 'mmd');
+      await flush();
+
+      await releaseAll();
+      await Promise.all([stale, last]);
+
+      expect(errorState(document)).toEqual({ error: '', wrapDisplay: 'block' });
+    });
+
+    test('表示中の文書のパースエラーは出す', async () => {
+      const { main, document, finishMermaidLoad, releaseAll } = setUp();
+      const last = main.render('graph TD; broken', 'mmd');
+      await finishMermaidLoad();
+
+      await releaseAll();
+      await last;
+
+      expect(errorState(document)).toEqual({ error: 'parse failed', wrapDisplay: 'none' });
+    });
+
+    test('mermaid のロード失敗はエラーとして出さない', async () => {
+      const { main, window, document, flush } = setUp();
+      const last = main.render('graph TD; A-->B;', 'mmd');
+      await flush();
+      document
+        .querySelector('script[src="mermaid.min.js"]')!
+        .dispatchEvent(new window.Event('error'));
+
+      await last;
+
+      expect(errorState(document)).toEqual({ error: '', wrapDisplay: 'block' });
+    });
+
+    test.each([
+      ['図のある文書', fence('B')],
+      ['図のない文書', '# 図なし\n'],
+    ])('置き換えた先が%sでも、復元位置は最新の render が使う', async (_name, latest) => {
+      const { main, finishMermaidLoad, releaseAll } = setUp();
+      const stale = main.render(fence('A'), 'md');
+      main._mmdSetRestoreScroll(120);
+      const last = main.render(latest, 'md');
+      await finishMermaidLoad();
+
+      await releaseAll();
+      await Promise.all([stale, last]);
+
+      expect(main._mmdScrollTarget()!.scrollTop).toBe(120);
+    });
+  });
+});

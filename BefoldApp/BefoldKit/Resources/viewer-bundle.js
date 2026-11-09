@@ -16806,9 +16806,10 @@
     controls.append(zoomIn);
     return controls;
   }
-  function _mmdWrapDiagrams(diagramWrap) {
+  function _mmdWrapDiagrams(diagramWrap, rendered) {
+    var targets = new Set(rendered);
     diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
-      if (el.closest(".diagram-zoom-wrap")) {
+      if (!targets.has(el) || el.closest(".diagram-zoom-wrap")) {
         return;
       }
       var wrap = document.createElement("div");
@@ -24727,7 +24728,6 @@
       document.head.append(script);
     }).then(function() {
       mermaid.initialize(_mmdMermaidConfig());
-      mermaid.parseError = _mmdMermaidParseError;
     });
     return _mermaidLoadPromise;
   }
@@ -24736,12 +24736,20 @@
       mermaid.initialize(_mmdMermaidConfig());
     }
   }
-  async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
+  var _mermaidRunTail = Promise.resolve();
+  function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
     var selector = onlyUnprocessed ? ".mermaid:not([data-processed])" : ".mermaid";
     var elements = diagramWrap.querySelectorAll(selector);
     if (elements.length === 0) {
-      return;
+      return Promise.resolve();
     }
+    function run() {
+      return _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed);
+    }
+    _mermaidRunTail = _mermaidRunTail.then(run, run);
+    return _mermaidRunTail;
+  }
+  async function _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed) {
     try {
       await _mmdEnsureMermaidLoaded();
       elements.forEach(function(el, i) {
@@ -24750,10 +24758,15 @@
         }
         el.id = "mmd-" + i + "-" + Date.now();
       });
-      await mermaid.run({ nodes: Array.from(elements) });
+      var nodes = Array.from(elements);
+      await mermaid.run({ nodes }).catch(function(err) {
+        if (nodes.some((node) => node.isConnected)) {
+          _mmdMermaidParseError(err);
+        }
+      });
     } catch (e) {
     }
-    _mmdWrapDiagrams(diagramWrap);
+    _mmdWrapDiagrams(diagramWrap, elements);
   }
 
   // viewer-src/renderers.ts
@@ -25288,7 +25301,10 @@
     }
     _mmdJump.refresh(modeJustSwitched);
   }
+  var _mmdLatestRender = 0;
   async function render(content, type, lang) {
+    _mmdLatestRender += 1;
+    var generation = _mmdLatestRender;
     _mmdDocPath.adoptPending();
     prepareCsvResize(_mmdDocPath.current());
     _mmdJump.invalidate();
@@ -25330,6 +25346,9 @@
       _renderMarkdown(diagramWrap, content);
     }
     await _mmdRunMermaid(diagramWrap);
+    if (generation !== _mmdLatestRender) {
+      return;
+    }
     _annotatePathRefs();
     _mmdResolveReferences();
     if (shape === "csv-table") {

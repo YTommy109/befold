@@ -205,7 +205,7 @@ describe('ダイアグラム個別ズーム', () => {
     const diagramWrap = loaded.document.getElementById('diagram-wrap')!;
     diagramWrap.innerHTML =
       '<pre class="mermaid">graph TD; A-->B;</pre><pre class="mermaid">graph TD; C-->D;</pre>';
-    loaded.main._mmdWrapDiagrams(diagramWrap);
+    loaded.main._mmdWrapDiagrams(diagramWrap, diagramWrap.querySelectorAll('.mermaid'));
     return wraps(loaded.document);
   }
 
@@ -266,9 +266,9 @@ describe('ダイアグラム個別ズーム', () => {
     // Mermaid の描画結果を追記した状態。複数回の追記でも以前の図を包み直さない。
     for (const name of ['E', 'F']) {
       diagramWrap.insertAdjacentHTML('beforeend', `<pre class="mermaid">graph TD; ${name};</pre>`);
-      loaded.main._mmdWrapDiagrams(diagramWrap);
+      loaded.main._mmdWrapDiagrams(diagramWrap, diagramWrap.querySelectorAll('.mermaid'));
     }
-    loaded.main._mmdWrapDiagrams(diagramWrap);
+    loaded.main._mmdWrapDiagrams(diagramWrap, diagramWrap.querySelectorAll('.mermaid'));
 
     const afterAppend = wraps(loaded.document);
     expect(afterAppend).toHaveLength(4);
@@ -291,7 +291,7 @@ describe('ダイアグラム個別ズーム', () => {
     // 全体の再描画では新しい DOM に同じ順番の倍率を復元する。
     const diagrams = Array.from(diagramWrap.querySelectorAll('.mermaid'));
     diagramWrap.innerHTML = diagrams.map((diagram) => diagram.outerHTML).join('');
-    loaded.main._mmdWrapDiagrams(diagramWrap);
+    loaded.main._mmdWrapDiagrams(diagramWrap, diagramWrap.querySelectorAll('.mermaid'));
     const afterRerender = wraps(loaded.document);
     expect(afterRerender).toHaveLength(4);
     expect(afterRerender[0]).not.toBe(first);

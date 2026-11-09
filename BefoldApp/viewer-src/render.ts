@@ -95,10 +95,16 @@ function _mmdFindRefreshAfterRender(): void {
   _mmdJump.refresh(modeJustSwitched);
 }
 
+// 最後に始めた render の番号。図の描画を待つ間に次の render が DOM を置き換えると、
+// 待っていた側の後処理は新しい DOM に走り、新しい文書の復元位置まで消費してしまう。
+var _mmdLatestRender = 0;
+
 // Swift の ViewerBridge.callScript は、lang が無い種別(md / mmd など)では第 3 引数を
 // 省略して `render(content, 'md')` と呼ぶ。lang を省略可能にしてあるのはその呼び方を
 // そのまま型にしたもので、appendChunk も同じ経路で呼ばれる(TASK-623.4)。
 async function render(content: string, type: string, lang?: string): Promise<void> {
+  _mmdLatestRender += 1;
+  var generation = _mmdLatestRender;
   // 予告されていた文書パスをここで採用する。以後の per-file な通知(倍率)は
   // このパスをキーにする。render 開始より前に採用すると、まだ旧文書が DOM に
   // 出ている間の通知が新パスのキーで保存される。
@@ -168,6 +174,9 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   }
 
   await _mmdRunMermaid(diagramWrap);
+  if (generation !== _mmdLatestRender) {
+    return;
+  }
 
   _annotatePathRefs();
   _mmdResolveReferences();

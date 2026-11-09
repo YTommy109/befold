@@ -313,12 +313,14 @@ function _mmdBuildDiagramControls(wrap: HTMLElement): HTMLElement {
   return controls;
 }
 
-// 各 .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
-// （mermaid.run() 完了後）に呼ぶこと。
-function _mmdWrapDiagrams(diagramWrap: HTMLElement): void {
+// rendered の .mermaid 要素をズーム用ラッパーで包む。SVG サイズ確定後
+// （mermaid.run() 完了後）に呼ぶこと。後続の追記が足した描画前の図を rendered に
+// 含めてはならない。描画前の高さが naturalHeight に残り、枠が小さいままになる。
+function _mmdWrapDiagrams(diagramWrap: HTMLElement, rendered: Iterable<HTMLElement>): void {
+  var targets = new Set(rendered);
   diagramWrap.querySelectorAll<HTMLElement>('.mermaid').forEach(function (el, i) {
     // 追記で既存の図を包み直すとズームが多重にかかる。全図の順番は倍率のキーに保つ。
-    if (el.closest('.diagram-zoom-wrap')) {
+    if (!targets.has(el) || el.closest('.diagram-zoom-wrap')) {
       return;
     }
     var wrap = document.createElement('div');
