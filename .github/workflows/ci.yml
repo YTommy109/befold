@@ -366,6 +366,10 @@ jobs:
       # 30 秒では waitUntil 系ポーリングがタイムアウトする(直近14回中12回失敗)。
       # lineNumbers テストで最大 74 秒を観測しているため、十分なマージンを確保する。
       BEFOLD_TEST_TIMEOUT_SECONDS: 120
+      # .timeLimit はテストの作業時間でなく実行全体の壁時計を測る(TASK-517)。TSan の 1 本目は
+      # 成功 19 回で 217〜558 秒、同一コミットでも 2 倍以上ばらつき、既定の 10 分では 628 秒の回に
+      # 35 件が一斉に落ちた(TASK-923)。ハングの検知は下の test-watchdog.sh が担う。
+      BEFOLD_TEST_TIME_LIMIT_MINUTES: 20
     defaults:
       run:
         working-directory: BefoldApp
@@ -388,7 +392,18 @@ jobs:
       # データ競合の回帰を ThreadSanitizer で検出する。
       - name: ThreadSanitizer 付きでテストを実行する
         # befoldCLITests と PDF を分ける理由は build-and-test と同じ(TASK-664 / TASK-907)。
+        # 既定の 300 秒でなく 400 秒にするのは、成功した回でもテストの完了が最大 209 秒
+        # 途切れるため(TASK-923 の実測)。
         run: |
-          swift test --sanitize=thread --skip befoldCLITests --skip PDF
-          swift test --sanitize=thread --skip befoldCLITests --filter PDF
-          swift test --sanitize=thread --filter befoldCLITests
+          ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/main" -- swift test --sanitize=thread --skip befoldCLITests --skip PDF
+          ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/pdf" -- swift test --sanitize=thread --skip befoldCLITests --filter PDF
+          ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/cli" -- swift test --sanitize=thread --filter befoldCLITests
+
+      - name: テストのハングの診断を保存する
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-hang-tsan-attempt${{ github.run_attempt }}
+          path: ${{ runner.temp }}/test-hang
+          if-no-files-found: ignore
+          retention-days: 30
