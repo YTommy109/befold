@@ -252,6 +252,52 @@ describe('ダイアグラム個別ズーム', () => {
     expect(labelOf(reSecond!)).toBe(loaded.main.zoomLabel(loaded.main.ZOOM_DEFAULT));
   });
 
+  test('図の追記では既存のラッパーと操作状態を保ち、新しい図だけを包む', () => {
+    const loaded = loadViewerMain({});
+    const [first, second] = wrapTwoDiagrams(loaded);
+    const diagramWrap = loaded.document.getElementById('diagram-wrap')!;
+    const firstControls = first!.querySelector('.diagram-zoom-controls');
+    const firstScroll = first!.querySelector('.diagram-zoom-scroll')!;
+    firstScroll.scrollTop = 80;
+    firstScroll.scrollLeft = 40;
+    first!.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
+    const firstZoom = labelOf(first!);
+
+    // Mermaid の描画結果を追記した状態。複数回の追記でも以前の図を包み直さない。
+    for (const name of ['E', 'F']) {
+      diagramWrap.insertAdjacentHTML('beforeend', `<pre class="mermaid">graph TD; ${name};</pre>`);
+      loaded.main._mmdWrapDiagrams(diagramWrap);
+    }
+    loaded.main._mmdWrapDiagrams(diagramWrap);
+
+    const afterAppend = wraps(loaded.document);
+    expect(afterAppend).toHaveLength(4);
+    expect(afterAppend[0]).toBe(first);
+    expect(afterAppend[1]).toBe(second);
+    expect(afterAppend.map((wrap) => wrap.dataset.diagramIndex)).toEqual(['0', '1', '2', '3']);
+    expect(diagramWrap.querySelectorAll('.diagram-zoom-controls')).toHaveLength(4);
+    expect(diagramWrap.querySelector('.diagram-zoom-wrap .diagram-zoom-wrap')).toBeNull();
+    expect(first!.querySelector('.diagram-zoom-controls')).toBe(firstControls);
+    expect(firstScroll.scrollTop).toBe(80);
+    expect(firstScroll.scrollLeft).toBe(40);
+    expect(labelOf(first!)).toBe(firstZoom);
+
+    const last = afterAppend[3]!;
+    expect(labelOf(last)).toBe('100%');
+    last.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
+    last.querySelector<HTMLElement>('.diagram-zoom-in')!.click();
+    expect(afterAppend.map((wrap) => labelOf(wrap))).toEqual(['125%', '100%', '100%', '150%']);
+
+    // 全体の再描画では新しい DOM に同じ順番の倍率を復元する。
+    const diagrams = Array.from(diagramWrap.querySelectorAll('.mermaid'));
+    diagramWrap.innerHTML = diagrams.map((diagram) => diagram.outerHTML).join('');
+    loaded.main._mmdWrapDiagrams(diagramWrap);
+    const afterRerender = wraps(loaded.document);
+    expect(afterRerender).toHaveLength(4);
+    expect(afterRerender[0]).not.toBe(first);
+    expect(afterRerender.map((wrap) => labelOf(wrap))).toEqual(['125%', '100%', '100%', '150%']);
+  });
+
   test('倍率ラベルのクリックで既定倍率に戻る', () => {
     const loaded = loadViewerMain({});
     const [first] = wrapTwoDiagrams(loaded);
