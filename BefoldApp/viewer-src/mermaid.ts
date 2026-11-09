@@ -115,16 +115,36 @@ function _mmdReinitializeMermaidIfLoaded(): void {
   }
 }
 
+// 実行中の _mmdRunMermaid の末尾。mermaid.run は描画 1 件ごとにしか直列化しないため、
+// 重なった実行は互いの残りの図を奪い合い、自分の分だけ終えた時点では奪われた図が
+// 描画中のまま残る。
+var _mermaidRunTail: Promise<void> = Promise.resolve();
+
 // 描画後の DOM に .mermaid があれば mermaid を実行し、ズーム用ラッパーで包む。
 // mmd 直接表示だけでなく Markdown 内の ```mermaid フェンスもここを通る。
 // onlyUnprocessed が true の場合、まだ描画していない図だけを対象にする
 // (チャンク追記時に既存の図まで作り直さないため)。
-async function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolean): Promise<void> {
+// 対象はここで同期的に選ぶ。順番が来てから選ぶと、古い render が新しい DOM の図を
+// 描画し、続く render がその描画済みの図を作り直してしまう。
+function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolean): Promise<void> {
   var selector = onlyUnprocessed ? '.mermaid:not([data-processed])' : '.mermaid';
   var elements = diagramWrap.querySelectorAll<HTMLElement>(selector);
   if (elements.length === 0) {
-    return;
+    return Promise.resolve();
   }
+  function run(): Promise<void> {
+    return _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed);
+  }
+  // 前の実行が失敗しても後続の図を止めない。
+  _mermaidRunTail = _mermaidRunTail.then(run, run);
+  return _mermaidRunTail;
+}
+
+async function _mmdRenderAndWrap(
+  diagramWrap: HTMLElement,
+  elements: NodeListOf<HTMLElement>,
+  onlyUnprocessed?: boolean,
+): Promise<void> {
   try {
     await _mmdEnsureMermaidLoaded();
     elements.forEach(function (el: HTMLElement, i: number) {
@@ -137,7 +157,7 @@ async function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolea
   } catch (e) {
     // parseError callback handles parse-time display; load failure falls through silently
   }
-  _mmdWrapDiagrams(diagramWrap);
+  _mmdWrapDiagrams(diagramWrap, elements);
 }
 
 export {

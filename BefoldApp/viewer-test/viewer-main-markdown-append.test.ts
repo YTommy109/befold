@@ -72,3 +72,113 @@ describe('Markdown 追記のパス注釈', () => {
     },
   );
 });
+
+const fence = (name: string) => `\`\`\`mermaid\ngraph TD; ${name}-->${name}2;\n\`\`\`\n\n`;
+
+describe('Mermaid の実行が重なったときの図の枠', () => {
+  const RENDERED_HEIGHT = 600;
+  const SOURCE_HEIGHT = 20;
+
+  // 本物の mermaid.run と同じ形の偽物: 図を 1 個ずつ処理し、data-processed は描画の
+  // await より前に付く。実行どうしは直列化しない。描画は release で 1 件ずつ終える。
+  function setUp() {
+    const loaded = loadViewerMain();
+    const { window, document } = loaded;
+    const pending: Array<() => void> = [];
+    const runNodes: HTMLElement[][] = [];
+    Object.assign(window, {
+      mermaid: {
+        initialize: () => {},
+        run: async ({ nodes }: { nodes: HTMLElement[] }) => {
+          runNodes.push(nodes);
+          for (const node of nodes) {
+            if (node.dataset.processed) continue;
+            node.dataset.processed = 'true';
+            // 本物と同じく図を 1 個ずつ順に描画する。
+            // oxlint-disable-next-line no-await-in-loop
+            await new Promise<void>((resolve) => {
+              pending.push(resolve);
+            });
+            node.innerHTML = '<svg></svg>';
+          }
+        },
+      },
+    });
+    Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.querySelector('svg') ? RENDERED_HEIGHT : SOURCE_HEIGHT;
+      },
+    });
+    const flush = () =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
+    const finishMermaidLoad = async () => {
+      await flush();
+      document
+        .querySelector('script[src="mermaid.min.js"]')!
+        .dispatchEvent(new window.Event('load'));
+      await flush();
+    };
+    const releaseAll = async () => {
+      while (pending.length > 0) {
+        pending.shift()!();
+        // 描画を 1 件ずつ終え、そのたびに後続の継続を走らせるため順番に待つ。
+        // oxlint-disable-next-line no-await-in-loop
+        await flush();
+      }
+    };
+    const naturalHeights = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('#diagram-wrap .diagram-zoom-wrap'),
+        (wrap) => Number(wrap.dataset.naturalHeight),
+      );
+    return { ...loaded, pending, runNodes, finishMermaidLoad, releaseAll, naturalHeights, flush };
+  }
+
+  test('先の実行の完了時に、後から追記した描画前の図を包まない', async () => {
+    const { main, pending, finishMermaidLoad, releaseAll, naturalHeights, flush } = setUp();
+    await main.render('# t\n', 'md');
+    main.appendChunk(fence('A'), 'md');
+    await finishMermaidLoad();
+    main.appendChunk(fence('B'), 'md');
+    await flush();
+
+    pending.shift()!();
+    await flush();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+
+    await releaseAll();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT, RENDERED_HEIGHT]);
+  });
+
+  test('図 2 個の実行の途中で追記しても、残りの図を奪って描画前に包まない', async () => {
+    const { main, finishMermaidLoad, releaseAll, naturalHeights, flush } = setUp();
+    await main.render('# t\n', 'md');
+    main.appendChunk(fence('A') + fence('B'), 'md');
+    await finishMermaidLoad();
+    main.appendChunk(fence('C'), 'md');
+    await flush();
+
+    await releaseAll();
+
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT, RENDERED_HEIGHT, RENDERED_HEIGHT]);
+  });
+
+  test('render が重なっても、最新の DOM の図を 1 度しか描画しない', async () => {
+    const { main, document, runNodes, finishMermaidLoad, releaseAll, naturalHeights } = setUp();
+    void main.render(fence('A'), 'md');
+    void main.render(fence('B'), 'md');
+    const last = main.render(fence('C'), 'md');
+    const latest = document.querySelector<HTMLElement>('#diagram-wrap .mermaid')!;
+    await finishMermaidLoad();
+
+    await releaseAll();
+    await last;
+
+    expect(runNodes.filter((nodes) => nodes.includes(latest))).toHaveLength(1);
+    expect(latest.querySelector('svg')).not.toBeNull();
+    expect(naturalHeights()).toEqual([RENDERED_HEIGHT]);
+  });
+});

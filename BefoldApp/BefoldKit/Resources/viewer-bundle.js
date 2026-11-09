@@ -16806,9 +16806,10 @@
     controls.append(zoomIn);
     return controls;
   }
-  function _mmdWrapDiagrams(diagramWrap) {
+  function _mmdWrapDiagrams(diagramWrap, rendered) {
+    var targets = new Set(rendered);
     diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
-      if (el.closest(".diagram-zoom-wrap")) {
+      if (!targets.has(el) || el.closest(".diagram-zoom-wrap")) {
         return;
       }
       var wrap = document.createElement("div");
@@ -24736,12 +24737,20 @@
       mermaid.initialize(_mmdMermaidConfig());
     }
   }
-  async function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
+  var _mermaidRunTail = Promise.resolve();
+  function _mmdRunMermaid(diagramWrap, onlyUnprocessed) {
     var selector = onlyUnprocessed ? ".mermaid:not([data-processed])" : ".mermaid";
     var elements = diagramWrap.querySelectorAll(selector);
     if (elements.length === 0) {
-      return;
+      return Promise.resolve();
     }
+    function run() {
+      return _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed);
+    }
+    _mermaidRunTail = _mermaidRunTail.then(run, run);
+    return _mermaidRunTail;
+  }
+  async function _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed) {
     try {
       await _mmdEnsureMermaidLoaded();
       elements.forEach(function(el, i) {
@@ -24753,7 +24762,7 @@
       await mermaid.run({ nodes: Array.from(elements) });
     } catch (e) {
     }
-    _mmdWrapDiagrams(diagramWrap);
+    _mmdWrapDiagrams(diagramWrap, elements);
   }
 
   // viewer-src/renderers.ts
