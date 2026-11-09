@@ -16808,6 +16808,9 @@
   }
   function _mmdWrapDiagrams(diagramWrap) {
     diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
+      if (el.closest(".diagram-zoom-wrap")) {
+        return;
+      }
       var wrap = document.createElement("div");
       wrap.className = "diagram-zoom-wrap";
       wrap.dataset.diagramIndex = String(i);
@@ -25350,8 +25353,14 @@
     _mmdRerenderCurrent();
   }
   function appendMarkdownChunk(diagramWrap, text3) {
+    var previousLastChild = diagramWrap.lastChild;
     diagramWrap.insertAdjacentHTML("beforeend", markdownRenderer().render(text3));
-    _annotatePathRefs();
+    var next = previousLastChild ? previousLastChild.nextSibling : diagramWrap.firstChild;
+    while (next) {
+      var node = next;
+      next = node.nextSibling;
+      _walkTextNodes(node, false);
+    }
     void _mmdRunMermaid(diagramWrap, true);
     return true;
   }
