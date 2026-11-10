@@ -120,18 +120,18 @@ var _mermaidRunTail: Promise<void> = Promise.resolve();
 
 // 描画後の DOM に .mermaid があれば mermaid を実行し、ズーム用ラッパーで包む。
 // mmd 直接表示だけでなく Markdown 内の ```mermaid フェンスもここを通る。
-// onlyUnprocessed が true の場合、まだ描画していない図だけを対象にする
-// (チャンク追記時に既存の図まで作り直さないため)。
+// まだ描画していない図だけを対象にする(チャンク追記時に既存の図まで作り直さないため)。
+// render は DOM を作り直すので、data-processed が残るのは文書の生 HTML に書かれた図だけ。
+// mermaid の約束どおり描画済みとして扱い、render と追記で同じ結果にする。
 // 対象はここで同期的に選ぶ。順番が来てから選ぶと、古い render が新しい DOM の図を
 // 描画し、続く render がその描画済みの図を作り直してしまう。
-function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolean): Promise<void> {
-  var selector = onlyUnprocessed ? '.mermaid:not([data-processed])' : '.mermaid';
-  var elements = diagramWrap.querySelectorAll<HTMLElement>(selector);
+function _mmdRunMermaid(diagramWrap: HTMLElement): Promise<void> {
+  var elements = diagramWrap.querySelectorAll<HTMLElement>('.mermaid:not([data-processed])');
   if (elements.length === 0) {
     return Promise.resolve();
   }
   function run(): Promise<void> {
-    return _mmdRenderAndWrap(diagramWrap, elements, onlyUnprocessed);
+    return _mmdRenderAndWrap(diagramWrap, elements);
   }
   // 前の実行が失敗しても後続の図を止めない。
   _mermaidRunTail = _mermaidRunTail.then(run, run);
@@ -141,16 +141,9 @@ function _mmdRunMermaid(diagramWrap: HTMLElement, onlyUnprocessed?: boolean): Pr
 async function _mmdRenderAndWrap(
   diagramWrap: HTMLElement,
   elements: NodeListOf<HTMLElement>,
-  onlyUnprocessed?: boolean,
 ): Promise<void> {
   try {
     await _mmdEnsureMermaidLoaded();
-    elements.forEach(function (el: HTMLElement, i: number) {
-      if (!onlyUnprocessed) {
-        delete el.dataset.processed;
-      }
-      el.id = 'mmd-' + i + '-' + Date.now();
-    });
     // 全実行で共有の mermaid.parseError では、どの実行のエラーか区別できない。
     // 置き換えられた文書のエラーが、新しい文書のエラー表示と表示状態を壊さないよう
     // 実行ごとに受ける。render は図を DOM ごと置き換えるので、残っていれば現在の文書の図。
