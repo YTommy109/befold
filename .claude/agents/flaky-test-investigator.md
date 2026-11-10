@@ -41,8 +41,10 @@ tools: Read, Grep, Glob, Bash
 2. **単独で繰り返す**: 対象だけを反復して、単独での再現率を測る。
    `(cd BefoldApp && swift test --filter <Suite> --maximum-repetitions 20 --repeat-until fail) > .tmp/flaky-solo.log 2>&1`
 3. **CI と同じ形で繰り返す**: 単独で再現しなければ、負荷や並列が条件の可能性が高い。
-   CI と同じコマンド（`--skip befoldCLITests` / `--filter befoldCLITests` の分割、
-   strict レッグなら `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`）で全体を 3〜5 回回し、
+   CI と同じコマンド（`.github/workflows/ci.yml` の build-and-test ジョブ。
+   `--skip befoldCLITests --skip PDF` / `--skip befoldCLITests --filter PDF` /
+   `--filter befoldCLITests` の 3 プロセス分割、strict レッグなら
+   `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`）で全体を 3〜5 回回し、
    各回のログを別ファイルに残す。
 4. **条件を 1 つずつ変える**: 並列／直列、pool strict の有無、別プロセス分離などを
    1 つずつ変え、各条件で同じ回数だけ回して再現率を比べる。

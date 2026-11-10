@@ -1,13 +1,12 @@
 ---
 name: review-swift-code
-description: プロダクトコードを coding_rule.md（分割後）に基づいてレビューする
+description: Swift プロダクトコードを docs/dev/rules/product-code.md と comments.md の規約に基づいてレビューする
 ---
 
 ## Review Swift Code
 
 `docs/dev/rules/product-code.md` と `docs/dev/rules/comments.md` のコーディング規約に基づいて
-Swift プロダクトコードをレビューする（`docs/dev/coding_rule.md` は分割後の各ファイルへの
-インデックス）。
+Swift プロダクトコードをレビューする。
 
 ### 使い方
 
