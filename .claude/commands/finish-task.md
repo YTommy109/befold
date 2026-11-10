@@ -57,7 +57,7 @@ scripts/check-type-group-size.sh --check
 ```bash
 # 整形は機械に決めさせる（swiftformat と swiftlint が衝突する箇所を手で往復しない）
 (cd BefoldApp && swift package plugin --allow-writing-to-package-directory swiftformat)
-(cd BefoldApp && swift test --skip Integration --skip FileWatcherTests)
+(cd BefoldApp && swift test --skip Integration)
 # 新規ファイルを追加した場合のみ
 (cd BefoldApp && xcodegen generate)
 (cd BefoldApp && xcodebuild build -scheme befold -destination 'platform=macOS')

@@ -16,7 +16,7 @@ mermaid とベンダー CSS は npm から `BefoldApp/BefoldKit/Resources/` へ�
 
 devDependencies なので `npm audit` の対象ではあるが、**版は自動では上がらない**
 （renovate/Dependabot の設定は無く、すべて exact 指定）。人手で棚卸ししないと
-古い版が塩漬けになるのは従来どおり。
+古い版が塩漬けになる。
 
 作業はすべて現在の worktree（`git rev-parse --show-toplevel`）の内側で行うこと。
 

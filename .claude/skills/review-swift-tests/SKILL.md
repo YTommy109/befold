@@ -1,13 +1,12 @@
 ---
 name: review-swift-tests
-description: テストコードを coding_rule.md（分割後）に基づいてレビューする
+description: Swift テストコードを docs/dev/rules/testing.md と comments.md の規約に基づいてレビューする
 ---
 
 ## Review Swift Tests
 
 `docs/dev/rules/testing.md` と `docs/dev/rules/comments.md` のテスト規約に基づいて
-Swift テストコードをレビューする（`docs/dev/coding_rule.md` は分割後の各ファイルへの
-インデックス）。
+Swift テストコードをレビューする。
 
 ### 使い方
 
