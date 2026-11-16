@@ -4,7 +4,7 @@ title: 全体実行 + CPU 負荷下で、実 WKWebView の viewer.html のロー
 status: To Do
 assignee: []
 created_date: 2026-10-07 00:58
-updated_date: '2026-11-07T05:44:00Z'
+updated_date: '2026-11-16T01:17:00Z'
 labels:
   - test
   - bug
@@ -38,4 +38,6 @@ TASK-673 から切り出した原因探索。TSan + CPU 負荷 40 本（yes）�
 2026-11-07: 通常の CI ジョブ（TSan・追加負荷なし）で、同じ原因かもしれないハングを 1 回観測した。実 WKWebView を使うスイートも未完了に含まれる。sample が無いので同一とは確認できていない。詳細は TASK-907。
 
 2026-11-07: 原因の有力な候補を TASK-907 で特定した。PDFView の Vision 解析が libdispatch のワーカー上限 64 本を使い切り、実 WKWebView のロードが止まる（ワーカーを塞ぐ実験で再現。成功した回でも didFinish が実行の最後に届く観測とも整合）。TSan ジョブも PDF を別プロセスに分けた。TSan + 負荷 40 本での再発なしは未測定なので、本タスクの完了条件 2 は未達。
+
+2026-11-16: CI の TSan ジョブ（schedule、追加負荷なし、PDF は別プロセス）で同じ系統の失敗を 3 回観測した（直近 10 回中。run 42405199036 / 11-07 は .timeLimit 600 秒、run 43105338436 / 11-11 と run 43633285886 / 11-14 は ViewerRendererOneShotIntegrationTests.loadOneShotAwaitsRenderCompletion の #expect(html.contains("heading-marker")) が false）。11-14 は同スイートの拒否テスト（描画を待たない）も 912 秒かかっており、面の構成〜viewer.html ロードが十数分単位で遅れている。後 2 回の失敗は、テスト側の renderTimeout 60 秒が先に発火し、未描画の DOM を読んだもの。PDF 分離（TASK-907）後も起きているので、Vision によるワーカー枯渇だけでは説明できない（未確認）。対処として、テストの renderTimeout を .timeLimit より長くし、打ち切りを .timeLimit に一本化した（ロードが本当に来なければ time limit として出る）。原因は未特定のまま。
 <!-- SECTION:NOTES:END -->

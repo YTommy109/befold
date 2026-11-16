@@ -51,8 +51,10 @@ struct ViewerRendererOneShotIntegrationTests {
         let renderer = OneShotRenderer(features: .quickLookRestricted)
         // 既定の 3 秒は QuickLook 向けの上限で、全テスト並走時の WebView ロードには
         // 足りずタイムアウト側が先に発火しうる。ここでは打ち切りではなく
-        // 「完了まで待つ」ことを見たいので十分に長く取る。
-        renderer.renderTimeout = .seconds(60)
+        // 「完了まで待つ」ことを見たいので、打ち切りは .timeLimit に任せ、それより先に
+        // 発火させない。60 秒では TSan ジョブで足りず、タイムアウト後の空の DOM を
+        // 読んで落ちた（TASK-675 の Notes に CI の実測）。
+        renderer.renderTimeout = .seconds(testTimeLimitMinutes() * 60 * 2)
 
         let url = URL(fileURLWithPath: "/tmp/oneshot-await.md")
         let fileReader = InMemoryFileReader(files: [url.path: "# heading-marker\n"])
