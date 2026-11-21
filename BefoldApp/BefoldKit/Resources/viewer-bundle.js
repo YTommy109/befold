@@ -14247,6 +14247,7 @@
     csvCellHtml: () => csvCellHtml,
     csvHeaderLooksLikeCode: () => csvHeaderLooksLikeCode,
     csvHeaderTokens: () => csvHeaderTokens,
+    csvRecordLineRanges: () => csvRecordLineRanges,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     currentBar: () => currentBar,
@@ -16454,6 +16455,20 @@
       pushRow();
     }
     return rows;
+  }
+  function csvRecordLineRanges(content, delimiter2) {
+    var tokenRows = tokenizeCsvRows(content, delimiter2);
+    var ranges = [];
+    var start = 0;
+    for (var r = 0; r < tokenRows.length; r++) {
+      var lines = 1;
+      for (var c = 0; c < tokenRows[r].length; c++) {
+        lines += tokenRows[r][c].raw.split("\n").length - 1;
+      }
+      ranges.push([start, start + lines]);
+      start += lines;
+    }
+    return ranges;
   }
   var CSV_ESCAPES = { n: "\n", t: "	", r: "\r", "\\": "\\" };
   function unescapeCellValue(value) {

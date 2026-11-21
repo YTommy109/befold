@@ -3,8 +3,8 @@ id: TASK-483.3
 title: レンダリング Markdown における差分表現を設計する
 status: To Do
 assignee: []
-created_date: '2026-08-14 12:47'
-updated_date: '2026-10-14 07:39'
+created_date: 2026-08-14 12:47
+updated_date: '2026-11-20T14:33:00Z'
 labels:
   - diff
   - markdown
@@ -26,9 +26,15 @@ markdown-it のブロックトークンは `token.map = [開始行, 終了行]` 
 - A: 新側の全文をレンダリングし、各ブロック要素にソース行を持たせて、追加行に該当するブロックへ差分色を当てる
 - B: 旧版と新版をそれぞれ普通にレンダリングして左右に並べる（実装は最小だが、どこが変わったかは目視任せ）
 
+差分は前後 1,000,000 行の文脈付きで取得している（`GitDiffReader.wholeFileContextLines`）ため、差分本文から旧版・新版の全文を復元できる。B のための追加の git 読み込みは要らず、A でも削除ブロックを前後の文脈込みで描ける。
+
 最大の論点は削除の表現。追加は「新しい文書の中の要素を光らせる」で済むが、削除された段落はレンダリング結果に存在しない。削除ブロックも描いて赤くする（文書が実物より長くなる）か、削除は表示せず件数などで示すか、という判断が要る。
 
-あわせて、既存の inline / side-by-side レイアウト切り替え（`DiffDisplayPreference` / `ViewerDiffBridge.Layout`）がレンダリング差分でどう働くべきかも決める。
+あわせて次を決める。
+
+- 既存の inline / side-by-side レイアウト切り替え（`DiffDisplayPreference` / `ViewerDiffBridge.Layout`）がレンダリング差分でどう働くべきか
+- Markdown の `diff` モードの意味。今の `diff` はソース差分として動いているため、レンダリング差分へ置き換えるとソース差分が失われる。親タスク TASK-483 の「差分モードの意味」の論点を Markdown について確定させる
+- 差分ジャンプ用の `data-diff-block` をどの要素に付けるか
 
 CLAUDE.md の規定により、実装着手前に `/review-design` を 1 回通す。
 <!-- SECTION:DESCRIPTION:END -->
@@ -40,4 +46,6 @@ CLAUDE.md の規定により、実装着手前に `/review-design` を 1 回通�
 - [ ] #3 inline / side-by-side レイアウト切り替えがレンダリング差分でどう振る舞うかが決まっている
 - [ ] #4 設計スナップショットが docs/superpowers/specs/ に日付付きで残り、冒頭バナーが付いている
 - [ ] #5 `/review-design` を通した結果が次サブタスクの Implementation Plan または受け入れ条件に反映されている
+- [ ] #6 Markdown の diff モードの意味（ソース差分を残すか、どう切り替えるか）が決まっている
+- [ ] #7 差分ジャンプ用の data-diff-block をどの要素に付けるかが決まっている
 <!-- AC:END -->
