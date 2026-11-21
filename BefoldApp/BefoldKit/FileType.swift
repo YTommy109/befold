@@ -230,11 +230,14 @@ public enum FileType: Sendable, Equatable {
 
     /// レンダリング表示のまま git 差分を重ねられる種別かどうか(TASK-483)。
     /// ソース行とレンダリング後の要素を対応付けられる種別だけ。CSV/TSV はレコード単位で
-    /// 対応が取れる(viewer-src/csv-diff.ts)。HTML / SVG / Mermaid / XML は対応付けの
+    /// 対応が取れる(viewer-src/csv-diff.ts)。Markdown はトップレベルのブロック単位で
+    /// markdown-it の token.map から対応が取れる(viewer-src/markdown-diff.ts)。HTML / SVG / Mermaid / XML は対応付けの
     /// 手段が無いため対象外で、差分はソース表示のまま(`supportsDiffDisplay`)。
     public var supportsRenderedDiff: Bool {
-        if case .csv = self { return true }
-        return false
+        switch self {
+        case .csv, .markdown: true
+        case .mmd, .svg, .html, .code, .xml, .image, .pdf: false
+        }
     }
 
     /// チャンク読み込みで先頭から段階的に描画できる形式かどうか。

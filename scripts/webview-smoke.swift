@@ -164,6 +164,52 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
             if parts[0] == parts[2] || parts[1] == parts[2] || parts[0] == parts[1] {
                 self.fail("CSV の差分行に追加/削除の地色が出ていない: \(parts)")
             }
+            self.checkMarkdownRenderedDiff()
+        }
+    }
+
+    // 3.26. Markdown のレンダリング差分(TASK-483.4)
+    // 変更ブロックの包み(div)の中でも mermaid が描かれ、帯の色が追加/削除で違うこと。
+    func checkMarkdownRenderedDiff() {
+        let diff = "diff --git a/n.md b/n.md\n--- a/n.md\n+++ b/n.md\n@@ -1,4 +1,4 @@\n"
+            + " # T\n ```mermaid\n-graph TD; A-->B\n+graph TD; A-->C\n ```\n"
+        asyncJS(
+            "setViewMode('rendered'); setDiff(\(jsString(diff))); "
+                + "await render('# T', 'md'); "
+                + "var border = (sel) => { var el = document.querySelector(sel); "
+                + "return el ? getComputedStyle(el).borderLeftColor : 'none'; }; "
+                + "var r = [document.querySelectorAll('#diagram-wrap .md-diff-block svg').length, "
+                + "border('#diagram-wrap .md-diff-block.diff-add'), border('#diagram-wrap .md-diff-block.diff-del')]; "
+                + "setDiff(null); return r.join('|');",
+            "md-rendered-diff"
+        ) { r in
+            print("md rendered diff: \(String(describing: r))")
+            let parts = (r as? String)?.components(separatedBy: "|") ?? []
+            guard parts.count == 3, parts[0] == "2" else { self.fail("Markdown の差分ブロック内で mermaid が描かれなかった") }
+            if parts[1] == parts[2] || parts.contains("none") {
+                self.fail("Markdown の差分ブロックに追加/削除の帯が出ていない: \(parts)")
+            }
+            self.checkLargeCsvRenderedDiff()
+        }
+    }
+
+    // 3.27. 大きな CSV のレンダリング差分(TASK-483.2)
+    // 行数ぶんの引数を広げる書き方(Math.max(...rows))は JavaScriptCore の引数の上限を
+    // 超えて投げる。V8 の jest では上限が違って再現しないため、実 WebKit で 20 万行を描く。
+    func checkLargeCsvRenderedDiff() {
+        asyncJS(
+            "var n = 200000; var body = [' a,b']; for (var i = 0; i < n; i++) body.push(' ' + i + ',' + i); "
+                + "body.push('+x,y'); "
+                + "var diff = 'diff --git a/t.csv b/t.csv\\n--- a/t.csv\\n+++ b/t.csv\\n@@ -1,' + (n + 1) "
+                + "+ ' +1,' + (n + 2) + ' @@\\n' + body.join('\\n') + '\\n'; "
+                + "setViewMode('rendered'); setDiff(diff); await render('a,b', 'csv', ','); "
+                + "var r = document.querySelectorAll('#diagram-wrap tbody tr').length + '|' "
+                + "+ document.querySelectorAll('#diagram-wrap tr.diff-add').length; "
+                + "setDiff(null); return r;",
+            "large-csv-rendered-diff"
+        ) { r in
+            print("large csv rendered diff: \(String(describing: r))")
+            if (r as? String) != "200001|1" { self.fail("大きな CSV のレンダリング差分が描けなかった") }
             self.checkJapaneseLawXSLT()
         }
     }

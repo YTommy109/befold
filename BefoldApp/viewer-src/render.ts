@@ -126,7 +126,7 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   _mmdChunkTail.record(content);
   // いま描く形をここで 1 回だけ決め、appendChunk が読む記録にする。分岐へ入る前に
   // 記録するのは、どの経路を通っても記録が確定するようにするため(後で入れ直すと、途中で
-  // 返る経路だけ前回の値が残る)。差分を組んだ場合だけ _renderSource / _renderCsv が 'diff' を返し、下で上書きする。
+  // 返る経路だけ前回の値が残る)。差分を組んだ場合だけ _renderSource / _renderCsv / _renderMarkdown が 'diff' を返し、下で上書きする。
   var shape = renderShape(type, _mmdViewOptions.mode());
   _mmdDocument.recordShape(shape);
   // CSV の列書式も同じ位置で捨てる。いまのディスパッチでは csv-table は必ず
@@ -171,7 +171,7 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   } else if (shape === 'image') {
     _renderImage(diagramWrap, content, lang);
   } else {
-    _renderMarkdown(diagramWrap, content);
+    _mmdDocument.recordShape(_renderMarkdown(diagramWrap, content));
   }
 
   await _mmdRunMermaid(diagramWrap);

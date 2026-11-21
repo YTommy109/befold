@@ -1,11 +1,11 @@
 ---
 id: TASK-483
 title: レンダリング表示のまま差分を見せられるようにする
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: 2026-08-14 12:45
-updated_date: '2026-11-21T00:08:00Z'
+updated_date: '2026-11-21T00:40:00Z'
 labels:
   - diff
 milestone: m-4
@@ -50,11 +50,11 @@ CSV と Markdown の両方に効く判断なので、TASK-483.1 に着手する�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 CSV/TSV をテーブル表示したまま、追加・削除されたレコードが色分けして表示される
-- [ ] #2 Markdown をレンダリング表示したまま、変更のあったブロックが色分けして表示される
-- [ ] #3 HTML / SVG / Mermaid / XML の差分表示はソース表示のままで、挙動が変わらない
-- [ ] #4 既存のソース表示での差分（inline / side-by-side）の見た目と操作が退行していない
-- [ ] #5 差分モードの意味（種別ごとの読み替えか、新しいモードか）が TASK-483.1 の着手前に決まり、選ばなかった案とその理由が記録されている
+- [x] #1 CSV/TSV をテーブル表示したまま、追加・削除されたレコードが色分けして表示される
+- [x] #2 Markdown をレンダリング表示したまま、変更のあったブロックが色分けして表示される
+- [x] #3 HTML / SVG / Mermaid / XML の差分表示はソース表示のままで、挙動が変わらない
+- [x] #4 既存のソース表示での差分（inline / side-by-side）の見た目と操作が退行していない
+- [x] #5 差分モードの意味（種別ごとの読み替えか、新しいモードか）が TASK-483.1 の着手前に決まり、選ばなかった案とその理由が記録されている
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -70,4 +70,19 @@ CSV と Markdown の両方に効く判断なので、TASK-483.1 に着手する�
 - 差分レイアウト（inline / side-by-side）に 3 つ目の値『rendered』を足す: レイアウトはアプリ全体の設定で、コード種別では意味を持たない値になる。isSourceMode が設定値にも依存する
 
 **レンダリング差分の共通方針（CSV / Markdown）**: 差分本文（-U1000000 で全文入り）から新旧の全文を復元し、ソース行をまとめた単位（CSV はレコード、Markdown はトップレベルのブロック）ごとに『変更あり』を判定して、削除単位は削除色で、追加単位は追加色で文書順に挿入する。レイアウトの切替（inline / side-by-side）はレンダリング差分では効かず常に 1 カラム（canToggleDiffLayout を false にする）。
+
+実アプリでの確認（2026-11-21、xcodebuild Debug を .build/xcode に出して起動。git 管理下のデモリポジトリで CSV・Markdown・HTML を変更して確認）
+- CSV ⌘4: テーブルのまま削除行（-、赤）と追加行（+、緑）が出る。引用符内改行のレコードも正しい行に色が付く。ツールバーは 4 つ目のセグメントが選択状態（AC #1）
+- Markdown ⌘4: 段落の差し替え、リストへの項目追加（旧リスト赤・新リスト緑）、mermaid 図の変更（旧図・新図とも描画）が色分けされる（AC #2）
+- Markdown ⌘3: 従来どおり左右分割のソース差分（語単位の強調つき）（AC #4）
+- HTML ⌘4: 4 つ目のセグメントは無効で、押してもレンダリング表示のまま。⌘3 は従来どおりソース差分（AC #3）
+- 起動時に macOS の『書類フォルダへのアクセス』許可ダイアログが出たが、ユーザーの判断事項なので触っていない
+
+実アプリ追加確認: Markdown の ⌘3 で ⌘\ を押すと左右分割 ↔ 上下（インライン）が切り替わる（AC #4）。⌘4 中に ⌘\ を押しても何も変わらず、⌘3 に戻ったときのレイアウトも変わっていない（canToggleDiffLayout が false）。確認後にレイアウトを元の左右分割へ戻した
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+差分表示に 4 つ目の表示モード『レンダリング差分』（⌘4）を足し、CSV/TSV はテーブル表示のままレコード単位で、Markdown はレンダリング表示のままトップレベルブロック単位で追加・削除を色分けできるようにした（TASK-483.1〜.4）。モードの意味の決定と退けた案は Notes に記録。HTML/SVG/Mermaid/XML は supportsRenderedDiff が false でソース差分のまま、既存のソース差分（inline/side-by-side）は変更なし（jest・swift test・webview-smoke 通過）。未実施: 実アプリでの目視確認、サイトのショートカット表記（⌘1/⌘2/⌘3）の更新。
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -1029,6 +1029,59 @@ body {
   color: var(--diff-del-fg);
 }
 
+/* Markdown のレンダリング差分(TASK-483.4)。変更ブロックを地色と左端の帯で示し、
+   色だけに頼らないよう帯の外側に +/- を出す。 */
+.md-diff-block {
+  position: relative;
+  padding: 0.25em 0.75em;
+  margin-bottom: 16px;
+  border-left: 3px solid transparent;
+}
+
+.md-diff-block.diff-add {
+  border-left-color: var(--diff-add-fg);
+}
+
+.md-diff-block.diff-del {
+  border-left-color: var(--diff-del-fg);
+}
+
+.md-diff-block::before {
+  position: absolute;
+  left: -1.25em;
+  top: 0.25em;
+  font-family: var(--mmd-mono-font-family, ui-monospace, monospace);
+}
+
+.md-diff-block.diff-add::before {
+  content: "+";
+  color: var(--diff-add-fg);
+}
+
+.md-diff-block.diff-del::before {
+  content: "-";
+  color: var(--diff-del-fg);
+}
+
+/* 差分ジャンプの目印はブロックの先頭要素に付く。.diff-table と同じく、候補の地色は
+   出さず(変更ブロックは地色で既に見えている)、現在位置は地色を残したまま縦バーだけにする。
+   CSV の差分行は行の地色をセルへ当てる規則(#diagram-wrap.csv-body …)の詳細度が
+   目印より高いので、地色はそのまま残る。 */
+.md-diff-block > .mmd-jump-target {
+  background: transparent;
+  box-shadow: none;
+}
+
+.md-diff-block > .mmd-jump-current {
+  background: transparent;
+  box-shadow: -8px 0 0 var(--accent);
+}
+
+/* ブロック内の最後の要素の下余白は包みの padding と二重になるので消す。 */
+.md-diff-block > :last-child {
+  margin-bottom: 0;
+}
+
 #diagram-wrap.csv-body .csv-scroll {
   overflow-x: auto;
   max-width: 100%;

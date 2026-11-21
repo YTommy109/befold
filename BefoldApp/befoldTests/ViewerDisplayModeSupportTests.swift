@@ -32,6 +32,13 @@ struct ViewerDisplayModeSupportTests {
     }
 
     /// レンダリング差分を持たない種別では、ソース差分(描けなければレンダリング表示)へ落とす。
+    /// Markdown はソース差分(⌘3)とレンダリング差分(⌘4)の両方を持ち、どちらも降格しない。
+    @Test("Markdown はソース差分とレンダリング差分を両方保つ")
+    func markdownKeepsBothDiffs() {
+        #expect(ViewerDisplayMode.diff.supported(for: markdown) == .diff)
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: markdown) == .renderedDiff)
+    }
+
     @Test("レンダリング差分非対応の種別はソース差分へ降格する")
     func demotesRenderedDiff() {
         #expect(ViewerDisplayMode.renderedDiff.supported(for: code) == .diff)

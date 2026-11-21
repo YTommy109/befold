@@ -358,8 +358,8 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
 - **表示モード切替**: ツールバーの 4 択セグメント（レンダリング / ソース / 差分 /
   レンダリング差分）と `⌘1`〜`⌘4`
   - 差分（`⌘3`）はソース表示に差分を重ね、レンダリング差分（`⌘4`、TASK-483）は
-    レンダリング表示のまま差分を重ねる。レンダリング差分を持つのは CSV/TSV だけ
-    （`FileType.supportsRenderedDiff`）。HTML / SVG / Mermaid / XML はソース行と
+    レンダリング表示のまま差分を重ねる。レンダリング差分を持つのは CSV/TSV と Markdown
+    （`FileType.supportsRenderedDiff`）。Markdown はソース差分（`⌘3`）も残る。HTML / SVG / Mermaid / XML はソース行と
     描画結果を対応付けられないため、差分はソース表示のまま
   - 種別ごとに成立しないモードは `ViewerDisplayMode.supported(for:)` が降格する。
     CSV/TSV はソース差分を持たないので、差分の記憶はレンダリング差分として復元する
@@ -369,6 +369,16 @@ CSV/TSV・HTML・SVG・定義ジャンプ未対応の言語など）には、目
     新ヘッダを追加色にし、旧ヘッダは本文先頭の削除行にする（thead は 1 行に保つ）。
     色だけに頼らないよう、変更行の先頭セルに `+` / `-` を出す。
     変更行には `data-diff-block` を付け、差分ジャンプが効く
+  - Markdown のレンダリング差分は、旧版・新版を markdown-it で parse し、トップレベルの
+    ブロックを単位に `token.map` で差分の行を引き当てる（`viewer-src/markdown-diff.ts`。
+    並べ替えは CSV と共通の `viewer-src/diff-units.ts`）。削除ブロックも描いて削除色にし、
+    追加ブロックとともに文書順（削除 → 追加）に並べる。変更ブロックは
+    `div.md-diff-block` で包んで地色・左端の帯・`+` / `-` を出し、`data-diff-block` を付ける。
+    削除ブロック内の `id` は外す（新版の見出しのアンカーと二重にしない）。
+    参照リンクの定義行だけの変更は色が付かず、リスト・表は 1 項目の変更でも全体が
+    差し替わる（設計: `docs/superpowers/specs/2026-11-21-rendered-markdown-diff-design.md`）
+  - レンダリング差分は差分本文の全文から組むため、段階読み込みの追記は止める
+    （`_mmdDocument.shape()` が `'diff'`）。描けない差分では通常の表示に落ちる
   - レンダリング差分は常に 1 カラムで描き、差分レイアウト（上下 / 左右）の切替は
     無効になる（`ViewerCapabilities.canToggleDiffLayout`）
   - ファイル単位に記憶するが、**永続化はしない**——`WindowPresentationMemory` が持ち、

@@ -56,11 +56,23 @@ struct DocumentSurfaceStack: View {
     /// レンダラへ渡す差分の状態。差分表示モードでなければ本文があっても差分を出さない
     /// (取得側が止まっていても、表示側でも同じ答えになるようにする)。
     private var diffState: ViewerRenderer.DiffState {
-        guard store.showsDiff else { return .none }
-        switch store.diffContent {
+        Self.rendererDiffState(
+            mode: store.displayMode, content: store.diffContent, layout: diffDisplayPreference.layout
+        )
+    }
+
+    /// `diffState` の導出そのもの。viewer は「レンダリング表示 + 差分あり」をレンダリング差分
+    /// として描く(TASK-483)ため、差分を渡すのは差分モード(`.diff` / `.renderedDiff`)の
+    /// ときだけでなければならない。`.rendered` に差分が漏れると通常のプレビューが差分表示に
+    /// 化ける。この約束をテストで押さえるため、ビューから切り離した純関数にしてある。
+    static func rendererDiffState(
+        mode: ViewerDisplayMode, content: ViewerDiffContent, layout: ViewerDiffBridge.Layout
+    ) -> ViewerRenderer.DiffState {
+        guard mode.showsDiff else { return .none }
+        switch content {
         case .unavailable: return .none
         case .pending: return .pending
-        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: diffDisplayPreference.layout)
+        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: layout)
         }
     }
 

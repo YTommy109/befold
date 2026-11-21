@@ -1,10 +1,10 @@
 // CSV/TSV のテーブル表示へ差分を重ねる経路(TASK-483.2)のテスト。
-// 表の組み立て(buildCsvDiffTable / orderCsvDiffRecords)と、render() を通した
+// 表の組み立て(buildCsvDiffTable / orderDiffUnits)と、render() を通した
 // 表示・追記抑止・差分ジャンプ・通常表示への縮退を見る。
 
 import { describe, expect, test } from '@jest/globals';
 
-import { buildCsvDiffTable, orderCsvDiffRecords, parseUnifiedDiff } from '../viewer-src/main.js';
+import { buildCsvDiffTable, orderDiffUnits, parseUnifiedDiff } from '../viewer-src/main.js';
 import { loadViewerMain } from './support/viewerMainHarness.js';
 
 // 全文差分(-U1000000 相当)を組む。lines は ' ' / '+' / '-' 接頭辞付きの行。
@@ -72,6 +72,26 @@ describe('buildCsvDiffTable', () => {
     });
   });
 
+  test('引用符内の改行を含むレコードで 1 行を足しただけでも両側に色が付く', () => {
+    const diff = wholeFileDiff([' id,memo', ' 1,"x', '+inserted', ' y"', ' 2,z']);
+    expect(bodyRows(buildCsvDiffTable(diff, ',')!.html).map((r) => r.cls)).toEqual([
+      'diff-del',
+      'diff-add',
+      '',
+    ]);
+  });
+
+  // 見出しの文字列を本文に混ぜると、数値の列が文字列の列と判定される。
+  test('旧ヘッダの削除行は列の書式判定に混ぜない', () => {
+    const rows = [' 1000,2000', ' 3000,4000'];
+    const same = buildCsvDiffTable(wholeFileDiff([' name,amount', ...rows]), ',')!.formats;
+    const changed = buildCsvDiffTable(
+      wholeFileDiff(['-name,amount', '+name,total', ...rows]),
+      ',',
+    )!.formats;
+    expect(changed).toEqual(same);
+  });
+
   test('TSV でも組める', () => {
     const diff = wholeFileDiff([' a\tb', '+1\t2']);
     expect(bodyRows(buildCsvDiffTable(diff, '\t')!.html)).toEqual([
@@ -87,7 +107,7 @@ describe('buildCsvDiffTable', () => {
 
   test('削除のあとに続く追加は同じブロック、追加のあとの削除は別ブロック', () => {
     const lines = parseUnifiedDiff(wholeFileDiff([' h', '+a', '-b', ' c']))[0]!.hunks[0]!.lines;
-    expect(orderCsvDiffRecords(lines, ranges(3), ranges(3)).map((r) => [r.type, r.block])).toEqual([
+    expect(orderDiffUnits(lines, ranges(3), ranges(3)).map((r) => [r.type, r.block])).toEqual([
       ['context', null],
       ['add', 0],
       ['del', 1],
@@ -135,6 +155,17 @@ describe('レンダリング表示の CSV へ差分を重ねる', () => {
 
     expect(document.querySelector('#diagram-wrap tr.diff-add')).toBeNull();
     expect(document.querySelectorAll('#diagram-wrap tbody tr')).toHaveLength(2);
+  });
+
+  test('差分ジャンプで変更レコードを順に辿れる', async () => {
+    const { document, main } = loadViewerMain({});
+    main.setDiff(wholeFileDiff([' a,b', '-1,2', '+1,3', ' 5,6', '+7,8']));
+    main.setViewMode('rendered');
+    await main.render('a,b', 'csv', ',');
+    main._mmdOpenJump('changeBlock');
+    main._mmdJumpNextIfOpen();
+
+    expect(document.getElementById('mmd-jump-count')!.textContent).toBe('2/2');
   });
 
   test('描けない差分では通常のテーブル表示へ落ちる', async () => {
