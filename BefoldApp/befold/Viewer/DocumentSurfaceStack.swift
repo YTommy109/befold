@@ -69,10 +69,14 @@ struct DocumentSurfaceStack: View {
         mode: ViewerDisplayMode, content: ViewerDiffContent, layout: ViewerDiffBridge.Layout
     ) -> ViewerRenderer.DiffState {
         guard mode.showsDiff else { return .none }
+        // レンダリング差分はレイアウトを使わない(常に 1 カラム)。設定値をそのまま載せると、
+        // 全窓共有の設定を別の窓で ⌘\\ したときに DiffState が変わり、この窓まで全体を
+        // 描き直す(Markdown の再 parse と mermaid の再描画)。
+        let effectiveLayout: ViewerDiffBridge.Layout = mode == .renderedDiff ? .inline : layout
         switch content {
         case .unavailable: return .none
         case .pending: return .pending
-        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: layout)
+        case let .diff(text): return ViewerRenderer.DiffState(text: text, layout: effectiveLayout)
         }
     }
 

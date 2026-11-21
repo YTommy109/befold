@@ -23856,11 +23856,36 @@
   }
 
   // viewer-src/markdown-diff.ts
+  var VOID_ELEMENTS = /* @__PURE__ */ new Set([
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr"
+  ]);
+  var HTML_TAG = /<(\/?)([A-Za-z][\w-]*)\b[^>]*?(\/?)>/gu;
+  function htmlDepthDelta(html2) {
+    var delta = 0;
+    for (var match2 of html2.matchAll(HTML_TAG)) {
+      if (match2[3] === "/" || VOID_ELEMENTS.has(match2[2].toLowerCase())) continue;
+      delta += match2[1] === "/" ? -1 : 1;
+    }
+    return delta;
+  }
   function parseSide(text3) {
     var env = {};
     var tokens = markdownRenderer().parse(text3, env);
     var blocks = [];
     var ranges = [];
+    var openHtml = 0;
     var i = 0;
     while (i < tokens.length) {
       var start = i;
@@ -23870,10 +23895,19 @@
         i++;
       } while (depth > 0 && i < tokens.length);
       var map2 = tokens[start].map;
-      if (map2) {
+      if (!map2) continue;
+      var last = blocks.length - 1;
+      if (openHtml > 0 && last >= 0) {
+        blocks[last][1] = i;
+        ranges[last][1] = map2[1];
+      } else {
         blocks.push([start, i]);
         ranges.push([map2[0], map2[1]]);
       }
+      for (var t = start; t < i; t++) {
+        if (tokens[t].type === "html_block") openHtml += htmlDepthDelta(tokens[t].content);
+      }
+      openHtml = Math.max(openHtml, 0);
     }
     return { tokens, env, blocks, ranges };
   }
@@ -23882,18 +23916,20 @@
     var block2 = side.blocks[index];
     return md2.renderer.render(side.tokens.slice(block2[0], block2[1]), md2.options, side.env);
   }
-  function stripIds(side) {
-    side.tokens.forEach(function(token) {
-      if (token.attrs) token.attrs = token.attrs.filter((attr) => attr[0] !== "id");
+  function withoutAnchors(html2) {
+    var doc = new DOMParser().parseFromString(html2, "text/html");
+    doc.querySelectorAll("[id], [name]").forEach(function(el) {
+      el.removeAttribute("id");
+      el.removeAttribute("name");
     });
-    return side;
+    return doc.body.innerHTML;
   }
   function buildMarkdownDiffHtml(diffText) {
     var sides = wholeFileDiffSides(diffText);
     if (sides === null) {
       return null;
     }
-    var oldSide = stripIds(parseSide(sides.oldText));
+    var oldSide = parseSide(sides.oldText);
     var newSide = parseSide(sides.newText);
     var units = orderDiffUnits(sides.lines, oldSide.ranges, newSide.ranges);
     var html2 = units.map(function(unit) {
@@ -23901,7 +23937,7 @@
       if (unit.type === "context") {
         return block2;
       }
-      return '<div class="md-diff-block diff-' + unit.type + '" data-diff-block="' + unit.block + '">' + block2 + "</div>";
+      return '<div class="md-diff-block diff-' + unit.type + '" data-diff-block="' + unit.block + '">' + (unit.type === "del" ? withoutAnchors(block2) : block2) + "</div>";
     }).join("");
     return sanitizeRenderedHtml(purify, html2);
   }

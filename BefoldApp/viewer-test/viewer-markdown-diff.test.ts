@@ -74,11 +74,49 @@ describe('buildMarkdownDiffHtml', () => {
     ]);
   });
 
-  // ブロックをまたぐ HTML をブロックごとにサニタイズすると、途中で閉じられて
-  // 通常のレンダリング表示と形が変わる。
-  test('ブロックをまたぐ details の中身は details の中に残る', () => {
+  // 開きタグと閉じタグが別ブロックにある生 HTML は、閉じるまでを 1 単位にまとめる。
+  // 開きタグだけを差分の <div> で包むと、包みの </div> で中の要素まで閉じられる。
+  test('details の summary だけを変えても、本文は details の中に残る', () => {
+    const diff = wholeFileDiff([
+      ' <details>',
+      '-<summary>Old</summary>',
+      '+<summary>New</summary>',
+      ' ',
+      ' body',
+      ' ',
+      ' </details>',
+      ' ',
+      ' after',
+    ]);
+    const doc = parse(buildMarkdownDiffHtml(diff)!);
+    expect(doc.querySelectorAll('.diff-del > details')).toHaveLength(1);
+    expect(doc.querySelectorAll('.diff-add > details')).toHaveLength(1);
+    expect(doc.querySelector('.diff-add > details summary')!.textContent).toBe('New');
+    expect(doc.querySelector('.diff-add > details p')!.textContent).toBe('body');
+    // 閉じた後のブロックは単位の外(文脈)に戻る。
+    expect(doc.body.lastElementChild!.textContent).toBe('after');
+  });
+
+  test('ブロックをまたぐ details の中身を変えても、details ごと差し替わる', () => {
     const diff = wholeFileDiff([' <details>', ' ', '-old', '+new', ' ', ' </details>']);
-    expect(parse(buildMarkdownDiffHtml(diff)!).querySelector('details .diff-add')).not.toBeNull();
+    const doc = parse(buildMarkdownDiffHtml(diff)!);
+    expect(doc.querySelector('.diff-del > details')!.textContent).toContain('old');
+    expect(doc.querySelector('.diff-add > details')!.textContent).toContain('new');
+  });
+
+  test('div align="center" のような開きタグだけのブロックでも入れ子が崩れない', () => {
+    const diff = wholeFileDiff([' <div align="center">', ' ', '-# Old', '+# New', ' ', ' </div>']);
+    const doc = parse(buildMarkdownDiffHtml(diff)!);
+    expect(doc.querySelector('.diff-add > div h1')!.textContent).toBe('New');
+    expect(doc.querySelectorAll('.md-diff-block')).toHaveLength(2);
+  });
+
+  // ページ内リンクは文書で最初に一致した要素へ飛ぶ。削除側の写しが先に並ぶので外す。
+  test('削除ブロック内の生 HTML の id / name も外れる', () => {
+    const diff = wholeFileDiff(['-<a name="setup"></a>old', '+<a name="setup"></a>new']);
+    const doc = parse(buildMarkdownDiffHtml(diff)!);
+    expect(doc.querySelector('.diff-del a')!.hasAttribute('name')).toBe(false);
+    expect(doc.querySelector('.diff-add a')!.getAttribute('name')).toBe('setup');
   });
 
   // 見出しのアンカーと見出しジャンプが新版の見出しを指すようにする。

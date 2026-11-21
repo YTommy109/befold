@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: 2026-08-14 12:47
-updated_date: '2026-11-21T00:36:00Z'
+updated_date: '2026-11-21T05:33:00Z'
 labels:
   - diff
   - markdown
@@ -75,6 +75,14 @@ TASK-483.3 で決めた方式に沿って、Markdown をレンダリング表示
 - 差分ジャンプの目印が Markdown の差分ブロックの地色を潰さないよう CSS で打ち消した。両面で差分ジャンプを辿る jest を追加
 - Swift: DocumentSurfaceStack.rendererDiffState を純関数に切り出し、.rendered/.source には差分を渡さず .renderedDiff では渡すことを DocumentSurfaceDiffStateTests で固定
 - 検証: jest 802 件、swift test --skip PDF 2018 件・--filter PDF 通過、webview-smoke 通過
+
+コードレビュー（/code-review high）後の修正（2026-11-21）
+- 開きタグと閉じタグが別ブロックにある生 HTML（<details> / <div align=center>）は、閉じるまでのブロックを 1 単位にまとめる（markdown-diff.ts の parseSide）。開きタグだけを差分の div で包むと、包みの </div> で details まで閉じられ、本文が外に出ていた
+- 削除単位の id / name を、生 HTML のものも含めて外す（ページ内リンクが削除側の写しへ飛んでいた）
+- レンダリング差分ではレイアウト設定を DiffState に載せない（別窓の ⌘\ で全体が描き直されていた）
+- ⌘U がレンダリング側（.renderedDiff）から離れたモードも覚え、往復でレンダリング差分へ戻る
+- 見送り: ⌘1 と ⌘4 がスクロール位置の記憶を共有する件。⌘2 と ⌘3 も同じ理由で共有しており、それに揃えた（spec に記録）
+- 検証: jest 805 件、swift test --skip PDF 2020 件、webview-smoke 通過。<details> の実アプリでの目視はしていない（ユーザーが画面を使用中だったため中止）
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

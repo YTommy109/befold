@@ -25,6 +25,18 @@ struct DocumentSurfaceDiffStateTests {
         #expect(!ViewerDisplayMode.renderedDiff.isSourceMode)
     }
 
+    /// レンダリング差分はレイアウトを使わないので、設定が左右分割でも固定値を渡す。
+    /// 設定値を載せると、別の窓の ⌘\\ でこの窓まで全体を描き直す。
+    @Test("レンダリング差分にはレイアウト設定を載せない")
+    func renderedDiffIgnoresLayoutPreference() {
+        let inline = DocumentSurfaceStack.rendererDiffState(mode: .renderedDiff, content: diff, layout: .inline)
+        let sideBySide = DocumentSurfaceStack.rendererDiffState(
+            mode: .renderedDiff, content: diff, layout: .sideBySide
+        )
+        #expect(inline == sideBySide)
+        #expect(DocumentSurfaceStack.rendererDiffState(mode: .diff, content: diff, layout: .sideBySide) != inline)
+    }
+
     @Test("ソース差分では差分を渡す")
     func sourceDiffPassesDiff() {
         #expect(DocumentSurfaceStack.rendererDiffState(mode: .diff, content: diff, layout: .inline) != .none)

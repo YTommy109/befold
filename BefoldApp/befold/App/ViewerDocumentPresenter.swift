@@ -40,11 +40,12 @@ final class ViewerDocumentPresenter {
     /// サイドバーの git 状態の取り直し(比較基準の変更で新基準のバッジを取るため)。
     private let refreshGitStatuses: () -> Void
 
-    /// cmd+U でソース系モードを離れた直前の「どのソース系モードだったか」と、その時のファイル。
-    /// レンダリング表示中しか値を持たない（ソース系モードへ入った時点で setDisplayMode が捨てる）。
-    /// 保存値からは復元できない: 離脱側の cmd+U が保存値を `.rendered` で上書きするため、
-    /// 戻る側が保存値を読むと必ず `.source` に落ちる（TASK-370）。
-    /// 記憶するのは `toggleSourceView()`、捨てるのは `setDisplayMode(_:)`。この 2 つに閉じる。
+    /// cmd+U で離れた直前のモードと、その時のファイル。cmd+U はソース側（`.source` / `.diff`）と
+    /// レンダリング側（`.rendered` / `.renderedDiff`）を往復するので、どちら側から離れても記憶し、
+    /// 反対側へ戻るときに使う（差分を出していたなら差分へ戻る / TASK-483）。
+    /// 保存値からは復元できない: 離脱側の cmd+U が保存値を上書きするため（TASK-370）。
+    /// 記憶するのは `toggleSourceView()`、捨てるのは `setDisplayMode(_:)`（cmd+U 以外の
+    /// モード指定はすべてそこを通る）。この 2 つに閉じる。
     private var sourceToggleReturn: (pathKey: String, mode: ViewerDisplayMode)?
 
     init(
@@ -187,9 +188,10 @@ final class ViewerDocumentPresenter {
         // rendered キーへ退避したまま空の source キーから復元するので先頭へ飛び、
         // 意味の無い .source が記憶される（TASK-368）。
         guard newValue != store.effectiveDisplayMode else { return }
-        // ソース系モードへ入った時点で、cmd+U の戻り先の記憶は役目を終える。残しておくと
+        // モードを指定し直した時点で、cmd+U の戻り先の記憶は役目を終える。残しておくと
         // 「diff → cmd+U → cmd+2(source) → cmd+U → cmd+U」で diff へ戻ってしまう。
-        if newValue.isSourceMode { sourceToggleReturn = nil }
+        // cmd+U 自身もここを通るので、toggleSourceView は呼んだ後に記憶し直す。
+        sourceToggleReturn = nil
         saveScrollPositionBeforeTransition()
         applyDisplayMode(newValue)
         // 提示開始（モード切替）。切替先モードのキーから復元位置を読む。ここも保存値を読んで
@@ -270,21 +272,25 @@ final class ViewerDocumentPresenter {
     /// 記憶（sourceToggleReturn）と消費がこのメソッドに閉じるため、
     /// 他の入口（⌘1〜⌘4・ツールバー）は関与しない。
     func toggleSourceView() {
-        guard store.isSourceMode else {
-            setDisplayMode(sourceToggleTarget)
-            return
-        }
-        // 離れる直前のソース系モードを覚えてからレンダリングへ移る。
-        sourceToggleReturn = (currentDocument.url.normalizedPathKey, store.effectiveDisplayMode)
-        setDisplayMode(.rendered)
+        let leaving = (pathKey: currentDocument.url.normalizedPathKey, mode: store.effectiveDisplayMode)
+        let target = sourceToggleTarget
+        setDisplayMode(target)
+        // 実際に移れたときだけ、離れたモードを戻り先として覚える。
+        if store.effectiveDisplayMode == target { sourceToggleReturn = leaving }
     }
 
-    /// cmd+U でレンダリング表示から戻る先。直前に cmd+U で離れた同じファイルなら
-    /// そのモード（差分表示なら差分）、それ以外・選べなくなっている場合は `.source`。
+    /// cmd+U の行き先。いまソース側ならレンダリング側、レンダリング側ならソース側。
+    /// 直前に cmd+U で反対側から離れた同じファイルならそのモード（差分なら差分）、
+    /// それ以外・選べなくなっている場合は `.rendered` / `.source`。
     var sourceToggleTarget: ViewerDisplayMode {
-        guard let last = sourceToggleReturn,
-              last.pathKey == currentDocument.url.normalizedPathKey, canSelect(last.mode)
-        else { return .source }
+        let toSource = !store.isSourceMode
+        return rememberedToggleTarget(toSource: toSource) ?? (toSource ? .source : .rendered)
+    }
+
+    /// cmd+U の戻り先の記憶のうち、いま使えるもの。別ファイル・同じ側・選べないモードは使わない。
+    private func rememberedToggleTarget(toSource: Bool) -> ViewerDisplayMode? {
+        guard let last = sourceToggleReturn, last.pathKey == currentDocument.url.normalizedPathKey else { return nil }
+        guard last.mode.isSourceMode == toSource, canSelect(last.mode) else { return nil }
         return last.mode
     }
 }
