@@ -20,6 +20,7 @@ export * from './diff-html.js';
 export * from './diff-words.js';
 export * from './csv-columns.js';
 export * from './csv-number-format.js';
+export * from './csv-diff.js';
 export * from './csv-html.js';
 export * from './zoom.js';
 export * from './scroll.js';

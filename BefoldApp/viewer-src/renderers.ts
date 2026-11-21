@@ -5,6 +5,7 @@
 
 import { renderCodeHtml } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
+import { buildCsvDiffTable } from './csv-diff.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
 import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
@@ -178,19 +179,26 @@ function _renderXslt(
   return { shape: 'xslt', error: null };
 }
 
-// 列ごとの書式判定を返す。呼び出し元(render())がそれを記録し、チャンク追記が
-// 同じ書式を使う。document-state をここから書かないのは、記録の書き手を
+// 列ごとの書式判定と、実際に描いた形を返す。呼び出し元(render())がそれを記録し、
+// チャンク追記が同じ書式を使う。document-state をここから書かないのは、記録の書き手を
 // render() だけに保つため(_renderSource が shape を返すのと同型)。
+//
+// 差分が届いていれば(= Swift 側がレンダリング差分モードを選んでいる / TASK-483.2)
+// 差分から表を組み、形は 'diff' になる。appendChunk はこの形を見て追記を止める
+// (表は差分の全文から組んであり、追記すると行が二重になる)。差分が描けなければ
+// 通常のテーブルへ落ちる。
 function _renderCsv(
   diagramWrap: HTMLElement,
   content: string,
   lang: string | undefined,
-): CsvColumnFormat[] {
+): { formats: CsvColumnFormat[]; shape: 'csv-table' | 'diff' } {
   // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
   // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
   // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
   diagramWrap.classList.add('markdown-body', 'csv-body');
-  var table = buildCsvTable(content, lang || ',');
+  var diff = _mmdViewOptions.diff();
+  var diffTable = diff === null ? null : buildCsvDiffTable(diff, lang || ',');
+  var table = diffTable ?? buildCsvTable(content, lang || ',');
   diagramWrap.innerHTML = table.html;
   var element = diagramWrap.querySelector('table');
   if (element) {
@@ -199,7 +207,7 @@ function _renderCsv(
     element.before(scroll);
     scroll.append(element);
   }
-  return table.formats;
+  return { formats: table.formats, shape: diffTable ? 'diff' : 'csv-table' };
 }
 
 function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | undefined): void {

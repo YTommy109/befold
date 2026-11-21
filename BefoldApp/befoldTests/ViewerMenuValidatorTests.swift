@@ -13,7 +13,7 @@ struct ViewerMenuValidatorTests {
         var capabilities: ViewerCapabilities = .init(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
-            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
             codeLanguage: "swift"
         )
@@ -86,7 +86,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, supportsSourceMode: true,
-            supportsDiffDisplay: true, supportsFind: true,
+            supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: true, supportsHeadingJump: true,
             codeLanguage: "swift"
         )
@@ -116,7 +116,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: false,
-            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: false,
             codeLanguage: "ruby"
         )
@@ -137,7 +137,7 @@ struct ViewerMenuValidatorTests {
         let capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: false, showsDiff: false,
-            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: false,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
             codeLanguage: nil
         )
@@ -163,7 +163,7 @@ struct ViewerMenuValidatorTests {
         let capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: false, showsDiff: false,
-            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: false,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: false,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
             codeLanguage: nil
         )
@@ -251,7 +251,7 @@ struct ViewerMenuValidatorTests {
         source.capabilities = ViewerCapabilities(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: true, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, supportsFind: true,
+            supportsDiffDisplay: false, supportsRenderedDiff: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
             codeLanguage: "swift"
         )

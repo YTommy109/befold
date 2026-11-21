@@ -1008,6 +1008,27 @@ body {
   color: var(--csv-th-fg);
 }
 
+/* CSV のレンダリング差分(TASK-483.2)。行の地色は github-markdown-css の
+   tr / tr:nth-child(2n) と見出しセルの地色より強く当てる必要があるため、セルへ付ける。 */
+#diagram-wrap.csv-body table tr.diff-add > * {
+  background-color: var(--diff-add-bg);
+}
+
+#diagram-wrap.csv-body table tr.diff-del > * {
+  background-color: var(--diff-del-bg);
+}
+
+/* 色だけに頼らず、ソース差分の記号セルと同じ +/- を先頭セルに出す。 */
+#diagram-wrap.csv-body table tr.diff-add > :first-child::before {
+  content: "+ ";
+  color: var(--diff-add-fg);
+}
+
+#diagram-wrap.csv-body table tr.diff-del > :first-child::before {
+  content: "- ";
+  color: var(--diff-del-fg);
+}
+
 #diagram-wrap.csv-body .csv-scroll {
   overflow-x: auto;
   max-width: 100%;

@@ -125,9 +125,8 @@ async function render(content: string, type: string, lang?: string): Promise<voi
   // 継続行の結合判定を誤る)。
   _mmdChunkTail.record(content);
   // いま描く形をここで 1 回だけ決め、appendChunk が読む記録にする。分岐へ入る前に
-  // 記録するのは、どの経路を通っても記録が確定するようにするため(後で入れ直す形に
-  // すると、途中で返る経路だけ前回の値が残って追記戦略が食い違う)。
-  // 差分を組み上げた場合だけ _renderSource が 'diff' を返し、下で上書きする。
+  // 記録するのは、どの経路を通っても記録が確定するようにするため(後で入れ直すと、途中で
+  // 返る経路だけ前回の値が残る)。差分を組んだ場合だけ _renderSource / _renderCsv が 'diff' を返し、下で上書きする。
   var shape = renderShape(type, _mmdViewOptions.mode());
   _mmdDocument.recordShape(shape);
   // CSV の列書式も同じ位置で捨てる。いまのディスパッチでは csv-table は必ず
@@ -166,7 +165,9 @@ async function render(content: string, type: string, lang?: string): Promise<voi
       errorPanel.style.display = 'block';
     }
   } else if (shape === 'csv-table') {
-    _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
+    var csv = _renderCsv(diagramWrap, content, lang);
+    _mmdCsvColumns.record(csv.formats);
+    _mmdDocument.recordShape(csv.shape);
   } else if (shape === 'image') {
     _renderImage(diagramWrap, content, lang);
   } else {

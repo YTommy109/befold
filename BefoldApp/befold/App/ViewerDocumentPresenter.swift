@@ -173,7 +173,7 @@ final class ViewerDocumentPresenter {
     }
 
     /// 表示モードを変更し、store・この窓の記憶・ツールバーの表示更新までを一貫して行う。
-    /// ツールバーのモード切替セグメントからも View メニューの ⌘1〜⌘3 からも呼ばれる。
+    /// ツールバーのモード切替セグメントからも View メニューの ⌘1〜⌘4 からも呼ばれる。
     /// 表示モードを変える入口はここだけ。
     func setDisplayMode(_ newValue: ViewerDisplayMode) {
         // validate を通らない経路（ツールバーのセグメント・オーバーフローメニュー）も
@@ -266,9 +266,9 @@ final class ViewerDocumentPresenter {
     }
 
     /// cmd+U のソース表示トグル。レンダリング表示とソース表示を往復する。
-    /// ⌘1〜⌘3 の「指定」に対し、こちらは「往復」で動作が違う。
+    /// ⌘1〜⌘4 の「指定」に対し、こちらは「往復」で動作が違う。
     /// 記憶（sourceToggleReturn）と消費がこのメソッドに閉じるため、
-    /// 他の入口（⌘1〜⌘3・ツールバー）は関与しない。
+    /// 他の入口（⌘1〜⌘4・ツールバー）は関与しない。
     func toggleSourceView() {
         guard store.isSourceMode else {
             setDisplayMode(sourceToggleTarget)

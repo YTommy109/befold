@@ -1992,6 +1992,23 @@
         }
       }
     },
+    "menu.view.showRenderedDiff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Changes in Preview"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレビューで変更を表示"
+          }
+        }
+      }
+    },
     "menu.view.showSource": {
       "extractionState": "manual",
       "localizations": {
@@ -3722,6 +3739,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "プレビュー"
+          }
+        }
+      }
+    },
+    "toolbar.mode.renderedDiff": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview Diff"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレビュー差分"
           }
         }
       }

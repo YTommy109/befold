@@ -15,6 +15,7 @@ struct ViewerCapabilitiesTests {
         showsDiff: Bool = false,
         supportsSourceMode: Bool = true,
         supportsDiffDisplay: Bool = true,
+        supportsRenderedDiff: Bool = false,
         supportsRotation: Bool = false,
         supportsFind: Bool = true,
         gitDiffAvailability: GitDiffAvailability = .changed,
@@ -31,6 +32,7 @@ struct ViewerCapabilitiesTests {
             showsDiff: showsDiff,
             supportsSourceMode: supportsSourceMode,
             supportsDiffDisplay: supportsDiffDisplay,
+            supportsRenderedDiff: supportsRenderedDiff,
             supportsRotation: supportsRotation,
             supportsFind: supportsFind,
             gitDiffAvailability: gitDiffAvailability,
@@ -165,6 +167,26 @@ struct ViewerCapabilitiesTests {
         #expect(!makeCapabilities(showsDiff: true, supportsDiffDisplay: false).canToggleDiffLayout)
     }
 
+    /// レンダリング差分(TASK-483)は表をソース差分と別に描き、常に 1 カラム。
+    /// レイアウト切替はソース差分の表にだけ効くので、レンダリング差分の表示中は押させない。
+    @Test("レンダリング差分の表示中は差分レイアウトを切り替えられない")
+    func diffLayoutDisabledForRenderedDiff() {
+        let renderedDiff = makeCapabilities(
+            showsCodeContent: false, showsDiff: true, supportsDiffDisplay: true, supportsRenderedDiff: true
+        )
+        #expect(!renderedDiff.canToggleDiffLayout)
+    }
+
+    @Test("レンダリング差分は対応種別かつ git で差分を出せるときだけ選べる")
+    func renderedDiffFollowsTypeAndGit() {
+        let csvLike = makeCapabilities(supportsDiffDisplay: false, supportsRenderedDiff: true)
+        #expect(csvLike.canSelect(.renderedDiff))
+        #expect(!makeCapabilities(supportsRenderedDiff: false).canSelect(.renderedDiff))
+        #expect(!makeCapabilities(supportsRenderedDiff: true, gitDiffAvailability: .unavailable)
+            .canSelect(.renderedDiff))
+        #expect(!makeCapabilities(isPresentingDocument: false, supportsRenderedDiff: true).canSelect(.renderedDiff))
+    }
+
     /// ADR(libgit2 移行)の Fallback: git が使えないときは差分表示モードを選択不可にする。
     /// 種別だけで決めていた頃は、モードは選べて取得結果が nil に畳まれ、黙って通常の
     /// ソース表示へ戻っていた(TASK-438.2)。
@@ -285,7 +307,7 @@ struct ViewerCapabilitiesTests {
         #expect(ViewerCapabilities.none == ViewerCapabilities(
             isPresentingDocument: false, isRejected: false, isRenderable: false,
             isBinaryContent: false, showsCodeContent: false, supportsSourceMode: false,
-            supportsDiffDisplay: false, supportsFind: false,
+            supportsDiffDisplay: false, supportsRenderedDiff: false, supportsFind: false,
             gitDiffAvailability: .undetermined, isDirectHTMLMode: false,
             supportsHeadingJump: false,
             codeLanguage: nil
@@ -304,6 +326,7 @@ extension ViewerCapabilities {
         showsCodeContent: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        supportsRenderedDiff: false,
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
@@ -321,6 +344,7 @@ extension ViewerCapabilities {
         showsCodeContent: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        supportsRenderedDiff: false,
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,
@@ -339,6 +363,7 @@ extension ViewerCapabilities {
         showsDiff: true,
         supportsSourceMode: true,
         supportsDiffDisplay: true,
+        supportsRenderedDiff: false,
         supportsFind: true,
         gitDiffAvailability: .changed,
         isDirectHTMLMode: false,

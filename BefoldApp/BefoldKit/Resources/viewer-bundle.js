@@ -14231,6 +14231,7 @@
     appendChunk: () => appendChunk,
     applyHeadingLevels: () => applyHeadingLevels,
     assignChangeBlockIndexes: () => assignChangeBlockIndexes,
+    buildCsvDiffTable: () => buildCsvDiffTable,
     buildCsvTable: () => buildCsvTable,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
@@ -14285,6 +14286,7 @@
     moveCurrentHighlight: () => moveCurrentHighlight,
     nextMatchIndex: () => nextMatchIndex,
     onColorSchemeChange: () => onColorSchemeChange,
+    orderCsvDiffRecords: () => orderCsvDiffRecords,
     ownsEnterKey: () => ownsEnterKey,
     pageScrollStep: () => pageScrollStep,
     pairDiffLines: () => pairDiffLines,
@@ -16597,6 +16599,117 @@
       body = wrapWithLineNumbers(body, true);
     }
     return '<pre><code class="csv-source">' + body + "</code></pre>";
+  }
+
+  // viewer-src/csv-diff.ts
+  function lineToRecord(ranges) {
+    var map2 = [];
+    for (var r = 0; r < ranges.length; r++) {
+      for (var line = ranges[r][0]; line < ranges[r][1]; line++) {
+        map2.push(r);
+      }
+    }
+    return map2;
+  }
+  function orderCsvDiffRecords(lines, oldRanges, newRanges) {
+    var oldOfLine = lineToRecord(oldRanges);
+    var newOfLine = lineToRecord(newRanges);
+    var oldChanged = oldRanges.map(() => false);
+    var newChanged = newRanges.map(() => false);
+    var oldLine = 0;
+    var newLine = 0;
+    lines.forEach(function(line) {
+      if (line.type !== "add") {
+        if (line.type === "del") oldChanged[oldOfLine[oldLine]] = true;
+        oldLine++;
+      }
+      if (line.type !== "del") {
+        if (line.type === "add") newChanged[newOfLine[newLine]] = true;
+        newLine++;
+      }
+    });
+    var records = [];
+    var oldSeen = -1;
+    var newSeen = -1;
+    var block2 = -1;
+    var previous = "context";
+    function emit(type, side, index) {
+      if (type !== "context" && (previous === "context" || previous === "add" && type === "del")) {
+        block2++;
+      }
+      records.push({
+        type,
+        side,
+        index,
+        block: type === "context" ? null : block2
+      });
+      previous = type;
+    }
+    oldLine = 0;
+    newLine = 0;
+    lines.forEach(function(line) {
+      if (line.type !== "add") {
+        var o = oldOfLine[oldLine++];
+        if (o > oldSeen) {
+          oldSeen = o;
+          if (oldChanged[o]) emit("del", "old", o);
+        }
+      }
+      if (line.type !== "del") {
+        var n = newOfLine[newLine++];
+        if (n > newSeen) {
+          newSeen = n;
+          emit(newChanged[n] ? "add" : "context", "new", n);
+        }
+      }
+    });
+    return records;
+  }
+  function rowAttributes(record) {
+    if (record.type === "context") return "";
+    return ' class="diff-' + record.type + '" data-diff-block="' + record.block + '"';
+  }
+  function buildCsvDiffTable(diffText, delimiter2) {
+    var files = parseUnifiedDiff(diffText);
+    if (files.length !== 1 || files[0].isBinary || files[0].hunks.length !== 1) {
+      return null;
+    }
+    var hunk = files[0].hunks[0];
+    if (hunk.oldStart > 1 || hunk.newStart > 1) {
+      return null;
+    }
+    var lines = hunk.lines;
+    var oldText = lines.filter((l) => l.type !== "add").map((l) => l.text).join("\n");
+    var newText = lines.filter((l) => l.type !== "del").map((l) => l.text).join("\n");
+    var oldRows = parseCsv(oldText, delimiter2);
+    var newRows = parseCsv(newText, delimiter2);
+    var records = orderCsvDiffRecords(
+      lines,
+      csvRecordLineRanges(oldText, delimiter2),
+      csvRecordLineRanges(newText, delimiter2)
+    );
+    var rowOf = (r) => (r.side === "old" ? oldRows : newRows)[r.index];
+    var header = records.find((r) => r.side === "new" && r.index === 0);
+    var body = records.filter((r) => r !== header);
+    var headerRow = header ? rowOf(header) : [];
+    var bodyRows = body.map((r) => rowOf(r));
+    var formats = analyzeCsvColumns([headerRow, ...bodyRows]);
+    var cols = Math.max(headerRow.length, ...bodyRows.map((row) => row.length));
+    var html2 = "<table><thead><tr" + (header ? rowAttributes(header) : "") + ">";
+    for (var c = 0; c < cols; c++) {
+      html2 += "<th>" + escapeHtml(headerRow[c] ?? "") + "</th>";
+    }
+    html2 += "</tr></thead><tbody>";
+    body.forEach(function(record, i) {
+      var row = bodyRows[i];
+      html2 += "<tr" + rowAttributes(record) + ">";
+      for (var k = 0; k < cols; k++) {
+        html2 += csvCellHtml(row[k] ?? "", formats[k]);
+      }
+      html2 += "</tr>";
+    });
+    html2 += "</tbody></table>";
+    return { html: html2, formats };
   }
 
   // viewer-src/zoom.ts
@@ -24887,7 +25000,9 @@
   }
   function _renderCsv(diagramWrap, content, lang) {
     diagramWrap.classList.add("markdown-body", "csv-body");
-    var table2 = buildCsvTable(content, lang || ",");
+    var diff = _mmdViewOptions.diff();
+    var diffTable = diff === null ? null : buildCsvDiffTable(diff, lang || ",");
+    var table2 = diffTable ?? buildCsvTable(content, lang || ",");
     diagramWrap.innerHTML = table2.html;
     var element = diagramWrap.querySelector("table");
     if (element) {
@@ -24896,7 +25011,7 @@
       element.before(scroll);
       scroll.append(element);
     }
-    return table2.formats;
+    return { formats: table2.formats, shape: diffTable ? "diff" : "csv-table" };
   }
   function _renderImage(diagramWrap, content, lang) {
     diagramWrap.classList.add("image-body");
@@ -25347,7 +25462,9 @@
         errorPanel.style.display = "block";
       }
     } else if (shape === "csv-table") {
-      _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
+      var csv = _renderCsv(diagramWrap, content, lang);
+      _mmdCsvColumns.record(csv.formats);
+      _mmdDocument.recordShape(csv.shape);
     } else if (shape === "image") {
       _renderImage(diagramWrap, content, lang);
     } else {

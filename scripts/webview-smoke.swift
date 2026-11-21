@@ -137,6 +137,33 @@ final class SmokeRunner: NSObject, WKNavigationDelegate {
         ) { r in
             print("highlight: \(String(describing: r))")
             if (r as? String) != "hl" { self.fail("highlight.js のハイライトが出なかった") }
+            self.checkCsvRenderedDiff()
+        }
+    }
+
+    // 3.25. CSV のレンダリング差分(TASK-483.2)
+    // 追加・削除行の地色は github-markdown-css の行の地色と縞(tr:nth-child(2n))に
+    // 勝たなければ見えない。jsdom は CSS カスケードを解決しないため、実 WebKit で
+    // 計算済みスタイルを見る。2 行目(偶数行 = 縞の行)を追加行にしてある。
+    func checkCsvRenderedDiff() {
+        let diff = "diff --git a/t.csv b/t.csv\n--- a/t.csv\n+++ b/t.csv\n@@ -1,3 +1,3 @@\n"
+            + " a,b\n 1,2\n-3,4\n+3,5\n"
+        asyncJS(
+            "setViewMode('rendered'); setDiff(\(jsString(diff))); "
+                + "await render('a,b\\n1,2\\n3,5\\n', 'csv', ','); "
+                + "var bg = (sel) => { var el = document.querySelector(sel); "
+                + "return el ? getComputedStyle(el).backgroundColor : 'none'; }; "
+                + "var r = [bg('#diagram-wrap tr.diff-add > td'), bg('#diagram-wrap tr.diff-del > td'), "
+                + "bg('#diagram-wrap tbody tr:not([class]) > td')]; "
+                + "setDiff(null); return r.join('|');",
+            "csv-rendered-diff"
+        ) { r in
+            print("csv rendered diff bg: \(String(describing: r))")
+            let parts = (r as? String)?.components(separatedBy: "|") ?? []
+            guard parts.count == 3, !parts.contains("none") else { self.fail("CSV の差分行が描かれなかった") }
+            if parts[0] == parts[2] || parts[1] == parts[2] || parts[0] == parts[1] {
+                self.fail("CSV の差分行に追加/削除の地色が出ていない: \(parts)")
+            }
             self.checkJapaneseLawXSLT()
         }
     }

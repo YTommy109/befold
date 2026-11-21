@@ -7,7 +7,7 @@ import AppKit
 /// 並びを変えた瞬間にソースを選んだつもりで差分が選ばれるような静かな取り違えになる。
 @MainActor
 enum ModeSegments {
-    static let all: [ViewerDisplayMode] = [.rendered, .source, .diff]
+    static let all: [ViewerDisplayMode] = [.rendered, .source, .diff, .renderedDiff]
 
     /// セグメントの表示に使う SF Symbol 名。
     ///
@@ -21,6 +21,8 @@ enum ModeSegments {
         case .rendered: "doc.richtext"
         case .source: "chevron.left.forwardslash.chevron.right"
         case .diff: isSideBySide ? "rectangle.split.2x1" : "plus.forwardslash.minus"
+        // レンダリング差分はレイアウトを持たない(常に 1 カラム)ので固定の絵にする。
+        case .renderedDiff: "doc.badge.plus"
         }
     }
 
@@ -44,6 +46,7 @@ enum ModeSegments {
         case .rendered: "toolbar.mode.preview"
         case .source: "toolbar.mode.source"
         case .diff: "toolbar.mode.diff"
+        case .renderedDiff: "toolbar.mode.renderedDiff"
         }
     }
 }

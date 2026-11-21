@@ -18,7 +18,7 @@ protocol ViewerMenuValidationSource: AnyObject {
     var canGoBack: Bool { get }
     /// ファイル履歴を進めるか。
     var canGoForward: Bool { get }
-    /// チェックを付けるモード(⌘1〜⌘3)。
+    /// チェックを付けるモード(⌘1〜⌘4)。
     var effectiveDisplayMode: ViewerDisplayMode { get }
     /// 差分レイアウトが左右分割か(⌘\\ のチェック状態)。
     var isDiffLayoutSideBySide: Bool { get }
@@ -80,7 +80,7 @@ enum ViewerMenuValidator {
         return true
     }
 
-    /// 表示モード選択(⌘1〜⌘3)とレイアウト切替(⌘\\)の validate。
+    /// 表示モード選択(⌘1〜⌘4)とレイアウト切替(⌘\\)の validate。
     /// 自分の担当外の項目には nil を返し、呼び出し側(validate)の判定を続けさせる。
     /// サイドバーと本文の行き来（⌘← / ⌘→ / TASK-584）。担当外なら nil。
     ///
