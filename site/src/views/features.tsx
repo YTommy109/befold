@@ -48,9 +48,9 @@ export const SHORTCUTS: { keys: string; ja: string; en: string }[] = [
     en: 'Toggle between rendered and source view',
   },
   {
-    keys: '⌘1 / ⌘2 / ⌘3',
-    ja: '表示モードの切替（レンダリング / ソース / 差分）',
-    en: 'Switch the display mode (rendered / source / diff)',
+    keys: '⌘1 / ⌘2 / ⌘3 / ⌘4',
+    ja: '表示モードの切替（レンダリング / ソース / 差分 / レンダリング差分）',
+    en: 'Switch the display mode (rendered / source / diff / rendered diff)',
   },
   {
     keys: '⌘\\',

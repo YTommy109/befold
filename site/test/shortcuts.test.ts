@@ -265,7 +265,7 @@ describe('MainMenuBuilder.swift のパース', () => {
   })
 
   it('表示モードのキーを ModeSegments と ViewerDisplayMode から解決する', () => {
-    expect(displayModeKeys).toEqual(['1', '2', '3'])
+    expect(displayModeKeys).toEqual(['1', '2', '3', '4'])
   })
 })
 
