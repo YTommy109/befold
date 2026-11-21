@@ -64,8 +64,9 @@ enum ContentUpdatePlanner {
         // コンテンツ自体が変わる入力(初回描画・ファイル切替・保存や追記読み込み)は従来どおり
         // 描画へ進める(見送ると空白画面や旧ファイルの残留になる)。direct HTML 分岐より前に
         // 置くのは、HTML の .rendered(直接ロード)からの切替が exitDirectThenRender を通って
-        // 同じ中間描画を起こすため。pending はソース系モードでしか生成されず、directHTMLLoad
-        // (shouldEnter)は isSourceMode=false が条件なので、この見送りが直接ロードを奪うことはない。
+        // 同じ中間描画を起こすため。pending はレンダリング差分(TASK-483)でも
+        // isSourceMode=false のまま生成されるが、レンダリング差分を持つ種別(CSV/TSV・Markdown)は
+        // 直接ロードの対象(HTML)ではないため、この見送りが直接ロードを奪うことはない。
         if input.diffState.isPending, holdsPreviousFrame(incoming: incoming, rendered: rendered) {
             return .skip
         }

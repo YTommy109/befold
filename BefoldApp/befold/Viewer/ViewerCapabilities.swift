@@ -48,6 +48,8 @@ struct ViewerCapabilities: Equatable {
     /// モード切替のうち「差分表示」を選べるか。行番号と同じく
     /// 「いまソース相当の内容を出している」ときだけ意味を持つ。
     let canSelectDiffMode: Bool
+    /// モード切替のうち「レンダリング差分」を選べるか(TASK-483)。
+    let canSelectRenderedDiffMode: Bool
     /// 差分レイアウト(上下/左右)の切替。差分表示を選んでいる間だけ意味を持つ。
     let canToggleDiffLayout: Bool
     /// 表示の 90 度回転。回転を持つ面(PDF)を描いているときだけ。
@@ -63,6 +65,9 @@ struct ViewerCapabilities: Equatable {
     ///   - showsDiff: いま差分表示モードを選んでいるか。
     ///   - supportsSourceMode: ソース表示への切替を持つ種別か。
     ///   - supportsDiffDisplay: ソース表示へ差分を重ねられる種別か(CSV/TSV は不可)。
+    ///   - supportsRenderedDiff: レンダリング表示のまま差分を重ねられる種別か。
+    ///     既定値は持たせない——渡し忘れが静かに「全種別で不可」へ倒れると、
+    ///     対応種別でもセグメントがグレーのままになる。
     ///   - gitDiffAvailability: 差分を出せる git の事実(可用性・変更の有無)。
     ///     ADR(libgit2 移行)の Fallback にある「git が使えないとき差分表示モードを
     ///     選択不可にする」はここから来る。
@@ -87,6 +92,7 @@ struct ViewerCapabilities: Equatable {
         showsDiff: Bool = false,
         supportsSourceMode: Bool,
         supportsDiffDisplay: Bool,
+        supportsRenderedDiff: Bool,
         supportsRotation: Bool = false,
         supportsFind: Bool,
         gitDiffAvailability: GitDiffAvailability,
@@ -122,7 +128,11 @@ struct ViewerCapabilities: Equatable {
         // (= 反応が無いように見える / TASK-438.2)。
         canSelectDiffMode = onDocument && !isBinaryContent && supportsDiffDisplay
             && gitDiffAvailability.allowsDiffSelection
-        canToggleDiffLayout = canSelectDiffMode && showsDiff
+        canSelectRenderedDiffMode = onDocument && !isBinaryContent && supportsRenderedDiff
+            && gitDiffAvailability.allowsDiffSelection
+        // レイアウト(上下/左右)はソース差分の表にだけ効く。レンダリング差分は常に
+        // 1 カラムで描くため、そちらを出している間は切り替えさせない(押しても何も変わらない)。
+        canToggleDiffLayout = canSelectDiffMode && showsDiff && showsCodeContent
         canJumpToChangeBlock = canJump && showsDiff
         canRotate = onDocument && supportsRotation
         // showsCodeContent は差分表示中も true(ViewerStore の isSourceMode 経由)なので、
@@ -173,6 +183,7 @@ struct ViewerCapabilities: Equatable {
         case .rendered: canSelectPreviewMode
         case .source: canSelectSourceMode
         case .diff: canSelectDiffMode
+        case .renderedDiff: canSelectRenderedDiffMode
         }
     }
 
@@ -185,6 +196,7 @@ struct ViewerCapabilities: Equatable {
         showsCodeContent: false,
         supportsSourceMode: false,
         supportsDiffDisplay: false,
+        supportsRenderedDiff: false,
         supportsFind: false,
         gitDiffAvailability: .undetermined,
         isDirectHTMLMode: false,

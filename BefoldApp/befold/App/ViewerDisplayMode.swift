@@ -1,6 +1,6 @@
 import Foundation
 
-/// プレビューエリアの表示モード。ツールバーの 3 択セグメントおよび ⌘1〜⌘3 と 1 対 1 に対応する。
+/// プレビューエリアの表示モード。ツールバーの 4 択セグメントおよび ⌘1〜⌘4 と 1 対 1 に対応する。
 ///
 /// 差分は「ソース表示中にだけ成立する」従属状態であり、以前は
 /// 「ソース表示 Bool（ファイル単位）」と「差分 ON/OFF Bool（アプリ全体）」の 2 値で持っていた。
@@ -19,24 +19,30 @@ enum ViewerDisplayMode: String, CaseIterable, Sendable {
     case source
     /// ソース表示に git 差分を重ねた状態。
     case diff
+    /// レンダリング表示のまま git 差分を重ねた状態(TASK-483)。
+    /// 成立する種別は `FileType.supportsRenderedDiff` で、降格は `supported(for:)` が行う。
+    /// `.diff` の中の切替として持たず 4 つ目の値にしているのは、`isSourceMode` /
+    /// `showsDiff` をモード値だけの関数に保つため(種別や別の保存値に依存させない)。
+    case renderedDiff
 
     /// ソース相当の内容を出しているか。RenderKit 境界へ渡す Bool はこれ 1 箇所で導出する。
     var isSourceMode: Bool {
-        self != .rendered
+        self == .source || self == .diff
     }
 
     /// git 差分を重ねているか。
     var showsDiff: Bool {
-        self == .diff
+        self == .diff || self == .renderedDiff
     }
 
-    /// View メニューの ⌘1〜⌘3 が「どのモードを選ぶ項目か」を運ぶためのタグ。
+    /// View メニューの ⌘1〜⌘4 が「どのモードを選ぶ項目か」を運ぶためのタグ。
     /// NSMenuItem.tag の既定値は 0 で「未設定」と区別できないため 1 から振る。
     var menuItemTag: Int {
         switch self {
         case .rendered: 1
         case .source: 2
         case .diff: 3
+        case .renderedDiff: 4
         }
     }
 
@@ -46,6 +52,7 @@ enum ViewerDisplayMode: String, CaseIterable, Sendable {
         case .rendered: "menu.view.showRendered"
         case .source: "menu.view.showSource"
         case .diff: "menu.view.showDiff"
+        case .renderedDiff: "menu.view.showRenderedDiff"
         }
     }
 

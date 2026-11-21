@@ -199,6 +199,28 @@ struct ViewerWindowControllerSourceModeTests {
         #expect(controller.displayMode == .source)
     }
 
+    /// cmd+U はレンダリング側から離れたモードも覚える。レンダリング差分(⌘4)から
+    /// ソースへ行って戻ると、ただのレンダリング表示ではなくレンダリング差分へ戻る(TASK-483)。
+    @Test("レンダリング差分中の cmd+U 往復でレンダリング差分に戻る")
+    func toggleSourceViewRoundTripPreservesRenderedDiffMode() {
+        let markdown = URL(fileURLWithPath: "/mock/note.md")
+        let defaults = makeIsolatedDefaults(prefix: "ViewerWindowControllerSourceModeTests.renderedDiff")
+        let controller = ViewerWindowControllerFixture(
+            file: markdown, contents: "# a", defaults: defaults
+        ).controller
+        defer { controller.close() }
+
+        controller.setDisplayMode(.renderedDiff)
+        #expect(controller.displayMode == .renderedDiff)
+
+        controller.toggleSourceView(nil)
+        #expect(controller.displayMode == .source)
+
+        controller.toggleSourceView(nil)
+
+        #expect(controller.displayMode == .renderedDiff)
+    }
+
     /// 記憶はファイル単位。別ファイルへ移った先で cmd+U が前のファイルの差分表示を
     /// 引き継がないこと(粒度が壊れたらここが落ちる)。
     @Test("cmd+U の戻り先は別ファイルへ引き継がれない")

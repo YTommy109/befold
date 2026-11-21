@@ -83,7 +83,7 @@ struct FocusTraversalTests {
         var capabilities: ViewerCapabilities = .init(
             isPresentingDocument: true, isRejected: false, isRenderable: true,
             isBinaryContent: false, showsCodeContent: true, showsDiff: true,
-            supportsSourceMode: true, supportsDiffDisplay: true, supportsFind: true,
+            supportsSourceMode: true, supportsDiffDisplay: true, supportsRenderedDiff: false, supportsFind: true,
             gitDiffAvailability: .changed, isDirectHTMLMode: false, supportsHeadingJump: true,
             codeLanguage: "swift"
         )

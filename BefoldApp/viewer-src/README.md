@@ -40,6 +40,9 @@ viewer 用 JS のモジュールソース（ESM）。`npm run build:viewer` が 
 | `code-html.ts` | ソースコードのハイライトと行単位 HTML の組み立て |
 | `diff-html.ts` | unified diff の解析とインライン/左右分割の HTML 組み立て |
 | `csv-html.ts` | CSV/TSV の解析とテーブル/ソース表示の HTML 組み立て |
+| `diff-units.ts` | レンダリング差分の共通部分（全文差分からの新旧復元と、単位の並べ替え） |
+| `csv-diff.ts` | CSV/TSV のテーブル表示に差分を重ねる（レコード単位） |
+| `markdown-diff.ts` | Markdown のレンダリング表示に差分を重ねる（トップレベルのブロック単位） |
 | `encoding.ts` | HTML エスケープと data URI / base64 の変換 |
 | `viewer-globals.d.ts` | Swift が `window` へ注入する値の型宣言（値の一致は `ViewerBridgeContractTests` が担保） |
 

@@ -23,10 +23,36 @@ struct ViewerDisplayModeSupportTests {
         #expect(ViewerDisplayMode.diff.supported(for: image) == .rendered)
     }
 
-    /// CSV/TSV は viewer 側が差分を描かないため、差分はソース表示へ落とす。
-    @Test("差分非対応の種別はソース表示へ降格する")
-    func demotesToSourceForNonDiffTypes() {
-        #expect(ViewerDisplayMode.diff.supported(for: csv) == .source)
+    /// CSV/TSV はソース差分を持たずレンダリング差分だけを持つ(TASK-483)。
+    /// 「差分を見たい」という選択はレンダリング差分として残す。
+    @Test("CSV の差分はレンダリング差分へ読み替える")
+    func csvDiffBecomesRenderedDiff() {
+        #expect(ViewerDisplayMode.diff.supported(for: csv) == .renderedDiff)
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: csv) == .renderedDiff)
+    }
+
+    /// レンダリング差分を持たない種別では、ソース差分(描けなければレンダリング表示)へ落とす。
+    /// Markdown はソース差分(⌘3)とレンダリング差分(⌘4)の両方を持ち、どちらも降格しない。
+    @Test("Markdown はソース差分とレンダリング差分を両方保つ")
+    func markdownKeepsBothDiffs() {
+        #expect(ViewerDisplayMode.diff.supported(for: markdown) == .diff)
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: markdown) == .renderedDiff)
+    }
+
+    @Test("レンダリング差分非対応の種別はソース差分へ降格する")
+    func demotesRenderedDiff() {
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: code) == .diff)
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: image) == .rendered)
+        #expect(ViewerDisplayMode.renderedDiff.supported(for: URL(fileURLWithPath: "/mock/page.html")) == .diff)
+    }
+
+    /// isSourceMode / showsDiff はモード値だけで決まる(種別に依存させない)。
+    @Test("レンダリング差分はソース表示ではなく差分を出す")
+    func renderedDiffFlags() {
+        #expect(!ViewerDisplayMode.renderedDiff.isSourceMode)
+        #expect(ViewerDisplayMode.renderedDiff.showsDiff)
+        #expect(ViewerDisplayMode.diff.isSourceMode)
+        #expect(ViewerDisplayMode(menuItemTag: 4) == .renderedDiff)
     }
 
     /// 差分は、ビルド構成によらずそのまま差分として読む(TASK-187)。

@@ -25,8 +25,13 @@ extension ViewerDisplayMode {
         case .source:
             return sourceOrRendered
         case .diff:
-            guard fileType.supportsDiffDisplay else { return sourceOrRendered }
-            return .diff
+            // CSV/TSV のようにソース差分を持たずレンダリング差分だけ持つ種別では、
+            // 「差分を見たい」という選択をレンダリング差分として残す。
+            if fileType.supportsDiffDisplay { return .diff }
+            return fileType.supportsRenderedDiff ? .renderedDiff : sourceOrRendered
+        case .renderedDiff:
+            if fileType.supportsRenderedDiff { return .renderedDiff }
+            return fileType.supportsDiffDisplay ? .diff : .rendered
         }
     }
 }

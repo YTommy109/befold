@@ -96,6 +96,7 @@ struct ToggleBarCommandTests {
             showsDiff: showsDiff,
             supportsSourceMode: true,
             supportsDiffDisplay: true,
+            supportsRenderedDiff: false,
             supportsFind: true,
             gitDiffAvailability: .changed,
             isDirectHTMLMode: false,

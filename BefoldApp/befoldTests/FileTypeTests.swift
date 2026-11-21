@@ -201,6 +201,23 @@ struct FileTypeTests {
         #expect(fileType.supportsDiffDisplay == expected)
     }
 
+    /// レンダリング差分(TASK-483)はソース行とレンダリング結果を対応付けられる種別だけ。
+    /// HTML / SVG / Mermaid / XML は対応付けの手段が無く、差分はソース表示のまま。
+    @Test("レンダリング差分の可否は CSV/TSV と Markdown だけが true", arguments: [
+        (FileType.csv(delimiter: ","), true),
+        (FileType.csv(delimiter: "\t"), true),
+        (FileType.markdown, true),
+        (FileType.mmd, false),
+        (FileType.svg, false),
+        (FileType.html, false),
+        (FileType.xml, false),
+        (FileType.code(language: "swift"), false),
+        (FileType.pdf, false),
+    ])
+    private func supportsRenderedDiff(_ fileType: FileType, _ expected: Bool) {
+        #expect(fileType.supportsRenderedDiff == expected)
+    }
+
     @Test(arguments: [
         (FileType.csv(delimiter: ","), true),
         (FileType.csv(delimiter: "\t"), true),

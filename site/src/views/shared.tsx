@@ -126,11 +126,11 @@ export const FEATURES: Feature[] = [
   {
     ja: [
       'Git 差分表示',
-      'ブランチで加えた変更を、コミット済みの分までまとめてソースの差分で読める。レンダリング / ソース / 差分の切替は ⌘1 / ⌘2 / ⌘3、差分の上下・左右レイアウトは ⌘\\ で。表示モードはファイルごとに記憶される',
+      'ブランチで加えた変更を、コミット済みの分までまとめてソースの差分で読める。Markdown と CSV/TSV はレンダリングしたまま変更箇所を色分けして見ることもできる。レンダリング / ソース / 差分 / レンダリング差分の切替は ⌘1 / ⌘2 / ⌘3 / ⌘4、差分の上下・左右レイアウトは ⌘\\ で。表示モードはファイルごとに記憶される',
     ],
     en: [
       'Git Diff View',
-      'Read what your branch changes — committed work included — as a source diff. Switch rendered / source / diff with ⌘1 / ⌘2 / ⌘3, flip the diff layout between stacked and side by side with ⌘\\. The view mode is remembered per file',
+      'Read what your branch changes — committed work included — as a source diff, or see Markdown and CSV/TSV changes highlighted right in the rendered view. Switch rendered / source / diff / rendered diff with ⌘1 / ⌘2 / ⌘3 / ⌘4, flip the diff layout between stacked and side by side with ⌘\\. The view mode is remembered per file',
     ],
   },
   {

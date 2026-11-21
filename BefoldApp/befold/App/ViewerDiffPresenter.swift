@@ -80,7 +80,7 @@ final class ViewerDiffPresenter {
     /// 差分を出せない種別（画像・PDF・文書を出していない状態）では差分取得を起こさない。
     /// 表示側（ViewerContentView）が捨てるだけでは、契機の数だけ取得が走る。
     func refresh() {
-        guard let loader, let url = currentURL(), isDiffShown, capabilities().canSelectDiffMode else {
+        guard let loader, let url = currentURL(), isDiffShown, capabilities().canSelect(store.displayMode) else {
             store.diffContent = .unavailable
             // 取得を起こさなかった契機で直前のタスクを残すと、待つ側が古い取得の完了を
             // 「この契機の完了」と取り違える。

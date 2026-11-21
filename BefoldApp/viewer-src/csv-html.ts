@@ -97,6 +97,29 @@ function tokenizeCsvRows(content: string, delimiter: string): CsvCell[][] {
   return rows;
 }
 
+// レコードごとに、そのレコードが占めるソース行の範囲を返す(TASK-483.1)。
+// 範囲は 0 始まりの半開区間 [start, end)。git diff の行番号(1 始まり)から
+// レコードを引くときは line - 1 が start <= x < end に入るものを探す。
+//
+// 引用符内の改行を含むレコードは複数行を占めるため、レコード番号とソース行番号は
+// 一致しない。tokenizeCsvRows の raw は引用符内の改行をそのまま残すので、
+// その改行を数えれば消費行数が分かる(テーブル表示と同じトークナイザーを使うので、
+// 対応がテーブルの行と食い違わない)。git diff と同じく \n だけを行区切りとして数える。
+function csvRecordLineRanges(content: string, delimiter: string): [number, number][] {
+  var tokenRows = tokenizeCsvRows(content, delimiter);
+  var ranges: [number, number][] = [];
+  var start = 0;
+  for (var r = 0; r < tokenRows.length; r++) {
+    var lines = 1;
+    for (var c = 0; c < tokenRows[r]!.length; c++) {
+      lines += tokenRows[r]![c]!.raw.split('\n').length - 1;
+    }
+    ranges.push([start, start + lines]);
+    start += lines;
+  }
+  return ranges;
+}
+
 // セル値に含まれる 2 文字のエスケープシーケンスを実際の制御文字へ展開する。
 // 対象は \n / \t / \r / \\ の 4 つ。左から 1 パスで走査するため、\\n は
 // 「エスケープされたバックスラッシュ + n」として解釈され、リテラルの \n が残る。
@@ -298,6 +321,7 @@ export {
   formatCsvNumber,
   unescapeCellValue,
   tokenizeCsvRows,
+  csvRecordLineRanges,
   parseCsv,
   csvCellHtml,
   csvRowsHtml,

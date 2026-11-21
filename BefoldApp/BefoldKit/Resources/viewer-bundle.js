@@ -14231,9 +14231,11 @@
     appendChunk: () => appendChunk,
     applyHeadingLevels: () => applyHeadingLevels,
     assignChangeBlockIndexes: () => assignChangeBlockIndexes,
+    buildCsvDiffTable: () => buildCsvDiffTable,
     buildCsvTable: () => buildCsvTable,
     buildFindRegExp: () => buildFindRegExp,
     buildLineNumberRows: () => buildLineNumberRows,
+    buildMarkdownDiffHtml: () => buildMarkdownDiffHtml,
     buildTableHtml: () => buildTableHtml,
     changeBlockJumpProvider: () => changeBlockJumpProvider,
     claimBar: () => claimBar,
@@ -14247,6 +14249,7 @@
     csvCellHtml: () => csvCellHtml,
     csvHeaderLooksLikeCode: () => csvHeaderLooksLikeCode,
     csvHeaderTokens: () => csvHeaderTokens,
+    csvRecordLineRanges: () => csvRecordLineRanges,
     csvRowsHtml: () => csvRowsHtml,
     csvSourceInnerHtml: () => csvSourceInnerHtml,
     currentBar: () => currentBar,
@@ -14284,6 +14287,7 @@
     moveCurrentHighlight: () => moveCurrentHighlight,
     nextMatchIndex: () => nextMatchIndex,
     onColorSchemeChange: () => onColorSchemeChange,
+    orderDiffUnits: () => orderDiffUnits,
     ownsEnterKey: () => ownsEnterKey,
     pageScrollStep: () => pageScrollStep,
     pairDiffLines: () => pairDiffLines,
@@ -14325,6 +14329,7 @@
     uniqueHeadingSlug: () => uniqueHeadingSlug,
     updateOuterVisibility: () => updateOuterVisibility,
     wheelZoom: () => wheelZoom,
+    wholeFileDiffSides: () => wholeFileDiffSides,
     wordDiffRanges: () => wordDiffRanges,
     wordRangesForHunk: () => wordRangesForHunk,
     wrapWithLineNumbers: () => wrapWithLineNumbers,
@@ -16455,6 +16460,20 @@
     }
     return rows;
   }
+  function csvRecordLineRanges(content, delimiter2) {
+    var tokenRows = tokenizeCsvRows(content, delimiter2);
+    var ranges = [];
+    var start = 0;
+    for (var r = 0; r < tokenRows.length; r++) {
+      var lines = 1;
+      for (var c = 0; c < tokenRows[r].length; c++) {
+        lines += tokenRows[r][c].raw.split("\n").length - 1;
+      }
+      ranges.push([start, start + lines]);
+      start += lines;
+    }
+    return ranges;
+  }
   var CSV_ESCAPES = { n: "\n", t: "	", r: "\r", "\\": "\\" };
   function unescapeCellValue(value) {
     if (!value.includes("\\")) {
@@ -16584,977 +16603,131 @@
     return '<pre><code class="csv-source">' + body + "</code></pre>";
   }
 
-  // viewer-src/zoom.ts
-  var ZOOM_MIN = 0.5;
-  var ZOOM_MAX = 2;
-  var ZOOM_STEP = 0.25;
-  var ZOOM_DEFAULT = 1;
-  var BASE_SCALE = 0.75;
-  var DIAGRAM_ZOOM_MAX = 3;
-  function setZoomStyle(el, value) {
-    el.style.zoom = String(value);
-  }
-  function clampZoom(z, max) {
-    if (max === void 0) {
-      max = ZOOM_MAX;
+  // viewer-src/diff-units.ts
+  function wholeFileDiffSides(diffText) {
+    var files = parseUnifiedDiff(diffText);
+    if (files.length !== 1 || files[0].isBinary || files[0].hunks.length !== 1) {
+      return null;
     }
-    return Math.max(ZOOM_MIN, Math.min(max, z));
-  }
-  function stepZoom(current, delta, max) {
-    return clampZoom(Math.round((current + delta) * 100) / 100, max);
-  }
-  function wheelZoom(current, deltaY, max) {
-    return clampZoom(Math.round((current - deltaY * 0.01) * 1e3) / 1e3, max);
-  }
-  function zoomLabel(zoom) {
-    return Math.round(zoom * 100) + "%";
-  }
-  function parseStoredZoom(raw) {
-    var z = parseFloat(String(raw));
-    return isNaN(z) ? ZOOM_DEFAULT : z;
-  }
-  function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
-    var viewportCap = (viewportHeight - 64) / globalZoom;
-    return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
-  }
-  function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
-    if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
-      return { width: naturalWidth, height: naturalHeight };
+    var hunk = files[0].hunks[0];
+    if (hunk.oldStart > 1 || hunk.newStart > 1) {
+      return null;
     }
-    var scale = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
-    return { width: naturalWidth * scale, height: naturalHeight * scale };
+    var lines = hunk.lines;
+    var side = (skip) => lines.filter((l) => l.type !== skip).map((l) => l.text).join("\n");
+    return { lines, oldText: side("add"), newText: side("del") };
   }
-  function _createZoomStore() {
-    var zoom = ZOOM_DEFAULT;
-    var lastPosted = ZOOM_DEFAULT;
-    var diagramZooms = /* @__PURE__ */ new Map();
-    function diagramValue(index) {
-      return diagramZooms.has(index) ? diagramZooms.get(index) : ZOOM_DEFAULT;
-    }
-    return {
-      value: function() {
-        return zoom;
-      },
-      // Swift が注入した保存値を採用する。範囲外の保存値はクランプした値を採用しつつ、
-      // 直近通知値には注入値そのままを記録する: 次の takePostable() が補正後の値を
-      // 通知対象として返し、Swift 側の保存値が正される。
-      adoptStored: function(raw) {
-        var parsed = parseStoredZoom(raw);
-        zoom = clampZoom(parsed);
-        lastPosted = parsed;
-      },
-      step: function(delta) {
-        zoom = stepZoom(zoom, delta);
-      },
-      wheel: function(deltaY) {
-        zoom = wheelZoom(zoom, deltaY);
-      },
-      reset: function() {
-        zoom = ZOOM_DEFAULT;
-      },
-      // 直近通知値と変わっていれば通知すべき倍率を返し、同時に直近通知値を更新する。
-      // 変わっていなければ null を返す（通知は不要）。
-      takePostable: function() {
-        if (zoom === lastPosted) {
-          return null;
-        }
-        lastPosted = zoom;
-        return zoom;
-      },
-      diagramValue,
-      diagramStep: function(index, delta) {
-        diagramZooms.set(index, stepZoom(diagramValue(index), delta, DIAGRAM_ZOOM_MAX));
-      },
-      diagramWheel: function(index, deltaY) {
-        diagramZooms.set(index, wheelZoom(diagramValue(index), deltaY, DIAGRAM_ZOOM_MAX));
-      },
-      diagramReset: function(index) {
-        diagramZooms.set(index, ZOOM_DEFAULT);
+  function lineToUnit(ranges) {
+    var map2 = [];
+    for (var r = 0; r < ranges.length; r++) {
+      while (map2.length < ranges[r][0]) map2.push(-1);
+      for (var line = ranges[r][0]; line < ranges[r][1]; line++) {
+        map2[line] = r;
       }
-    };
-  }
-  var _mmdZoom = _createZoomStore();
-  function _mmdInitZoom() {
-    _mmdZoom.adoptStored(window._mmdInitialZoom);
-    _mmdApplyZoom();
-  }
-  function _mmdApplyZoom() {
-    var zoom = _mmdZoom.value();
-    var wrap = document.getElementById("diagram-wrap");
-    setZoomStyle(wrap, zoom);
-    _mmdUpdateAllDiagramScrollHeights();
-    var postable = _mmdZoom.takePostable();
-    if (postable !== null) {
-      _mmdPostMessage(_MSG_ZOOM_CHANGED, { zoom: postable, path: _mmdDocPath.current() });
     }
+    return map2;
   }
-  function _mmdZoomIn() {
-    _mmdZoom.step(ZOOM_STEP);
-    _mmdApplyZoom();
-  }
-  function _mmdZoomOut() {
-    _mmdZoom.step(-ZOOM_STEP);
-    _mmdApplyZoom();
-  }
-  function _mmdZoomReset() {
-    _mmdZoom.reset();
-    _mmdApplyZoom();
-  }
-  function _mmdWheelZoom(deltaY) {
-    _mmdZoom.wheel(deltaY);
-    _mmdApplyZoom();
-  }
-  function _mmdInitWheelZoom() {
-    document.addEventListener(
-      "wheel",
-      function(e) {
-        if (!e.ctrlKey) {
-          return;
+  function orderDiffUnits(lines, oldRanges, newRanges) {
+    var oldOfLine = lineToUnit(oldRanges);
+    var newOfLine = lineToUnit(newRanges);
+    var oldCovers = oldRanges.map(() => []);
+    var newCovers = newRanges.map(() => []);
+    var oldLine = 0;
+    var newLine = 0;
+    lines.forEach(function(line, i) {
+      if (line.type !== "add") {
+        var o = oldOfLine[oldLine++] ?? -1;
+        if (o >= 0) oldCovers[o].push(i);
+      }
+      if (line.type !== "del") {
+        var n = newOfLine[newLine++] ?? -1;
+        if (n >= 0) newCovers[n].push(i);
+      }
+    });
+    var oldKeys = new Set(oldCovers.map((c) => c.join(",")));
+    var newKeys = new Set(newCovers.map((c) => c.join(",")));
+    var oldChanged = oldCovers.map((c) => !newKeys.has(c.join(",")));
+    var newChanged = newCovers.map((c) => !oldKeys.has(c.join(",")));
+    var units = [];
+    var oldSeen = -1;
+    var newSeen = -1;
+    var block2 = -1;
+    var previous = "context";
+    function emit(type, side, index) {
+      if (type !== "context" && (previous === "context" || previous === "add" && type === "del")) {
+        block2++;
+      }
+      units.push({ type, side, index, block: type === "context" ? null : block2 });
+      previous = type;
+    }
+    oldLine = 0;
+    newLine = 0;
+    lines.forEach(function(line) {
+      if (line.type !== "add") {
+        var o = oldOfLine[oldLine++] ?? -1;
+        if (o > oldSeen) {
+          oldSeen = o;
+          if (oldChanged[o]) emit("del", "old", o);
         }
-        e.preventDefault();
-        var wrap = e.target instanceof Element ? e.target.closest(".diagram-zoom-wrap") : null;
-        if (wrap) {
-          _mmdDiagramWheelZoom(wrap, e.deltaY);
-        } else {
-          _mmdWheelZoom(e.deltaY);
+      }
+      if (line.type !== "del") {
+        var n = newOfLine[newLine++] ?? -1;
+        if (n > newSeen) {
+          newSeen = n;
+          emit(newChanged[n] ? "add" : "context", "new", n);
         }
-      },
-      { passive: false }
+      }
+    });
+    return units;
+  }
+
+  // viewer-src/csv-diff.ts
+  function rowAttributes(record) {
+    if (record.type === "context") return "";
+    return ' class="diff-' + record.type + '" data-diff-block="' + record.block + '"';
+  }
+  function buildCsvDiffTable(diffText, delimiter2) {
+    var sides = wholeFileDiffSides(diffText);
+    if (sides === null) {
+      return null;
+    }
+    var oldText = sides.oldText;
+    var newText = sides.newText;
+    var oldRows = parseCsv(oldText, delimiter2);
+    var newRows = parseCsv(newText, delimiter2);
+    var records = orderDiffUnits(
+      sides.lines,
+      csvRecordLineRanges(oldText, delimiter2),
+      csvRecordLineRanges(newText, delimiter2)
     );
-  }
-  function _mmdInitResize() {
-    window.addEventListener("resize", function() {
-      _mmdUpdateAllDiagramScrollHeights();
-      var wrap = document.getElementById("diagram-wrap");
-      var img = wrap.classList.contains("image-body") ? wrap.querySelector("img") : null;
-      if (img && img.complete && img.naturalWidth) {
-        _mmdFitImage(img, wrap);
+    var rowOf = (r2) => (r2.side === "old" ? oldRows : newRows)[r2.index];
+    var header = records.find((r2) => r2.side === "new" && r2.index === 0);
+    var body = records.filter((r2) => r2 !== header);
+    var headerRow = header ? rowOf(header) : [];
+    var bodyRows = body.map((r2) => rowOf(r2));
+    var formats = analyzeCsvColumns([
+      headerRow,
+      ...bodyRows.filter((_, i) => !(body[i].side === "old" && body[i].index === 0))
+    ]);
+    var cols = headerRow.length;
+    for (var r = 0; r < bodyRows.length; r++) {
+      if (bodyRows[r].length > cols) cols = bodyRows[r].length;
+    }
+    var html2 = "<table><thead><tr" + (header ? rowAttributes(header) : "") + ">";
+    for (var c = 0; c < cols; c++) {
+      html2 += "<th>" + escapeHtml(headerRow[c] ?? "") + "</th>";
+    }
+    html2 += "</tr></thead><tbody>";
+    body.forEach(function(record, i) {
+      var row = bodyRows[i];
+      html2 += "<tr" + rowAttributes(record) + ">";
+      for (var k = 0; k < cols; k++) {
+        html2 += csvCellHtml(row[k] ?? "", formats[k]);
       }
+      html2 += "</tr>";
     });
-  }
-  function _mmdFitImage(img, wrap) {
-    var zoom = _mmdZoom.value();
-    var fit = imageFitSize(
-      img.naturalWidth,
-      img.naturalHeight,
-      wrap.clientWidth * zoom,
-      wrap.clientHeight * zoom
-    );
-    img.style.width = fit.width + "px";
-    img.style.height = fit.height + "px";
-  }
-  function _mmdDiagramZoomValue(index) {
-    return _mmdZoom.diagramValue(index);
-  }
-  function _mmdUpdateAllDiagramScrollHeights() {
-    document.querySelectorAll(".diagram-zoom-wrap").forEach(function(wrap) {
-      _mmdUpdateDiagramScrollHeight(wrap);
-    });
-  }
-  function _mmdUpdateDiagramScrollHeight(wrap) {
-    var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
-    var naturalHeight = Number(wrap.dataset.naturalHeight);
-    wrap.querySelector(".diagram-zoom-scroll").style.height = diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom.value()) + "px";
-  }
-  function _mmdApplyDiagramZoom(wrap) {
-    var index = Number(wrap.dataset.diagramIndex);
-    var zoom = _mmdDiagramZoomValue(index);
-    setZoomStyle(wrap.querySelector(".diagram-zoom-inner"), zoom * BASE_SCALE);
-    _mmdUpdateDiagramScrollHeight(wrap);
-    wrap.querySelector(".diagram-zoom-label").textContent = zoomLabel(zoom);
-    wrap.querySelector(".diagram-zoom-in").disabled = zoom >= DIAGRAM_ZOOM_MAX;
-    wrap.querySelector(".diagram-zoom-out").disabled = zoom <= ZOOM_MIN;
-  }
-  function _mmdDiagramZoomStep(wrap, delta) {
-    _mmdZoom.diagramStep(Number(wrap.dataset.diagramIndex), delta);
-    _mmdApplyDiagramZoom(wrap);
-  }
-  function _mmdDiagramZoomReset(wrap) {
-    _mmdZoom.diagramReset(Number(wrap.dataset.diagramIndex));
-    _mmdApplyDiagramZoom(wrap);
-  }
-  function _mmdDiagramWheelZoom(wrap, deltaY) {
-    _mmdZoom.diagramWheel(Number(wrap.dataset.diagramIndex), deltaY);
-    _mmdApplyDiagramZoom(wrap);
-  }
-  function _mmdBuildDiagramControls(wrap) {
-    var strings = window._mmdUIStrings || {};
-    var controls = document.createElement("div");
-    controls.className = "diagram-zoom-controls";
-    var zoomOut = document.createElement("button");
-    zoomOut.className = "diagram-zoom-out";
-    zoomOut.title = strings.zoomOut || "Zoom Out";
-    zoomOut.textContent = "\u2212";
-    zoomOut.addEventListener("click", function() {
-      _mmdDiagramZoomStep(wrap, -ZOOM_STEP);
-    });
-    var label = document.createElement("span");
-    label.className = "diagram-zoom-label";
-    label.title = strings.zoomReset || "Click to Reset";
-    label.addEventListener("click", function() {
-      _mmdDiagramZoomReset(wrap);
-    });
-    var zoomIn = document.createElement("button");
-    zoomIn.className = "diagram-zoom-in";
-    zoomIn.title = strings.zoomIn || "Zoom In";
-    zoomIn.textContent = "+";
-    zoomIn.addEventListener("click", function() {
-      _mmdDiagramZoomStep(wrap, ZOOM_STEP);
-    });
-    controls.append(zoomOut);
-    controls.append(label);
-    controls.append(zoomIn);
-    return controls;
-  }
-  function _mmdWrapDiagrams(diagramWrap, rendered) {
-    var targets = new Set(rendered);
-    diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
-      if (!targets.has(el) || el.closest(".diagram-zoom-wrap")) {
-        return;
-      }
-      var wrap = document.createElement("div");
-      wrap.className = "diagram-zoom-wrap";
-      wrap.dataset.diagramIndex = String(i);
-      var scroll = document.createElement("div");
-      scroll.className = "diagram-zoom-scroll";
-      var inner = document.createElement("div");
-      inner.className = "diagram-zoom-inner";
-      el.parentNode.insertBefore(wrap, el);
-      inner.append(el);
-      scroll.append(inner);
-      wrap.append(scroll);
-      wrap.append(_mmdBuildDiagramControls(wrap));
-      wrap.dataset.naturalHeight = String(inner.offsetHeight);
-      _mmdApplyDiagramZoom(wrap);
-    });
-  }
-
-  // viewer-src/reveal-line.ts
-  function sourceTable() {
-    var shape = _mmdDocument.shape();
-    if (shape !== "code" && shape !== "csv-source") {
-      return null;
-    }
-    return document.querySelector("#diagram-wrap pre code table.code-table");
-  }
-  function _createLineReveal() {
-    var pending = null;
-    var moreRequested = false;
-    var truncated = false;
-    var loadFailed = false;
-    function scrollToRow(table2, line) {
-      var row = table2.rows[Math.min(line, table2.rows.length) - 1];
-      if (row) {
-        row.scrollIntoView({ block: "start" });
-      }
-      pending = null;
-    }
-    function attempt(afterRender) {
-      if (!pending) {
-        return;
-      }
-      var current = _mmdDocPath.current();
-      if (current === null) {
-        return;
-      }
-      if (current !== pending.path) {
-        if (afterRender) {
-          pending = null;
-        }
-        return;
-      }
-      var table2 = sourceTable();
-      if (!table2) {
-        if (afterRender) {
-          pending = null;
-        }
-        return;
-      }
-      if (pending.line <= table2.rows.length || loadFailed) {
-        scrollToRow(table2, pending.line);
-        return;
-      }
-      if (!truncated) {
-        if (!moreRequested) {
-          scrollToRow(table2, pending.line);
-        }
-        return;
-      }
-      if (!moreRequested) {
-        moreRequested = true;
-        if (!_mmdRequestMoreLines()) {
-          scrollToRow(table2, pending.line);
-        }
-      }
-    }
-    return {
-      request: function(path2, line) {
-        pending = { path: path2, line };
-        moreRequested = false;
-        attempt(false);
-      },
-      afterRender: function() {
-        if (moreRequested) {
-          pending = null;
-        }
-        moreRequested = false;
-        attempt(true);
-      },
-      afterAppend: function() {
-        moreRequested = false;
-        attempt(false);
-      },
-      truncationChanged: function(isTruncated, failed) {
-        truncated = isTruncated;
-        loadFailed = failed;
-        attempt(false);
-      }
-    };
-  }
-  var _mmdLineReveal = _createLineReveal();
-  function _mmdRevealLine(path2, line) {
-    _mmdLineReveal.request(path2, line);
-  }
-
-  // viewer-src/jump-function-provider.ts
-  function sourceLineText(row) {
-    return row.querySelector(".line-content")?.textContent ?? "";
-  }
-  var FUNCTION_JUMP_LANGUAGES = [
-    "swift",
-    "python",
-    "javascript",
-    "typescript",
-    "go",
-    "rust",
-    "java",
-    "kotlin"
-  ];
-  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
-  var DEFINITION_PATTERNS = {
-    // `class func` のように修飾子として現れる語も定義キーワードなので、
-    // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。
-    swift: /^\s*(?:(?:public|private|fileprivate|internal|open|package|static|class|final|override|mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|indirect|nonisolated|isolated)\s+)*(?:func|class|struct|enum|protocol|extension|actor|init|deinit|subscript)\b/u,
-    // デコレータは別の行にあるので def / class そのものに錨を下ろす。
-    python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
-    javascript: JS_DEFINITION,
-    typescript: JS_DEFINITION,
-    // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
-    go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
-    // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
-    rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
-    // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
-    // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
-    // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
-    // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
-    java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
-    kotlin: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u
-  };
-  function definitionPattern() {
-    if (_mmdDocument.shape() !== "code") {
-      return null;
-    }
-    var lang = _mmdDocument.lang();
-    if (lang === void 0 || !FUNCTION_JUMP_LANGUAGES.includes(lang)) {
-      return null;
-    }
-    return DEFINITION_PATTERNS[lang] ?? null;
-  }
-  function codeTextOf(cell) {
-    var text3 = "";
-    cell.childNodes.forEach(function(node) {
-      if (node instanceof HTMLElement && node.matches(".hljs-comment, .hljs-string")) {
-        return;
-      }
-      text3 += node.textContent ?? "";
-    });
-    return text3;
-  }
-  function collectFunctionDefinitions(root) {
-    const pattern = definitionPattern();
-    if (!pattern) {
-      return [];
-    }
-    var targets = [];
-    root.querySelectorAll("tr").forEach(function(row) {
-      if (!pattern.test(sourceLineText(row))) {
-        return;
-      }
-      var cell = row.querySelector(".line-content");
-      if (!cell) {
-        return;
-      }
-      if (cell.querySelector(".hljs-comment, .hljs-string") && !pattern.test(codeTextOf(cell))) {
-        return;
-      }
-      targets.push({ anchor: cell, highlight: [cell] });
-    });
-    return targets;
-  }
-  var functionDefinitionJumpProvider = {
-    id: "functionDefinition",
-    collect: collectFunctionDefinitions
-    // ignoresTruncation は付けない。差分表示と違いソース表示は appendChunk で
-    // 実際に追記が起きるため、未読み込み範囲の定義は DOM に存在しない。
-    // 「表示範囲内」ラベルはその事実をユーザーへ伝えるもので、消してはいけない。
-  };
-
-  // viewer-src/jump-providers.ts
-  var HEADING_LEVELS = [1, 2, 3];
-  var selectedLevels = HEADING_LEVELS.slice();
-  function levelButtonId(level) {
-    return "mmd-jump-level-h" + level;
-  }
-  function headingSelector(levels) {
-    if (levels.length === 0) {
-      return null;
-    }
-    return levels.map(function(level) {
-      return "h" + level;
-    }).join(", ");
-  }
-  var ATX_HEADING = /^ {0,3}(#{1,6})(?: |$)/u;
-  var CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/u;
-  function collectSourceHeadings(root) {
-    var rows = root.querySelectorAll("tr");
-    var targets = [];
-    var fence2 = null;
-    rows.forEach(function(row) {
-      var text3 = sourceLineText(row);
-      var fenceMatch = CODE_FENCE.exec(text3);
-      if (fence2 !== null) {
-        if (fenceMatch && fenceMatch[1][0] === fence2[0] && fenceMatch[1].length >= fence2.length) {
-          fence2 = null;
-        }
-        return;
-      }
-      if (fenceMatch) {
-        fence2 = fenceMatch[1];
-        return;
-      }
-      var match2 = ATX_HEADING.exec(text3);
-      if (!match2 || !selectedLevels.includes(match2[1].length)) {
-        return;
-      }
-      var cell = row.querySelector(".line-content");
-      if (cell) {
-        targets.push({ anchor: cell, highlight: [cell] });
-      }
-    });
-    return targets;
-  }
-  function collectRenderedHeadings(root) {
-    var selector = headingSelector(selectedLevels);
-    if (!selector) {
-      return [];
-    }
-    var elements = root.querySelectorAll(selector);
-    var targets = [];
-    elements.forEach(function(element) {
-      targets.push({ anchor: element, highlight: [element] });
-    });
-    return targets;
-  }
-  function collectHeadings(root) {
-    if (selectedLevels.length === 0) {
-      return [];
-    }
-    if (_mmdDocument.shape() === "code" && _mmdDocument.type() === "md") {
-      return collectSourceHeadings(root);
-    }
-    return collectRenderedHeadings(root);
-  }
-  var headingJumpProvider = {
-    id: "heading",
-    collect: collectHeadings,
-    isSelectionEmpty: function() {
-      return selectedLevels.length === 0;
-    },
-    optionsElementId: "mmd-jump-levels"
-  };
-  function collectChangeBlocks(root) {
-    var rows = root.querySelectorAll("[data-diff-block]");
-    var targets = [];
-    var currentBlock;
-    rows.forEach(function(row) {
-      var block2 = row.dataset["diffBlock"];
-      if (block2 === void 0) return;
-      var edge = leadingCell(row);
-      if (block2 === currentBlock) {
-        var previous = targets.at(-1);
-        if (previous) {
-          previous.highlight.push(...edge);
-          return;
-        }
-      }
-      currentBlock = block2;
-      targets.push({ anchor: row, highlight: edge });
-    });
-    return targets;
-  }
-  function leadingCell(row) {
-    var first = row.firstElementChild;
-    return first instanceof HTMLElement ? [first] : [];
-  }
-  var changeBlockJumpProvider = {
-    id: "changeBlock",
-    collect: collectChangeBlocks,
-    // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
-    // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
-    ignoresTruncation: true
-  };
-  function selectedHeadingLevels() {
-    return selectedLevels.slice();
-  }
-  function headingLevelTokens() {
-    return selectedLevels.map(function(level) {
-      return "h" + level;
-    });
-  }
-  function applyHeadingLevels(levels) {
-    selectedLevels = HEADING_LEVELS.filter(function(level) {
-      return levels.includes(level);
-    });
-    HEADING_LEVELS.forEach(function(level) {
-      var button = document.getElementById(levelButtonId(level));
-      if (button) {
-        button.classList.toggle("active", selectedLevels.includes(level));
-      }
-    });
-  }
-  function toggleHeadingLevel(level) {
-    var next = selectedLevels.includes(level) ? selectedLevels.filter(function(selected) {
-      return selected !== level;
-    }) : selectedLevels.concat([level]);
-    applyHeadingLevels(next);
-    _mmdPostMessage(_MSG_JUMP_LEVELS_CHANGED, { levels: headingLevelTokens() });
-    _mmdJump.rebuild();
-  }
-  function _mmdInitHeadingLevels() {
-    buildLevelButtons();
-    var initial = window._mmdInitialJumpLevels;
-    applyHeadingLevels(
-      Array.isArray(initial) ? initial.map(function(token) {
-        return headingLevelNumber(token);
-      }).filter(function(level) {
-        return isLevel(level);
-      }) : HEADING_LEVELS
-    );
-  }
-  function buildLevelButtons() {
-    var element = document.getElementById("mmd-jump-levels");
-    if (!element) return;
-    var container = element;
-    container.textContent = "";
-    var strings = window._mmdJumpStrings || {};
-    HEADING_LEVELS.forEach(function(level) {
-      var button = document.createElement("button");
-      button.id = levelButtonId(level);
-      button.className = "mmd-find-toggle";
-      button.textContent = "H" + level;
-      var title = strings.headingLevel;
-      if (title) {
-        button.title = title.replace("{level}", String(level));
-      }
-      button.addEventListener("click", function() {
-        toggleHeadingLevel(level);
-      });
-      container.append(button);
-    });
-  }
-  function headingLevelNumber(token) {
-    return Number(token.replace("h", ""));
-  }
-  function isLevel(level) {
-    return HEADING_LEVELS.includes(level);
-  }
-
-  // viewer-src/keyboard.ts
-  var PAGE_SCROLL_RATIO = 0.9;
-  var DEFAULT_LINE_SCROLL_STEP = 24;
-  function pageScrollStep(clientHeight) {
-    return clientHeight * PAGE_SCROLL_RATIO;
-  }
-  function halfPageScrollStep(clientHeight) {
-    return pageScrollStep(clientHeight) / 2;
-  }
-  function lineScrollStep(lineHeightPx, fallback) {
-    var lh = parseFloat(lineHeightPx);
-    return isNaN(lh) ? fallback : lh;
-  }
-  function resolveScrollKey(key, shiftKey) {
-    if (key === " ") {
-      return { down: !shiftKey, amount: "page" };
-    }
-    var down;
-    if (key === "ArrowDown" || key === "j") {
-      down = true;
-    } else if (key === "ArrowUp" || key === "k") {
-      down = false;
-    } else {
-      return null;
-    }
-    return { down, amount: shiftKey ? "half" : "line" };
-  }
-  function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
-    return key === "Escape" && openBar2 !== null && !isComposingKeyEvent({ isComposing, keyCode });
-  }
-  function resolveJumpNavigationKey(event, openBar2) {
-    if (event.key !== "Enter" || openBar2 !== "jump" || isComposingKeyEvent(event)) {
-      return null;
-    }
-    if (event.metaKey || event.ctrlKey || event.altKey) {
-      return null;
-    }
-    return event.shiftKey ? "prev" : "next";
-  }
-  var ENTER_OWNING_TAGS = ["BUTTON", "INPUT", "TEXTAREA", "SELECT"];
-  function ownsEnterKey(active) {
-    if (active === null) {
-      return false;
-    }
-    if (active instanceof HTMLElement && active.isContentEditable) {
-      return true;
-    }
-    var tagName = active.tagName.toUpperCase();
-    if (tagName === "A") {
-      return active.hasAttribute("href");
-    }
-    return ENTER_OWNING_TAGS.includes(tagName);
-  }
-  function _mmdInitKeyboard() {
-    document.addEventListener("keydown", function(e) {
-      if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
-        e.preventDefault();
-        closeCurrentBar();
-        return;
-      }
-      var jumpDirection = resolveJumpNavigationKey(e, currentBar());
-      if (jumpDirection && !ownsEnterKey(document.activeElement)) {
-        e.preventDefault();
-        if (jumpDirection === "next") {
-          _mmdJumpNextIfOpen();
-        } else {
-          _mmdJumpPrevIfOpen();
-        }
-        return;
-      }
-      document.body.classList.toggle("cmd-held", e.metaKey);
-      if (e.metaKey) {
-        if (e.key === "-") {
-          e.preventDefault();
-          _mmdZoomOut();
-        } else if (e.key === "=" || e.key === "+") {
-          e.preventDefault();
-          _mmdZoomIn();
-        }
-        return;
-      }
-      var action = resolveScrollKey(e.key, e.shiftKey);
-      if (!action) {
-        return;
-      }
-      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
-        return;
-      }
-      var active = document.activeElement;
-      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
-        return;
-      }
-      var scrollEl = _mmdScrollTarget();
-      if (!scrollEl) {
-        return;
-      }
-      e.preventDefault();
-      var step;
-      if (action.amount === "page") {
-        step = pageScrollStep(scrollEl.clientHeight);
-      } else if (action.amount === "half") {
-        step = halfPageScrollStep(scrollEl.clientHeight);
-      } else {
-        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
-      }
-      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
-    });
-    document.addEventListener("keyup", function(e) {
-      if (!e.metaKey) document.body.classList.remove("cmd-held");
-    });
-    window.addEventListener("blur", function() {
-      document.body.classList.remove("cmd-held");
-    });
-  }
-
-  // viewer-src/path-refs.ts
-  function isLocalPathHref(href) {
-    if (!href) {
-      return false;
-    }
-    if (href.charAt(0) === "#") {
-      return false;
-    }
-    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
-    if (m && !m[1].includes(".")) {
-      return false;
-    }
-    return true;
-  }
-  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w.\p{L}\p{N}/-]+|[\w.-][\w.\p{L}\p{N}-]*\/[\w.\p{L}\p{N}/-]+)|(?:^|(?<=\s))\/[\w.\p{L}\p{N}/-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
-  var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
-  function _annotatePathRefs() {
-    var wrap = document.getElementById("diagram-wrap");
-    if (wrap) {
-      _walkTextNodes(wrap, false);
-    }
-  }
-  function _isSkippedElement(el) {
-    var tag = el.tagName.toLowerCase();
-    return tag === "a" || tag === "svg" || el.classList.contains("mermaid") || el.classList.contains("befold-path-ref");
-  }
-  function _walkTextNodes(node, allowed) {
-    if (node instanceof Text) {
-      if (allowed) {
-        _annotateTextNodes([node]);
-      }
-      return;
-    }
-    if (!(node instanceof Element)) {
-      return;
-    }
-    var el = node;
-    if (_isSkippedElement(el)) {
-      return;
-    }
-    var tag = el.tagName.toLowerCase();
-    if (tag === "pre") {
-      _walkChildren(el, false);
-      return;
-    }
-    if (allowed || _PATH_ANNOTATE_TAGS.includes(tag)) {
-      _annotateUnit(el);
-      return;
-    }
-    _walkChildren(el, allowed);
-  }
-  function _walkChildren(node, allowed) {
-    var children = Array.from(node.childNodes);
-    for (var i = 0; i < children.length; i++) {
-      _walkTextNodes(children[i], allowed);
-    }
-  }
-  function _annotateUnit(el) {
-    var child = el.firstChild;
-    if (child instanceof Text && !child.nextSibling && !child.data.includes("/")) return;
-    var nodes = [];
-    _collectUnitTextNodes(el, nodes);
-    _annotateTextNodes(nodes);
-  }
-  function _collectUnitTextNodes(node, out) {
-    var children = Array.from(node.childNodes);
-    for (var i = 0; i < children.length; i++) {
-      var child = children[i];
-      if (child instanceof Text) {
-        out.push(child);
-        continue;
-      }
-      if (!(child instanceof Element)) {
-        continue;
-      }
-      var el = child;
-      if (_isSkippedElement(el)) {
-        continue;
-      }
-      var tag = el.tagName.toLowerCase();
-      if (tag === "pre" || _PATH_ANNOTATE_TAGS.includes(tag)) {
-        _walkTextNodes(el, false);
-        continue;
-      }
-      _collectUnitTextNodes(el, out);
-    }
-  }
-  function _annotateTextNodes(nodes) {
-    if (nodes.length === 0) {
-      return;
-    }
-    var text3 = "";
-    var starts = [];
-    for (var i = 0; i < nodes.length; i++) {
-      starts.push(text3.length);
-      text3 += nodes[i].textContent;
-    }
-    starts.push(text3.length);
-    _PATH_RE.lastIndex = 0;
-    var segments = null;
-    var match2;
-    var firstNode = 0;
-    while ((match2 = _PATH_RE.exec(text3)) !== null) {
-      var from = match2.index;
-      var to = from + match2[0].length;
-      while (firstNode < nodes.length && starts[firstNode + 1] <= from) firstNode++;
-      for (var n = firstNode; n < nodes.length && starts[n] < to; n++) {
-        var nodeStart = starts[n];
-        var nodeEnd = starts[n + 1];
-        if (!segments) {
-          segments = {};
-        }
-        if (!segments[n]) {
-          segments[n] = [];
-        }
-        segments[n].push({
-          start: Math.max(from, nodeStart) - nodeStart,
-          end: Math.min(to, nodeEnd) - nodeStart,
-          path: match2[0]
-        });
-      }
-    }
-    if (!segments) {
-      return;
-    }
-    for (var key in segments) {
-      _replaceWithSegments(nodes[Number(key)], segments[Number(key)]);
-    }
-  }
-  function _replaceWithSegments(node, segments) {
-    var text3 = node.textContent;
-    var frag = document.createDocumentFragment();
-    var lastIndex = 0;
-    for (var i = 0; i < segments.length; i++) {
-      var seg = segments[i];
-      if (seg.start > lastIndex) {
-        frag.append(document.createTextNode(text3.slice(lastIndex, seg.start)));
-      }
-      var span = document.createElement("span");
-      span.className = "befold-path-ref";
-      span.dataset.path = seg.path;
-      span.textContent = text3.slice(seg.start, seg.end);
-      frag.append(span);
-      lastIndex = seg.end;
-    }
-    if (lastIndex < text3.length) {
-      frag.append(document.createTextNode(text3.slice(lastIndex)));
-    }
-    node.parentNode.replaceChild(frag, node);
-  }
-  var _mmdPendingRefBatches = [];
-  function _mmdIsClassifiedRef(el) {
-    return el.classList.contains("befold-link-pending") || el.classList.contains("befold-link") || el.classList.contains("befold-link-dead");
-  }
-  function _mmdResolveReferences() {
-    if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-      return;
-    }
-    var wrap = document.getElementById("diagram-wrap");
-    if (!wrap) {
-      return;
-    }
-    var targets = [];
-    wrap.querySelectorAll("a[href]").forEach(function(a) {
-      if (_mmdIsClassifiedRef(a)) {
-        return;
-      }
-      var href = a.getAttribute("href");
-      if (isLocalPathHref(href)) {
-        targets.push({ el: a, raw: href });
-      }
-    });
-    wrap.querySelectorAll(".befold-path-ref").forEach(function(s) {
-      if (_mmdIsClassifiedRef(s) || !s.dataset.path) {
-        return;
-      }
-      targets.push({ el: s, raw: s.dataset.path });
-    });
-    if (targets.length === 0) {
-      return;
-    }
-    var uniq = /* @__PURE__ */ new Map();
-    targets.forEach(function(t) {
-      uniq.set(t.raw, true);
-    });
-    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Array.from(uniq.keys()) })) {
-      return;
-    }
-    targets.forEach(function(t) {
-      t.el.classList.add("befold-link-pending");
-    });
-    _mmdPendingRefBatches.push(targets);
-  }
-  function _mmdApplyResolvedReferences(map2) {
-    var targets = _mmdPendingRefBatches.shift() || [];
-    targets.forEach(function(t) {
-      t.el.classList.remove("befold-link-pending");
-      var abs = map2 && Object.prototype.hasOwnProperty.call(map2, t.raw) ? map2[t.raw] : null;
-      if (abs) {
-        t.el.classList.add("befold-link");
-        t.el.dataset.resolved = abs;
-        t.el.setAttribute("title", abs);
-      } else {
-        t.el.classList.add("befold-link-dead");
-        if (t.el.tagName === "A") {
-          t.el.removeAttribute("href");
-        }
-        t.el.removeAttribute("title");
-      }
-    });
-  }
-  function _mmdInvalidatePendingRefs() {
-    for (var i = 0; i < _mmdPendingRefBatches.length; i++) {
-      _mmdPendingRefBatches[i] = [];
-    }
-  }
-
-  // viewer-src/reference-clicks.ts
-  function _mmdReferenceTargetHref(e) {
-    var origin = e.target;
-    if (!(origin instanceof Element)) return null;
-    var anchor = origin.closest("a");
-    var pathRef = origin.closest(".befold-path-ref");
-    var target = anchor || pathRef;
-    if (!target) return null;
-    if (target.classList.contains("befold-link-pending") || target.classList.contains("befold-link-dead")) {
-      return null;
-    }
-    return anchor ? anchor.getAttribute("href") : pathRef.dataset.path;
-  }
-  function _mmdInitReferenceClicks() {
-    var wrap = document.getElementById("diagram-wrap");
-    wrap.addEventListener("click", function(e) {
-      if (!e.isTrusted) return;
-      if (e.ctrlKey || e.button !== 0) return;
-      var href = _mmdReferenceTargetHref(e);
-      if (!href) return;
-      if (href.charAt(0) === "#") {
-        e.preventDefault();
-        var id;
-        try {
-          id = decodeURIComponent(href.slice(1));
-        } catch {
-          id = href.slice(1);
-        }
-        var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-        return;
-      }
-      e.preventDefault();
-      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-        return;
-      }
-      _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
-        href,
-        metaKey: e.metaKey,
-        shiftKey: e.shiftKey
-      });
-    });
-    wrap.addEventListener("contextmenu", function(e) {
-      if (!e.isTrusted) return;
-      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
-        return;
-      }
-      var href = _mmdReferenceTargetHref(e);
-      if (!href || href.charAt(0) === "#") {
-        return;
-      }
-      e.preventDefault();
-      _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href });
-    });
+    html2 += "</tbody></table>";
+    return { html: html2, formats };
   }
 
   // node_modules/dompurify/dist/purify.es.mjs
@@ -24682,6 +23855,1066 @@
     return instance;
   }
 
+  // viewer-src/markdown-diff.ts
+  var VOID_ELEMENTS = /* @__PURE__ */ new Set([
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr"
+  ]);
+  var HTML_TAG = /<(\/?)([A-Za-z][\w-]*)\b[^>]*?(\/?)>/gu;
+  function htmlDepthDelta(html2) {
+    var delta = 0;
+    for (var match2 of html2.matchAll(HTML_TAG)) {
+      if (match2[3] === "/" || VOID_ELEMENTS.has(match2[2].toLowerCase())) continue;
+      delta += match2[1] === "/" ? -1 : 1;
+    }
+    return delta;
+  }
+  function parseSide(text3) {
+    var env = {};
+    var tokens = markdownRenderer().parse(text3, env);
+    var blocks = [];
+    var ranges = [];
+    var openHtml = 0;
+    var i = 0;
+    while (i < tokens.length) {
+      var start = i;
+      var depth = 0;
+      do {
+        depth += tokens[i].nesting;
+        i++;
+      } while (depth > 0 && i < tokens.length);
+      var map2 = tokens[start].map;
+      if (!map2) continue;
+      var last = blocks.length - 1;
+      if (openHtml > 0 && last >= 0) {
+        blocks[last][1] = i;
+        ranges[last][1] = map2[1];
+      } else {
+        blocks.push([start, i]);
+        ranges.push([map2[0], map2[1]]);
+      }
+      for (var t = start; t < i; t++) {
+        if (tokens[t].type === "html_block") openHtml += htmlDepthDelta(tokens[t].content);
+      }
+      openHtml = Math.max(openHtml, 0);
+    }
+    return { tokens, env, blocks, ranges };
+  }
+  function renderBlock(side, index) {
+    var md2 = markdownRenderer();
+    var block2 = side.blocks[index];
+    return md2.renderer.render(side.tokens.slice(block2[0], block2[1]), md2.options, side.env);
+  }
+  function withoutAnchors(html2) {
+    var doc = new DOMParser().parseFromString(html2, "text/html");
+    doc.querySelectorAll("[id], [name]").forEach(function(el) {
+      el.removeAttribute("id");
+      el.removeAttribute("name");
+    });
+    return doc.body.innerHTML;
+  }
+  function buildMarkdownDiffHtml(diffText) {
+    var sides = wholeFileDiffSides(diffText);
+    if (sides === null) {
+      return null;
+    }
+    var oldSide = parseSide(sides.oldText);
+    var newSide = parseSide(sides.newText);
+    var units = orderDiffUnits(sides.lines, oldSide.ranges, newSide.ranges);
+    var html2 = units.map(function(unit) {
+      var block2 = renderBlock(unit.side === "old" ? oldSide : newSide, unit.index);
+      if (unit.type === "context") {
+        return block2;
+      }
+      return '<div class="md-diff-block diff-' + unit.type + '" data-diff-block="' + unit.block + '">' + (unit.type === "del" ? withoutAnchors(block2) : block2) + "</div>";
+    }).join("");
+    return sanitizeRenderedHtml(purify, html2);
+  }
+
+  // viewer-src/zoom.ts
+  var ZOOM_MIN = 0.5;
+  var ZOOM_MAX = 2;
+  var ZOOM_STEP = 0.25;
+  var ZOOM_DEFAULT = 1;
+  var BASE_SCALE = 0.75;
+  var DIAGRAM_ZOOM_MAX = 3;
+  function setZoomStyle(el, value) {
+    el.style.zoom = String(value);
+  }
+  function clampZoom(z, max) {
+    if (max === void 0) {
+      max = ZOOM_MAX;
+    }
+    return Math.max(ZOOM_MIN, Math.min(max, z));
+  }
+  function stepZoom(current, delta, max) {
+    return clampZoom(Math.round((current + delta) * 100) / 100, max);
+  }
+  function wheelZoom(current, deltaY, max) {
+    return clampZoom(Math.round((current - deltaY * 0.01) * 1e3) / 1e3, max);
+  }
+  function zoomLabel(zoom) {
+    return Math.round(zoom * 100) + "%";
+  }
+  function parseStoredZoom(raw) {
+    var z = parseFloat(String(raw));
+    return isNaN(z) ? ZOOM_DEFAULT : z;
+  }
+  function diagramScrollHeight(naturalHeight, diagramZoom, viewportHeight, globalZoom) {
+    var viewportCap = (viewportHeight - 64) / globalZoom;
+    return Math.min(naturalHeight * diagramZoom * BASE_SCALE, viewportCap);
+  }
+  function imageFitSize(naturalWidth, naturalHeight, availWidth, availHeight) {
+    if (naturalWidth <= 0 || naturalHeight <= 0 || availWidth <= 0 || availHeight <= 0) {
+      return { width: naturalWidth, height: naturalHeight };
+    }
+    var scale = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
+    return { width: naturalWidth * scale, height: naturalHeight * scale };
+  }
+  function _createZoomStore() {
+    var zoom = ZOOM_DEFAULT;
+    var lastPosted = ZOOM_DEFAULT;
+    var diagramZooms = /* @__PURE__ */ new Map();
+    function diagramValue(index) {
+      return diagramZooms.has(index) ? diagramZooms.get(index) : ZOOM_DEFAULT;
+    }
+    return {
+      value: function() {
+        return zoom;
+      },
+      // Swift が注入した保存値を採用する。範囲外の保存値はクランプした値を採用しつつ、
+      // 直近通知値には注入値そのままを記録する: 次の takePostable() が補正後の値を
+      // 通知対象として返し、Swift 側の保存値が正される。
+      adoptStored: function(raw) {
+        var parsed = parseStoredZoom(raw);
+        zoom = clampZoom(parsed);
+        lastPosted = parsed;
+      },
+      step: function(delta) {
+        zoom = stepZoom(zoom, delta);
+      },
+      wheel: function(deltaY) {
+        zoom = wheelZoom(zoom, deltaY);
+      },
+      reset: function() {
+        zoom = ZOOM_DEFAULT;
+      },
+      // 直近通知値と変わっていれば通知すべき倍率を返し、同時に直近通知値を更新する。
+      // 変わっていなければ null を返す（通知は不要）。
+      takePostable: function() {
+        if (zoom === lastPosted) {
+          return null;
+        }
+        lastPosted = zoom;
+        return zoom;
+      },
+      diagramValue,
+      diagramStep: function(index, delta) {
+        diagramZooms.set(index, stepZoom(diagramValue(index), delta, DIAGRAM_ZOOM_MAX));
+      },
+      diagramWheel: function(index, deltaY) {
+        diagramZooms.set(index, wheelZoom(diagramValue(index), deltaY, DIAGRAM_ZOOM_MAX));
+      },
+      diagramReset: function(index) {
+        diagramZooms.set(index, ZOOM_DEFAULT);
+      }
+    };
+  }
+  var _mmdZoom = _createZoomStore();
+  function _mmdInitZoom() {
+    _mmdZoom.adoptStored(window._mmdInitialZoom);
+    _mmdApplyZoom();
+  }
+  function _mmdApplyZoom() {
+    var zoom = _mmdZoom.value();
+    var wrap = document.getElementById("diagram-wrap");
+    setZoomStyle(wrap, zoom);
+    _mmdUpdateAllDiagramScrollHeights();
+    var postable = _mmdZoom.takePostable();
+    if (postable !== null) {
+      _mmdPostMessage(_MSG_ZOOM_CHANGED, { zoom: postable, path: _mmdDocPath.current() });
+    }
+  }
+  function _mmdZoomIn() {
+    _mmdZoom.step(ZOOM_STEP);
+    _mmdApplyZoom();
+  }
+  function _mmdZoomOut() {
+    _mmdZoom.step(-ZOOM_STEP);
+    _mmdApplyZoom();
+  }
+  function _mmdZoomReset() {
+    _mmdZoom.reset();
+    _mmdApplyZoom();
+  }
+  function _mmdWheelZoom(deltaY) {
+    _mmdZoom.wheel(deltaY);
+    _mmdApplyZoom();
+  }
+  function _mmdInitWheelZoom() {
+    document.addEventListener(
+      "wheel",
+      function(e) {
+        if (!e.ctrlKey) {
+          return;
+        }
+        e.preventDefault();
+        var wrap = e.target instanceof Element ? e.target.closest(".diagram-zoom-wrap") : null;
+        if (wrap) {
+          _mmdDiagramWheelZoom(wrap, e.deltaY);
+        } else {
+          _mmdWheelZoom(e.deltaY);
+        }
+      },
+      { passive: false }
+    );
+  }
+  function _mmdInitResize() {
+    window.addEventListener("resize", function() {
+      _mmdUpdateAllDiagramScrollHeights();
+      var wrap = document.getElementById("diagram-wrap");
+      var img = wrap.classList.contains("image-body") ? wrap.querySelector("img") : null;
+      if (img && img.complete && img.naturalWidth) {
+        _mmdFitImage(img, wrap);
+      }
+    });
+  }
+  function _mmdFitImage(img, wrap) {
+    var zoom = _mmdZoom.value();
+    var fit = imageFitSize(
+      img.naturalWidth,
+      img.naturalHeight,
+      wrap.clientWidth * zoom,
+      wrap.clientHeight * zoom
+    );
+    img.style.width = fit.width + "px";
+    img.style.height = fit.height + "px";
+  }
+  function _mmdDiagramZoomValue(index) {
+    return _mmdZoom.diagramValue(index);
+  }
+  function _mmdUpdateAllDiagramScrollHeights() {
+    document.querySelectorAll(".diagram-zoom-wrap").forEach(function(wrap) {
+      _mmdUpdateDiagramScrollHeight(wrap);
+    });
+  }
+  function _mmdUpdateDiagramScrollHeight(wrap) {
+    var zoom = _mmdDiagramZoomValue(Number(wrap.dataset.diagramIndex));
+    var naturalHeight = Number(wrap.dataset.naturalHeight);
+    wrap.querySelector(".diagram-zoom-scroll").style.height = diagramScrollHeight(naturalHeight, zoom, window.innerHeight, _mmdZoom.value()) + "px";
+  }
+  function _mmdApplyDiagramZoom(wrap) {
+    var index = Number(wrap.dataset.diagramIndex);
+    var zoom = _mmdDiagramZoomValue(index);
+    setZoomStyle(wrap.querySelector(".diagram-zoom-inner"), zoom * BASE_SCALE);
+    _mmdUpdateDiagramScrollHeight(wrap);
+    wrap.querySelector(".diagram-zoom-label").textContent = zoomLabel(zoom);
+    wrap.querySelector(".diagram-zoom-in").disabled = zoom >= DIAGRAM_ZOOM_MAX;
+    wrap.querySelector(".diagram-zoom-out").disabled = zoom <= ZOOM_MIN;
+  }
+  function _mmdDiagramZoomStep(wrap, delta) {
+    _mmdZoom.diagramStep(Number(wrap.dataset.diagramIndex), delta);
+    _mmdApplyDiagramZoom(wrap);
+  }
+  function _mmdDiagramZoomReset(wrap) {
+    _mmdZoom.diagramReset(Number(wrap.dataset.diagramIndex));
+    _mmdApplyDiagramZoom(wrap);
+  }
+  function _mmdDiagramWheelZoom(wrap, deltaY) {
+    _mmdZoom.diagramWheel(Number(wrap.dataset.diagramIndex), deltaY);
+    _mmdApplyDiagramZoom(wrap);
+  }
+  function _mmdBuildDiagramControls(wrap) {
+    var strings = window._mmdUIStrings || {};
+    var controls = document.createElement("div");
+    controls.className = "diagram-zoom-controls";
+    var zoomOut = document.createElement("button");
+    zoomOut.className = "diagram-zoom-out";
+    zoomOut.title = strings.zoomOut || "Zoom Out";
+    zoomOut.textContent = "\u2212";
+    zoomOut.addEventListener("click", function() {
+      _mmdDiagramZoomStep(wrap, -ZOOM_STEP);
+    });
+    var label = document.createElement("span");
+    label.className = "diagram-zoom-label";
+    label.title = strings.zoomReset || "Click to Reset";
+    label.addEventListener("click", function() {
+      _mmdDiagramZoomReset(wrap);
+    });
+    var zoomIn = document.createElement("button");
+    zoomIn.className = "diagram-zoom-in";
+    zoomIn.title = strings.zoomIn || "Zoom In";
+    zoomIn.textContent = "+";
+    zoomIn.addEventListener("click", function() {
+      _mmdDiagramZoomStep(wrap, ZOOM_STEP);
+    });
+    controls.append(zoomOut);
+    controls.append(label);
+    controls.append(zoomIn);
+    return controls;
+  }
+  function _mmdWrapDiagrams(diagramWrap, rendered) {
+    var targets = new Set(rendered);
+    diagramWrap.querySelectorAll(".mermaid").forEach(function(el, i) {
+      if (!targets.has(el) || el.closest(".diagram-zoom-wrap")) {
+        return;
+      }
+      var wrap = document.createElement("div");
+      wrap.className = "diagram-zoom-wrap";
+      wrap.dataset.diagramIndex = String(i);
+      var scroll = document.createElement("div");
+      scroll.className = "diagram-zoom-scroll";
+      var inner = document.createElement("div");
+      inner.className = "diagram-zoom-inner";
+      el.parentNode.insertBefore(wrap, el);
+      inner.append(el);
+      scroll.append(inner);
+      wrap.append(scroll);
+      wrap.append(_mmdBuildDiagramControls(wrap));
+      wrap.dataset.naturalHeight = String(inner.offsetHeight);
+      _mmdApplyDiagramZoom(wrap);
+    });
+  }
+
+  // viewer-src/reveal-line.ts
+  function sourceTable() {
+    var shape = _mmdDocument.shape();
+    if (shape !== "code" && shape !== "csv-source") {
+      return null;
+    }
+    return document.querySelector("#diagram-wrap pre code table.code-table");
+  }
+  function _createLineReveal() {
+    var pending = null;
+    var moreRequested = false;
+    var truncated = false;
+    var loadFailed = false;
+    function scrollToRow(table2, line) {
+      var row = table2.rows[Math.min(line, table2.rows.length) - 1];
+      if (row) {
+        row.scrollIntoView({ block: "start" });
+      }
+      pending = null;
+    }
+    function attempt(afterRender) {
+      if (!pending) {
+        return;
+      }
+      var current = _mmdDocPath.current();
+      if (current === null) {
+        return;
+      }
+      if (current !== pending.path) {
+        if (afterRender) {
+          pending = null;
+        }
+        return;
+      }
+      var table2 = sourceTable();
+      if (!table2) {
+        if (afterRender) {
+          pending = null;
+        }
+        return;
+      }
+      if (pending.line <= table2.rows.length || loadFailed) {
+        scrollToRow(table2, pending.line);
+        return;
+      }
+      if (!truncated) {
+        if (!moreRequested) {
+          scrollToRow(table2, pending.line);
+        }
+        return;
+      }
+      if (!moreRequested) {
+        moreRequested = true;
+        if (!_mmdRequestMoreLines()) {
+          scrollToRow(table2, pending.line);
+        }
+      }
+    }
+    return {
+      request: function(path2, line) {
+        pending = { path: path2, line };
+        moreRequested = false;
+        attempt(false);
+      },
+      afterRender: function() {
+        if (moreRequested) {
+          pending = null;
+        }
+        moreRequested = false;
+        attempt(true);
+      },
+      afterAppend: function() {
+        moreRequested = false;
+        attempt(false);
+      },
+      truncationChanged: function(isTruncated, failed) {
+        truncated = isTruncated;
+        loadFailed = failed;
+        attempt(false);
+      }
+    };
+  }
+  var _mmdLineReveal = _createLineReveal();
+  function _mmdRevealLine(path2, line) {
+    _mmdLineReveal.request(path2, line);
+  }
+
+  // viewer-src/jump-function-provider.ts
+  function sourceLineText(row) {
+    return row.querySelector(".line-content")?.textContent ?? "";
+  }
+  var FUNCTION_JUMP_LANGUAGES = [
+    "swift",
+    "python",
+    "javascript",
+    "typescript",
+    "go",
+    "rust",
+    "java",
+    "kotlin"
+  ];
+  var JS_DEFINITION = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:function\b|class\s+[A-Za-z_$]|interface\s+[A-Za-z_$]|enum\s+[A-Za-z_$]|namespace\s+[A-Za-z_$]|type\s+[A-Za-z_$][\w$]*\s*[=<]|(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*(?::[^=]*)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]*)?=>|[A-Za-z_$][\w$]*\s*=>)|(?:(?:public|private|protected|static|readonly|abstract|override|declare|async|get|set)\s+)*\*?\s*(?!(?:if|for|while|switch|catch|do|else|try|finally|return|throw|new|typeof|void|delete|await|yield|case|with|in|of|function|class|import|export)\b)[#A-Za-z_$][\w$]*\s*(?:<[^<>()]*>)?\s*\([^;{)]*\)\s*(?::[^;{]+)?\{)/u;
+  var DEFINITION_PATTERNS = {
+    // `class func` のように修飾子として現れる語も定義キーワードなので、
+    // 修飾子の繰り返しは省略可能にしてある（`class Foo` は修飾子 0 個で一致する）。
+    swift: /^\s*(?:(?:public|private|fileprivate|internal|open|package|static|class|final|override|mutating|nonmutating|convenience|required|dynamic|lazy|weak|unowned|indirect|nonisolated|isolated)\s+)*(?:func|class|struct|enum|protocol|extension|actor|init|deinit|subscript)\b/u,
+    // デコレータは別の行にあるので def / class そのものに錨を下ろす。
+    python: /^\s*(?:async\s+)?(?:def|class)\s+/u,
+    javascript: JS_DEFINITION,
+    typescript: JS_DEFINITION,
+    // `func (r *T) Name` のレシーバつきも拾う。`type (` のグループ宣言の中身は拾わない。
+    go: /^\s*(?:func\s*(?:\([^)]*\)\s*)?[A-Za-z_]|type\s+[A-Za-z_])/u,
+    // `const X: u32` は定義に数えないので、const は fn の修飾子としてだけ許す。
+    rust: /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:(?:fn|struct|enum|trait|impl|type|mod|union)\b|macro_rules!)/u,
+    // Java はメソッドが戻り値型から始まり、キーワードで錨を下ろせない。
+    // `型 名前(` の形で拾い、型の位置に来る予約語（`return foo(` / `else if (` /
+    // `throw new X(`）を否定先読みで外す。`String s = f(x)` は名前の直後が `=` で外れる。
+    // 修飾子なしのコンストラクタ `Foo(...) {` は、大文字始まりと行末の `{` で呼び出しと分ける。
+    java: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|static|final|abstract|synchronized|native|strictfp|default|sealed|non-sealed)\s+)*(?:(?:class|interface|enum|record|@interface)\s+[A-Za-z_$]|(?:<[^()]*>\s*)?(?!(?:return|new|throw|else|case|yield|assert|import|package)\b)[A-Za-z_$][\w$.]*(?:<[^()]*>)?(?:\[\])*\s+[A-Za-z_$][\w$]*\s*\(|[A-Z][\w$]*\s*\([^;]*\)\s*(?:throws\s[^;{]*)?\{)/u,
+    kotlin: /^\s*(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|open|final|abstract|sealed|data|inline|value|enum|annotation|inner|override|suspend|operator|infix|tailrec|external|const|lateinit|companion|expect|actual)\s+)*(?:(?:fun|class|interface|object|typealias)\b|constructor\s*\(|init\s*\{)/u
+  };
+  function definitionPattern() {
+    if (_mmdDocument.shape() !== "code") {
+      return null;
+    }
+    var lang = _mmdDocument.lang();
+    if (lang === void 0 || !FUNCTION_JUMP_LANGUAGES.includes(lang)) {
+      return null;
+    }
+    return DEFINITION_PATTERNS[lang] ?? null;
+  }
+  function codeTextOf(cell) {
+    var text3 = "";
+    cell.childNodes.forEach(function(node) {
+      if (node instanceof HTMLElement && node.matches(".hljs-comment, .hljs-string")) {
+        return;
+      }
+      text3 += node.textContent ?? "";
+    });
+    return text3;
+  }
+  function collectFunctionDefinitions(root) {
+    const pattern = definitionPattern();
+    if (!pattern) {
+      return [];
+    }
+    var targets = [];
+    root.querySelectorAll("tr").forEach(function(row) {
+      if (!pattern.test(sourceLineText(row))) {
+        return;
+      }
+      var cell = row.querySelector(".line-content");
+      if (!cell) {
+        return;
+      }
+      if (cell.querySelector(".hljs-comment, .hljs-string") && !pattern.test(codeTextOf(cell))) {
+        return;
+      }
+      targets.push({ anchor: cell, highlight: [cell] });
+    });
+    return targets;
+  }
+  var functionDefinitionJumpProvider = {
+    id: "functionDefinition",
+    collect: collectFunctionDefinitions
+    // ignoresTruncation は付けない。差分表示と違いソース表示は appendChunk で
+    // 実際に追記が起きるため、未読み込み範囲の定義は DOM に存在しない。
+    // 「表示範囲内」ラベルはその事実をユーザーへ伝えるもので、消してはいけない。
+  };
+
+  // viewer-src/jump-providers.ts
+  var HEADING_LEVELS = [1, 2, 3];
+  var selectedLevels = HEADING_LEVELS.slice();
+  function levelButtonId(level) {
+    return "mmd-jump-level-h" + level;
+  }
+  function headingSelector(levels) {
+    if (levels.length === 0) {
+      return null;
+    }
+    return levels.map(function(level) {
+      return "h" + level;
+    }).join(", ");
+  }
+  var ATX_HEADING = /^ {0,3}(#{1,6})(?: |$)/u;
+  var CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/u;
+  function collectSourceHeadings(root) {
+    var rows = root.querySelectorAll("tr");
+    var targets = [];
+    var fence2 = null;
+    rows.forEach(function(row) {
+      var text3 = sourceLineText(row);
+      var fenceMatch = CODE_FENCE.exec(text3);
+      if (fence2 !== null) {
+        if (fenceMatch && fenceMatch[1][0] === fence2[0] && fenceMatch[1].length >= fence2.length) {
+          fence2 = null;
+        }
+        return;
+      }
+      if (fenceMatch) {
+        fence2 = fenceMatch[1];
+        return;
+      }
+      var match2 = ATX_HEADING.exec(text3);
+      if (!match2 || !selectedLevels.includes(match2[1].length)) {
+        return;
+      }
+      var cell = row.querySelector(".line-content");
+      if (cell) {
+        targets.push({ anchor: cell, highlight: [cell] });
+      }
+    });
+    return targets;
+  }
+  function collectRenderedHeadings(root) {
+    var selector = headingSelector(selectedLevels);
+    if (!selector) {
+      return [];
+    }
+    var elements = root.querySelectorAll(selector);
+    var targets = [];
+    elements.forEach(function(element) {
+      targets.push({ anchor: element, highlight: [element] });
+    });
+    return targets;
+  }
+  function collectHeadings(root) {
+    if (selectedLevels.length === 0) {
+      return [];
+    }
+    if (_mmdDocument.shape() === "code" && _mmdDocument.type() === "md") {
+      return collectSourceHeadings(root);
+    }
+    return collectRenderedHeadings(root);
+  }
+  var headingJumpProvider = {
+    id: "heading",
+    collect: collectHeadings,
+    isSelectionEmpty: function() {
+      return selectedLevels.length === 0;
+    },
+    optionsElementId: "mmd-jump-levels"
+  };
+  function collectChangeBlocks(root) {
+    var rows = root.querySelectorAll("[data-diff-block]");
+    var targets = [];
+    var currentBlock;
+    rows.forEach(function(row) {
+      var block2 = row.dataset["diffBlock"];
+      if (block2 === void 0) return;
+      var edge = leadingCell(row);
+      if (block2 === currentBlock) {
+        var previous = targets.at(-1);
+        if (previous) {
+          previous.highlight.push(...edge);
+          return;
+        }
+      }
+      currentBlock = block2;
+      targets.push({ anchor: row, highlight: edge });
+    });
+    return targets;
+  }
+  function leadingCell(row) {
+    var first = row.firstElementChild;
+    return first instanceof HTMLElement ? [first] : [];
+  }
+  var changeBlockJumpProvider = {
+    id: "changeBlock",
+    collect: collectChangeBlocks,
+    // 差分表示中は appendChunk が追記をスキップし、差分の表は setDiff で渡った
+    // 全文から組まれる。本文が段階読み込み中でも変更ブロックは全数そろっている。
+    ignoresTruncation: true
+  };
+  function selectedHeadingLevels() {
+    return selectedLevels.slice();
+  }
+  function headingLevelTokens() {
+    return selectedLevels.map(function(level) {
+      return "h" + level;
+    });
+  }
+  function applyHeadingLevels(levels) {
+    selectedLevels = HEADING_LEVELS.filter(function(level) {
+      return levels.includes(level);
+    });
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.getElementById(levelButtonId(level));
+      if (button) {
+        button.classList.toggle("active", selectedLevels.includes(level));
+      }
+    });
+  }
+  function toggleHeadingLevel(level) {
+    var next = selectedLevels.includes(level) ? selectedLevels.filter(function(selected) {
+      return selected !== level;
+    }) : selectedLevels.concat([level]);
+    applyHeadingLevels(next);
+    _mmdPostMessage(_MSG_JUMP_LEVELS_CHANGED, { levels: headingLevelTokens() });
+    _mmdJump.rebuild();
+  }
+  function _mmdInitHeadingLevels() {
+    buildLevelButtons();
+    var initial = window._mmdInitialJumpLevels;
+    applyHeadingLevels(
+      Array.isArray(initial) ? initial.map(function(token) {
+        return headingLevelNumber(token);
+      }).filter(function(level) {
+        return isLevel(level);
+      }) : HEADING_LEVELS
+    );
+  }
+  function buildLevelButtons() {
+    var element = document.getElementById("mmd-jump-levels");
+    if (!element) return;
+    var container = element;
+    container.textContent = "";
+    var strings = window._mmdJumpStrings || {};
+    HEADING_LEVELS.forEach(function(level) {
+      var button = document.createElement("button");
+      button.id = levelButtonId(level);
+      button.className = "mmd-find-toggle";
+      button.textContent = "H" + level;
+      var title = strings.headingLevel;
+      if (title) {
+        button.title = title.replace("{level}", String(level));
+      }
+      button.addEventListener("click", function() {
+        toggleHeadingLevel(level);
+      });
+      container.append(button);
+    });
+  }
+  function headingLevelNumber(token) {
+    return Number(token.replace("h", ""));
+  }
+  function isLevel(level) {
+    return HEADING_LEVELS.includes(level);
+  }
+
+  // viewer-src/keyboard.ts
+  var PAGE_SCROLL_RATIO = 0.9;
+  var DEFAULT_LINE_SCROLL_STEP = 24;
+  function pageScrollStep(clientHeight) {
+    return clientHeight * PAGE_SCROLL_RATIO;
+  }
+  function halfPageScrollStep(clientHeight) {
+    return pageScrollStep(clientHeight) / 2;
+  }
+  function lineScrollStep(lineHeightPx, fallback) {
+    var lh = parseFloat(lineHeightPx);
+    return isNaN(lh) ? fallback : lh;
+  }
+  function resolveScrollKey(key, shiftKey) {
+    if (key === " ") {
+      return { down: !shiftKey, amount: "page" };
+    }
+    var down;
+    if (key === "ArrowDown" || key === "j") {
+      down = true;
+    } else if (key === "ArrowUp" || key === "k") {
+      down = false;
+    } else {
+      return null;
+    }
+    return { down, amount: shiftKey ? "half" : "line" };
+  }
+  function resolveBarCloseKey(key, openBar2, isComposing, keyCode) {
+    return key === "Escape" && openBar2 !== null && !isComposingKeyEvent({ isComposing, keyCode });
+  }
+  function resolveJumpNavigationKey(event, openBar2) {
+    if (event.key !== "Enter" || openBar2 !== "jump" || isComposingKeyEvent(event)) {
+      return null;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return null;
+    }
+    return event.shiftKey ? "prev" : "next";
+  }
+  var ENTER_OWNING_TAGS = ["BUTTON", "INPUT", "TEXTAREA", "SELECT"];
+  function ownsEnterKey(active) {
+    if (active === null) {
+      return false;
+    }
+    if (active instanceof HTMLElement && active.isContentEditable) {
+      return true;
+    }
+    var tagName = active.tagName.toUpperCase();
+    if (tagName === "A") {
+      return active.hasAttribute("href");
+    }
+    return ENTER_OWNING_TAGS.includes(tagName);
+  }
+  function _mmdInitKeyboard() {
+    document.addEventListener("keydown", function(e) {
+      if (resolveBarCloseKey(e.key, currentBar(), e.isComposing, e.keyCode)) {
+        e.preventDefault();
+        closeCurrentBar();
+        return;
+      }
+      var jumpDirection = resolveJumpNavigationKey(e, currentBar());
+      if (jumpDirection && !ownsEnterKey(document.activeElement)) {
+        e.preventDefault();
+        if (jumpDirection === "next") {
+          _mmdJumpNextIfOpen();
+        } else {
+          _mmdJumpPrevIfOpen();
+        }
+        return;
+      }
+      document.body.classList.toggle("cmd-held", e.metaKey);
+      if (e.metaKey) {
+        if (e.key === "-") {
+          e.preventDefault();
+          _mmdZoomOut();
+        } else if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          _mmdZoomIn();
+        }
+        return;
+      }
+      var action = resolveScrollKey(e.key, e.shiftKey);
+      if (!action) {
+        return;
+      }
+      if (e.key === " " && !isHostFeatureEnabled(window._mmdHostFeatures, "spaceScroll")) {
+        return;
+      }
+      var active = document.activeElement;
+      if (active instanceof HTMLElement && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+      var scrollEl = _mmdScrollTarget();
+      if (!scrollEl) {
+        return;
+      }
+      e.preventDefault();
+      var step;
+      if (action.amount === "page") {
+        step = pageScrollStep(scrollEl.clientHeight);
+      } else if (action.amount === "half") {
+        step = halfPageScrollStep(scrollEl.clientHeight);
+      } else {
+        step = lineScrollStep(getComputedStyle(scrollEl).lineHeight, DEFAULT_LINE_SCROLL_STEP);
+      }
+      scrollEl.scrollBy({ top: action.down ? step : -step, behavior: "smooth" });
+    });
+    document.addEventListener("keyup", function(e) {
+      if (!e.metaKey) document.body.classList.remove("cmd-held");
+    });
+    window.addEventListener("blur", function() {
+      document.body.classList.remove("cmd-held");
+    });
+  }
+
+  // viewer-src/path-refs.ts
+  function isLocalPathHref(href) {
+    if (!href) {
+      return false;
+    }
+    if (href.charAt(0) === "#") {
+      return false;
+    }
+    var m = href.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/u);
+    if (m && !m[1].includes(".")) {
+      return false;
+    }
+    return true;
+  }
+  var _PATH_RE = /(?:(?<![/\w.])(?:\/?\.\.?\/[\w.\p{L}\p{N}/-]+|[\w.-][\w.\p{L}\p{N}-]*\/[\w.\p{L}\p{N}/-]+)|(?:^|(?<=\s))\/[\w.\p{L}\p{N}/-]+)(?:\.(?:swift|md|mmd|ts|tsx|js|jsx|py|rb|go|rs|java|kt|c|cpp|h|hpp|json|yaml|yml|toml|txt|html|css|sh))(?::\d+)*/gu;
+  var _PATH_ANNOTATE_TAGS = ["p", "li", "td", "th", "blockquote", "dt", "dd", "code"];
+  function _annotatePathRefs() {
+    var wrap = document.getElementById("diagram-wrap");
+    if (wrap) {
+      _walkTextNodes(wrap, false);
+    }
+  }
+  function _isSkippedElement(el) {
+    var tag = el.tagName.toLowerCase();
+    return tag === "a" || tag === "svg" || el.classList.contains("mermaid") || el.classList.contains("befold-path-ref");
+  }
+  function _walkTextNodes(node, allowed) {
+    if (node instanceof Text) {
+      if (allowed) {
+        _annotateTextNodes([node]);
+      }
+      return;
+    }
+    if (!(node instanceof Element)) {
+      return;
+    }
+    var el = node;
+    if (_isSkippedElement(el)) {
+      return;
+    }
+    var tag = el.tagName.toLowerCase();
+    if (tag === "pre") {
+      _walkChildren(el, false);
+      return;
+    }
+    if (allowed || _PATH_ANNOTATE_TAGS.includes(tag)) {
+      _annotateUnit(el);
+      return;
+    }
+    _walkChildren(el, allowed);
+  }
+  function _walkChildren(node, allowed) {
+    var children = Array.from(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      _walkTextNodes(children[i], allowed);
+    }
+  }
+  function _annotateUnit(el) {
+    var child = el.firstChild;
+    if (child instanceof Text && !child.nextSibling && !child.data.includes("/")) return;
+    var nodes = [];
+    _collectUnitTextNodes(el, nodes);
+    _annotateTextNodes(nodes);
+  }
+  function _collectUnitTextNodes(node, out) {
+    var children = Array.from(node.childNodes);
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      if (child instanceof Text) {
+        out.push(child);
+        continue;
+      }
+      if (!(child instanceof Element)) {
+        continue;
+      }
+      var el = child;
+      if (_isSkippedElement(el)) {
+        continue;
+      }
+      var tag = el.tagName.toLowerCase();
+      if (tag === "pre" || _PATH_ANNOTATE_TAGS.includes(tag)) {
+        _walkTextNodes(el, false);
+        continue;
+      }
+      _collectUnitTextNodes(el, out);
+    }
+  }
+  function _annotateTextNodes(nodes) {
+    if (nodes.length === 0) {
+      return;
+    }
+    var text3 = "";
+    var starts = [];
+    for (var i = 0; i < nodes.length; i++) {
+      starts.push(text3.length);
+      text3 += nodes[i].textContent;
+    }
+    starts.push(text3.length);
+    _PATH_RE.lastIndex = 0;
+    var segments = null;
+    var match2;
+    var firstNode = 0;
+    while ((match2 = _PATH_RE.exec(text3)) !== null) {
+      var from = match2.index;
+      var to = from + match2[0].length;
+      while (firstNode < nodes.length && starts[firstNode + 1] <= from) firstNode++;
+      for (var n = firstNode; n < nodes.length && starts[n] < to; n++) {
+        var nodeStart = starts[n];
+        var nodeEnd = starts[n + 1];
+        if (!segments) {
+          segments = {};
+        }
+        if (!segments[n]) {
+          segments[n] = [];
+        }
+        segments[n].push({
+          start: Math.max(from, nodeStart) - nodeStart,
+          end: Math.min(to, nodeEnd) - nodeStart,
+          path: match2[0]
+        });
+      }
+    }
+    if (!segments) {
+      return;
+    }
+    for (var key in segments) {
+      _replaceWithSegments(nodes[Number(key)], segments[Number(key)]);
+    }
+  }
+  function _replaceWithSegments(node, segments) {
+    var text3 = node.textContent;
+    var frag = document.createDocumentFragment();
+    var lastIndex = 0;
+    for (var i = 0; i < segments.length; i++) {
+      var seg = segments[i];
+      if (seg.start > lastIndex) {
+        frag.append(document.createTextNode(text3.slice(lastIndex, seg.start)));
+      }
+      var span = document.createElement("span");
+      span.className = "befold-path-ref";
+      span.dataset.path = seg.path;
+      span.textContent = text3.slice(seg.start, seg.end);
+      frag.append(span);
+      lastIndex = seg.end;
+    }
+    if (lastIndex < text3.length) {
+      frag.append(document.createTextNode(text3.slice(lastIndex)));
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+  var _mmdPendingRefBatches = [];
+  function _mmdIsClassifiedRef(el) {
+    return el.classList.contains("befold-link-pending") || el.classList.contains("befold-link") || el.classList.contains("befold-link-dead");
+  }
+  function _mmdResolveReferences() {
+    if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+      return;
+    }
+    var wrap = document.getElementById("diagram-wrap");
+    if (!wrap) {
+      return;
+    }
+    var targets = [];
+    wrap.querySelectorAll("a[href]").forEach(function(a) {
+      if (_mmdIsClassifiedRef(a)) {
+        return;
+      }
+      var href = a.getAttribute("href");
+      if (isLocalPathHref(href)) {
+        targets.push({ el: a, raw: href });
+      }
+    });
+    wrap.querySelectorAll(".befold-path-ref").forEach(function(s) {
+      if (_mmdIsClassifiedRef(s) || !s.dataset.path) {
+        return;
+      }
+      targets.push({ el: s, raw: s.dataset.path });
+    });
+    if (targets.length === 0) {
+      return;
+    }
+    var uniq = /* @__PURE__ */ new Map();
+    targets.forEach(function(t) {
+      uniq.set(t.raw, true);
+    });
+    if (!_mmdPostMessage(_MSG_RESOLVE_REFERENCES, { paths: Array.from(uniq.keys()) })) {
+      return;
+    }
+    targets.forEach(function(t) {
+      t.el.classList.add("befold-link-pending");
+    });
+    _mmdPendingRefBatches.push(targets);
+  }
+  function _mmdApplyResolvedReferences(map2) {
+    var targets = _mmdPendingRefBatches.shift() || [];
+    targets.forEach(function(t) {
+      t.el.classList.remove("befold-link-pending");
+      var abs = map2 && Object.prototype.hasOwnProperty.call(map2, t.raw) ? map2[t.raw] : null;
+      if (abs) {
+        t.el.classList.add("befold-link");
+        t.el.dataset.resolved = abs;
+        t.el.setAttribute("title", abs);
+      } else {
+        t.el.classList.add("befold-link-dead");
+        if (t.el.tagName === "A") {
+          t.el.removeAttribute("href");
+        }
+        t.el.removeAttribute("title");
+      }
+    });
+  }
+  function _mmdInvalidatePendingRefs() {
+    for (var i = 0; i < _mmdPendingRefBatches.length; i++) {
+      _mmdPendingRefBatches[i] = [];
+    }
+  }
+
+  // viewer-src/reference-clicks.ts
+  function _mmdReferenceTargetHref(e) {
+    var origin = e.target;
+    if (!(origin instanceof Element)) return null;
+    var anchor = origin.closest("a");
+    var pathRef = origin.closest(".befold-path-ref");
+    var target = anchor || pathRef;
+    if (!target) return null;
+    if (target.classList.contains("befold-link-pending") || target.classList.contains("befold-link-dead")) {
+      return null;
+    }
+    return anchor ? anchor.getAttribute("href") : pathRef.dataset.path;
+  }
+  function _mmdInitReferenceClicks() {
+    var wrap = document.getElementById("diagram-wrap");
+    wrap.addEventListener("click", function(e) {
+      if (!e.isTrusted) return;
+      if (e.ctrlKey || e.button !== 0) return;
+      var href = _mmdReferenceTargetHref(e);
+      if (!href) return;
+      if (href.charAt(0) === "#") {
+        e.preventDefault();
+        var id;
+        try {
+          id = decodeURIComponent(href.slice(1));
+        } catch {
+          id = href.slice(1);
+        }
+        var el = document.getElementById(id) || document.querySelector('[name="' + CSS.escape(id) + '"]');
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+      e.preventDefault();
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+        return;
+      }
+      _mmdPostMessage(_MSG_REFERENCE_ACTIVATED, {
+        href,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey
+      });
+    });
+    wrap.addEventListener("contextmenu", function(e) {
+      if (!e.isTrusted) return;
+      if (!isHostFeatureEnabled(window._mmdHostFeatures, "referenceActivation")) {
+        return;
+      }
+      var href = _mmdReferenceTargetHref(e);
+      if (!href || href.charAt(0) === "#") {
+        return;
+      }
+      e.preventDefault();
+      _mmdPostMessage(_MSG_REFERENCE_CONTEXT_MENU, { href });
+    });
+  }
+
   // viewer-src/mermaid.ts
   function mermaidTheme(isDark) {
     return isDark ? "dark" : "default";
@@ -24872,7 +25105,8 @@
   }
   function _renderCsv(diagramWrap, content, lang) {
     diagramWrap.classList.add("markdown-body", "csv-body");
-    var table2 = buildCsvTable(content, lang || ",");
+    var diffTable = _renderedDiff((diff) => buildCsvDiffTable(diff, lang || ","));
+    var table2 = diffTable ?? buildCsvTable(content, lang || ",");
     diagramWrap.innerHTML = table2.html;
     var element = diagramWrap.querySelector("table");
     if (element) {
@@ -24881,7 +25115,7 @@
       element.before(scroll);
       scroll.append(element);
     }
-    return table2.formats;
+    return { formats: table2.formats, shape: diffTable ? "diff" : "csv-table" };
   }
   function _renderImage(diagramWrap, content, lang) {
     diagramWrap.classList.add("image-body");
@@ -24894,9 +25128,22 @@
     diagramWrap.innerHTML = "";
     diagramWrap.append(img);
   }
+  function _renderedDiff(build) {
+    var diff = _mmdViewOptions.diff();
+    if (diff === null) {
+      return null;
+    }
+    try {
+      return build(diff);
+    } catch (e) {
+      return null;
+    }
+  }
   function _renderMarkdown(diagramWrap, content) {
     diagramWrap.classList.add("markdown-body");
-    diagramWrap.innerHTML = markdownRenderer().render(content);
+    var diffHtml = _renderedDiff((diff) => buildMarkdownDiffHtml(diff));
+    diagramWrap.innerHTML = diffHtml ?? markdownRenderer().render(content);
+    return diffHtml === null ? "markdown" : "diff";
   }
   function _renderSource(diagramWrap, content, type, lang, shape) {
     _mmdSetBodyClasses(diagramWrap, "code-body");
@@ -25332,11 +25579,13 @@
         errorPanel.style.display = "block";
       }
     } else if (shape === "csv-table") {
-      _mmdCsvColumns.record(_renderCsv(diagramWrap, content, lang));
+      var csv = _renderCsv(diagramWrap, content, lang);
+      _mmdCsvColumns.record(csv.formats);
+      _mmdDocument.recordShape(csv.shape);
     } else if (shape === "image") {
       _renderImage(diagramWrap, content, lang);
     } else {
-      _renderMarkdown(diagramWrap, content);
+      _mmdDocument.recordShape(_renderMarkdown(diagramWrap, content));
     }
     await _mmdRunMermaid(diagramWrap);
     if (generation !== _mmdLatestRender) {

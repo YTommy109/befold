@@ -5,9 +5,11 @@
 
 import { renderCodeHtml } from './code-html.js';
 import type { CsvColumnFormat } from './csv-columns.js';
+import { buildCsvDiffTable } from './csv-diff.js';
 import { buildCsvTable, renderCsvSourceHtml } from './csv-html.js';
 import { renderDiffHtml } from './diff-html.js';
 import { escapeHtml, imageDataURI, svgDataURI } from './encoding.js';
+import { buildMarkdownDiffHtml } from './markdown-diff.js';
 import { markdownRenderer, sanitizeRenderedHtml } from './markdown.js';
 import { DOMPurify, hljs } from './vendor.js';
 import { _mmdViewOptions } from './view-options.js';
@@ -178,19 +180,25 @@ function _renderXslt(
   return { shape: 'xslt', error: null };
 }
 
-// 列ごとの書式判定を返す。呼び出し元(render())がそれを記録し、チャンク追記が
-// 同じ書式を使う。document-state をここから書かないのは、記録の書き手を
+// 列ごとの書式判定と、実際に描いた形を返す。呼び出し元(render())がそれを記録し、
+// チャンク追記が同じ書式を使う。document-state をここから書かないのは、記録の書き手を
 // render() だけに保つため(_renderSource が shape を返すのと同型)。
+//
+// 差分が届いていれば(= Swift 側がレンダリング差分モードを選んでいる / TASK-483.2)
+// 差分から表を組み、形は 'diff' になる。appendChunk はこの形を見て追記を止める
+// (表は差分の全文から組んであり、追記すると行が二重になる)。差分が描けなければ
+// 通常のテーブルへ落ちる。
 function _renderCsv(
   diagramWrap: HTMLElement,
   content: string,
   lang: string | undefined,
-): CsvColumnFormat[] {
+): { formats: CsvColumnFormat[]; shape: 'csv-table' | 'diff' } {
   // github-markdown-css のテーブル装飾(markdown-body)を土台にしつつ、
   // CSV 専用の上書き(style.css の csv-body)をそこにだけ効かせる。
   // 通常の Markdown テーブルは markdown-body のみを付与するため影響しない。
   diagramWrap.classList.add('markdown-body', 'csv-body');
-  var table = buildCsvTable(content, lang || ',');
+  var diffTable = _renderedDiff((diff) => buildCsvDiffTable(diff, lang || ','));
+  var table = diffTable ?? buildCsvTable(content, lang || ',');
   diagramWrap.innerHTML = table.html;
   var element = diagramWrap.querySelector('table');
   if (element) {
@@ -199,7 +207,7 @@ function _renderCsv(
     element.before(scroll);
     scroll.append(element);
   }
-  return table.formats;
+  return { formats: table.formats, shape: diffTable ? 'diff' : 'csv-table' };
 }
 
 function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | undefined): void {
@@ -217,13 +225,34 @@ function _renderImage(diagramWrap: HTMLElement, content: string, lang: string | 
   diagramWrap.append(img);
 }
 
+// 差分が届いていればレンダリング差分を組む。差分が無い・組み立てが投げたときは null
+// (= 通常の表示へ落とす)。差分が壊れていても内容は必ず読めるようにする
+// (_renderDiffHtmlIfAvailable の try/catch と同じ方針)。
+function _renderedDiff<T>(build: (diff: string) => T | null): T | null {
+  var diff = _mmdViewOptions.diff();
+  if (diff === null) {
+    return null;
+  }
+  try {
+    return build(diff);
+  } catch (e) {
+    return null;
+  }
+}
+
 // markdown-it はバンドル同梱(vendor.js)で常に構成済みのため、
 // 「未ロードにつき後続処理を打ち切る」経路は無い。
-function _renderMarkdown(diagramWrap: HTMLElement, content: string): void {
+//
+// 戻り値は実際に描いた形。差分が届いていれば(= レンダリング差分モード / TASK-483.4)
+// 差分の全文から組み、'diff' を返す(appendChunk はこれを見て追記を止める)。
+// 描けない差分なら通常の描画へ落ちる。
+function _renderMarkdown(diagramWrap: HTMLElement, content: string): 'markdown' | 'diff' {
   // github-markdown-css は .markdown-body プレフィックス前提のため
   // Markdown レンダリング時のみ付与する
   diagramWrap.classList.add('markdown-body');
-  diagramWrap.innerHTML = markdownRenderer().render(content);
+  var diffHtml = _renderedDiff((diff) => buildMarkdownDiffHtml(diff));
+  diagramWrap.innerHTML = diffHtml ?? markdownRenderer().render(content);
+  return diffHtml === null ? 'markdown' : 'diff';
 }
 
 // 行番号付きソース表示のビルダー。ソース表示のテキスト種別も、常にソースである
