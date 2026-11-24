@@ -120,4 +120,62 @@ struct SidebarNavigatorQuickOpenSyncTests {
         #expect(navigator.fileListModel.previewTarget == .file)
         #expect(navigator.fileListModel.selection?.normalizedPathKey == sibling.normalizedPathKey)
     }
+
+    /// ツリー表示で、ルート配下の畳まれたサブフォルダー内のファイルへ切り替えたとき(#794)。
+    /// 子リストの取得はゲートで止め、展開が着地するまでの間を観測する。その間に一度でも
+    /// `.folder` を通ると、本文にルートの一覧が一瞬重なる。
+    @Test("ツリーで畳まれたサブフォルダー内のファイルへ切り替えても、展開待ちの間にフォルダー提示を通らない")
+    func treeRevealIntoCollapsedFolderNeverPresentsFolder() async throws {
+        let gate = AsyncGate()
+        let base = Self.home.appendingPathComponent("SidebarNavigatorQuickOpenSyncTests-tree")
+        let fileA = base.appendingPathComponent("fileA.mmd")
+        let sub = base.appendingPathComponent("sub", isDirectory: true)
+        let deep = sub.appendingPathComponent("deep.mmd")
+        let defaults = SidebarDisplayDefaults(
+            defaults: makeIsolatedDefaults(prefix: "SidebarNavigatorQuickOpenSyncTests-tree")
+        )
+        defaults.record(SidebarDisplaySettings(
+            showHiddenFiles: false, showChangedFilesOnly: false, layoutMode: .tree, sortOrder: .foldersFirst
+        ))
+        let navigator = SidebarNavigator(
+            currentDirectory: base, entries: [], selection: fileA,
+            home: FileManager.default.temporaryDirectory, displayDefaults: defaults,
+            directoryLister: { _, _, _ in
+                DirectoryListing(rootChildren: [
+                    FileListEntry(url: sub, kind: .folder), FileListEntry(url: fileA, kind: .file),
+                ])
+            },
+            childrenLister: { _, _, _ in
+                await gate.wait()
+                return [FileListEntry(url: deep, kind: .file)]
+            },
+            git: SidebarGitReadingStub(repositoryRoot: { _ in nil })
+        )
+        let host = SidebarNavigatorStubHost(currentFileURL: fileA)
+        navigator.attach(to: host)
+        defer { withExtendedLifetime(host) {} }
+        navigator.refreshFileList()
+        await navigator.awaitSettled()
+        let model = navigator.fileListModel
+        try #require(model.previewTarget == .file)
+
+        var targets: [PreviewTarget] = []
+        model.onPresentationTargetChange = { targets.append(model.previewTarget) }
+        _ = host.performFileSwitch(to: deep)
+        navigator.syncAfterSwitch(to: deep)
+
+        // 展開はまだ着地していない。本文側を出したままで、履歴にもファイル提示として残る。
+        #expect(model.previewTarget.folderURL == nil)
+        let recorded = navigator.navigationHistory.entries.last?.presentation
+        guard case let .file(url) = recorded else {
+            Issue.record("履歴がファイル提示ではない: \(String(describing: recorded))")
+            return
+        }
+        #expect(url.normalizedPathKey == deep.normalizedPathKey)
+
+        gate.open()
+        await navigator.awaitSettled()
+        #expect(model.previewTarget == .file)
+        #expect(!targets.contains { $0.folderURL != nil }, "途中でフォルダー提示を通った: \(targets)")
+    }
 }

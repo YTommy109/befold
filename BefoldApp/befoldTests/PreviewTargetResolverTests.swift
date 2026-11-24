@@ -12,6 +12,7 @@ struct PreviewTargetResolverTests {
         selection: FileListEntry.ID?,
         entries: [FileListEntry],
         currentDirectory: URL? = nil,
+        isTreeLayout: Bool = false,
         hasLoadedEntries: Bool = true
     ) -> PreviewTarget {
         PreviewTargetResolver.resolve(
@@ -19,6 +20,7 @@ struct PreviewTargetResolverTests {
             selectionPathKey: selection?.normalizedPathKey,
             entryIndex: FileListEntryIndex(entries: entries),
             currentDirectory: currentDirectory ?? self.currentDirectory,
+            isTreeLayout: isTreeLayout,
             hasLoadedEntries: hasLoadedEntries
         )
     }
@@ -72,6 +74,36 @@ struct PreviewTargetResolverTests {
             entries: [FileListEntry(url: currentDirectory.appendingPathComponent("other.mmd"), kind: .file)]
         )
         #expect(target == .folder(currentDirectory))
+    }
+
+    /// ツリーでは currentDirectory より深い行は展開しないと載らない。そこにある選択の行が
+    /// 無いのは展開待ちであって、選択が古いことの証拠にならない(#794)。境界の "/" を
+    /// 見ているか(`<dir>2/` を配下と取り違えないか)も同じ表で押さえる。
+    @Test(
+        "選択の行が無いとき、ツリーで現在ディレクトリより深い位置なら未確定、それ以外は一覧へ落とす",
+        arguments: [
+            (path: "sub/deep.md", isTreeLayout: true, expected: PreviewTarget.undetermined),
+            (
+                path: "sub/deep.md",
+                isTreeLayout: false,
+                expected: .folder(URL(fileURLWithPath: "/tmp/PreviewTargetResolverTests"))
+            ),
+            (
+                path: "direct.md",
+                isTreeLayout: true,
+                expected: .folder(URL(fileURLWithPath: "/tmp/PreviewTargetResolverTests"))
+            ),
+            (
+                path: "../PreviewTargetResolverTests2/sub/x.md",
+                isTreeLayout: true,
+                expected: .folder(URL(fileURLWithPath: "/tmp/PreviewTargetResolverTests"))
+            ),
+        ]
+    )
+    func missingRowDependsOnTreeDepth(path: String, isTreeLayout: Bool, expected: PreviewTarget) {
+        let selection = currentDirectory.appendingPathComponent(path).standardizedFileURL
+        let other = FileListEntry(url: currentDirectory.appendingPathComponent("other.md"), kind: .file)
+        #expect(resolve(selection: selection, entries: [other], isTreeLayout: isTreeLayout) == expected)
     }
 
     @Test("同じファイルを指す別表記(/private 付き・無し)で選択されていても、その行に一致する")
@@ -128,7 +160,8 @@ struct PreviewTargetResolverTests {
                 selection: link,
                 selectionPathKey: selectionPathKey,
                 entryIndex: index,
-                currentDirectory: directory
+                currentDirectory: directory,
+                isTreeLayout: false
             )
         }
         try #require(resolveLink() == .file)

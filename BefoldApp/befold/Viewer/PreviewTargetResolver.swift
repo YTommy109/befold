@@ -39,11 +39,16 @@ enum PreviewTargetResolver {
     ///     見つからないのは「選択が古い」ではなく「一覧がまだ追いついていない」を意味する。
     ///     これを区別しないと、切替直後の一瞬(取り直しが着地しなければ永続的に)
     ///     フォルダー提示へ落ちてファイル一覧が本文に重なる(TASK-445)。
+    ///   - isTreeLayout: サイドバーがツリー表示か。ツリーでは `currentDirectory` より深い行は
+    ///     祖先を展開して初めて一覧に載るため、そこにある選択の行が無いのは「選択が古い」
+    ///     ではなく「展開がまだ着地していない」を意味する(#794)。既定値を持たせないのは、
+    ///     渡し忘れがリスト表示の判定へ静かに倒れるため。
     static func resolve(
         selection: FileListEntry.ID?,
         selectionPathKey: String?,
         entryIndex: FileListEntryIndex,
         currentDirectory: URL,
+        isTreeLayout: Bool,
         hasLoadedEntries: Bool = true,
         isListingCurrent: Bool = true
     ) -> PreviewTarget {
@@ -53,8 +58,18 @@ enum PreviewTargetResolver {
             for: selection, selectionPathKey: selectionPathKey ?? selection.path
         )
         guard let entry else {
-            return hasLoadedEntries && isListingCurrent ? .folder(currentDirectory) : .undetermined
+            let awaitsExpansion = isTreeLayout
+                && isBelowTopLevel(selectionPathKey ?? selection.normalizedPathKey, of: currentDirectory)
+            let isStale = hasLoadedEntries && isListingCurrent && !awaitsExpansion
+            return isStale ? .folder(currentDirectory) : .undetermined
         }
         return entry.kind == .file ? .file : .folder(entry.url)
+    }
+
+    /// `pathKey` が `directory` の直下ではなく、その配下のさらに深い階層にあるか。
+    /// 境界の "/" を含めて比べる(`/base2/x` を `/base` の配下と取り違えない)。
+    private static func isBelowTopLevel(_ pathKey: String, of directory: URL) -> Bool {
+        let prefix = directory.normalizedPathKey + "/"
+        return pathKey.hasPrefix(prefix) && pathKey.dropFirst(prefix.count).contains("/")
     }
 }

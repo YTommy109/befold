@@ -127,7 +127,7 @@ final class FileListModel {
             selection: storedSelection,
             selectionPathKey: storedSelectionPathKey,
             entryIndex: entryIndex,
-            currentDirectory: currentDirectory,
+            currentDirectory: currentDirectory, isTreeLayout: display.layoutMode == .tree,
             hasLoadedEntries: hasLoadedEntries,
             isListingCurrent: entriesDirectory.normalizedPathKey == currentDirectory.normalizedPathKey
         )
