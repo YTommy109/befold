@@ -52,9 +52,14 @@ extension ViewerWindowController {
     /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
-        // 開いている文書をもう一度選んだ(フォルダー一覧の表示中にその文書の行を押した等)。
-        // 読み込み直しは要らないが、本文には文書を出す(ADR 0013)。
-        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return presentationIntent.present(.file) }
+        // 開いている文書をもう一度開いた(フォルダー一覧の表示中にその文書の行を押した・
+        // CLI や Finder から開き直した等)。読み込み直しは要らないが、本文には文書を出し、
+        // サイドバーも文書へ合わせる(ADR 0013)。文書を出していたなら何もしない。
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else {
+            guard isPreviewingFolder else { return }
+            presentationIntent.present(.file)
+            return sidebar.syncAfterSwitch(to: newURL)
+        }
         referenceCoordinator.warm(forFileAt: newURL)
         switch performFileSwitch(to: newURL) {
         case .switched:

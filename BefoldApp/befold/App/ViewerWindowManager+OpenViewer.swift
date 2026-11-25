@@ -51,6 +51,9 @@ extension ViewerWindowManager {
         if let existing = ViewerWindowOpenPolicy.reusableController(
             from: controllers[key] ?? [], disposition: disposition, relativeTo: sourceWindow
         ) {
+            // 開き直しは同じ URL への切り替えとして扱い、本文に文書を出すのを最優先にする
+            // (ADR 0013)。フォルダー一覧を出していた窓でも、ここで文書の提示へ戻る。
+            existing.switchFile(to: url)
             // 表示オプションの適用規則は ViewerDisplayOptionsApplier に一本化してある。
             // 前面化(activate / focusWindow)は開く経路の責務なのでここに残す。
             ViewerDisplayOptionsApplier.apply(

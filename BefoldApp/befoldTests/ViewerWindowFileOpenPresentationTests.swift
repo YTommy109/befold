@@ -175,4 +175,42 @@ struct ViewerWindowFileOpenPresentationTests {
         await controller.sidebar.awaitSettled()
         #expect(controller.presentationIntent.target == expected, "表示形式の切り替えで変わった")
     }
+
+    // MARK: - フォルダー一覧の表示中にファイルを開く経路(TASK-930.2)
+
+    /// 窓の中でファイルを開く経路。どれも `performFileSwitch` に集まり、そこが本文の読み込みと
+    /// サイドバーの同期より先に `.file` を書く(ADR 0013 決定 4)。Quick Open・本文の一覧・
+    /// スライドの前後移動は `switchFile(to:)` をそのまま呼ぶ(`QuickOpenCoordinator.open` /
+    /// `ViewerWindowAssembler.makeSplitViewController` の `onSelectFile` /
+    /// `moveToAdjacentFile`)ので、`switchFile` の経路で代表させる。
+    enum OpenPath: String, CaseIterable {
+        case quickOpen, sidebarFileRow, link, folderEntryHeadFile, historyBack
+    }
+
+    @Test("フォルダー一覧の表示中にどの経路でファイルを開いても、本文は文書の提示 1 回だけで移る", arguments: OpenPath.allCases)
+    func openingFileFromFolderListingPresentsDocumentOnce(path: OpenPath) async throws {
+        let fixture = try await makeFixture(layout: .tree, prefix: "FileOpenPresentation.path.\(path.rawValue)")
+        let controller = fixture.controller
+        defer { controller.close() }
+        if path == .historyBack {
+            // 戻り先の文書エントリを積んでおく(a.md → t.md と開き、a.md へ戻る)。
+            controller.switchFile(to: fixture.inOther)
+            await controller.sidebar.awaitSettled()
+        }
+        controller.fileListDidSelectFolder(fixture.sub)
+        #expect(controller.isPreviewingFolder)
+        let recorder = TargetRecorder(controller)
+
+        switch path {
+        case .quickOpen: controller.switchFile(to: fixture.deep)
+        case .sidebarFileRow: controller.fileListDidSelectFile(fixture.deep)
+        case .link: controller.openReference(fixture.deep, disposition: .currentTab)
+        case .folderEntryHeadFile: controller.navigateToFolder(fixture.other) // 先頭行は t.md
+        case .historyBack: controller.navigateHistory(by: -1)
+        }
+        await controller.sidebar.awaitSettled()
+
+        #expect(recorder.targets == [.file], "意図の遷移: \(recorder.targets)")
+        #expect(!controller.isPreviewingFolder)
+    }
 }
