@@ -279,7 +279,7 @@ BefoldApp/
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
 | `ViewerContentView` | プレビュー領域の SwiftUI ビュー。フォルダー一覧とファイルの描画面の出し分けだけを持つ |
 | `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ（スピナーの条件は `ViewerContentState.showsLoadingIndicator`。`FileType.rendersFromData` が true の種別＝PDF は `content` を使わないため、空判定だけだと見えている PDF の上に重なる）。**PDF だけを開いた窓では WKWebView を作らない**（生成の遅延であって破棄ではない。一度作った面は残す / TASK-564.7） |
-| `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
+| `PresentationIntent` / `PreviewTarget` | 本文が提示する対象（文書・フォルダー一覧）。窓ごとの `PresentationIntent` が持ち、書くのは利用者の操作を受けた入口だけで、サイドバーの選択・一覧の行からは導かない。サイドバー側の型へはインスタンスを渡さず、読み取りは `SidebarNavigatorHost.presentedTarget` だけ（[ADR 0013](../adr/0013-presentation-intent-before-sidebar-sync.md)。提示状態を 1 つの値で持つ点は [ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
 | `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |

@@ -522,6 +522,20 @@ JS 側は Swift のカタログをパースする jest テストで検出する�
 `ViewerWindowManager.openViewer` にあり、ビューア内リンクやコンテキストメニュー
 経由の新規タブにも同じ抑止が効く。
 
+### 本文の表示対象とサイドバー
+
+<!-- constrained-by ../adr/0013-presentation-intent-before-sidebar-sync.md#decision -->
+
+本文に何を出すか（文書か、どのフォルダーの一覧か）は窓ごとの `PresentationIntent` が決める。
+書くのは利用者の操作を受けた入口だけ——ファイルを開く・フォルダー行を選ぶ・フォルダーに入る・
+ディレクトリを開く・戻る/進む。ファイルを開く経路は、意図 → 本文の読み込み → サイドバーの同期
+の順に揃える（`ViewerWindowController.performFileSwitch`）。
+
+サイドバーの同期（一覧の取り直し・展開と折りたたみ・表示形式や不可視ファイルの切り替え）は
+本文を変えない。行がまだ届いていなければ、選択の強調が遅れるだけになる。そのため、フォルダー
+一覧の表示中にそのフォルダーが消えても、ツリーで祖先を畳んでも、本文はその一覧のまま残る
+（TASK-930.1）。
+
 ### フォルダーに入る
 
 <!-- constrained-by ../adr/0013-presentation-intent-before-sidebar-sync.md#decision -->

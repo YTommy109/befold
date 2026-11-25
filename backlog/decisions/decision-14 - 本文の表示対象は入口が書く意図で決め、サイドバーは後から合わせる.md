@@ -1,8 +1,9 @@
 ---
+updated_date: '2026-11-25T12:56:16Z'
 id: decision-14
 title: 本文の表示対象は入口が書く意図で決め、サイドバーは後から合わせる
 date: '2026-11-25T00:12:07Z'
-status: proposed
+status: accepted
 ---
 ## Context
 
