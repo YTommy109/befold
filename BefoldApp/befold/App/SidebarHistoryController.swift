@@ -38,21 +38,17 @@ final class SidebarHistoryController {
 
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
     ///
-    /// - Returns: 適用したエントリが本文に出すもの。本文の意図を書くのは窓の側で、
-    ///   この型は書く口を持たない(ADR 0013)。適用できなかった場合は nil。
+    /// - Parameter presenting: 記録した意図を渡す。本文の意図を書くのは窓の側で、
+    ///   この型は書く口を持たない(ADR 0013)。ファイル切替の後・サイドバーの同期の前に
+    ///   呼ぶ(意図 → 本文 → サイドバー)。適用できなかった場合は呼ばない。
     ///   開いている文書と同じファイルのエントリへ戻ったときは切替が起きないので、
-    ///   ファイルの提示もここで返す(返さないとフォルダー一覧が残る)。
-    @discardableResult
-    func navigate(by offset: Int) -> PreviewTarget? {
-        guard let entry = history.move(by: offset) else { return nil }
+    ///   ファイルの提示もここで渡す(渡さないとフォルダー一覧が残る)。
+    func navigate(by offset: Int, presenting: (PreviewTarget) -> Void) {
+        guard let entry = history.move(by: offset) else { return }
         defer { refreshState() }
-        guard applyEntry(entry) else {
+        guard applyEntry(entry, presenting: presenting) else {
             _ = history.move(by: -offset)
-            return nil
-        }
-        switch entry.presentation {
-        case .file: return .file
-        case let .folder(url): return .folder(url ?? entry.directory)
+            return
         }
     }
 
@@ -81,7 +77,7 @@ final class SidebarHistoryController {
         case let .folder(url):
             .folder(url)
         case .file:
-            (host.currentFileURL ?? fileListModel.selection).map(HistoryPresentation.file) ?? .folder(nil)
+            host.currentFileURL.map(HistoryPresentation.file) ?? .folder(nil)
         case nil:
             .folder(nil)
         }
@@ -94,7 +90,7 @@ final class SidebarHistoryController {
     }
 
     /// 履歴エントリを表示へ適用する。適用できなかった場合は false を返す。
-    private func applyEntry(_ entry: HistoryEntry) -> Bool {
+    private func applyEntry(_ entry: HistoryEntry, presenting: (PreviewTarget) -> Void) -> Bool {
         // navigator も先に確かめる。切替を済ませてから欠けに気づくと、ファイルだけが
         // 変わって同期区間を通らない部分適用になる。
         guard let host, let navigator else { return false }
@@ -110,6 +106,13 @@ final class SidebarHistoryController {
         }
         if let fileToOpen {
             guard case .switched = host.performFileSwitch(to: fileToOpen) else { return false }
+        }
+        // 別の文書を伴うフォルダーのエントリは、上の切替が .file を書いた直後にここで
+        // フォルダーへ書き直す(同じ同期区間の中で 2 回通る)。切替に提示を渡す口は足さない
+        // ——サイドバー側の型が意図を書ける形になるため(ADR 0013)。
+        switch entry.presentation {
+        case .file: presenting(.file)
+        case let .folder(url): presenting(.folder(url ?? entry.directory))
         }
         // 表示中フォルダーの移動・選択の確定・一覧の取り直しは、ファイル切替後と同じ
         // 同期区間を通す(TASK-471)。記録した提示対象をそのまま選択として渡すだけで、

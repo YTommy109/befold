@@ -15,17 +15,20 @@ extension SidebarNavigator {
     /// 移動が決まった時点で `presentingFolder` に渡すだけ。一覧の着地は待たない
     /// (待つと、遅い列挙の間は本文が前のファイルのまま残る)。
     ///
-    /// - Parameter presentingFolder: 移動が決まったときに呼ぶ。履歴の記録(着地時)より
-    ///   先になる(記録は窓の意図を読む)。
+    /// 履歴は意図を書いた直後に記録する。着地で記録すると、着地前に別のファイルを開いた
+    /// ときはそちらの意図を読み、世代の追い越しで着地しなければ記録自体が落ちる(TASK-930.5)。
+    ///
+    /// - Parameter presentingFolder: 移動が決まったときに呼ぶ。履歴の記録より先になる
+    ///   (記録は窓の意図を読む)。
     func navigateToFolder(_ url: URL, presentingFolder: @escaping (URL) -> Void) {
         guard host != nil else { return }
         guard DirectoryLister.isWithinHome(url.standardizedFileURL, home: home) else { return }
         moveCurrentDirectory(to: url)
         fileListModel.selection = nil
         presentingFolder(url)
+        recordHistory()
         performListing(of: url) { _, directory, listing in
             self.applyRows(listing, for: directory)
-            self.recordHistory()
         }
     }
 

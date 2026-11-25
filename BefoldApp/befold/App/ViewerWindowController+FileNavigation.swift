@@ -33,8 +33,7 @@ extension ViewerWindowController {
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
     /// フォルダー一覧の履歴なら、一覧の着地を待たずにその一覧を出す。
     func navigateHistory(by offset: Int) {
-        guard let target = sidebar.navigateHistory(by: offset) else { return }
-        presentationIntent.present(target)
+        sidebar.navigateHistory(by: offset) { [weak self] in self?.presentationIntent.present($0) }
     }
 
     /// スライド窓の前後移動(TASK-593.3)。行き先の解決は `SlideKeyAction` が持ち、

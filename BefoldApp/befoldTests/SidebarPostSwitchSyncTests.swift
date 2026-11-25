@@ -177,7 +177,7 @@ struct SidebarPostSwitchSyncTests {
         navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
-        navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
 
         // ここでも await しない(上のテストと同じ理由)。
         #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.sub.normalizedPathKey)
@@ -199,7 +199,7 @@ struct SidebarPostSwitchSyncTests {
         await navigator.awaitSettled()
         await expandSub(navigator, fixture)
 
-        navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
 
         #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.sub.normalizedPathKey)
         #expect(navigator.expandedFolderKeys.isEmpty)

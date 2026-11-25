@@ -95,12 +95,12 @@ struct SidebarNavigatorHistoryTests {
         await navigator.awaitSettled()
         #expect(host.presentedTarget == .folder(fixture.sub))
 
-        let target = navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
         await navigator.awaitSettled()
 
         // 戻り先は「フォルダー sub の一覧」であってファイルではない。窓へ返す値が
         // そのフォルダーを指していれば、窓は着地を待たずにその一覧を出す。
-        #expect(target?.folderURL?.normalizedPathKey == fixture.sub.normalizedPathKey)
+        #expect(host.presentedTarget?.folderURL?.normalizedPathKey == fixture.sub.normalizedPathKey)
         #expect(navigator.fileListModel.selection?.lastPathComponent == "sub")
     }
 
@@ -127,10 +127,10 @@ struct SidebarNavigatorHistoryTests {
 
         // 3) 戻ると 1) のファイル提示に戻る(フォルダー一覧が残り続けない)。
         // 戻り先の文書は開いたままなので切替は起きない。それでも窓へはファイルの提示を返す。
-        let target = navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
         await navigator.awaitSettled()
 
-        #expect(target == .file)
+        #expect(host.presentedTarget == .file)
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
         #expect(host.currentFileURL?.lastPathComponent == "child.mmd")
     }

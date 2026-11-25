@@ -235,10 +235,9 @@ final class SidebarNavigator {
     // MARK: - Navigation History
 
     /// 戻る/進む。offset 負=戻る / 正=進む。実処理は SidebarHistoryController が持つ。
-    /// 戻り値は適用したエントリが本文に出すもの(適用できなければ nil)。
-    @discardableResult
-    func navigateHistory(by offset: Int) -> PreviewTarget? {
-        historyController.navigate(by: offset)
+    /// `presenting` には適用したエントリの意図が、サイドバーを合わせる前に渡る。
+    func navigateHistory(by offset: Int, presenting: (PreviewTarget) -> Void) {
+        historyController.navigate(by: offset, presenting: presenting)
     }
 
     /// 現在の表示状態(ディレクトリ＋ファイル)を履歴に記録する。
