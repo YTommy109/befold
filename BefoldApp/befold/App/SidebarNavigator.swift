@@ -242,7 +242,9 @@ final class SidebarNavigator {
     // MARK: - Navigation History
 
     /// 戻る/進む。offset 負=戻る / 正=進む。実処理は SidebarHistoryController が持つ。
-    func navigateHistory(by offset: Int) {
+    /// 戻り値は適用したエントリが本文に出すもの(適用できなければ nil)。
+    @discardableResult
+    func navigateHistory(by offset: Int) -> PreviewTarget? {
         historyController.navigate(by: offset)
     }
 

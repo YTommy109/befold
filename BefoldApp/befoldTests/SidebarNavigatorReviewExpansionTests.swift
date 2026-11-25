@@ -172,7 +172,7 @@ struct SidebarNavigatorReviewExpansionTests {
         fixture.navigator.refreshFileList()
         await settle(fixture.navigator)
 
-        fixture.navigator.navigateToFolder(fixture.base.appendingPathComponent("b"))
+        fixture.navigator.navigateToFolder(fixture.base.appendingPathComponent("b"), presentingFolder: { _ in })
         await settle(fixture.navigator)
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("b/c")])
@@ -189,7 +189,7 @@ struct SidebarNavigatorReviewExpansionTests {
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
 
         // 同じディレクトリへの移動は展開を捨てる(git 状態は変わらない)。
-        fixture.navigator.navigateToFolder(fixture.base)
+        fixture.navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await settle(fixture.navigator)
 
         #expect(fixture.navigator.expandedFolderKeys == [fixture.key("a")])
@@ -208,7 +208,7 @@ struct SidebarNavigatorReviewExpansionTests {
         // 移動中に git 状態が変わる: b/c は clean に戻り、b/d に変更が出る。
         fixture.statuses.update { $0 = [fixture.key("b/d/z.md"): Self.modified] }
 
-        fixture.navigator.navigateToFolder(fixture.base.appendingPathComponent("b"))
+        fixture.navigator.navigateToFolder(fixture.base.appendingPathComponent("b"), presentingFolder: { _ in })
         // 一覧はまだ着地していない(currentDirectory だけが b へ進んでいる)。
         fixture.navigator.applyDisplayChange(.toggleChangedFilesOnly)
         await fixture.navigator.pendingGitStatusTask?.value

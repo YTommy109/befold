@@ -54,6 +54,9 @@ final class SidebarNavigatorStubHost: SidebarNavigatorHost {
     private(set) var performFileSwitchCallCount = 0
     /// 切替を失敗させたいテスト用。既定は常に成功。
     var fileSwitchOutcome: FileSwitchOutcome = .switched
+    /// 窓の意図の代役(ADR 0013)。本番と同じく、切替が成立したら `.file` になる。
+    /// フォルダー一覧を出している状態から始めたいテストは直接書き換える。
+    var presentedTarget: PreviewTarget? = .file
 
     init(currentFileURL: URL) {
         self.currentFileURL = currentFileURL
@@ -63,6 +66,7 @@ final class SidebarNavigatorStubHost: SidebarNavigatorHost {
         performFileSwitchCallCount += 1
         guard case .switched = fileSwitchOutcome else { return fileSwitchOutcome }
         currentFileURL = url
+        presentedTarget = .file
         return .switched
     }
 

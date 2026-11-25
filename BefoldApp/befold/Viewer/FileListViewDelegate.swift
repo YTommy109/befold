@@ -19,6 +19,9 @@ import Foundation
 protocol FileListViewDelegate: AnyObject {
     /// 行の選択が確定し、それがファイルだった。表示を追従させる。
     func fileListDidSelectFile(_ url: URL)
+    /// 利用者がフォルダー行を選んだ。本文にそのフォルダーの一覧を出す(ADR 0013)。
+    /// プログラムからの選択(切替後の同期など)では呼ばれない。
+    func fileListDidSelectFolder(_ url: URL)
     /// フォルダー行へ降りる / 上位フォルダーへ戻る。一覧のルートが動く。
     func fileListDidRequestNavigation(to url: URL)
     /// 選択行を別のタブ/ウィンドウで開く。開き先は disposition で受ける

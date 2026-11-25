@@ -84,13 +84,13 @@ extension FileListView {
     private func move(to entry: FileListEntry?) -> KeyPress.Result {
         guard let entry else { return .ignored }
         model.selection = entry.id
-        openIfFile(entry)
+        presentSelected(entry)
         return .handled
     }
 
     /// ツリー内で 1 つ上の階層の行へ選択を移す。**ルートは変えない。**
     ///
-    /// 行き先は必ずフォルダ行なので `openIfFile` は呼ばない(呼んでも何も起きない)。
+    /// 行き先は必ずフォルダ行で、本文にはその一覧が出る(`presentSelected`)。
     /// 画面のスクロール追従は `FileListModel.selection` の didSet が行うため、
     /// ここで足す必要はない。最上位の行では親が無く `.ignored` になる。
     ///
@@ -102,6 +102,7 @@ extension FileListView {
             return .ignored
         }
         model.selection = parent.id
+        presentSelected(parent)
         return .handled
     }
 

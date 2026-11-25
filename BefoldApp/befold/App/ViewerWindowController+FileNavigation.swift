@@ -21,14 +21,20 @@ extension ViewerWindowController {
         window?.makeKeyAndOrderFront(nil)
     }
 
-    /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲する。
+    /// サイドバーで別フォルダーへ移動する。詳細は SidebarNavigator に委譲し、移動先で
+    /// フォルダー一覧を出すと決まったら意図を書く(書く口はこの窓だけが持つ。ADR 0013)。
     func navigateToFolder(_ url: URL) {
-        sidebar.navigateToFolder(url)
+        sidebar.navigateToFolder(
+            url,
+            presentingFolder: { [weak self] in self?.presentationIntent.present(.folder($0)) }
+        )
     }
 
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
+    /// フォルダー一覧の履歴なら、一覧の着地を待たずにその一覧を出す。
     func navigateHistory(by offset: Int) {
-        sidebar.navigateHistory(by: offset)
+        guard let target = sidebar.navigateHistory(by: offset) else { return }
+        presentationIntent.present(target)
     }
 
     /// スライド窓の前後移動(TASK-593.3)。行き先の解決は `SlideKeyAction` が持ち、
@@ -46,7 +52,9 @@ extension ViewerWindowController {
     /// ファイル切替の実処理のみ担い、選択同期・履歴記録は SidebarNavigator へ委譲する。
     func switchFile(to newURL: URL) {
         let oldURL = fileURL
-        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return }
+        // 開いている文書をもう一度選んだ(フォルダー一覧の表示中にその文書の行を押した等)。
+        // 読み込み直しは要らないが、本文には文書を出す(ADR 0013)。
+        guard newURL.normalizedPathKey != oldURL.normalizedPathKey else { return presentationIntent.present(.file) }
         referenceCoordinator.warm(forFileAt: newURL)
         switch performFileSwitch(to: newURL) {
         case .switched:
@@ -71,6 +79,9 @@ extension ViewerWindowController {
         let oldURL = fileURL
         saveScrollPositionBeforeTransition()
         applyDisplayMode(documentPresenter.restoredDisplayMode(for: newURL))
+        // 本文を出すのが最優先(ADR 0013)。サイドバーはこの後で追いつけばよく、
+        // その途中の状態を本文の提示へ持ち込まない。
+        presentationIntent.present(.file)
         applyURLToWindow(newURL)
         // fileExists を確認済みなので store.openFile が予約した非同期読み込みは必ず完了に達し、
         // その時点で onContentReloaded → refreshUIState() が発火する
@@ -132,9 +143,9 @@ extension ViewerWindowController {
     ///
     /// - Parameter newURL: いま提示しようとしている文書。ファイル切替の途中では
     ///   `ViewerStore` の現在 URL がまだ更新されていないため、呼び出し側から渡す。
-    ///   フォルダー一覧を出しているかどうかは提示対象(`previewTarget`)が決める。
+    ///   フォルダー一覧を出しているかどうかは窓の意図(`presentationIntent`)が決める。
     func applyURLToWindow(_ newURL: URL) {
         guard let window else { return }
-        ViewerWindowChrome.applyURL(newURL, presenting: fileListModel.previewTarget, to: window)
+        ViewerWindowChrome.applyURL(newURL, presenting: presentationIntent.target, to: window)
     }
 }

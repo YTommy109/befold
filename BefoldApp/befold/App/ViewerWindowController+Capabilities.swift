@@ -13,9 +13,9 @@ import BefoldKit
 @MainActor
 extension ViewerWindowController {
     /// プレビュー領域がフォルダー一覧を出しているか。ViewerContentView と同じ
-    /// fileListModel.previewTarget を見る(導出点は 1 つ。ADR 0002)。
+    /// 窓の意図を見る(ADR 0002 / ADR 0013)。
     var isPreviewingFolder: Bool {
-        fileListModel.previewTarget.folderURL != nil
+        presentationIntent.target.folderURL != nil
     }
 
     /// いま何ができるか。メニュー・ツールバー・コマンド実行はすべてこの値だけを見る(ADR 0002)。

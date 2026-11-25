@@ -174,7 +174,7 @@ struct SidebarPostSwitchSyncTests {
         defer { withExtendedLifetime(host) {} }
         // sub で child.mmd を提示している状態を積み、親へ上がってから戻る。
         navigator.recordHistory()
-        navigator.navigateToFolder(fixture.base)
+        navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         navigator.navigateHistory(by: -1)
@@ -195,7 +195,7 @@ struct SidebarPostSwitchSyncTests {
         )
         defer { withExtendedLifetime(host) {} }
         navigator.recordHistory()
-        navigator.navigateToFolder(fixture.base)
+        navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await navigator.awaitSettled()
         await expandSub(navigator, fixture)
 

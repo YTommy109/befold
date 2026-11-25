@@ -140,7 +140,7 @@ struct FileListView: View {
             return
         }
         model.selection = entry.id
-        openIfFile(entry)
+        presentSelected(entry)
         // List が選択を NSTableView へ反映し終える前に first responder を
         // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
         // (固定待ちは不要)。
@@ -178,14 +178,21 @@ struct FileListView: View {
         model.selection = newSelection
         guard let key = newSelection?.normalizedPathKey, let entry = model.entry(forPathKey: key)
         else { return }
-        openIfFile(entry)
+        presentSelected(entry)
     }
 
-    /// 選択が確定したエントリがファイルなら表示を更新する。
-    /// クリック・矢印キー・j/k など、選択を変えるすべての経路から呼ぶことで
+    /// 利用者が選んだ行を本文へ届ける。ファイルなら開き、フォルダーならその一覧を出す。
+    /// クリック・矢印キー・j/k など、利用者が選択を変えるすべての経路から呼ぶことで
     /// 「選択は動くが表示が追従しない」状態を防ぐ。
-    func openIfFile(_ entry: FileListEntry) {
-        openIfFile(entry, with: .currentTab)
+    ///
+    /// 本文はサイドバーの選択からは導かれない(ADR 0013)。フォルダー行を選んで一覧を
+    /// 出すのも、ここから窓へ明示的に伝える。プログラムからの選択(切替後の同期・一覧の
+    /// 着地)はここを通らないので、本文を動かさない。
+    func presentSelected(_ entry: FileListEntry) {
+        switch entry.kind {
+        case .file: openIfFile(entry, with: .currentTab)
+        case .folder: delegate?.fileListDidSelectFolder(entry.url)
+        }
     }
 
     /// エントリがファイルなら `disposition` に従って開く。`.currentTab` は選択追従の

@@ -103,7 +103,7 @@ struct SidebarNavigatorExpansionTests {
         navigator.expandFolder(dirA.normalizedPathKey, at: dirA)
         await Task.yield()
 
-        navigator.navigateToFolder(other)
+        navigator.navigateToFolder(other, presentingFolder: { _ in })
         await navigator.awaitSettled()
         await gate.open()
         await navigator.awaitSettled()

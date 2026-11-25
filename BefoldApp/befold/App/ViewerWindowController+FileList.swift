@@ -13,6 +13,10 @@ extension ViewerWindowController: FileListViewDelegate {
         switchFile(to: url)
     }
 
+    func fileListDidSelectFolder(_ url: URL) {
+        presentationIntent.present(.folder(url))
+    }
+
     func fileListDidRequestNavigation(to url: URL) {
         navigateToFolder(url)
     }

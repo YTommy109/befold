@@ -58,7 +58,7 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(tmp)
+        navigator.navigateToFolder(tmp, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == tmp.standardizedFileURL)
@@ -72,7 +72,7 @@ struct SidebarNavigatorFolderNavigationTests {
         let before = navigator.fileListModel.currentDirectory
         let aboveHome = Self.home.deletingLastPathComponent()
 
-        navigator.navigateToFolder(aboveHome)
+        navigator.navigateToFolder(aboveHome, presentingFolder: { _ in })
 
         #expect(navigator.fileListModel.currentDirectory == before)
     }
@@ -95,7 +95,7 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(sub)
+        navigator.navigateToFolder(sub, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "grandchild")
@@ -113,13 +113,14 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(sub)
+        var presented: [URL] = []
+        navigator.navigateToFolder(sub, presentingFolder: { presented.append($0) })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
-        #expect(navigator.fileListModel.previewTarget == .file)
+        #expect(presented.isEmpty)
         // 選択を書くだけでは ViewerStore が前のファイルを保持したままで中身が変わらない。
-        // 提示対象が .file になることと、実際に切り替わることの両方が要る(TASK-310)。
+        // 実際に切り替わる(窓はその中で本文の意図を .file にする)ことが要る(TASK-310)。
         #expect(host.performFileSwitchCallCount == 1)
         #expect(host.currentFileURL == child)
     }
@@ -142,10 +143,11 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(sub)
+        var presented: [URL] = []
+        navigator.navigateToFolder(sub, presentingFolder: { presented.append($0) })
         await navigator.awaitSettled()
 
-        #expect(navigator.fileListModel.previewTarget == .folder(grandChild))
+        #expect(presented == [grandChild])
         #expect(host.performFileSwitchCallCount == 0)
     }
 
@@ -163,11 +165,12 @@ struct SidebarNavigatorFolderNavigationTests {
         // 列挙とプレビュー切替の間にファイルが消えた場合(performFileSwitch が .failed)。
         host.fileSwitchOutcome = .failed
 
-        navigator.navigateToFolder(sub)
+        var presented: [URL] = []
+        navigator.navigateToFolder(sub, presentingFolder: { presented.append($0) })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection == nil)
-        #expect(navigator.fileListModel.previewTarget == .folder(sub))
+        #expect(presented.map(\.normalizedPathKey) == [sub.normalizedPathKey])
     }
 
     @Test("ファイルのない子フォルダーへの移動では何も選択されない")
@@ -181,11 +184,12 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(sub)
+        var presented: [URL] = []
+        navigator.navigateToFolder(sub, presentingFolder: { presented.append($0) })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection == nil)
-        #expect(navigator.fileListModel.previewTarget == .folder(sub))
+        #expect(presented.map(\.normalizedPathKey) == [sub.normalizedPathKey])
     }
 
     @Test("親フォルダーへの移動では直前の子フォルダーが選択される")
@@ -199,7 +203,7 @@ struct SidebarNavigatorFolderNavigationTests {
         )
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(tmp)
+        navigator.navigateToFolder(tmp, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "sub")
@@ -225,12 +229,12 @@ struct SidebarNavigatorFolderNavigationTests {
         #expect(navigator.fileListModel.rootDirectory.path == level3.path)
 
         // level2 へ上に移動すると、そこが新たな最上位として rootDirectory に反映される。
-        navigator.navigateToFolder(level2)
+        navigator.navigateToFolder(level2, presentingFolder: { _ in })
         await navigator.awaitSettled()
         #expect(navigator.fileListModel.rootDirectory.path == level2.path)
 
         // level3 へ戻っても、既に到達した最上位(level2)は保持される。
-        navigator.navigateToFolder(level3)
+        navigator.navigateToFolder(level3, presentingFolder: { _ in })
         await navigator.awaitSettled()
         #expect(navigator.fileListModel.rootDirectory.path == level2.path)
     }

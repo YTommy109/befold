@@ -7,12 +7,14 @@ extension SidebarNavigator {
     /// サイドバーで別フォルダーへ移動する。ホームディレクトリ配下のみ許可する。
     /// 列挙はメイン外で行い、完了後にメインアクターへ一括反映する(呼び出し自体は非 async)。
     ///
-    /// 下位・横へ移動したときは一覧の先頭行を選ぶ(TASK-310)。プレビューは選択に追従するので、
-    /// 先頭がファイルならその中身、フォルダーならそのフォルダーの一覧が出る。
-    /// **選択を書くだけでは追従しない**ことに注意する。previewTarget が `.file` になっても
-    /// ViewerWebView が出すのは ViewerStore が保持している「前に開いていたファイル」であり、
-    /// ハイライトだけが動いて中身が変わらない。先頭がファイルのときは切替まで行うこと。
-    func navigateToFolder(_ url: URL) {
+    /// 下位・横へ移動したときは一覧の先頭行を選ぶ(TASK-310)。先頭がファイルなら切り替えて
+    /// その中身を、フォルダー(または選べる行が無い)なら `presentingFolder` でフォルダー一覧を
+    /// 本文に出す。**本文の意図はこの型が書かない**(ADR 0013)。書く口は呼び出し側の窓が持ち、
+    /// ここは着地で決まった結果を渡すだけ。選択の書き込みは本文を動かさない。
+    ///
+    /// - Parameter presentingFolder: 本文にフォルダー一覧を出すと決まったときに呼ぶ。
+    ///   履歴の記録より先に呼ぶ(記録は窓の意図を読む)。
+    func navigateToFolder(_ url: URL, presentingFolder: @escaping (URL) -> Void) {
         guard host != nil else { return }
         let target = url.standardizedFileURL
         guard DirectoryLister.isWithinHome(target, home: home) else { return }
@@ -29,6 +31,9 @@ extension SidebarNavigator {
             } else {
                 self.select(self.fileListModel.firstSelectableEntryURL, presentingWith: host)
             }
+            let selected = self.fileListModel.selection
+                .flatMap { self.fileListModel.entry(forPathKey: $0.normalizedPathKey) }
+            if selected?.kind != .file { presentingFolder(selected?.url ?? directory) }
             self.recordHistory()
         }
     }

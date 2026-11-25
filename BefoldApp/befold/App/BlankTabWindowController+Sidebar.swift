@@ -26,6 +26,11 @@ extension BlankTabWindowController: SidebarNavigatorHost {
         nil
     }
 
+    /// 空タブの本文は空タブの画面で、文書もフォルダー一覧も出していない。
+    var presentedTarget: PreviewTarget? {
+        nil
+    }
+
     /// サイドバーから開いた文書タブも、文書タブのサイドバーと同じくフォーカスを表に残す
     /// (TASK-581)。閉じる空タブの表に当てても、置き換えた窓の表には誰もフォーカスしない。
     /// 再利用した既存のタブのサイドバーが閉じていれば、`focusSidebar` が何もしない。
@@ -51,8 +56,11 @@ extension BlankTabWindowController: FileListViewDelegate {
         }
     }
 
+    /// 空タブは本文にフォルダー一覧を出さない(本文は空タブの画面のまま)。
+    func fileListDidSelectFolder(_: URL) {}
+
     func fileListDidRequestNavigation(to url: URL) {
-        sidebarContext?.navigator.navigateToFolder(url)
+        sidebarContext?.navigator.navigateToFolder(url, presentingFolder: { _ in })
     }
 
     func fileListDidRequestOpenElsewhere(_ url: URL, disposition: OpenDisposition) {

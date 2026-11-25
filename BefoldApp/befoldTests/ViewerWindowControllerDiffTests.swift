@@ -91,7 +91,7 @@ struct ViewerWindowControllerDiffTests {
             FileListEntry(url: file, kind: .file),
             FileListEntry(url: folder, kind: .folder),
         ]
-        controller.fileListModel.selection = folder
+        controller.fileListDidSelectFolder(folder)
         controller.store.displayMode = .source
         #expect(!controller.capabilities.canSelectDiffMode)
 

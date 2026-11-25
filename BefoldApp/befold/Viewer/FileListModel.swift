@@ -13,13 +13,10 @@ import Foundation
 ///   (境界は「保存値の対を持つか」)、スクロール追随 → `SidebarTableFocuser`
 /// - 出せない: git 状態の反映は ADR 0003 が `applyGitStatus` 一本化を決めている
 ///   (判定は `FileListGitStatusGate` へ切れるが、観測対象へ書くのはこの型)。
-///   `previewTarget` は ADR 0002 の単一導出点で、5 つの材料を同時に要るため結合が増える
 @MainActor
 @Observable
 final class FileListModel {
-    var currentDirectory: URL {
-        didSet { notifyPresentationTargetChangeIfNeeded() }
-    }
+    var currentDirectory: URL
 
     /// このウィンドウでこれまでにアクティブになった最上位のディレクトリ。
     /// パスコピー機能の相対パス基準として使う(SidebarNavigator.navigateToFolder が更新)。
@@ -32,7 +29,6 @@ final class FileListModel {
             hasLoadedEntries = true
             promotePendingGitStatusIfNeeded()
             entryIndex = FileListEntryIndex(entries: entries)
-            notifyPresentationTargetChangeIfNeeded()
         }
     }
 
@@ -72,12 +68,10 @@ final class FileListModel {
     /// 更新経路は `setEntries` の 1 本に閉じる。
     private(set) var didFailListing = false
 
-    /// `entries` を選択から引くための索引。一覧の代入と同時に作り直す。
-    /// 提示対象の導出はこれを介して O(1) で行う(FileListEntryIndex)。
+    /// `entries` を URL・パスキーから引くための索引。一覧の代入と同時に作り直す。
     ///
-    /// 観測対象から外してはならない。previewTarget は導出値であり、View が
-    /// それを読んだときに依存として登録されるのはここで触れた保存値だけなので、
-    /// 外すと「一覧が変わって提示対象も変わったのに再描画されない」が起きる。
+    /// 観測対象から外してはならない。行の引き当て(`entry(forPathKey:)` 等)を読む View は
+    /// ここに依存を登録するので、外すと一覧が変わっても再描画されない。
     private var entryIndex: FileListEntryIndex
 
     /// 正規化パスキーから行を引く。引き当ての規則そのものは `FileListEntryIndex` が持ち、
@@ -111,33 +105,16 @@ final class FileListModel {
     }
 
     /// 一覧が一度でも反映されたか。ウィンドウは一覧を空で作って非同期に埋めるため、
-    /// それまでは「選択が一覧に無い」が「対象が確定していない」を意味する。
-    /// 「選択を消してフォルダーを表示している」状態と取り違えないための区別に使う。
+    /// それまでの「行が無い」は「空のフォルダー」ではなく「まだ届いていない」を意味する。
     private(set) var hasLoadedEntries: Bool = false
-
-    /// プレビュー領域が提示すべき対象。ViewerContentView と ViewerWindowController が
-    /// 同じ値を見るための単一の導出点(ADR 0002)。
-    ///
-    /// 読み出し側は menu validation(1 回のメニュー表示で 7 セレクタぶん)・ツールバー同期・
-    /// View の body 評価と多いが、索引(entryIndex)と選択の pathKey を持っているので
-    /// 1 回の導出は O(1) で済む。結果を持たずそのつど導くため、状態が増えず、
-    /// ディスク側の変化で持ち回った値が古くなることもない(TASK-273 / TASK-278)。
-    var previewTarget: PreviewTarget {
-        PreviewTargetResolver.resolve(
-            selection: storedSelection,
-            selectionPathKey: storedSelectionPathKey,
-            entryIndex: entryIndex,
-            currentDirectory: currentDirectory,
-            hasLoadedEntries: hasLoadedEntries,
-            isListingCurrent: entriesDirectory.normalizedPathKey == currentDirectory.normalizedPathKey
-        )
-    }
 
     /// 選択中の行の ID(= URL)。Finder/CLI から開いたファイルの URL や
     /// restoreSelection のように、一覧を経由しない生の URL が入ってくる経路があるため、
-    /// 書き込み時に native 裏打ちへ揃える。PreviewTargetResolver は body 評価のたびに
-    /// `entries.first { $0.id == selection }` を走らせ、片側が NSString 裏打ちだと
+    /// 書き込み時に native 裏打ちへ揃える。行との突き合わせで片側が NSString 裏打ちだと
     /// 比較のたびに Unicode 正規化が走る(344 件の実測で 1.93ms → 0.035ms)。
+    ///
+    /// **本文の提示はこの値から導かない**(ADR 0013)。選択はサイドバーの強調であって、
+    /// 本文に何を出すかは窓の `PresentationIntent` が決める。
     var selection: FileListEntry.ID? {
         get { storedSelection }
         set {
@@ -151,34 +128,11 @@ final class FileListModel {
     }
 
     private var storedSelection: FileListEntry.ID? {
-        didSet {
-            notifyPresentationTargetChangeIfNeeded()
-            scrollSelectionIntoView()
-        }
+        didSet { scrollSelectionIntoView() }
     }
 
     /// `storedSelection` の `normalizedPathKey`。選択の書き込みと同時に更新する。
     @ObservationIgnored private var storedSelectionPathKey: String?
-
-    /// 提示対象(previewTarget)が変わったときに呼ばれる。
-    /// ツールバーの view ベースアイテムは AppKit の validate を通らず、明示的に
-    /// 再同期しないと古い有効状態のまま残るため、その通知点として使う(ADR 0002)。
-    @ObservationIgnored var onPresentationTargetChange: (() -> Void)?
-
-    /// 直前に通知した提示対象。通知を「変化したときだけ」に絞るための比較用であり、
-    /// 提示対象の真実の源ではない(真実の源は previewTarget の導出そのもの)。
-    @ObservationIgnored private var lastNotifiedTarget: PreviewTarget
-
-    /// 提示対象が変わりうる書き換えのあとに呼ぶ。実際に変わったときだけ通知する。
-    /// currentDirectory / entries / storedSelection の 3 つとも同じここを通す。
-    /// フォルダー移動は 3 つを続けて書き換えるため、素通しで通知すると
-    /// ツールバーの再同期が 1 回の移動で何度も走る(TASK-278)。
-    private func notifyPresentationTargetChangeIfNeeded() {
-        let target = previewTarget
-        guard target != lastNotifiedTarget else { return }
-        lastNotifiedTarget = target
-        onPresentationTargetChange?()
-    }
 
     // MARK: - 窓ごとの見せ方(兄弟型へ出してある)
 
@@ -356,7 +310,5 @@ final class FileListModel {
         self.display = SidebarDisplayState(settings: display)
         // 各プロパティの didSet は init 中には走らないため、派生する値をここで揃える。
         entryIndex = FileListEntryIndex(entries: entries)
-        lastNotifiedTarget = .undetermined
-        lastNotifiedTarget = previewTarget
     }
 }

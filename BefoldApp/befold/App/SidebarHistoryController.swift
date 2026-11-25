@@ -37,12 +37,23 @@ final class SidebarHistoryController {
     }
 
     /// サイドバーの戻る/進む・履歴メニューから呼ばれる。offset 負=戻る / 正=進む。
-    func navigate(by offset: Int) {
-        guard let entry = history.move(by: offset) else { return }
-        if !applyEntry(entry) {
+    ///
+    /// - Returns: 適用したエントリが本文に出すもの。本文の意図を書くのは窓の側で、
+    ///   この型は書く口を持たない(ADR 0013)。適用できなかった場合は nil。
+    ///   開いている文書と同じファイルのエントリへ戻ったときは切替が起きないので、
+    ///   ファイルの提示もここで返す(返さないとフォルダー一覧が残る)。
+    @discardableResult
+    func navigate(by offset: Int) -> PreviewTarget? {
+        guard let entry = history.move(by: offset) else { return nil }
+        defer { refreshState() }
+        guard applyEntry(entry) else {
             _ = history.move(by: -offset)
+            return nil
         }
-        refreshState()
+        switch entry.presentation {
+        case .file: return .file
+        case let .folder(url): return .folder(url ?? entry.directory)
+        }
     }
 
     /// 現在の表示状態(ディレクトリ＋ファイル＋提示対象)を履歴に記録する。
@@ -59,18 +70,20 @@ final class SidebarHistoryController {
 
     /// いま提示している対象を履歴用のスナップショットへ写す。
     ///
-    /// `.undetermined`(一覧がまだ届いていない)は **ファイル提示として記録する**。
-    /// ウィンドウ生成直後の記録(`ViewerWindowController` の初期化末尾)は必ずここに落ちるが、
-    /// そのときウィンドウが出しているのは開いた文書であって一覧ではない。「未確定だから
-    /// フォルダー」に倒すと、起動直後のエントリへ戻るたびに一覧が被さる。
+    /// 読むのは窓の意図(`host.presentedTarget`)で、サイドバーの選択や行の有無からは
+    /// 導かない(ADR 0013)。行の着地を待つ間に記録しても、ファイルを出していれば
+    /// ファイル提示として残る。フォルダー一覧のうち表示中フォルダー自身のものは、
+    /// 選択の無い一覧(`.folder(nil)`)として記録する。
     private func currentPresentation(host: SidebarNavigatorHost) -> HistoryPresentation {
-        switch fileListModel.previewTarget {
-        case .folder:
-            .folder(fileListModel.selection)
+        switch host.presentedTarget {
+        case let .folder(url) where url.normalizedPathKey == fileListModel.currentDirectory.normalizedPathKey:
+            .folder(nil)
+        case let .folder(url):
+            .folder(url)
         case .file:
-            (fileListModel.selection ?? host.currentFileURL).map(HistoryPresentation.file) ?? .folder(nil)
-        case .undetermined:
-            host.currentFileURL.map(HistoryPresentation.file) ?? .folder(nil)
+            (host.currentFileURL ?? fileListModel.selection).map(HistoryPresentation.file) ?? .folder(nil)
+        case nil:
+            .folder(nil)
         }
     }
 

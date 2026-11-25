@@ -42,9 +42,9 @@ enum ViewerWindowChrome {
         }
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
-        // 生成時点では一覧がまだ届いておらず、出すのは開こうとしている文書。
+        // 窓は必ず文書を開いて生成される(ADR 0013)。
         if let fileURL {
-            applyURL(fileURL, presenting: .undetermined, to: window)
+            applyURL(fileURL, presenting: .file, to: window)
         } else {
             window.title = String(localized: "menu.file.newTab", bundle: .l10n)
         }
@@ -59,7 +59,7 @@ enum ViewerWindowChrome {
     /// フォルダーを選んで一覧を出してもタイトルとプロキシアイコンが直前のファイルの
     /// ままだった。
     ///
-    /// `previewTarget` を **既定値の無い引数で受ける**のは、呼び出し側に「いま何を
+    /// 提示対象を **既定値の無い引数で受ける**のは、呼び出し側に「いま何を
     /// 提示しているか」を必ず書かせるため。既定値を持たせると、渡し忘れが
     /// コンパイルエラーにならないまま文書名へ戻る経路ができる。
     ///

@@ -86,19 +86,21 @@ struct SidebarNavigatorHistoryTests {
         )
         defer { withExtendedLifetime(host) {} }
         // 「tmp でフォルダー sub を選んで一覧を出している」状態を履歴へ積む。
+        // 本文の意図は窓が持つ(ADR 0013)。ここでは host がその代役を務める。
+        host.presentedTarget = .folder(fixture.sub)
         navigator.recordHistory()
-        #expect(navigator.fileListModel.previewTarget == .folder(fixture.sub))
 
         // sub へ降りてファイルを開き(履歴が 1 つ進む)、そこから戻る。
-        navigator.navigateToFolder(fixture.sub)
+        navigator.navigateToFolder(fixture.sub, presentingFolder: { host.presentedTarget = .folder($0) })
         await navigator.awaitSettled()
-        #expect(navigator.fileListModel.previewTarget == .file)
+        #expect(host.presentedTarget == .file)
 
-        navigator.navigateHistory(by: -1)
+        let target = navigator.navigateHistory(by: -1)
         await navigator.awaitSettled()
 
-        // 戻り先は「フォルダー sub の一覧」であってファイルではない。
-        #expect(navigator.fileListModel.previewTarget == .folder(fixture.sub))
+        // 戻り先は「フォルダー sub の一覧」であってファイルではない。窓へ返す値が
+        // そのフォルダーを指していれば、窓は着地を待たずにその一覧を出す。
+        #expect(target?.folderURL?.normalizedPathKey == fixture.sub.normalizedPathKey)
         #expect(navigator.fileListModel.selection?.lastPathComponent == "sub")
     }
 
@@ -119,15 +121,16 @@ struct SidebarNavigatorHistoryTests {
         // 1) sub で child.mmd を提示している状態を積む。
         navigator.recordHistory()
         // 2) 親 tmp へ上がる。直前の子フォルダー sub が選ばれ、提示はフォルダー一覧になる。
-        navigator.navigateToFolder(fixture.tmp)
+        navigator.navigateToFolder(fixture.tmp, presentingFolder: { host.presentedTarget = .folder($0) })
         await navigator.awaitSettled()
-        #expect(navigator.fileListModel.previewTarget == .folder(fixture.sub))
+        #expect(host.presentedTarget == .folder(fixture.sub))
 
         // 3) 戻ると 1) のファイル提示に戻る(フォルダー一覧が残り続けない)。
-        navigator.navigateHistory(by: -1)
+        // 戻り先の文書は開いたままなので切替は起きない。それでも窓へはファイルの提示を返す。
+        let target = navigator.navigateHistory(by: -1)
         await navigator.awaitSettled()
 
-        #expect(navigator.fileListModel.previewTarget == .file)
+        #expect(target == .file)
         #expect(navigator.fileListModel.selection?.lastPathComponent == "child.mmd")
         #expect(host.currentFileURL?.lastPathComponent == "child.mmd")
     }
@@ -149,7 +152,7 @@ struct SidebarNavigatorHistoryTests {
         )
         defer { withExtendedLifetime(host) {} }
         navigator.recordHistory()
-        navigator.navigateToFolder(fixture.sub)
+        navigator.navigateToFolder(fixture.sub, presentingFolder: { _ in })
         await navigator.awaitSettled()
         // sub の中で 2 つめのファイルを選び直す(クリックと同じく選択を書くだけ)。
         navigator.fileListModel.selection = note
@@ -162,7 +165,7 @@ struct SidebarNavigatorHistoryTests {
         #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.tmp.normalizedPathKey)
 
         // 記憶されていれば、sub へ入り直したときに先頭行ではなく note.mmd が選ばれる。
-        navigator.navigateToFolder(fixture.sub)
+        navigator.navigateToFolder(fixture.sub, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.selection?.lastPathComponent == "note.mmd")

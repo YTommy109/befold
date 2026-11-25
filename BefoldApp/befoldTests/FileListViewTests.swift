@@ -188,9 +188,9 @@ struct FileListViewTests {
 
         #expect(result == .handled)
         #expect(view.model.selection == fixture.folder.id)
-        // 移った先はフォルダーなので開かない。提示対象はそのフォルダーの一覧へ移る。
+        // 移った先はフォルダーなので開かない。本文にはそのフォルダーの一覧を出すよう窓へ伝える。
         #expect(selected.get() == nil)
-        #expect(view.model.previewTarget == .folder(fixture.folder.url))
+        #expect((view.delegate as? FileListViewDelegateSpy)?.selectedFolders == [fixture.folder.url])
     }
 
     @Test("選択が nil の状態で selectNext を呼ぶと先頭エントリが選択され onSelect が呼ばれる")
