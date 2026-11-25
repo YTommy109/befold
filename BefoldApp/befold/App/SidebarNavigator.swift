@@ -334,9 +334,4 @@ final class SidebarNavigator {
         if revealsInTree { layoutTransition.revealSelection(under: fileListModel.currentDirectory) }
         recordHistory()
     }
-
-    /// ファイル切替が別ウィンドウ移譲・失敗で成立しなかったときに選択を元へ戻す。
-    func restoreSelection(to url: URL) {
-        fileListModel.selection = url
-    }
 }

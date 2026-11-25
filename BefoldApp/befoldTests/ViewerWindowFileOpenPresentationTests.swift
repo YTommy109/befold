@@ -240,3 +240,53 @@ extension ViewerWindowFileOpenPresentationTests {
         #expect(controller.fileURL == opened)
     }
 }
+
+// MARK: - Failed Switch
+
+extension ViewerWindowFileOpenPresentationTests {
+    enum FolderPresentation: String, CaseIterable {
+        /// フォルダーに入った(表示中フォルダー自身の一覧。選択は無い)。
+        case entered
+        /// 表示中フォルダーの中のフォルダー行を選んだ(選択はその行)。
+        case folderRow
+    }
+
+    /// 一覧の行が古く、押したファイルがもう無いと切替は失敗する。選択は本文の意図に合わせて
+    /// 戻し、開いている文書の行は強調しない(TASK-930.6)。かつては文書の行へ戻しており、
+    /// 提示していない行が光ったうえ、表示形式の切り替えがカレントを文書の親へ移していた。
+    @Test(
+        "フォルダー一覧の表示中にファイル切替が失敗すると、選択は本文の意図に合わせて戻る",
+        arguments: [SidebarLayoutMode.tree, .drillDown],
+        FolderPresentation.allCases
+    )
+    func failedSwitchRestoresSelectionMatchingIntent(
+        layout: SidebarLayoutMode,
+        presentation: FolderPresentation
+    ) async throws {
+        let fixture = try await makeFixture(
+            layout: layout,
+            prefix: "FileOpenPresentation.failed.\(layout).\(presentation)"
+        )
+        let controller = fixture.controller
+        defer { controller.close() }
+        let (folder, expectedSelection): (URL, URL?) = switch presentation {
+        case .entered: (fixture.other, nil)
+        case .folderRow: (fixture.base, fixture.sub)
+        }
+        switch presentation {
+        case .entered: controller.navigateToFolder(fixture.other)
+        case .folderRow: controller.fileListDidSelectFolder(fixture.sub)
+        }
+        await controller.sidebar.awaitSettled()
+        let missing = folder.appendingPathComponent("gone.md")
+        controller.fileListModel.selection = missing // 古い行を押した
+
+        controller.switchFile(to: missing)
+
+        #expect(controller.isPreviewingFolder)
+        #expect(controller.fileListModel.selection?.normalizedPathKey == expectedSelection?.normalizedPathKey)
+        controller.sidebar.applyDisplayChange(.toggleLayoutMode)
+        await controller.sidebar.awaitSettled()
+        #expect(controller.fileListModel.currentDirectory.normalizedPathKey == folder.normalizedPathKey)
+    }
+}

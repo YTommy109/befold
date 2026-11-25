@@ -7,6 +7,7 @@ import Foundation
 /// `SidebarNavigator.syncAfterSwitch` と `SidebarHistoryController` の履歴適用は
 /// どちらもここを通る。かつては両者が同じ手順を別々に書いており、片方を直すと
 /// 兄弟へ穴が残る形だった(そのことは後者のコメント自身が相互参照で記録していた)。
+/// 切替が失敗したときの選択の戻し(`restoreSelection(on:)`)も、同じ「切替の直後の選択」なのでここに置く。
 ///
 /// 型として切り出しているのは、`SidebarNavigator` のメソッドにすると
 /// 「同期区間を書く場所」が navigator の 30 本を超えるメソッドの中に埋もれ、
@@ -49,6 +50,19 @@ enum SidebarPostSwitchSync {
             confirmSelection(selection, on: navigator)
             return true
         }
+    }
+
+    /// ファイル切替が失敗したとき、押した行に移った選択を本文の意図に合わせて戻す(ADR 0013)。
+    /// フォルダー一覧を出しているなら開いている文書の行は選ばない。選ぶと提示していない行が
+    /// 光り、表示形式の切り替えがカレントを文書の親へ移す(TASK-930.6)。
+    static func restoreSelection(on navigator: SidebarNavigator) {
+        guard let host = navigator.host else { return }
+        let model = navigator.fileListModel
+        guard let folder = host.presentedTarget?.folderURL else {
+            model.selection = host.currentFileURL
+            return
+        }
+        model.selection = folder.normalizedPathKey == model.currentDirectory.normalizedPathKey ? nil : folder
     }
 
     /// 選択をいまの一覧の行へ寄せて確定する。同期区間と一覧着地の両方から呼ぶ(冪等)。

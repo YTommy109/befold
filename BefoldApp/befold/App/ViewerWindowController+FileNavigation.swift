@@ -64,7 +64,7 @@ extension ViewerWindowController {
         case .switched:
             sidebar.syncAfterSwitch(to: newURL)
         case .failed:
-            sidebar.restoreSelection(to: oldURL)
+            SidebarPostSwitchSync.restoreSelection(on: sidebar)
         }
     }
 
