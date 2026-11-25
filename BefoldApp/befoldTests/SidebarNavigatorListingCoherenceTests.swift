@@ -241,12 +241,10 @@ struct SidebarNavigatorListingCoherenceTests {
         )
 
         await singleTask?.value
-        // より新しい状態(clean.md のみ変更)が反映される。changed.md が残るのは絞り込みの
-        // 取りこぼしではなく、移動時に先頭行として開いた文書だから(TASK-286 / TASK-310)。
-        // 開いている文書を git 絞り込みで黙って消さないのは意図した振る舞い。
+        // より新しい状態(clean.md のみ変更)が反映される。フォルダーに入っても文書は
+        // 開かない(ADR 0013 決定 5)ので、changed.md を開いている文書として残す理由も無い。
         #expect(
-            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent)
-                == ["changed.md", "clean.md"]
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["clean.md"]
         )
     }
 

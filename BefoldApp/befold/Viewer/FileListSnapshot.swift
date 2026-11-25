@@ -29,7 +29,7 @@ struct FileListSnapshot {
 
     /// `entries` に絞り込みを 1 回だけ適用してスナップショットを作る。
     /// **この一覧の唯一の作り方**で、`FileListModel.visibleEntries` も
-    /// `firstSelectableEntryURL` もここから導く。呼び出し側が別々に
+    /// `firstSelectable` もここから導く。呼び出し側が別々に
     /// `FileListFilter.apply` を呼ぶ形へ戻すと、同じ入力から違う答えが出る余地と、
     /// 1 打鍵で絞り込みが何度も走る問題(TASK-418)が戻る。
     ///

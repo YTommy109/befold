@@ -184,7 +184,7 @@ struct ViewerWindowFileOpenPresentationTests {
     /// `ViewerWindowAssembler.makeSplitViewController` の `onSelectFile` /
     /// `moveToAdjacentFile`)ので、`switchFile` の経路で代表させる。
     enum OpenPath: String, CaseIterable {
-        case quickOpen, sidebarFileRow, link, folderEntryHeadFile, historyBack
+        case quickOpen, sidebarFileRow, link, historyBack
     }
 
     @Test("フォルダー一覧の表示中にどの経路でファイルを開いても、本文は文書の提示 1 回だけで移る", arguments: OpenPath.allCases)
@@ -205,12 +205,38 @@ struct ViewerWindowFileOpenPresentationTests {
         case .quickOpen: controller.switchFile(to: fixture.deep)
         case .sidebarFileRow: controller.fileListDidSelectFile(fixture.deep)
         case .link: controller.openReference(fixture.deep, disposition: .currentTab)
-        case .folderEntryHeadFile: controller.navigateToFolder(fixture.other) // 先頭行は t.md
         case .historyBack: controller.navigateHistory(by: -1)
         }
         await controller.sidebar.awaitSettled()
 
         #expect(recorder.targets == [.file], "意図の遷移: \(recorder.targets)")
         #expect(!controller.isPreviewingFolder)
+    }
+}
+
+// MARK: - Folder Entry
+
+extension ViewerWindowFileOpenPresentationTests {
+    /// フォルダーに入る・上へ移動すると、本文には移動先の一覧が出て、開いている文書は
+    /// 変わらない(ADR 0013 決定 5 / TASK-930.3)。かつては先頭行(other なら t.md)を
+    /// 自動で開き、上へ移動では直前にいた子フォルダーの一覧を出していた。
+    @Test("リスト表示でフォルダーに入る・上へ移動すると、移動先の一覧を出し文書は切り替えない")
+    func enteringOrLeavingFolderPresentsDestinationListing() async throws {
+        let fixture = try await makeFixture(layout: .drillDown, prefix: "FileOpenPresentation.enter")
+        let controller = fixture.controller
+        defer { controller.close() }
+        let opened = controller.fileURL
+
+        controller.navigateToFolder(fixture.other) // 先頭行は t.md(ファイル)
+        await controller.sidebar.awaitSettled()
+        #expect(controller.presentationIntent.target == PreviewTarget.folder(fixture.other))
+        #expect(controller.fileURL == opened)
+
+        controller.navigateToFolder(fixture.sub)
+        await controller.sidebar.awaitSettled()
+        controller.navigateToFolder(fixture.base) // 上へ移動
+        await controller.sidebar.awaitSettled()
+        #expect(controller.presentationIntent.target == PreviewTarget.folder(fixture.base))
+        #expect(controller.fileURL == opened)
     }
 }

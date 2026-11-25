@@ -7,10 +7,10 @@ import Foundation
 ///
 /// ## これ以上分割しない(TASK-604.7 の判断)
 ///
-/// 実処理は既に 8 つの協力型へ出してある(`SidebarTreePresenter` /
+/// 実処理は既に 7 つの協力型へ出してある(`SidebarTreePresenter` /
 /// `SidebarListingCoordinator` / `SidebarLayoutTransition` / `SidebarPostSwitchSync` /
 /// `SidebarHistoryController` / `SidebarGitStatusCoordinator` /
-/// `SidebarBaseDirectoryResolver` / `SidebarSelectionMemory`)。本体に残るのは
+/// `SidebarBaseDirectoryResolver`)。本体に残るのは
 /// **協力型どうしを繋ぐハブ**で、20 本ほどの 1 行委譲がその実体。行数の大半は doc。
 ///
 /// **`navigateToFolder` を別型へ出す案は採らない。** 唯一の候補だったが、
@@ -46,11 +46,6 @@ final class SidebarNavigator {
         historyController.history
     }
 
-    /// ディレクトリごとの「そこを離れる直前に選択していた項目」の記憶(TASK-309)。
-    /// 触るのはフォルダー移動(SidebarNavigator+FolderNavigation.swift)だけなので
-    /// `private` にはできない(Swift の `private` はファイルスコープ)。
-    let selectionMemory: SidebarSelectionMemory
-
     /// サイドバーの行の組み立てと `fileListModel.entries` への反映(ツリー展開を含む)。
     ///
     /// **注入引数にしない。** デフォルト引数で外から渡せる形にすると、渡し忘れが
@@ -78,8 +73,7 @@ final class SidebarNavigator {
     ///
     /// **`private` へは戻せない**(TASK-442.5 / AC#5)。Swift の `private` は
     /// ファイルスコープで、別ファイルの extension である
-    /// SidebarNavigator+FolderNavigation.swift が `host != nil` の確認と
-    /// `select(_:presentingWith:)` への受け渡しで読むため。e94161d で
+    /// SidebarNavigator+FolderNavigation.swift が `host != nil` の確認で読むため。e94161d で
     /// `private` → `private(set)` へ緩んだのは読み取り側だけで、**書き込みを
     /// `attach(to:)` に限定する**当初の意図は `private(set)` で保たれている。
     private(set) weak var host: SidebarNavigatorHost?
@@ -114,7 +108,6 @@ final class SidebarNavigator {
         self.fileListModel = fileListModel
         // 協力型は**ここでしか生成しない**(注入引数にすると渡し忘れが静かに
         // 別インスタンスになる / TASK-319 と同型)。クロージャは素通しする。
-        selectionMemory = SidebarSelectionMemory(fileListModel: fileListModel)
         tree = SidebarTreePresenter(fileListModel: fileListModel, childrenLister: childrenLister)
         baseDirectory = SidebarBaseDirectoryResolver(
             fileListModel: fileListModel, git: git

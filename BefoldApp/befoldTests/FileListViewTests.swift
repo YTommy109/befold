@@ -174,14 +174,14 @@ struct FileListViewTests {
         #expect(selected.get() == fixture.file1.url)
     }
 
-    @Test("フォルダーを降りた直後のハイライトから、そのまま矢印キー操作を続けられる")
+    @Test("フォルダー一覧の表示中に先頭行がハイライトされていれば、そこから矢印キー操作を続けられる")
     func keyboardNavigationStartsFromTheDescendHighlight() {
-        // navigateToFolder が先頭行をハイライトした状態(選択はあるがプレビューは一覧)。
-        // ここから ↓ を押した利用者は 2 行目へ進めなければならない(TASK-310 AC#3)。
+        // 選択はあるが本文は一覧、という状態(TASK-310 AC#3 の名残。フォルダーに入った直後は
+        // もう選択を付けないが、利用者が選んだ後の同じ状態はある)。↓ で 2 行目へ進めること。
         let fixture = StandardEntries()
         let selected = LockedBox<URL?>(nil)
         let view = makeView(entries: fixture.all, selection: nil) { url in selected.set(url) }
-        view.model.selection = view.model.firstSelectableEntryURL
+        view.model.selection = view.model.listSnapshot.firstSelectable?.url
         #expect(view.model.selection == fixture.file0.id)
 
         let result = view.selectNext(in: view.model.listSnapshot)

@@ -113,9 +113,10 @@ struct BlankTabReplacementTests {
         withExtendedLifetime(source.sidebar) {}
     }
 
-    /// 文書タブと同じく、移動先の先頭がファイルならそれを開く(TASK-310)。空タブでは置き換えになる。
-    @Test("サイドバーのフォルダ移動で先頭がファイルなら空タブが文書へ置き換わる", testTimeLimit())
-    func navigatingToFolderWithFileReplacesBlank() async throws {
+    /// フォルダーに入ってもファイルは開かない(ADR 0013 決定 5 / TASK-930.3)。空タブは空タブの
+    /// まま一覧だけが移る。かつては移動先の先頭行を開き、空タブが文書に置き換わっていた(TASK-310)。
+    @Test("サイドバーのフォルダ移動では、先頭がファイルでも空タブは置き換わらない", testTimeLimit())
+    func navigatingToFolderWithFileKeepsBlank() async throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
         let origin = try tmp.file(named: "origin.md", contents: "fixture")
@@ -134,8 +135,9 @@ struct BlankTabReplacementTests {
         blank.fileListDidRequestNavigation(to: inner.deletingLastPathComponent())
         await navigator.awaitSettled()
 
-        #expect(blank.isClosed)
-        #expect(fixture.manager.allControllers.contains { $0.fileURL.lastPathComponent == "inner.md" })
+        #expect(!blank.isClosed)
+        #expect(!fixture.manager.allControllers.contains { $0.fileURL.lastPathComponent == "inner.md" })
+        #expect(navigator.fileListModel.entries.map(\.url.lastPathComponent) == ["inner.md"])
     }
 
     /// 文書タブはサイドバーの行を選んでも表示中のフォルダを動かさない(TASK-465)。空タブを挟んで
