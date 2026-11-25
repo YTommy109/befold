@@ -26,9 +26,9 @@ extension BlankTabWindowController: SidebarNavigatorHost {
         nil
     }
 
-    /// 空タブの本文は空タブの画面で、文書もフォルダー一覧も出していない。
+    /// 文書は出さない。フォルダー一覧を出していればそれ、空タブの画面なら nil。
     var presentedTarget: PreviewTarget? {
-        nil
+        presentationIntent.target.folderURL.map { .folder($0) }
     }
 
     /// サイドバーから開いた文書タブも、文書タブのサイドバーと同じくフォーカスを表に残す
@@ -56,11 +56,16 @@ extension BlankTabWindowController: FileListViewDelegate {
         }
     }
 
-    /// 空タブは本文にフォルダー一覧を出さない(本文は空タブの画面のまま)。
-    func fileListDidSelectFolder(_: URL) {}
+    /// 文書タブと同じく、選んだフォルダーの一覧を本文に出す(ADR 0013)。
+    func fileListDidSelectFolder(_ url: URL) {
+        presentationIntent.present(.folder(url))
+    }
 
+    /// 移動先の一覧を本文に出す(ADR 0013 決定 5)。文書には置き換わらない。
     func fileListDidRequestNavigation(to url: URL) {
-        sidebarContext?.navigator.navigateToFolder(url, presentingFolder: { _ in })
+        sidebarContext?.navigator.navigateToFolder(
+            url, presentingFolder: { [weak self] in self?.presentationIntent.present(.folder($0)) }
+        )
     }
 
     func fileListDidRequestOpenElsewhere(_ url: URL, disposition: OpenDisposition) {

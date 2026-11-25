@@ -32,7 +32,7 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14.2+)
   │     │     ├── BlankTabCoordinator        # 文書を持たない空タブの寿命の管理
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
-  │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
+  │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・ディレクトリ判定・選択パネル）
   │     ├── MainMenuCoordinator      # メインメニュー構築と動的メニューへのデータ供給
   │     ├── QuickOpenCoordinator     # Quick Open パネルの保持と候補源の組み立て
   │     ├── AppCLIRequestReceiver    # 別プロセスの CLI 要求の受信・ACK・重複排除
@@ -206,7 +206,7 @@ BefoldApp/
 | `AppDelegate` | アプリライフサイクルの起点と、メニュー/レスポンダチェーンから呼ばれる `@objc` アクションの受け口。依存の合成と各コーディネータへの転送だけを行い、実装は持たない |
 | `AppStores` | アプリ全体で 1 個ずつ持つ永続化ストアと表示設定の束。束ねた 1 個を配ることで「全体で共有」を構造として保つ |
 | `ActiveViewerProvider` | 「いま操作対象のビューアウィンドウ」を引く手続きの定義点（Quick Open パネル表示中も `NSApp.mainWindow` が元ウィンドウを指す前提をここだけに置く） |
-| `DocumentOpener` | URL をビューアウィンドウで開く唯一の入口。逐次化・実 FS 解決・ファイル選択パネル・解決失敗時のアラート |
+| `DocumentOpener` | URL をビューアウィンドウで開く唯一の入口。逐次化・ディレクトリ判定（実 FS）・ファイル選択パネル。ディレクトリは中のファイルへ解決せず、その一覧を出す窓（`ViewerWindowManager.openFolder`）で開く（ADR 0013 決定 5） |
 | `MainMenuCoordinator` | メインメニューの組み立てと、Recent / Bookmarks / 最近使ったリポジトリへのデータ供給（各 `NSMenuDelegate` の保持） |
 | `QuickOpenCoordinator` | Quick Open パネルの保持、候補源（`AppQuickOpenEnvironment`）の組み立て、決定先を開く |
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
@@ -253,7 +253,7 @@ BefoldApp/
 | `ViewerWindowKind` | ビューア窓の種別（`.viewer` / `.slide`）。生成時に決まり以後変わらない（`let` で受ける）。`allowsSidebar` / `hasToolbar` / `joinsTabs` / `isRestorable` / `recordsUsageHistory` / `acceptsReopen` の 6 つの述語と `defaultContentSize`（`.viewer` は 1100×850、`.slide` は 1280×720 = 16:9）を持ち、**呼び出し側で `kind == .slide` と書かない**。`.slide` はプレゼン用のスライド窓で、サイドバー無し・ツールバー無し・タブ合流なし・セッション復元の対象外・利用履歴に残さない・再オープンの受け皿にならない。`joinsTabs` は**両方向をこの 1 つで決める**——既存のグループへ合流する側（`ViewerWindowChrome` の `tabbingMode`）と、この窓のグループへ他の窓が加わる側（`ViewerWindowOpenPolicy.effectiveDisposition`）。器の `tabbingMode = .disallowed` は**自動**タブ化しか止めず、`NSWindow.addTabbedWindow(_:ordered:)` の明示的な結合は通る（TASK-615）。`recordsUsageHistory` は「最近使った項目」と「最近使ったリポジトリ」の両方を 1 つの述語で扱い、判定は各履歴ストア（`RecentDocumentsStore.noteOpened(_:kind:)` は `kind` を必須引数で受け、`RecentRepositoryRecorder.recordIfNeeded(for:controller:)` は解決を始める前に弾く）の中に置く（TASK-610） |
 | `SlideKeyAction` / `SlideKeyMonitor` | スライド窓の前後移動キー。判定は keyCode の純粋な表（Space・↓ が次、Shift+Space・Backspace・↑ が前、⌘/⌥/⌃ 付きとテキスト入力中は素通し）で、検知は `SwipeHistoryMonitor` と同じローカルイベントモニタ。**`characters` ではなく keyCode で判定する**（矢印の characters は非印字でレイアウトにも依る）。扱ったイベントは消費するので、JS 側の `spaceScroll` と `viewer-src/keyboard.ts` の矢印スクロールには届かない |
 | `SidebarInheritance` | 新しい窓を開くときに起点の窓（`SidebarInheritanceSource`。文書タブと空タブ）から引き継ぐ材料の採取。運ぶのは 3 つ——列挙の材料（`SidebarListingSeed`）と、ツリーの展開状態（pathKey → URL）と、タブとして開くときのサイドバー開閉。**展開は seed に混ぜない**（seed の `canApply(to:)` は「列挙の入力が同じか」を問うもので、展開は列挙の入力ではない）。表示 4 値はここを通らず `SidebarDisplayOverrides` が運ぶ |
-| `BlankTabCoordinator` / `BlankTabWindowController` | ⌘T とタブバーの + が開く、文書を持たないタブ。`ViewerStore` と描画面を持たない構造で、ファイルを選ぶまで WebKit と文書の監視を作らない。文書タブから開くとサイドバーを持ち（`SidebarNavigatorHost` / `FileListViewDelegate` を自身が実装）、起点の窓が無ければ持たない。文書へ置き換わるときは `ViewerDocumentWindow.replacement` に置き換え先を残し、解決中だった別の要求が起点を読み替える |
+| `BlankTabCoordinator` / `BlankTabWindowController` | ⌘T とタブバーの + が開く、文書を持たないタブ。`ViewerStore` と描画面を持たない構造で、ファイルを選ぶまで WebKit と文書の監視を作らない。文書タブから開くとサイドバーを持ち（`SidebarNavigatorHost` / `FileListViewDelegate` を自身が実装）、起点の窓が無ければ持たない。本文は窓ごとの `PresentationIntent` で決まり、フォルダーなら `FolderListingView`、でなければ空タブの画面を出す。ディレクトリを開いた窓（`BlankTabCoordinator.openFolder`）はディレクトリから作ったサイドバーを持ち、その一覧から始まる。文書へ置き換わるときは `ViewerDocumentWindow.replacement` に置き換え先を残し、解決中だった別の要求が起点を読み替える |
 | `ViewerDocumentWindow` | ビューアの `NSWindow`。タブバーの + と ⌘T を同じ生成経路（`AppDelegate.newWindowForTab`）へ送る |
 | `DocumentFileDropView` | 描画面の上でファイルのドロップだけを受けるオーバーレイ。`hitTest` は常に nil で、通常のマウス入力は下へ通す。`install(on:)` が窓の内容を子として包み、`NSSplitView` の分割ペインを増やさない |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController`。幅は 200〜480pt で `splitView.autosaveName` により起動をまたいで永続化する。`allowsSidebar` が false の種別では `toggleSidebar(_:)` と `setSidebarCollapsed(_:)` が no-op になり、**CLI の `--sidebar` を含む全開閉経路が止まる**。保存値へ記録するのは利用者の操作である `toggleSidebar(_:)` だけ。止まると `onCollapsedChange` が発火せず `SidebarStateStore.recordToggle` にも届かない |

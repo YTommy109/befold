@@ -30,7 +30,9 @@ enum PreviewTarget: Equatable {
 /// 意図を書ける形になると、上の取り違えがそのまま戻る。サイドバーが提示を知る必要がある
 /// 場面(履歴の記録)は `SidebarNavigatorHost.presentedTarget` の読み取りだけで足りる。
 ///
-/// 窓は必ず文書を開いて生成されるため、初期値は `.file`。「まだ分からない」状態は無い。
+/// 文書タブは必ず文書を開いて生成されるため、初期値は `.file`。「まだ分からない」状態は無い。
+/// 文書を持たない窓(`BlankTabWindowController`)では `.file` が空タブの画面を表し、
+/// `befold <ディレクトリ>` などで開いたフォルダーの窓は `.folder` から始まる。
 @MainActor
 @Observable
 final class PresentationIntent {

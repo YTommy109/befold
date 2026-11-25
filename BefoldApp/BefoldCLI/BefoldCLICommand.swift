@@ -15,7 +15,7 @@ struct BefoldCLICommand: AsyncParsableCommand {
         abstract: "Mermaid/Markdown viewer.",
         usage: "befold [options] [file/folder...]",
         discussion: """
-        Each path opens in its own window.
+        Each path opens in its own window. A folder opens as a listing of its contents.
         To open a path starting with a hyphen, use `--` to treat everything after it \
         as paths (e.g. befold -- -notes.md).
         """,

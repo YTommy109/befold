@@ -42,7 +42,8 @@ enum ViewerWindowChrome {
         }
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.isReleasedWhenClosed = false
-        // 窓は必ず文書を開いて生成される(ADR 0013)。
+        // 文書タブは必ず文書を開いて生成される(ADR 0013)。文書の無い窓のタイトルは
+        // BlankTabWindowController が意図に合わせて書き直す。
         if let fileURL {
             applyURL(fileURL, presenting: .file, to: window)
         } else {
