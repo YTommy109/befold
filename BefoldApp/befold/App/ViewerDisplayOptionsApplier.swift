@@ -52,4 +52,26 @@ enum ViewerDisplayOptionsApplier {
         // 他経路の間接発火に頼らずここで明示的に再同期する。
         controller.refreshUIState()
     }
+
+    // MARK: - ディレクトリを開いた窓
+
+    // CLI の表示オプションのうち、文書の無い窓(ADR 0013 決定 5)に意味があるのはサイドバーの
+    // 3 つ(並び順・不可視ファイル・開閉)だけで、文書タブと同じく**この窓限りの上書き**として
+    // 当てる(保存された既定値は書き換えない)。
+
+    /// 開閉はディレクトリを開いたので既定で表示する(`--no-sidebar` が優先。文書タブの
+    /// `forceSidebarVisible` と同じ解決順)。サイドバーの生成前に決まるので種で渡す。
+    static func folderSeed(_ options: CLIOpenOptions) -> SidebarInheritance.Seed {
+        var seed = SidebarInheritance.Seed.none
+        seed.sidebarCollapsed = options.showSidebar.map { !$0 } ?? false
+        return seed
+    }
+
+    /// 並び順・不可視ファイルを、生成したサイドバーの表示状態へ当てる。
+    static func apply(_ options: CLIOpenOptions, toFolderWindow display: SidebarDisplayState) {
+        display.applyCLIOverride(
+            sortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
+            showHiddenFiles: options.showHiddenFiles
+        )
+    }
 }
