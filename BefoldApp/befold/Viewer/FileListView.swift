@@ -161,8 +161,28 @@ struct FileListView: View {
     /// 通るだけなので、ここには入らない。`.onChange(of: model.selection)` で代用できないのは
     /// この非対称が失われるためで、`SidebarPostSwitchSync.confirmSelection` のような
     /// 「切替後に選択を確定させる冪等処理」からも open が返って経路が循環する。
+    ///
+    /// **修飾キー付きのクリックが起こした書き戻しは確定しない(TASK-931)。** そのクリックは
+    /// `handleRowTap` が「選択を動かさず別の場所で開く / 何もしない」として既に処理している。
+    /// `List` は同じクリックで行の選択も変えて書き戻すので、ここで開くと起点のタブまで
+    /// 同じファイルへ切り替わる。判定は書き戻しを起こしたイベントで行い、タップとの
+    /// 前後関係やフラグには頼らない。確定しなかった回は表のハイライトだけがクリックした行に
+    /// 残るため、表の選択を `model.selection` へ戻す。
     private var tableSelection: Binding<FileListEntry.ID?> {
-        Binding(get: { model.selection }, set: { commitSelection($0) })
+        Binding(get: { model.selection }, set: { newValue in
+            let event = NSApp.currentEvent
+            guard Self.acceptsTableSelectionWrite(eventType: event?.type, modifiers: event?.modifierFlags ?? [])
+            else { return model.restoreTableSelection() }
+            commitSelection(newValue)
+        })
+    }
+
+    /// テーブル発の選択の書き戻しを確定してよいか。マウスクリック由来で、修飾キーが
+    /// `handleRowTap` で選択を動かさない組み合わせ(⌃ / ⌘ / ⌘⇧)のときだけ false。
+    /// キーボード由来の選択変更(矢印キー)は従来どおり確定する(issue #570)。
+    static func acceptsTableSelectionWrite(eventType: NSEvent.EventType?, modifiers: NSEvent.ModifierFlags) -> Bool {
+        guard eventType == .leftMouseDown || eventType == .leftMouseUp else { return true }
+        return !modifiers.contains(.control) && OpenDisposition(modifiers: modifiers) == .currentTab
     }
 
     /// テーブル発の選択変更を確定する。選択を書き、対象がファイルなら開く。

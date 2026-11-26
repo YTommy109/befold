@@ -257,6 +257,16 @@ final class FileListModel {
         }
     }
 
+    /// 表の選択行を `selection` へ戻す。テーブル発の選択の書き戻しを確定しなかったとき
+    /// (`FileListView.tableSelection` / TASK-931)に呼ぶ。行番号は `scrollSelectionIntoView` と
+    /// 同じく `FileListSnapshot.index(of:)` で採る。
+    func restoreTableSelection() {
+        tableFocuser.restoreSelection { [weak self] in
+            guard let self, let selection = storedSelection else { return nil }
+            return listSnapshot.index(of: selection)
+        }
+    }
+
     #if DEBUG
         /// `listSnapshot` の評価回数(テスト計測用の足場)。計数そのものは
         /// `SnapshotEvaluationCounter` が持つ。観測対象にすると読み出しが再描画を
