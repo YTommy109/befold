@@ -150,6 +150,26 @@ struct SidebarHeaderControlsModelTests {
         #expect(item?.isChecked == showHiddenFiles)
     }
 
+    /// ⋯ は項目を Toggle で描く(TASK-932)。Toggle が見せるチェックは `isChecked`、
+    /// 選ばれたら書かれた値ではなく項目の `change` を発行する。並び順のチェック済みの側を
+    /// 選び直しても(Toggle は false を書く)同じ `setSortOrder` が届き、反転にはならない。
+    @Test("⋯ の Toggle はチェックを isChecked から読み、選ばれると項目の change を発行する")
+    @MainActor
+    func overflowToggleReadsCheckAndEmitsChange() {
+        let model = makeModel(sortOrder: .alphabetical, showHiddenFiles: true)
+        var emitted: [SidebarDisplayChange] = []
+
+        let toggles = model.overflowItems.map { item in
+            (item, SidebarHeaderControls.overflowToggle(for: item) { emitted.append($0) })
+        }
+        #expect(toggles.map(\.1.wrappedValue) == [false, true, true])
+
+        for (_, toggle) in toggles {
+            toggle.wrappedValue = !toggle.wrappedValue
+        }
+        #expect(emitted == model.overflowItems.map(\.change))
+    }
+
     /// フィルターは「入力があるか」でアクセント、「開いているか」で help が変わる。
     /// 既存の SidebarHeaderView の振る舞いを保つ（アイコンも .fill へ切り替わる）。
     @Test("フィルターは入力があるときアクセントになる", arguments: [true, false])
