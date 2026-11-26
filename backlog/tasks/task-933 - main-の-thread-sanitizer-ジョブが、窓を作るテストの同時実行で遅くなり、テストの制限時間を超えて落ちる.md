@@ -1,9 +1,11 @@
 ---
 id: TASK-933
 title: main の thread-sanitizer ジョブが、窓を作るテストの同時実行で遅くなり、テストの制限時間を超えて落ちる
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-11-26T12:40:33Z'
+updated_date: '2026-11-26T14:42:41Z'
 labels: []
 dependencies: []
 references:
@@ -55,7 +57,38 @@ Swift Testing はテストを並行に始めるため、窓を作るテストの
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 main の push で走る thread-sanitizer ジョブが、制限時間超過なしで通る(2 回以上続けて)
-- [ ] #2 窓を作るテストの同時数(または同時に生きる窓の数)が所要時間を押し上げていることを、抑えた場合と抑えない場合の比較で確かめ、結果を Notes に残す
-- [ ] #3 対策が、今後窓を作るテストを足したときにも効く形になっている(個別のテストを --skip するのではない)
-- [ ] #4 制限時間(BEFOLD_TEST_TIME_LIMIT_MINUTES)やジョブの timeout を延ばすだけで済ませていない
+- [x] #2 窓を作るテストの同時数(または同時に生きる窓の数)が所要時間を押し上げていることを、抑えた場合と抑えない場合の比較で確かめ、結果を Notes に残す
+- [x] #3 対策が、今後窓を作るテストを足したときにも効く形になっている(個別のテストを --skip するのではない)
+- [x] #4 制限時間(BEFOLD_TEST_TIME_LIMIT_MINUTES)やジョブの timeout を延ばすだけで済ませていない
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Swift Testing の並列幅上限 SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH が効くことをプローブで確かめる
+2. TSan 本体実行を既定 / 上限 4 で交互に 3 回ずつ流し、所要時間を比べる(AC#2)
+3. 効果があれば thread-sanitizer ジョブの env に上限を入れる(新しい窓テストにも自動で効く)
+4. 上限が黙って外れたら落ちるガードテストを置く(変数名が toolchain 更新で変わる場合に備える)
+5. main マージ後の thread-sanitizer 2 回連続成功で AC#1 を確認する
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## 対策と比較(実測 / 2026-11-26、手元 10 コア)
+- Swift Testing の並列幅上限 SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH が効くことをプローブで確認: 40 ケースの同時数は 既定 40 / =1 で 1 / =4 で 4。既定はコア数でなく無制限
+- swift test --sanitize=thread --skip befoldCLITests --skip PDF を既定と =4 で交互に 3 回ずつ(--skip-build、逐次)。テスト実行時間: 既定 348 / 381 / 385 秒、=4 で 112.6 / 114.5 / 107.6 秒(約 3.4 倍速)
+- 既定の 1 回目は 2 件失敗: FileWatcherSlowOpenTests.initReturnsWhileOpenIsBlocked と ViewerStoreIntegrationTests.deletingWatchedFileFiresOnFileGone(345 秒で失敗)。この回は swiftformat の実行と CPU が重なっていた。=4 の 3 回は全件成功
+- .timeLimit が個々のテストの開始から測るので、打ち切りが消えただけかもしれない、という見方は当たらない。全体の実行時間そのものが縮んでいる
+- 窓の枚数はこの比較では数えていない。同時に走るテストが 4 件以下になるので、窓を作るテストが同時に持つ窓も 4 件ぶんまでに収まる
+- 対策: ci.yml の thread-sanitizer ジョブの env に SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH: 4 を置く。テストに手を入れないので、後から足す窓テストにも同じく効く
+- 担保: ParallelizationWidthCapTests。変数が設定されたときだけ動き、同時に走るケースが上限を超えたら落ちる。テストが読む変数名を別の名前に差し替えて、フレームワークに上限が効いていない状態を作ると、16 件すべて失敗することを確認した(toolchain の更新で変数が無効になる場合の模擬)
+- AC#1 は main への push で走るジョブでしか確かめられない(workflow_dispatch なし)。マージ後に 2 回続けて緑になったらチェックする
+
+## 追記: CI と同じ 3 本の実測と、上限の範囲(2026-11-26)
+- 訂正: 上の「窓を作るテストが同時に持つ窓も 4 件ぶんまでに収まる」は推論で、測っていない(未確認)。この比較は全テストの同時数を抑えたもので、窓を作るテストだけを抑えたのではない。確かめるには、5 秒ごとに NSApp.windows を数える一時プローブを上限ありで 1 回流し、ピークを比べる
+- コミット済みのツリーで、上限 4 を付けて TSan の 3 本を流した: 本体 122 秒(テスト 109.8 秒、全件成功。ParallelizationWidthCapTests の 16 ケースも成功)/ PDF は 59 分で停止 / CLI 14 秒
+- PDF の停止: sample では 147 スレッドが PDFKit の formFillingQueue と VNRecognizeDocumentsRequest のセマフォ待ちで、PDFSurfaceLayoutTests.survivesDocumentAccessOffTheMainThread の DispatchQueue.global().async が実行されないまま止まっていた。TASK-907 と同じ libdispatch ワーカーの枯渇
+- 上限なしの PDF 16 秒 / CLI 12 秒(成功)。その後、上限ありの PDF をもう 3 回流すと 3 回とも成功(14〜16 秒)。上限ありで止まったのは 4 回中 1 回で、上限との因果は未確認
+- PDF と CLI はもともと遅くないので、上限は本体の実行(1 本目のコマンド)にだけ付ける。ジョブ全体の env には置かない
+<!-- SECTION:NOTES:END -->

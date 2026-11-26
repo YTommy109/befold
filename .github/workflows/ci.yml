@@ -394,8 +394,15 @@ jobs:
         # befoldCLITests と PDF を分ける理由は build-and-test と同じ(TASK-664 / TASK-907)。
         # 既定の 300 秒でなく 400 秒にするのは、成功した回でもテストの完了が最大 209 秒
         # 途切れるため(TASK-923 の実測)。
+        # 本体の実行だけ、同時に走るテストを 4 件に抑える(TASK-933)。Swift Testing は既定で
+        # 全テストを一斉に始め、窓を作るテストが 100 枚超の窓を開いたまま await する。AppKit の
+        # 描き直しは生きている窓の数に比例して重くなり、全体が制限時間を超えた。手元の 3 回ずつで
+        # 348〜385 秒 → 108〜114 秒。PDF と CLI は遅くなっていない(16 秒・12 秒)ので付けない。
+        # 上限下の PDF は 4 回中 1 回、TASK-907 と同じ Vision による libdispatch ワーカーの枯渇で
+        # 止まった(上限との因果は未確認)。変数は experimental なので、効かなくなったら
+        # ParallelizationWidthCapTests が落ちる。
         run: |
-          ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/main" -- swift test --sanitize=thread --skip befoldCLITests --skip PDF
+          SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=4 ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/main" -- swift test --sanitize=thread --skip befoldCLITests --skip PDF
           ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/pdf" -- swift test --sanitize=thread --skip befoldCLITests --filter PDF
           ../scripts/test-watchdog.sh --quiet-seconds 400 --diagnostics "$RUNNER_TEMP/test-hang/cli" -- swift test --sanitize=thread --filter befoldCLITests
 
