@@ -26,8 +26,8 @@ extension ViewerWindowController: NSWindowDelegate {
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
-        // ディレクトリ監視はしていないため、キーになったタイミングで一覧を取り直し、
-        // 他所で作成/削除されたファイルをサイドバーへ反映する。
+        // 監視は無いので、キー復帰で外部の変更を拾う(消えたフォルダーの一覧は文書へ戻す / TASK-930.7)。
+        presentationIntent.presentFileIfFolderVanished()
         sidebar.refreshFileList()
         delegate?.viewerWindowDidBecomeKey(self)
     }

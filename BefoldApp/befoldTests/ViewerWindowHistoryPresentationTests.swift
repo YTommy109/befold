@@ -169,4 +169,26 @@ struct ViewerWindowHistoryPresentationTests {
 
         #expect(controller.presentationIntent.target == PreviewTarget.folder(fixture.other))
     }
+
+    /// 記録したフォルダーが消えていたら、その一覧ではなく開いている文書を出す(TASK-930.7 と
+    /// 同じ規則。キー復帰を待つと、それまで失敗表示の一覧が残る)。
+    @Test("消えたフォルダーの一覧の履歴へ戻ると、開いている文書を出す")
+    func goingBackToVanishedFolderPresentsDocument() async throws {
+        let fixture = try await makeFixture(layout: .drillDown, prefix: "HistoryPresentation.vanished")
+        let controller = fixture.controller
+        defer { controller.close() }
+        controller.navigateToFolder(fixture.other)
+        await controller.sidebar.awaitSettled()
+        controller.switchFile(to: fixture.deep)
+        await controller.sidebar.awaitSettled()
+        try FileManager.default.removeItem(at: fixture.other)
+        let recorder = TargetRecorder(controller)
+
+        controller.navigateHistory(by: -1)
+
+        #expect(controller.presentationIntent.target == PreviewTarget.file)
+        #expect(!recorder.passedThroughFolder, "意図の遷移: \(recorder.targets)")
+        await controller.sidebar.awaitSettled()
+        #expect(controller.presentationIntent.target == PreviewTarget.file)
+    }
 }

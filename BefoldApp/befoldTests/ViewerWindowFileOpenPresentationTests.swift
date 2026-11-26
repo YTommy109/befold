@@ -290,3 +290,56 @@ extension ViewerWindowFileOpenPresentationTests {
         #expect(controller.fileListModel.currentDirectory.normalizedPathKey == folder.normalizedPathKey)
     }
 }
+
+// MARK: - Vanished Folder
+
+extension ViewerWindowFileOpenPresentationTests {
+    enum Vanish: String, CaseIterable {
+        case deleted, renamed
+    }
+
+    /// 一覧を出しているフォルダーが外で消えたら、窓がキーに戻ったときに開いている文書へ戻す
+    /// (TASK-930.7)。ディレクトリ監視は無いので、外部の変更を拾う契機はキー復帰だけ。
+    @Test("一覧を出しているフォルダーが消えると、キーに戻ったときに開いている文書へ戻る", arguments: FolderPresentation.allCases, Vanish.allCases)
+    func vanishedFolderFallsBackToDocument(presentation: FolderPresentation, vanish: Vanish) async throws {
+        let fixture = try await makeFixture(
+            layout: .drillDown,
+            prefix: "FileOpenPresentation.vanish.\(presentation).\(vanish)"
+        )
+        let controller = fixture.controller
+        defer { controller.close() }
+        let folder = presentation == .entered ? fixture.other : fixture.sub
+        switch presentation {
+        case .entered: controller.navigateToFolder(folder)
+        case .folderRow: controller.fileListDidSelectFolder(folder)
+        }
+        await controller.sidebar.awaitSettled()
+        #expect(controller.isPreviewingFolder)
+        switch vanish {
+        case .deleted: try FileManager.default.removeItem(at: folder)
+        case .renamed: try FileManager.default.moveItem(
+                at: folder,
+                to: folder.deletingLastPathComponent().appendingPathComponent("moved")
+            )
+        }
+
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+        await controller.sidebar.awaitSettled()
+
+        #expect(controller.presentationIntent.target == PreviewTarget.file)
+        #expect(controller.window?.title == "a.md")
+    }
+
+    @Test("一覧を出しているフォルダーが残っていれば、キーに戻っても一覧のまま")
+    func existingFolderStaysOnKey() async throws {
+        let fixture = try await makeFixture(layout: .drillDown, prefix: "FileOpenPresentation.vanish.kept")
+        let controller = fixture.controller
+        defer { controller.close() }
+        controller.fileListDidSelectFolder(fixture.sub)
+
+        controller.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+        await controller.sidebar.awaitSettled()
+
+        #expect(controller.presentationIntent.target == PreviewTarget.folder(fixture.sub))
+    }
+}

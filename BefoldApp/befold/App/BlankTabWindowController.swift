@@ -103,6 +103,7 @@ final class BlankTabWindowController: NSWindowController, NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) {
         guard let window else { return }
         ViewerTabGrouping.syncWindowsMenuMembership(among: ViewerTabGrouping.tabWindows(of: window))
+        presentationIntent.presentFileIfFolderVanished() // 文書が無いので空タブの画面へ戻る
         sidebarContext?.navigator.refreshFileList()
     }
 

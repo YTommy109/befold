@@ -19,7 +19,8 @@ enum PreviewTarget: Equatable {
 /// 窓が本文に何を出すかの**意図**(ADR 0013)。本文の提示はこの値だけから決まる。
 ///
 /// **書いてよいのは、利用者の操作を受けた入口だけ**——ファイルを開く・フォルダーを選ぶ・
-/// フォルダーに入る・履歴を再生する。書き手はすべて `ViewerWindowController` 側にある。
+/// フォルダーに入る・履歴を再生する。例外は、一覧を出しているフォルダーが外で消えたときに
+/// 窓が文書へ戻す 1 つ(`presentFileIfFolderVanished`)。書き手はすべて `ViewerWindowController` 側にある。
 /// サイドバーの選択・一覧の行・展開の状態から導かない。かつての導出
 /// (`PreviewTargetResolver`)は、行が非同期に届くまでの間「選択が一覧に無い」を
 /// フォルダー提示と取り違え、ファイルを開いた直後の本文に一覧を重ねていた
@@ -47,5 +48,22 @@ final class PresentationIntent {
         guard newTarget != target else { return }
         target = newTarget
         onChange?()
+    }
+
+    /// 一覧を出しているフォルダーが削除・改名で無くなっていたら、`.file`(文書タブは開いている
+    /// 文書、空タブは空タブの画面)へ戻す(TASK-930.7)。ディレクトリ監視は無いので、窓が外部の
+    /// 変更を拾う契機(キー復帰)で、サイドバーを取り直す**前**に呼ぶ。
+    func presentFileIfFolderVanished() {
+        presentExisting(target)
+    }
+
+    /// `present` と同じだが、フォルダーが無くなっていれば `.file` を書く。履歴の再生は記録した
+    /// フォルダーが消えていてもその一覧を書こうとするので、ここを通す(TASK-930.7)。
+    /// 判定はディレクトリが実在するかという事実で行い、サイドバーの行や取得の成否は見ない。
+    /// stat 1 回をメインで同期に行う(キー復帰と再生は高頻度の経路ではなく、
+    /// `performFileSwitch` の存在確認と同じ扱い)。
+    func presentExisting(_ newTarget: PreviewTarget) {
+        guard let folder = newTarget.folderURL, !DirectoryLister.isDirectory(folder) else { return present(newTarget) }
+        present(.file)
     }
 }

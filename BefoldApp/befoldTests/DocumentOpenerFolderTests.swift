@@ -104,4 +104,25 @@ struct DocumentOpenerFolderTests {
 
         #expect(folderWindow.sidebarCollapsible?.resolvedSidebarCollapsed == expectedCollapsed)
     }
+
+    /// 一覧の窓には文書が無いので、開いているフォルダーが消えたら空タブの画面へ戻す
+    /// (TASK-930.7。文書タブは開いている文書へ戻る)。
+    @Test("ディレクトリを開いた窓は、そのディレクトリが消えるとキーに戻ったときに空タブの画面になる")
+    func vanishedFolderFallsBackToBlankScreen() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let folder = tmp.url.appendingPathComponent("listed", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let fixture = MockedViewerWindowManager(files: [], directories: [tmp.url, folder])
+        defer { fixture.closeAll() }
+        let folderWindow = fixture.manager.openFolder(folder, options: CLIOpenOptions())
+        defer { folderWindow.close() }
+        #expect(folderWindow.presentedTarget == .folder(folder))
+        try FileManager.default.removeItem(at: folder)
+
+        folderWindow.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification))
+
+        #expect(folderWindow.presentedTarget == nil)
+        #expect(folderWindow.window?.title == String(localized: "menu.file.newTab", bundle: .l10n))
+    }
 }
