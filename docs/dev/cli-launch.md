@@ -136,7 +136,10 @@ Codable 適合がワイヤ表現の唯一の情報源。
   受信側は `CLIOpenOptions.openDisposition` で `OpenDisposition.newWindow` に写し、
   `ViewerWindowOpenPolicy.reusableController` が既存の窓を再利用しない。
 - `--compare` は `--diff` とセットでのみ指定できる（`validate()` が弾く）。単独指定を
-  黙って捨てず、取り違えを知らせるための選択。比較基準は窓ごとのライブ値で、
+  黙って捨てず、取り違えを知らせるための選択。例外はパスがすべてディレクトリのときで、
+  一覧の窓の比較基準（サイドバーの git バッジ）として単独で効く（TASK-930.8）。逆に
+  文書向けの指定（表示モード・行番号・`--line`）をディレクトリだけに付けると、
+  `CLIAppLauncher` が標準エラーへ警告して窓は開く（アプリの stderr は端末につながらないため CLI 側で出す）。比較基準は窓ごとのライブ値で、
   `--diff` だけなら窓の現在値を保つ。適用は `ViewerDocumentPresenter.applyCLIDisplay` の
   1 箇所（新規窓の init も既存窓への適用もここを通る）。
 

@@ -66,6 +66,14 @@ public struct CLIOpenOptions: Equatable, Codable, Sendable {
     /// `self != CLIOpenOptions()` で代用してはいけない。それでは `--hidden-files` 単独の
     /// 指定まで弾いてしまう。`CLIAppLauncher` が使う `options == CLIOpenOptions()` は
     /// 「そもそも GUI へ転送するか」の別判定であり、この述語とは目的が違う。
+    /// 文書の窓にしか効かない指定(表示モード・行番号・`--line`)があるか。ディレクトリだけを
+    /// 開くときに警告するために使う(TASK-930.8)。フォルダーの一覧の窓が受けるのは並び順・
+    /// 不可視ファイル・開閉・比較基準・`--new-window` で、適用は
+    /// `ViewerDisplayOptionsApplier.apply(_:toFolderWindow:)`(アプリ側)。
+    public var hasDocumentOnlyOptions: Bool {
+        showLineNumbers != nil || line != nil || displayMode != nil
+    }
+
     public var requiresPaths: Bool {
         sortOrder != nil || showLineNumbers != nil || displayMode != nil
             || comparisonTarget != nil || showSidebar != nil || line != nil || opensInNewWindow

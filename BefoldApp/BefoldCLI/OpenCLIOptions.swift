@@ -126,7 +126,7 @@ public struct OpenCLIOptions: ParsableArguments {
 
     @Option(
         name: .customLong("compare"),
-        help: "Specify the diff base: parent-branch, default-branch or head. Requires --diff."
+        help: "Diff base: parent-branch, default-branch or head. Requires --diff unless all paths are folders."
     )
     var comparisonTarget: CLIComparisonTargetOption?
 

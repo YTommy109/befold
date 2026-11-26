@@ -129,14 +129,14 @@ struct FileListView: View {
     /// 行本体のタップ。修飾キーで開き方を振り分ける(TASK-482)。対応表はビューア内
     /// リンクと同じ `OpenDisposition` にあり、ここに独自の表を作らない。
     /// ⌃ はコンテキストメニューの担当なので何もしない(`DirectHTMLLinkPolicy` と
-    /// 同じく `OpenDisposition` へ渡す前に弾く)。⌘ / ⌘⇧ のファイル行は選択を
-    /// 動かさず別の場所で開き、「選択 = このウィンドウの表示中ファイル」を保つ。
+    /// 同じく `OpenDisposition` へ渡す前に弾く)。⌘ / ⌘⇧ は選択を動かさず別の場所で開く
+    /// (フォルダー行はその一覧 / TASK-930.8)。選択はこのウィンドウの提示に合わせたまま保つ。
     /// テストから修飾キーを渡して呼べるよう internal。
     func handleRowTap(_ entry: FileListEntry, modifiers: NSEvent.ModifierFlags) {
         if modifiers.contains(.control) { return }
         let disposition = OpenDisposition(modifiers: modifiers)
-        if disposition != .currentTab, entry.kind == .file {
-            openIfFile(entry, with: disposition)
+        if disposition != .currentTab {
+            open(entry, with: disposition)
             return
         }
         model.selection = entry.id
@@ -190,17 +190,18 @@ struct FileListView: View {
     /// 着地)はここを通らないので、本文を動かさない。
     func presentSelected(_ entry: FileListEntry) {
         switch entry.kind {
-        case .file: openIfFile(entry, with: .currentTab)
+        case .file: open(entry, with: .currentTab)
         case .folder: delegate?.fileListDidSelectFolder(entry.url)
         }
     }
 
-    /// エントリがファイルなら `disposition` に従って開く。`.currentTab` は選択追従の
-    /// 経路(`fileListDidSelectFile`)、それ以外は選択を動かさない経路
-    /// (`fileListDidRequestOpenElsewhere`)へ配る。フォルダでは何もしない。
-    func openIfFile(_ entry: FileListEntry, with disposition: OpenDisposition) {
-        guard entry.kind == .file else { return }
+    /// `disposition` に従って開く。`.currentTab` はファイル行だけを選択追従の経路
+    /// (`fileListDidSelectFile`)へ配る(フォルダー行の提示は `presentSelected` の担当)。
+    /// それ以外は選択を動かさない経路(`fileListDidRequestOpenElsewhere`)へ、ファイル行も
+    /// フォルダー行も配る。フォルダーかどうかは受け手がファイルシステムで決める。
+    func open(_ entry: FileListEntry, with disposition: OpenDisposition) {
         if disposition == .currentTab {
+            guard entry.kind == .file else { return }
             delegate?.fileListDidSelectFile(entry.url)
         } else {
             delegate?.fileListDidRequestOpenElsewhere(entry.url, disposition: disposition)

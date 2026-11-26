@@ -39,7 +39,12 @@ struct DocumentOpenerFolderTests {
         let sub = inner.deletingLastPathComponent()
         let fixture = MockedViewerWindowManager(files: [inner], directories: [tmp.url, sub])
         defer { fixture.closeAll() }
-        let folderWindow = fixture.manager.openFolder(tmp.url, options: CLIOpenOptions())
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            tmp.url,
+            options: CLIOpenOptions(),
+            disposition: .currentTab,
+            relativeTo: nil
+        )
         defer { folderWindow.close() }
         let navigator = try #require(folderWindow.inheritableSidebar)
 
@@ -79,7 +84,12 @@ struct DocumentOpenerFolderTests {
         var options = CLIOpenOptions()
         options.showHiddenFiles = true
 
-        let folderWindow = fixture.manager.openFolder(dir, options: options)
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            dir,
+            options: options,
+            disposition: .currentTab,
+            relativeTo: nil
+        )
         defer { folderWindow.close() }
 
         let navigator = try #require(folderWindow.inheritableSidebar)
@@ -99,7 +109,12 @@ struct DocumentOpenerFolderTests {
         var options = CLIOpenOptions()
         options.showSidebar = showSidebar
 
-        let folderWindow = fixture.manager.openFolder(dir, options: options)
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            dir,
+            options: options,
+            disposition: .currentTab,
+            relativeTo: nil
+        )
         defer { folderWindow.close() }
 
         #expect(folderWindow.sidebarCollapsible?.resolvedSidebarCollapsed == expectedCollapsed)
@@ -115,7 +130,12 @@ struct DocumentOpenerFolderTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let fixture = MockedViewerWindowManager(files: [], directories: [tmp.url, folder])
         defer { fixture.closeAll() }
-        let folderWindow = fixture.manager.openFolder(folder, options: CLIOpenOptions())
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            folder,
+            options: CLIOpenOptions(),
+            disposition: .currentTab,
+            relativeTo: nil
+        )
         defer { folderWindow.close() }
         #expect(folderWindow.presentedTarget == .folder(folder))
         try FileManager.default.removeItem(at: folder)
@@ -124,5 +144,156 @@ struct DocumentOpenerFolderTests {
 
         #expect(folderWindow.presentedTarget == nil)
         #expect(folderWindow.window?.title == String(localized: "menu.file.newTab", bundle: .l10n))
+    }
+
+    // MARK: - Reuse and options (TASK-930.8)
+
+    /// git 取得が受けた比較基準を記録する。状態は返さない(基準が届いたかだけを測る)。
+    private final class TargetRecordingReader: GitStatusReading, @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [GitComparisonTarget] = []
+
+        var targets: [GitComparisonTarget] {
+            lock.lock(); defer { lock.unlock() }
+            return recorded
+        }
+
+        func indexFingerprint(forRepositoryAt _: URL) -> Date? {
+            nil
+        }
+
+        func status(forRepositoryAt _: URL, target: GitComparisonTarget) -> GitStatusSnapshot? {
+            lock.lock(); recorded.append(target); lock.unlock()
+            return nil
+        }
+    }
+
+    /// 同じディレクトリをもう一度開くと、既存の一覧の窓を前面に出す。新しい窓は作らない。
+    /// 修正前は開くたびに一覧の窓が増えた。
+    @Test("同じディレクトリをもう一度開くと、既存の一覧の窓を再利用する", testTimeLimit())
+    func reopeningSameDirectoryReusesFolderWindow() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fixture = MockedViewerWindowManager(files: [], directories: [tmp.url])
+        defer { fixture.closeAll() }
+        let opener = DocumentOpener(windowManager: fixture.manager, activeViewer: { nil }, activeBlankTab: { nil })
+
+        await opener.openViewer(for: tmp.url).value
+        await opener.openViewer(for: tmp.url).value
+
+        defer { fixture.manager.blankTabs.controllers.forEach { $0.close() } }
+        #expect(fixture.manager.blankTabs.controllers.count == 1)
+    }
+
+    /// 開き方ごとの規則は文書の窓と同じ表(`ViewerWindowOpenPolicy.reusableWindow`)を通る。
+    /// 手前のタブ扱いなら再利用、新しい窓(`--new-window`)なら常に新しく開く。
+    @Test("一覧の窓の再利用は開き方に従う", arguments: [(OpenDisposition.currentTab, 1), (.newWindow, 2)])
+    func folderWindowReuseFollowsDisposition(disposition: OpenDisposition, expectedCount: Int) {
+        let dir = URL(fileURLWithPath: "/mock/folder")
+        let fixture = MockedViewerWindowManager(files: [], directories: [dir])
+        defer { fixture.closeAll() }
+        let first = fixture.manager.blankTabs.openFolder(
+            dir,
+            options: CLIOpenOptions(),
+            disposition: .currentTab,
+            relativeTo: nil
+        )
+
+        let second = fixture.manager.blankTabs.openFolder(
+            dir,
+            options: CLIOpenOptions(),
+            disposition: disposition,
+            relativeTo: nil
+        )
+
+        defer { fixture.manager.blankTabs.controllers.forEach { $0.close() } }
+        #expect(fixture.manager.blankTabs.controllers.count == expectedCount)
+        #expect((first === second) == (expectedCount == 1))
+    }
+
+    /// `--compare` は一覧の窓の比較基準にも当たる。プロパティではなく、git 取得が受けた基準で測る。
+    @Test("--compare はディレクトリの窓の git 取得の比較基準になる", testTimeLimit())
+    func compareAppliesToFolderWindowGitFetch() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let fixture = MockedViewerWindowManager(files: [], directories: [tmp.url])
+        defer { fixture.closeAll() }
+        let reader = TargetRecordingReader()
+        fixture.manager.gitStatusStore = GitStatusStore(reader: reader, resolveRepositoryRoot: { _ in tmp.url })
+        var options = CLIOpenOptions()
+        options.comparisonTarget = .head
+
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            tmp.url, options: options, disposition: .currentTab, relativeTo: nil
+        )
+        defer { folderWindow.close() }
+        let navigator = try #require(folderWindow.inheritableSidebar)
+        await navigator.awaitSettled()
+
+        #expect(reader.targets.contains(.head), "git 取得が受けた基準: \(reader.targets)")
+    }
+
+    /// 再利用した窓にも CLI の表示オプションを当てる(黙って捨てない / TASK-413)。
+    @Test("再利用した一覧の窓にも CLI の表示オプションが当たる")
+    func reusedFolderWindowReceivesCLIOptions() throws {
+        let dir = URL(fileURLWithPath: "/mock/folder")
+        let fixture = MockedViewerWindowManager(files: [], directories: [dir])
+        defer { fixture.closeAll() }
+        let folderWindow = fixture.manager.blankTabs.openFolder(
+            dir,
+            options: CLIOpenOptions(),
+            disposition: .currentTab,
+            relativeTo: nil
+        )
+        defer { fixture.manager.blankTabs.controllers.forEach { $0.close() } }
+        var options = CLIOpenOptions()
+        options.showHiddenFiles = true
+        options.comparisonTarget = .head
+
+        fixture.manager.blankTabs.openFolder(dir, options: options, disposition: .currentTab, relativeTo: nil)
+
+        let navigator = try #require(folderWindow.inheritableSidebar)
+        #expect(navigator.fileListModel.display.showHiddenFiles)
+        #expect(folderWindow.comparisonTarget == .head)
+    }
+
+    // MARK: - Open elsewhere (TASK-930.8)
+
+    enum ElsewhereSource: String, CaseIterable {
+        case documentWindow, folderWindow
+    }
+
+    /// サイドバーのフォルダー行の「新しいタブ/ウィンドウで開く」は、そのフォルダーの一覧の窓を
+    /// 開く。修正前はフォルダーの URL で文書の窓を作っていた(テストの読み手はディレクトリでも
+    /// 存在すると答えるため)。新しいタブは起点のタブになる。
+    @Test("フォルダー行を別の場所で開くと、そのフォルダーの一覧の窓になる", arguments: ElsewhereSource.allCases, [OpenDisposition.newTab, .newWindow])
+    func openingFolderRowElsewherePresentsListing(source: ElsewhereSource, disposition: OpenDisposition) throws {
+        let base = URL(fileURLWithPath: "/mock/base")
+        let doc = base.appendingPathComponent("a.md")
+        let sub = base.appendingPathComponent("sub", isDirectory: true)
+        let fixture = MockedViewerWindowManager(files: [doc], directories: [base, sub])
+        defer { fixture.closeAll() }
+        defer { fixture.manager.blankTabs.controllers.forEach { $0.close() } }
+        let sourceWindow: NSWindow
+        switch source {
+        case .documentWindow:
+            let controller = try #require(fixture.manager.openViewer(for: doc))
+            sourceWindow = try #require(controller.window)
+            controller.fileListDidRequestOpenElsewhere(sub, disposition: disposition)
+        case .folderWindow:
+            let folder = fixture.manager.blankTabs.openFolder(
+                base,
+                options: CLIOpenOptions(),
+                disposition: .currentTab,
+                relativeTo: nil
+            )
+            sourceWindow = try #require(folder.window)
+            folder.fileListDidRequestOpenElsewhere(sub, disposition: disposition)
+        }
+
+        let opened = try #require(fixture.manager.blankTabs.controllers.first { $0.presentedTarget == .folder(sub) })
+        #expect(fixture.manager.allControllers.count == (source == .documentWindow ? 1 : 0), "フォルダーで文書の窓を作った")
+        let sharesTabGroup = opened.window?.tabGroup != nil && opened.window?.tabGroup === sourceWindow.tabGroup
+        #expect(sharesTabGroup == (disposition == .newTab))
     }
 }

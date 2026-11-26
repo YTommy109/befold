@@ -49,7 +49,7 @@ final class DocumentOpener {
     ///
     /// 既にどこかの窓で開いていればその窓を前面に出す(手前が文書タブでも空タブでも同じ結果に
     /// する。空タブは残す)。開いていなければ手前の空タブを置き換える。ディレクトリが渡された
-    /// 場合は、その一覧を出す窓を開く(ファイルは開かない)。拡張子を問わずウィンドウは開かれ、未対応の内容
+    /// 場合は、同じ一覧を出している窓があれば前面に出し、無ければその一覧を出す窓を開く(ファイルは開かない)。拡張子を問わずウィンドウは開かれ、未対応の内容
     /// ならビューア側でプレースホルダー表示する。フォーカスは本文へ移さない(本文へ移す
     /// Quick Open と CLI はそれぞれ `openInActiveTab` と `openPaths` を通る)。
     @discardableResult
@@ -196,7 +196,14 @@ final class DocumentOpener {
     ) async -> ViewerWindowController? {
         let isDirectory = await withBlockingWork { DirectoryLister.isDirectory(url) }
         if isDirectory {
-            if allowsDirectories { windowManager.openFolder(url, options: options) }
+            if allowsDirectories {
+                windowManager.blankTabs.openFolder(
+                    url,
+                    options: options,
+                    disposition: disposition,
+                    relativeTo: sourceWindow
+                )
+            }
             return nil
         }
         // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。

@@ -86,25 +86,6 @@ struct DirectoryEnumerationTests {
         #expect(files?.map(\.lastPathComponent) == ["dangling.mmd"])
     }
 
-    @Test("firstSupportedFile は自然順で最初の対応形式ファイルを返す")
-    func firstSupportedFileReturnsFirstSupported() throws {
-        let temp = try TempDir()
-        _ = try temp.file(named: "a.txt", contents: "")
-        _ = try temp.file(named: "b10.md", contents: "")
-        _ = try temp.file(named: "b2.md", contents: "")
-
-        let first = DirectoryEnumeration.firstSupportedFile(in: temp.url, fileReader: fileReader)
-        #expect(first?.lastPathComponent == "b2.md")
-    }
-
-    @Test("対応形式が無ければ firstSupportedFile は nil を返す")
-    func firstSupportedFileReturnsNilWhenNoneSupported() throws {
-        let temp = try TempDir()
-        _ = try temp.file(named: "a.bin", contents: "")
-
-        #expect(DirectoryEnumeration.firstSupportedFile(in: temp.url, fileReader: fileReader) == nil)
-    }
-
     @Test("resolveFileToOpen は対応形式を優先し、無ければ先頭ファイルへフォールバックする")
     func resolveFileToOpenPrefersSupportedThenFallsBack() throws {
         let supportedDir = try TempDir()

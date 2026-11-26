@@ -20,7 +20,7 @@ enum SidebarKeyAction: Equatable {
     case navigateToParent
     /// ツリー内で 1 つ上の階層の行へ選択を移す(ルートは変えない)。
     case selectParent
-    /// 選択中のファイルを開く。開き方(現在のタブ / 新規タブ / 新規ウィンドウ)は
+    /// 選択中の行を開く(別の場所で開くときはフォルダー行も含む)。開き方(現在のタブ / 新規タブ / 新規ウィンドウ)は
     /// ビューア内リンクと同じ `OpenDisposition` の対応表で決まる。
     case openFile(OpenDisposition)
     /// 選択中のフォルダを展開する。
@@ -67,7 +67,7 @@ enum SidebarKeyAction: Equatable {
             .navigateToParent
         case "k", .upArrow:
             .selectPrevious
-        // ⌘Return / ⌘⇧Return はファイル行を新規タブ / 新規ウィンドウで開く(TASK-482)。
+        // ⌘Return / ⌘⇧Return は行を新規タブ / 新規ウィンドウで開く(TASK-482。フォルダー行は一覧 / TASK-930.8)。
         // 修飾なしの `.return` と衝突させないため、下の `.return` より前に置く。
         case .return where modifiers.contains(.command):
             commandReturn(target: target, shiftKey: modifiers.contains(.shift))
@@ -118,11 +118,11 @@ enum SidebarKeyAction: Equatable {
         return target.isExpanded ? .collapse : .expand
     }
 
-    /// ⌘Return / ⌘⇧Return。作用するのはファイル行だけで、フォルダ行・選択なしでは
-    /// 何もしない(フォルダの「別の場所で開く」はコンテキストメニューの担当)。
+    /// ⌘Return / ⌘⇧Return。ファイル行はその文書、フォルダー行はその一覧を別の場所で開く
+    /// (コンテキストメニューと同じ / TASK-930.8)。選択なしでは何もしない。
     /// 開き方の対応表はここに書かず `OpenDisposition` へ委譲する。
     private static func commandReturn(target: Target?, shiftKey: Bool) -> SidebarKeyAction {
-        guard target?.kind == .file else { return .ignored }
+        guard target != nil else { return .ignored }
         return .openFile(OpenDisposition(commandKey: true, shiftKey: shiftKey))
     }
 

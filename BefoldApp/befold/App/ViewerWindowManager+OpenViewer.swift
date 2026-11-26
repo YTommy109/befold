@@ -142,10 +142,8 @@ extension ViewerWindowManager {
             cliOverrides: CLIDisplayOverrides(options),
             store: makeStore?(url),
             makeContentView: makeContentView,
-            openFileElsewhere: { [weak self] fileURL, disposition, placement, sourceWindow in
-                self?.openViewer(
-                    for: fileURL, disposition: disposition, relativeTo: sourceWindow, tabPlacement: placement
-                )
+            openFileElsewhere: { [weak self] in
+                self?.openElsewhere($0, disposition: $1, placement: $2, relativeTo: $3)
             }
         )
     }

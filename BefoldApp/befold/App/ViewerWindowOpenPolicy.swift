@@ -98,7 +98,22 @@ enum ViewerWindowOpenPolicy {
     /// Finder / Quick Open から開くと、スライド窓が前面化して通常窓が開かず、
     /// 利用履歴にも載らなかった。
     ///
-    /// 絞り込んだ候補に対して、disposition ごとの規則が続く。
+    /// 絞り込んだ候補に対して、disposition ごとの規則(`reusableWindow`)が続く。
+    @MainActor
+    static func reusableController(
+        from candidates: [ViewerWindowController],
+        disposition: OpenDisposition,
+        relativeTo sourceWindow: NSWindow?
+    ) -> ViewerWindowController? {
+        reusableWindow(
+            from: candidates.filter(\.kind.acceptsReopen),
+            disposition: disposition,
+            relativeTo: sourceWindow
+        )
+    }
+
+    /// 同じ対象を出している候補から、disposition ごとの規則で再利用する窓を選ぶ(nil なら新規)。
+    /// 文書の窓とフォルダーの一覧の窓(`BlankTabCoordinator.openFolder`)が同じ表を通る。
     ///
     /// - `.currentTab`: Finder/CLI/リンクからの再オープン。どのウィンドウで開いていても
     ///   既存を前面化する(ウィンドウ内のサイドバー切替だけは openViewer を通らず
@@ -109,12 +124,9 @@ enum ViewerWindowOpenPolicy {
     /// - `.newWindow` / `.slide`: ユーザーが明示的に新しい窓を求めた経路なので常に素通しする
     ///   (既に開いているファイルで「新しいウィンドウで開く」が無反応に見える問題: issue #431)。
     @MainActor
-    static func reusableController(
-        from candidates: [ViewerWindowController],
-        disposition: OpenDisposition,
-        relativeTo sourceWindow: NSWindow?
-    ) -> ViewerWindowController? {
-        let candidates = candidates.filter(\.kind.acceptsReopen)
+    static func reusableWindow<Controller: NSWindowController>(
+        from candidates: [Controller], disposition: OpenDisposition, relativeTo sourceWindow: NSWindow?
+    ) -> Controller? {
         switch disposition {
         case .currentTab:
             return candidates.first

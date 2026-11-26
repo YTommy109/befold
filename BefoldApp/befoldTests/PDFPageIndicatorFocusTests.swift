@@ -8,7 +8,7 @@ import Testing
 ///
 /// **文書の差し替えでフォーカスを動かさない。** サイドバーはカーソルキーで選択を
 /// 動かした時点でそのファイルを開くので（`FileListView+Keyboard.move(to:)` が
-/// `model.selection` の更新に続けて `openIfFile` を呼ぶ）、PDF が開くたびに面が
+/// `model.selection` の更新に続けて `open(_:with:)` を呼ぶ）、PDF が開くたびに面が
 /// first responder を取ると、**次のカーソルキーがサイドバーへ届かなくなる**。
 /// 一覧を矢印で流し読みできなくなる形の回帰で、実際に起きた（TASK-581）。
 ///

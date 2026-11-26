@@ -40,6 +40,19 @@ public enum CLIAppLauncher {
         exit(code)
     }
 
+    /// 文書向けの指定をディレクトリだけに付けたときの警告。`--line` は `--source` を伴うので、
+    /// どのフラグが付いたかによらず固定の 1 文にする。
+    static let documentOnlyOptionsIgnoredWarning =
+        "warning: --source/--preview/--diff, --line-numbers/--no-line-numbers and --line apply to files only; "
+            + "ignored for folders.\n"
+
+    /// パスがあり、すべてディレクトリか。ディレクトリはその一覧の窓で開く(ADR 0013 決定 5)。
+    /// ファイルが 1 つでも混じれば、文書向けの指定はそちらに効く。
+    static func opensOnlyFolders(_ paths: [String]) -> Bool {
+        let reader = DefaultFileReader()
+        return !paths.isEmpty && paths.allSatisfy { reader.isDirectory(at: URL(fileURLWithPath: $0)) }
+    }
+
     @MainActor
     public static func run(
         paths: [String],
@@ -63,6 +76,11 @@ public enum CLIAppLauncher {
     ) async -> Int32 {
         let paths = paths.map {
             URL(fileURLWithPath: $0).standardizedFileURL.path
+        }
+        // ディレクトリはその一覧の窓で開くので、文書向けの指定は効かない。黙って捨てずに知らせる
+        // (窓は開く)。アプリの stderr は端末につながらないため、ここで出す(TASK-930.8)。
+        if options.hasDocumentOnlyOptions, opensOnlyFolders(paths) {
+            writeError(documentOnlyOptionsIgnoredWarning)
         }
 
         if let running = findRunningInstance() {

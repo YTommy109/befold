@@ -53,11 +53,11 @@ enum ViewerDisplayOptionsApplier {
         controller.refreshUIState()
     }
 
-    // MARK: - ディレクトリを開いた窓
+    // MARK: - フォルダーの一覧の窓
 
     // CLI の表示オプションのうち、文書の無い窓(ADR 0013 決定 5)に意味があるのはサイドバーの
-    // 3 つ(並び順・不可視ファイル・開閉)だけで、文書タブと同じく**この窓限りの上書き**として
-    // 当てる(保存された既定値は書き換えない)。
+    // 4 つ(並び順・不可視ファイル・開閉・比較基準)だけで、文書タブと同じく**この窓限りの上書き**
+    // として当てる(保存された既定値は書き換えない)。
 
     /// 開閉はディレクトリを開いたので既定で表示する(`--no-sidebar` が優先。文書タブの
     /// `forceSidebarVisible` と同じ解決順)。サイドバーの生成前に決まるので種で渡す。
@@ -67,11 +67,17 @@ enum ViewerDisplayOptionsApplier {
         return seed
     }
 
-    /// 並び順・不可視ファイルを、生成したサイドバーの表示状態へ当てる。
-    static func apply(_ options: CLIOpenOptions, toFolderWindow display: SidebarDisplayState) {
-        display.applyCLIOverride(
-            sortOrder: options.sortOrder != nil ? options.viewerSortOrder : nil,
-            showHiddenFiles: options.showHiddenFiles
-        )
+    /// 新しく開いた窓にも、再利用した窓にも当てる。新しい窓では生成時の一覧・git 取得の直後に
+    /// 取り直すことになるが、先の取得は着地時の世代・基準の照合で捨てられる。
+    static func apply(_ options: CLIOpenOptions, toFolderWindow window: BlankTabWindowController) {
+        if let navigator = window.sidebarContext?.navigator {
+            let display = navigator.fileListModel.display
+            let sorts = options.sortOrder != nil
+            let hidden = options.showHiddenFiles.flatMap { $0 != display.showHiddenFiles ? $0 : nil }
+            display.applyCLIOverride(sortOrder: sorts ? options.viewerSortOrder : nil, showHiddenFiles: hidden)
+            if sorts || hidden != nil { navigator.refreshFileList() }
+        }
+        if let showSidebar = options.showSidebar { window.sidebarCollapsible?.setSidebarCollapsed(!showSidebar) }
+        if let target = options.viewerComparisonTarget { window.fileListDidRequestComparisonTarget(target) }
     }
 }

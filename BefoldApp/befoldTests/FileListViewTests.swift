@@ -49,6 +49,13 @@ struct FileListViewTests {
         )
     }
 
+    /// フォルダー行は一覧を新しいタブ/窓に出す。スライドは文書の窓なので出さない(TASK-930.8)。
+    @Test("フォルダー行の「別の場所で開く」はスライドを出さず、ファイル行は 3 項目とも出す")
+    func openElsewhereEntriesForFolderOmitSlide() {
+        #expect(SidebarContextMenu.openElsewhereEntries(for: .folder).map(\.disposition) == [.newTab, .newWindow])
+        #expect(SidebarContextMenu.openElsewhereEntries(for: .file).map(\.disposition) == [.newTab, .newWindow, .slide])
+    }
+
     @Test("relativePathForCopy は baseDirectory(git ルート)を基準に相対パスを返す")
     func relativePathForCopyUsesGitRootBaseDirectory() {
         let view = makeView(entries: [], selection: nil, onSelect: { _ in })
@@ -77,7 +84,7 @@ struct FileListViewTests {
     // MARK: - List の selection binding 経由の選択(issue #570)
 
     /// `List` の selection binding が書き戻した選択でも表示が追従することを固定する。
-    /// このテストは `commitSelection` から `openIfFile` を外すと落ちる——つまり
+    /// このテストは `commitSelection` から `open(_:with:)` を外すと落ちる——つまり
     /// 「選択は動くが表示が追従しない」を再び作れないようにするための担保。
     @Test("List の binding 経由でファイル行が選ばれたら onSelect が呼ばれる(issue #570)")
     func commitSelectionOpensFileSelectedThroughListBinding() {

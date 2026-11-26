@@ -242,7 +242,7 @@ struct DirectoryListerTests {
         #expect(result == missing)
     }
 
-    @Test("firstSupportedFile/resolveFileToOpen は fileReader を注入できる")
+    @Test("resolveFileToOpen は fileReader を注入できる")
     func resolveFileToOpenHonorsInjectedFileReader() throws {
         let tmp = try TempDir()
         defer { withExtendedLifetime(tmp) {} }
@@ -253,10 +253,8 @@ struct DirectoryListerTests {
         // 候補から外れる(無視して常に DefaultFileReader を使っていれば a.md が選ばれてしまう)。
         let reader = ExclusionFileReader(treatingAsDirectory: ["a.md"])
 
-        let firstSupported = DirectoryLister.firstSupportedFile(in: tmp.url, fileReader: reader)
         let resolved = DirectoryLister.resolveFileToOpen(at: tmp.url, fileReader: reader)
 
-        #expect(firstSupported?.lastPathComponent == "b.md")
         #expect(resolved?.lastPathComponent == "b.md")
     }
 
