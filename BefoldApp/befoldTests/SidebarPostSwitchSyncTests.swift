@@ -174,10 +174,10 @@ struct SidebarPostSwitchSyncTests {
         defer { withExtendedLifetime(host) {} }
         // sub で child.mmd を提示している状態を積み、親へ上がってから戻る。
         navigator.recordHistory()
-        navigator.navigateToFolder(fixture.base)
+        navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
-        navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
 
         // ここでも await しない(上のテストと同じ理由)。
         #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.sub.normalizedPathKey)
@@ -195,11 +195,11 @@ struct SidebarPostSwitchSyncTests {
         )
         defer { withExtendedLifetime(host) {} }
         navigator.recordHistory()
-        navigator.navigateToFolder(fixture.base)
+        navigator.navigateToFolder(fixture.base, presentingFolder: { _ in })
         await navigator.awaitSettled()
         await expandSub(navigator, fixture)
 
-        navigator.navigateHistory(by: -1)
+        navigator.navigateHistory(by: -1) { host.presentedTarget = $0 }
 
         #expect(navigator.fileListModel.currentDirectory.normalizedPathKey == fixture.sub.normalizedPathKey)
         #expect(navigator.expandedFolderKeys.isEmpty)

@@ -178,6 +178,9 @@ final class ViewerWindowController: NSWindowController {
         currentDocument.url
     }
 
+    /// 本文に何を出すか(ADR 0013)。書くのは利用者の操作を受けた入口だけで、
+    /// サイドバー(`sidebar`)へは渡さない。
+    let presentationIntent = PresentationIntent()
     /// サイドバー(一覧・選択同期・フォルダ移動)と戻る/進む履歴を担うナビゲータ。
     let sidebar: SidebarNavigator
     /// サイドバーのファイル一覧と選択状態。リネームやキーウィンドウ化に合わせて更新する。

@@ -31,13 +31,6 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
 
     let url: URL
     let kind: Kind
-    /// フォルダー配下から対応形式ファイルを 1 件取れるか(`.folder` のときのみ意味を持つ)。
-    /// 一覧構築(DirectoryLister.buildEntries)の時点で事前計算し、「新しいウィンドウで
-    /// 開く」の disabled 判定・実行時のディレクトリ列挙を MainActor から追い出す。
-    ///
-    /// **読めなかったフォルダも `false`**(列挙失敗と空を区別しない)。理由は
-    /// `DirectoryLister.containsSupportedFile(in:)` の doc を参照。
-    let containsSupportedFile: Bool
     /// url.normalizedPathKey(resolvingSymlinksInPath の syscall)を構築時に事前計算した値。
     /// SidebarNavigator の選択維持判定(entries.contains { $0.pathKey == key })がエントリ数ぶんの
     /// stat を MainActor 上で行わずに済むようにする。
@@ -60,13 +53,12 @@ struct FileListEntry: Identifiable, Hashable, Sendable {
     /// 「見えている子が 0 か」を確定させる SidebarDisclosureResolver の 2 箇所に閉じる。
     private(set) var disclosure: SidebarDisclosureState?
 
-    init(url: URL, kind: Kind, containsSupportedFile: Bool = false) {
+    init(url: URL, kind: Kind) {
         // id が URL のため、SwiftUI の ForEach は行 ID を辞書キーにするたびに URL の
         // Hashable を走らせる。FileManager 由来の NSString 裏打ちのままだと 1 文字ずつの
         // Unicode 正規化になり一覧が固まるので、構築時に native 裏打ちへ揃える。
         self.url = url.nativeBackedFileURL
         self.kind = kind
-        self.containsSupportedFile = containsSupportedFile
         // pathKey も git 状態の辞書引き(行ごとに 2 回)とサイドバーの選択維持判定で
         // ハッシュされるため、引数ではなく native 裏打ちに揃えた self.url から作る。
         pathKey = self.url.normalizedPathKey

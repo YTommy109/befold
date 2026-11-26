@@ -12,6 +12,7 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
     var onNavigate: (URL) -> Void = { _ in }
 
     private(set) var selectedFiles: [URL] = []
+    private(set) var selectedFolders: [URL] = []
     private(set) var navigatedFolders: [URL] = []
     private(set) var openedElsewhere: [(url: URL, disposition: OpenDisposition)] = []
     private(set) var expandedEntries: [FileListEntry] = []
@@ -23,6 +24,10 @@ final class FileListViewDelegateSpy: FileListViewDelegate {
     func fileListDidSelectFile(_ url: URL) {
         selectedFiles.append(url)
         onSelect(url)
+    }
+
+    func fileListDidSelectFolder(_ url: URL) {
+        selectedFolders.append(url)
     }
 
     func fileListDidRequestNavigation(to url: URL) {

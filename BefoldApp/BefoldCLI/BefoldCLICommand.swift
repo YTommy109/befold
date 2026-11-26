@@ -15,7 +15,7 @@ struct BefoldCLICommand: AsyncParsableCommand {
         abstract: "Mermaid/Markdown viewer.",
         usage: "befold [options] [file/folder...]",
         discussion: """
-        Each path opens in its own window.
+        Each path opens in its own window. A folder opens as a listing of its contents.
         To open a path starting with a hyphen, use `--` to treat everything after it \
         as paths (e.g. befold -- -notes.md).
         """,
@@ -46,8 +46,9 @@ struct BefoldCLICommand: AsyncParsableCommand {
         }
         // 表示オプションは開く文書に対する指定なので、適用先が無い呼び出しでは黙って
         // 捨てずにここで弾く(--check/--bookmark はウィンドウを開かないため適用先が無い)。
-        if options.comparisonTarget != nil, options.displayMode != .diff {
-            throw ValidationError("--compare requires --diff.")
+        // ディレクトリだけを開くときは、一覧の窓の比較基準(サイドバーの git バッジ)として単独で効く。
+        if options.comparisonTarget != nil, options.displayMode != .diff, !CLIAppLauncher.opensOnlyFolders(paths) {
+            throw ValidationError("--compare requires --diff unless every path is a folder.")
         }
         try validateLine()
         guard options.requiresPaths else { return }

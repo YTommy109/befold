@@ -129,18 +129,18 @@ struct FileListView: View {
     /// 行本体のタップ。修飾キーで開き方を振り分ける(TASK-482)。対応表はビューア内
     /// リンクと同じ `OpenDisposition` にあり、ここに独自の表を作らない。
     /// ⌃ はコンテキストメニューの担当なので何もしない(`DirectHTMLLinkPolicy` と
-    /// 同じく `OpenDisposition` へ渡す前に弾く)。⌘ / ⌘⇧ のファイル行は選択を
-    /// 動かさず別の場所で開き、「選択 = このウィンドウの表示中ファイル」を保つ。
+    /// 同じく `OpenDisposition` へ渡す前に弾く)。⌘ / ⌘⇧ は選択を動かさず別の場所で開く
+    /// (フォルダー行はその一覧 / TASK-930.8)。選択はこのウィンドウの提示に合わせたまま保つ。
     /// テストから修飾キーを渡して呼べるよう internal。
     func handleRowTap(_ entry: FileListEntry, modifiers: NSEvent.ModifierFlags) {
         if modifiers.contains(.control) { return }
         let disposition = OpenDisposition(modifiers: modifiers)
-        if disposition != .currentTab, entry.kind == .file {
-            openIfFile(entry, with: disposition)
+        if disposition != .currentTab {
+            open(entry, with: disposition)
             return
         }
         model.selection = entry.id
-        openIfFile(entry)
+        presentSelected(entry)
         // List が選択を NSTableView へ反映し終える前に first responder を
         // 奪うと選択行とハイライトがズレるため、次のランループへ遅延する
         // (固定待ちは不要)。
@@ -161,8 +161,28 @@ struct FileListView: View {
     /// 通るだけなので、ここには入らない。`.onChange(of: model.selection)` で代用できないのは
     /// この非対称が失われるためで、`SidebarPostSwitchSync.confirmSelection` のような
     /// 「切替後に選択を確定させる冪等処理」からも open が返って経路が循環する。
+    ///
+    /// **修飾キー付きのクリックが起こした書き戻しは確定しない(TASK-931)。** そのクリックは
+    /// `handleRowTap` が「選択を動かさず別の場所で開く / 何もしない」として既に処理している。
+    /// `List` は同じクリックで行の選択も変えて書き戻すので、ここで開くと起点のタブまで
+    /// 同じファイルへ切り替わる。判定は書き戻しを起こしたイベントで行い、タップとの
+    /// 前後関係やフラグには頼らない。確定しなかった回は表のハイライトだけがクリックした行に
+    /// 残るため、表の選択を `model.selection` へ戻す。
     private var tableSelection: Binding<FileListEntry.ID?> {
-        Binding(get: { model.selection }, set: { commitSelection($0) })
+        Binding(get: { model.selection }, set: { newValue in
+            let event = NSApp.currentEvent
+            guard Self.acceptsTableSelectionWrite(eventType: event?.type, modifiers: event?.modifierFlags ?? [])
+            else { return model.restoreTableSelection() }
+            commitSelection(newValue)
+        })
+    }
+
+    /// テーブル発の選択の書き戻しを確定してよいか。マウスクリック由来で、修飾キーが
+    /// `handleRowTap` で選択を動かさない組み合わせ(⌃ / ⌘ / ⌘⇧)のときだけ false。
+    /// キーボード由来の選択変更(矢印キー)は従来どおり確定する(issue #570)。
+    static func acceptsTableSelectionWrite(eventType: NSEvent.EventType?, modifiers: NSEvent.ModifierFlags) -> Bool {
+        guard eventType == .leftMouseDown || eventType == .leftMouseUp else { return true }
+        return !modifiers.contains(.control) && OpenDisposition(modifiers: modifiers) == .currentTab
     }
 
     /// テーブル発の選択変更を確定する。選択を書き、対象がファイルなら開く。
@@ -178,22 +198,30 @@ struct FileListView: View {
         model.selection = newSelection
         guard let key = newSelection?.normalizedPathKey, let entry = model.entry(forPathKey: key)
         else { return }
-        openIfFile(entry)
+        presentSelected(entry)
     }
 
-    /// 選択が確定したエントリがファイルなら表示を更新する。
-    /// クリック・矢印キー・j/k など、選択を変えるすべての経路から呼ぶことで
+    /// 利用者が選んだ行を本文へ届ける。ファイルなら開き、フォルダーならその一覧を出す。
+    /// クリック・矢印キー・j/k など、利用者が選択を変えるすべての経路から呼ぶことで
     /// 「選択は動くが表示が追従しない」状態を防ぐ。
-    func openIfFile(_ entry: FileListEntry) {
-        openIfFile(entry, with: .currentTab)
+    ///
+    /// 本文はサイドバーの選択からは導かれない(ADR 0013)。フォルダー行を選んで一覧を
+    /// 出すのも、ここから窓へ明示的に伝える。プログラムからの選択(切替後の同期・一覧の
+    /// 着地)はここを通らないので、本文を動かさない。
+    func presentSelected(_ entry: FileListEntry) {
+        switch entry.kind {
+        case .file: open(entry, with: .currentTab)
+        case .folder: delegate?.fileListDidSelectFolder(entry.url)
+        }
     }
 
-    /// エントリがファイルなら `disposition` に従って開く。`.currentTab` は選択追従の
-    /// 経路(`fileListDidSelectFile`)、それ以外は選択を動かさない経路
-    /// (`fileListDidRequestOpenElsewhere`)へ配る。フォルダでは何もしない。
-    func openIfFile(_ entry: FileListEntry, with disposition: OpenDisposition) {
-        guard entry.kind == .file else { return }
+    /// `disposition` に従って開く。`.currentTab` はファイル行だけを選択追従の経路
+    /// (`fileListDidSelectFile`)へ配る(フォルダー行の提示は `presentSelected` の担当)。
+    /// それ以外は選択を動かさない経路(`fileListDidRequestOpenElsewhere`)へ、ファイル行も
+    /// フォルダー行も配る。フォルダーかどうかは受け手がファイルシステムで決める。
+    func open(_ entry: FileListEntry, with disposition: OpenDisposition) {
         if disposition == .currentTab {
+            guard entry.kind == .file else { return }
             delegate?.fileListDidSelectFile(entry.url)
         } else {
             delegate?.fileListDidRequestOpenElsewhere(entry.url, disposition: disposition)

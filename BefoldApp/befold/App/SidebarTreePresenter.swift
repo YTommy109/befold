@@ -77,8 +77,8 @@ final class SidebarTreePresenter {
     /// 「観測対象への同値の代入」ではない。Swift の Observation は Equatable な値の
     /// 同値代入では観測を汚さない(実測: `entries` / `sortOrder` / `filterText` /
     /// `gitStatus` / `baseDirectory` はいずれも発火 0)。一方 `entryIndex` は
-    /// Equatable ではないので作り直すたびに必ず汚れ、`previewTarget` を読む側
-    /// (ViewerContentView・ツールバー同期)がウィンドウをキーにするたびに再評価される。
+    /// Equatable ではないので作り直すたびに必ず汚れ、行を引く側(サイドバーの一覧・
+    /// 本文のフォルダー一覧)がウィンドウをキーにするたびに再評価される。
     ///
     /// 判定をここに置くのは、`lastListing` の更新と同じ同期区間に収めるため(モデル側へ
     /// 置くと材料だけが進む窓ができる)。`lastListing` は行に出ない差でも更新してよいので、
@@ -349,8 +349,8 @@ final class SidebarTreePresenter {
     ///
     /// ここで行を組み直してはならない。この関数はルートの列挙を**発行する前**に呼ばれ、
     /// そのルートの一覧はまだ届いていない。組み直すと手元の古い行で `setEntries` が走り、
-    /// 一覧の到着前に `hasLoadedEntries` が立って「対象が確定していない」状態が失われる
-    /// (previewTarget が .undetermined を返せなくなる)。行はルートの一覧が届いた時点と、
+    /// 一覧の到着前に `hasLoadedEntries` が立ち、「まだ届いていない」状態が失われる
+    /// (空状態の文言と一覧の引き継ぎがこれを見る)。行はルートの一覧が届いた時点と、
     /// 子リストが届いた時点(loadChildren)で組み直す。
     /// **いまの一覧にフォルダー行が無いキーは取り直さない。** この関数はルートを取り直す
     /// たびに呼ばれるため、Finder 側で消された・改名されたフォルダーを展開したまま残すと、

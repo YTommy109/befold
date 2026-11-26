@@ -49,6 +49,13 @@ struct FileListViewTests {
         )
     }
 
+    /// フォルダー行は一覧を新しいタブ/窓に出す。スライドは文書の窓なので出さない(TASK-930.8)。
+    @Test("フォルダー行の「別の場所で開く」はスライドを出さず、ファイル行は 3 項目とも出す")
+    func openElsewhereEntriesForFolderOmitSlide() {
+        #expect(SidebarContextMenu.openElsewhereEntries(for: .folder).map(\.disposition) == [.newTab, .newWindow])
+        #expect(SidebarContextMenu.openElsewhereEntries(for: .file).map(\.disposition) == [.newTab, .newWindow, .slide])
+    }
+
     @Test("relativePathForCopy は baseDirectory(git ルート)を基準に相対パスを返す")
     func relativePathForCopyUsesGitRootBaseDirectory() {
         let view = makeView(entries: [], selection: nil, onSelect: { _ in })
@@ -77,7 +84,7 @@ struct FileListViewTests {
     // MARK: - List の selection binding 経由の選択(issue #570)
 
     /// `List` の selection binding が書き戻した選択でも表示が追従することを固定する。
-    /// このテストは `commitSelection` から `openIfFile` を外すと落ちる——つまり
+    /// このテストは `commitSelection` から `open(_:with:)` を外すと落ちる——つまり
     /// 「選択は動くが表示が追従しない」を再び作れないようにするための担保。
     @Test("List の binding 経由でファイル行が選ばれたら onSelect が呼ばれる(issue #570)")
     func commitSelectionOpensFileSelectedThroughListBinding() {
@@ -174,23 +181,23 @@ struct FileListViewTests {
         #expect(selected.get() == fixture.file1.url)
     }
 
-    @Test("フォルダーを降りた直後のハイライトから、そのまま矢印キー操作を続けられる")
+    @Test("フォルダー一覧の表示中に先頭行がハイライトされていれば、そこから矢印キー操作を続けられる")
     func keyboardNavigationStartsFromTheDescendHighlight() {
-        // navigateToFolder が先頭行をハイライトした状態(選択はあるがプレビューは一覧)。
-        // ここから ↓ を押した利用者は 2 行目へ進めなければならない(TASK-310 AC#3)。
+        // 選択はあるが本文は一覧、という状態(TASK-310 AC#3 の名残。フォルダーに入った直後は
+        // もう選択を付けないが、利用者が選んだ後の同じ状態はある)。↓ で 2 行目へ進めること。
         let fixture = StandardEntries()
         let selected = LockedBox<URL?>(nil)
         let view = makeView(entries: fixture.all, selection: nil) { url in selected.set(url) }
-        view.model.selection = view.model.firstSelectableEntryURL
+        view.model.selection = view.model.listSnapshot.firstSelectable?.url
         #expect(view.model.selection == fixture.file0.id)
 
         let result = view.selectNext(in: view.model.listSnapshot)
 
         #expect(result == .handled)
         #expect(view.model.selection == fixture.folder.id)
-        // 移った先はフォルダーなので開かない。提示対象はそのフォルダーの一覧へ移る。
+        // 移った先はフォルダーなので開かない。本文にはそのフォルダーの一覧を出すよう窓へ伝える。
         #expect(selected.get() == nil)
-        #expect(view.model.previewTarget == .folder(fixture.folder.url))
+        #expect((view.delegate as? FileListViewDelegateSpy)?.selectedFolders == [fixture.folder.url])
     }
 
     @Test("選択が nil の状態で selectNext を呼ぶと先頭エントリが選択され onSelect が呼ばれる")

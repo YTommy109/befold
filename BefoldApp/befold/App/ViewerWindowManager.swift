@@ -26,9 +26,10 @@ import SwiftUI
 /// 型の外から触ってよい API ではない。
 @MainActor
 final class ViewerWindowManager {
-    private(set) lazy var blankTabs = BlankTabCoordinator { [weak self] sourceWindow in
-        self?.makeBlankTabSidebar(from: sourceWindow)
-    }
+    private(set) lazy var blankTabs = BlankTabCoordinator { [unowned self] in makeBlankTabSidebar(
+        directory: $0,
+        seed: $1
+    ) }
 
     /// 正規化パス → そのファイルを表示中のコントローラ群。
     /// 操作中(アクティブ)のウィンドウのサイドバー切替を最優先するため、同一ファイルを

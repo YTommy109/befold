@@ -38,7 +38,7 @@ struct CLICheckCommandIntegrationTests {
         let result = await CLICheckCommand.run(
             tmp.url.path, resolveFileToOpen: resolve
         )
-        let expected = DirectoryLister.firstSupportedFile(in: tmp.url)
+        let expected = DirectoryLister.resolveFileToOpen(at: tmp.url)
 
         #expect(result.exitCode == 0)
         #expect(expected?.lastPathComponent == "file2.md")

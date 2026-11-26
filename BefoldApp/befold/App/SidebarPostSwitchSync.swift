@@ -7,6 +7,7 @@ import Foundation
 /// `SidebarNavigator.syncAfterSwitch` と `SidebarHistoryController` の履歴適用は
 /// どちらもここを通る。かつては両者が同じ手順を別々に書いており、片方を直すと
 /// 兄弟へ穴が残る形だった(そのことは後者のコメント自身が相互参照で記録していた)。
+/// 切替が失敗したときの選択の戻し(`restoreSelection(on:)`)も、同じ「切替の直後の選択」なのでここに置く。
 ///
 /// 型として切り出しているのは、`SidebarNavigator` のメソッドにすると
 /// 「同期区間を書く場所」が navigator の 30 本を超えるメソッドの中に埋もれ、
@@ -17,10 +18,9 @@ enum SidebarPostSwitchSync {
     ///
     /// **選択はこの区間で必ず確定する(TASK-445)。** 一覧の着地に委ねると
     /// 「currentDirectory だけが動いて選択は旧のまま」という部分適用が着地まで残り、
-    /// 世代の追い越しやウィンドウ解放で着地しなければ永続する。旧選択がフォルダー行
-    /// (または nil)だと `previewTarget` がその `.folder` のままになり、ファイル一覧が
-    /// 本文に重なったまま戻らない。一覧に無い URL でも `matchingEntryURL` が生の URL を
-    /// 返すため、着地を待たずに確定できる。
+    /// 世代の追い越しやウィンドウ解放で着地しなければ永続する(サイドバーの強調が旧行に
+    /// 残る。本文は窓の意図で決まるので、ここは強調だけの問題 / ADR 0013)。一覧に無い URL
+    /// でも `matchingEntryURL` が生の URL を返すため、着地を待たずに確定できる。
     ///
     /// 着地側でもう一度書くのは、確定した行が今の一覧に無い場合の上積み。一覧を取り直すと
     /// `DirectoryLister.appendingOpenFile` が開いている文書の行を補うため、列挙に載らない
@@ -50,6 +50,19 @@ enum SidebarPostSwitchSync {
             confirmSelection(selection, on: navigator)
             return true
         }
+    }
+
+    /// ファイル切替が失敗したとき、押した行に移った選択を本文の意図に合わせて戻す(ADR 0013)。
+    /// フォルダー一覧を出しているなら開いている文書の行は選ばない。選ぶと提示していない行が
+    /// 光り、表示形式の切り替えがカレントを文書の親へ移す(TASK-930.6)。
+    static func restoreSelection(on navigator: SidebarNavigator) {
+        guard let host = navigator.host else { return }
+        let model = navigator.fileListModel
+        guard let folder = host.presentedTarget?.folderURL else {
+            model.selection = host.currentFileURL
+            return
+        }
+        model.selection = folder.normalizedPathKey == model.currentDirectory.normalizedPathKey ? nil : folder
     }
 
     /// 選択をいまの一覧の行へ寄せて確定する。同期区間と一覧着地の両方から呼ぶ(冪等)。

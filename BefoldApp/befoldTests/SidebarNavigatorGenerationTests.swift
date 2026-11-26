@@ -56,9 +56,9 @@ struct SidebarNavigatorGenerationTests {
         }
         defer { withExtendedLifetime(host) {} }
 
-        navigator.navigateToFolder(base)
+        navigator.navigateToFolder(base, presentingFolder: { _ in })
         let staleTask = navigator.pendingListingTask
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         let freshTask = navigator.pendingListingTask
 
         // 新しい結果(dirB)を先に確定させてから、足止めしていた古い結果(base)を後から
@@ -82,7 +82,7 @@ struct SidebarNavigatorGenerationTests {
         defer { withExtendedLifetime(host) {} }
 
         navigator.fileListModel.transient.filterText = "fileA"
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.fileListModel.currentDirectory.standardizedFileURL == dirB.standardizedFileURL)

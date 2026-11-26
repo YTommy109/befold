@@ -106,9 +106,7 @@ enum DirectoryLister {
         guard let (folders, files) = sortedContents(in: directory, showHiddenFiles: showHiddenFiles) else {
             return nil
         }
-        let folderEntries = folders.map {
-            FileListEntry(url: $0, kind: .folder, containsSupportedFile: containsSupportedFile(in: $0))
-        }
+        let folderEntries = folders.map { FileListEntry(url: $0, kind: .folder) }
         let fileEntries = files.map { FileListEntry(url: $0, kind: .file) }
 
         switch sortOrder {
@@ -141,24 +139,6 @@ enum DirectoryLister {
         // ここで native 裏打ちへ揃える(列挙側では揃えない。TASK-273)。
         return [URL].mergedByFileName(folders, files, name: \.lastPathComponent)
             .map(\.nativeBackedFileURL)
-    }
-
-    /// そのフォルダーから「開ける対応形式ファイルを 1 件取れるか」。
-    ///
-    /// **読めなかったフォルダも `false` に畳むのが決めた振る舞い**(TASK-447)。この値の
-    /// 唯一の消費側はコンテキストメニュー「新しいタブ/ウィンドウで開く」の disabled 判定で、
-    /// 取れない理由(空だったか、権限が無いか)で次の一手が変わらない。読めないフォルダで
-    /// 有効化しても、押した先の `firstSupportedFile` が nil を返して何も起きないボタンに
-    /// なるだけ。列挙失敗そのものの区別は、ツリー展開側の
-    /// `SidebarDisclosureState.expandedFailed`(TASK-404)が担う。
-    /// 固定しているのは `DirectoryListerTests`。
-    static func containsSupportedFile(in directory: URL) -> Bool {
-        firstSupportedFile(in: directory) != nil
-    }
-
-    /// 先頭の対応形式ファイル。判定は BefoldKit.DirectoryEnumeration(単一の実装元)に委譲する。
-    static func firstSupportedFile(in directory: URL, fileReader: any FileReading = Self.fileReader) -> URL? {
-        DirectoryEnumeration.firstSupportedFile(in: directory, fileReader: fileReader)
     }
 
     /// 指定 URL がホームディレクトリ自身、またはその配下かどうかを判定する。

@@ -2,7 +2,7 @@ import Foundation
 
 /// サイドバーのツリー展開の状態。**ウィンドウごと・メモリのみ**で持つ。
 ///
-/// 粒度は `NavigationHistory` / `SidebarSelectionMemory` と同族の
+/// 粒度は `NavigationHistory` と同族の
 /// 「どこを見ているか」に付随するナビゲーション状態なので、アプリ全体で共有する
 /// `SidebarDisplayDefaults`(不可視ファイル・変更のみ表示)とは分ける。
 /// 永続化する場合は `ZoomStore`（`PathKeyedDictionary`）のファイルごとのパターンに倣うこと

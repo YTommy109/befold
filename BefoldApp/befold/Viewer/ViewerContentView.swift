@@ -28,6 +28,8 @@ struct ViewerContentView: View {
     let csvGrouping: Bool
     let csvNegativeStyle: CsvNegativeStyle
     let fileListModel: FileListModel
+    /// 本文に何を出すか(ADR 0013)。読むだけで、書くのは窓の入口。
+    let presentationIntent: PresentationIntent
     /// JS 側の出来事の通知先(倍率・スクロール位置・リンク・パス解決・続きを読み込む)。
     let rendererDelegate: WeakRendererDelegate
     let onSelectFile: (URL) -> Void
@@ -43,9 +45,9 @@ struct ViewerContentView: View {
     /// 差分のレイアウト設定。全ウィンドウ共有(差分を出すかどうかは store の表示モードが持つ)。
     let diffDisplayPreference: DiffDisplayPreference
 
-    /// プレビューエリアが表示すべき対象。導出は FileListModel に 1 つだけ置く(ADR 0002)。
+    /// プレビューエリアが表示すべき対象。サイドバーの選択からは導かない(ADR 0013)。
     private var previewTarget: PreviewTarget {
-        fileListModel.previewTarget
+        presentationIntent.target
     }
 
     var body: some View {

@@ -3,8 +3,7 @@ import Foundation
 /// 絞り込み結果への窓口。**組み立ては `FileListSnapshot.make` が持ち**、ここは
 /// モデルの状態(entries / entriesDirectory / listFilter)をそこへ渡すだけにする。
 ///
-/// `listSnapshot` がこの一覧の唯一の入手経路で、`visibleEntries` も
-/// `firstSelectableEntryURL` もここから導く。
+/// `listSnapshot` がこの一覧の唯一の入手経路で、`visibleEntries` もここから導く。
 extension FileListModel {
     /// フィルター適用後にサイドバーへ表示するエントリ。`entries`(ディスク由来の一覧)は
     /// 保持したまま、この算出側だけで絞り込む。
@@ -22,17 +21,5 @@ extension FileListModel {
             snapshotEvaluations.note()
         #endif
         return FileListSnapshot.make(entries: entries, in: entriesDirectory, filter: listFilter)
-    }
-
-    /// フォルダーを降りた直後に選ぶ行の URL。一覧が空なら nil。
-    ///
-    /// 絞り込みは移動をまたいで残るので、`entries` ではなく実際に見えている
-    /// 行から採る。ただし**一致した行を優先し、祖先として足し戻されただけの行
-    /// (`SidebarTreeFilter`)は飛ばす**(TASK-406)。ツリー表示では一致行の祖先フォルダが
-    /// 自分は一致しないまま残るので、見えている先頭をそのまま採ると絞り込みの答えでない行が
-    /// 初期選択になり、探していた行まで矢印キーで降りることになる。一致行が 1 つも無い場合
-    /// (祖先保持の性質上、通常は起こらない)だけ従来どおり先頭を採る(無選択へは落とさない)。
-    var firstSelectableEntryURL: FileListEntry.ID? {
-        listSnapshot.firstSelectable?.url
     }
 }

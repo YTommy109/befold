@@ -32,7 +32,7 @@ befold.app (Swift 6 / AppKit + SwiftUI, macOS 14.2+)
   │     │     ├── BlankTabCoordinator        # 文書を持たない空タブの寿命の管理
   │     │     └── RecentRepositoryRecorder   # 「最近使ったリポジトリ」の記録とタブ構成の更新
   │     ├── SessionRestorer          # 前回セッションのウィンドウ/タブ構成の保存・復元
-  │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・解決・選択パネル）
+  │     ├── DocumentOpener           # URL をビューアで開く唯一の入口（逐次化・ディレクトリ判定・選択パネル）
   │     ├── MainMenuCoordinator      # メインメニュー構築と動的メニューへのデータ供給
   │     ├── QuickOpenCoordinator     # Quick Open パネルの保持と候補源の組み立て
   │     ├── AppCLIRequestReceiver    # 別プロセスの CLI 要求の受信・ACK・重複排除
@@ -206,7 +206,7 @@ BefoldApp/
 | `AppDelegate` | アプリライフサイクルの起点と、メニュー/レスポンダチェーンから呼ばれる `@objc` アクションの受け口。依存の合成と各コーディネータへの転送だけを行い、実装は持たない |
 | `AppStores` | アプリ全体で 1 個ずつ持つ永続化ストアと表示設定の束。束ねた 1 個を配ることで「全体で共有」を構造として保つ |
 | `ActiveViewerProvider` | 「いま操作対象のビューアウィンドウ」を引く手続きの定義点（Quick Open パネル表示中も `NSApp.mainWindow` が元ウィンドウを指す前提をここだけに置く） |
-| `DocumentOpener` | URL をビューアウィンドウで開く唯一の入口。逐次化・実 FS 解決・ファイル選択パネル・解決失敗時のアラート |
+| `DocumentOpener` | URL をビューアウィンドウで開く唯一の入口。逐次化・ディレクトリ判定（実 FS）・ファイル選択パネル。ディレクトリは中のファイルへ解決せず、その一覧を出す窓（`BlankTabCoordinator.openFolder`）で開く（ADR 0013 決定 5） |
 | `MainMenuCoordinator` | メインメニューの組み立てと、Recent / Bookmarks / 最近使ったリポジトリへのデータ供給（各 `NSMenuDelegate` の保持） |
 | `QuickOpenCoordinator` | Quick Open パネルの保持、候補源（`AppQuickOpenEnvironment`）の組み立て、決定先を開く |
 | `AppCLIRequestReceiver` | 別プロセスの CLI 起動から転送された要求の受信。ACK 返送と `requestID` 単位の重複排除。**生成と同時に購読するため `AppDelegate.init` で eager に作る** |
@@ -253,7 +253,7 @@ BefoldApp/
 | `ViewerWindowKind` | ビューア窓の種別（`.viewer` / `.slide`）。生成時に決まり以後変わらない（`let` で受ける）。`allowsSidebar` / `hasToolbar` / `joinsTabs` / `isRestorable` / `recordsUsageHistory` / `acceptsReopen` の 6 つの述語と `defaultContentSize`（`.viewer` は 1100×850、`.slide` は 1280×720 = 16:9）を持ち、**呼び出し側で `kind == .slide` と書かない**。`.slide` はプレゼン用のスライド窓で、サイドバー無し・ツールバー無し・タブ合流なし・セッション復元の対象外・利用履歴に残さない・再オープンの受け皿にならない。`joinsTabs` は**両方向をこの 1 つで決める**——既存のグループへ合流する側（`ViewerWindowChrome` の `tabbingMode`）と、この窓のグループへ他の窓が加わる側（`ViewerWindowOpenPolicy.effectiveDisposition`）。器の `tabbingMode = .disallowed` は**自動**タブ化しか止めず、`NSWindow.addTabbedWindow(_:ordered:)` の明示的な結合は通る（TASK-615）。`recordsUsageHistory` は「最近使った項目」と「最近使ったリポジトリ」の両方を 1 つの述語で扱い、判定は各履歴ストア（`RecentDocumentsStore.noteOpened(_:kind:)` は `kind` を必須引数で受け、`RecentRepositoryRecorder.recordIfNeeded(for:controller:)` は解決を始める前に弾く）の中に置く（TASK-610） |
 | `SlideKeyAction` / `SlideKeyMonitor` | スライド窓の前後移動キー。判定は keyCode の純粋な表（Space・↓ が次、Shift+Space・Backspace・↑ が前、⌘/⌥/⌃ 付きとテキスト入力中は素通し）で、検知は `SwipeHistoryMonitor` と同じローカルイベントモニタ。**`characters` ではなく keyCode で判定する**（矢印の characters は非印字でレイアウトにも依る）。扱ったイベントは消費するので、JS 側の `spaceScroll` と `viewer-src/keyboard.ts` の矢印スクロールには届かない |
 | `SidebarInheritance` | 新しい窓を開くときに起点の窓（`SidebarInheritanceSource`。文書タブと空タブ）から引き継ぐ材料の採取。運ぶのは 3 つ——列挙の材料（`SidebarListingSeed`）と、ツリーの展開状態（pathKey → URL）と、タブとして開くときのサイドバー開閉。**展開は seed に混ぜない**（seed の `canApply(to:)` は「列挙の入力が同じか」を問うもので、展開は列挙の入力ではない）。表示 4 値はここを通らず `SidebarDisplayOverrides` が運ぶ |
-| `BlankTabCoordinator` / `BlankTabWindowController` | ⌘T とタブバーの + が開く、文書を持たないタブ。`ViewerStore` と描画面を持たない構造で、ファイルを選ぶまで WebKit と文書の監視を作らない。文書タブから開くとサイドバーを持ち（`SidebarNavigatorHost` / `FileListViewDelegate` を自身が実装）、起点の窓が無ければ持たない。文書へ置き換わるときは `ViewerDocumentWindow.replacement` に置き換え先を残し、解決中だった別の要求が起点を読み替える |
+| `BlankTabCoordinator` / `BlankTabWindowController` | ⌘T とタブバーの + が開く、文書を持たないタブ。`ViewerStore` と描画面を持たない構造で、ファイルを選ぶまで WebKit と文書の監視を作らない。文書タブから開くとサイドバーを持ち（`SidebarNavigatorHost` / `FileListViewDelegate` を自身が実装）、起点の窓が無ければ持たない。本文は窓ごとの `PresentationIntent` で決まり、フォルダーなら `FolderListingView`、でなければ空タブの画面を出す。ディレクトリを開いた窓（`BlankTabCoordinator.openFolder`）はディレクトリから作ったサイドバーを持ち、その一覧から始まる。同じフォルダーの一覧を出している窓は、文書の窓と同じ表（`ViewerWindowOpenPolicy.reusableWindow`）で再利用する。照合は本文の意図で行う（TASK-930.8）。文書へ置き換わるときは `ViewerDocumentWindow.replacement` に置き換え先を残し、解決中だった別の要求が起点を読み替える |
 | `ViewerDocumentWindow` | ビューアの `NSWindow`。タブバーの + と ⌘T を同じ生成経路（`AppDelegate.newWindowForTab`）へ送る |
 | `DocumentFileDropView` | 描画面の上でファイルのドロップだけを受けるオーバーレイ。`hitTest` は常に nil で、通常のマウス入力は下へ通す。`install(on:)` が窓の内容を子として包み、`NSSplitView` の分割ペインを増やさない |
 | `ViewerSplitViewController` | サイドバー＋コンテンツの `NSSplitViewController`。幅は 200〜480pt で `splitView.autosaveName` により起動をまたいで永続化する。`allowsSidebar` が false の種別では `toggleSidebar(_:)` と `setSidebarCollapsed(_:)` が no-op になり、**CLI の `--sidebar` を含む全開閉経路が止まる**。保存値へ記録するのは利用者の操作である `toggleSidebar(_:)` だけ。止まると `onCollapsedChange` が発火せず `SidebarStateStore.recordToggle` にも届かない |
@@ -279,7 +279,7 @@ BefoldApp/
 | `ViewerWebView` | `WKWebView` を包む `NSViewRepresentable`。Mermaid/Markdown 等をレンダリング。HTML ファイルは直接ロードも可 |
 | `ViewerContentView` | プレビュー領域の SwiftUI ビュー。フォルダー一覧とファイルの描画面の出し分けだけを持つ |
 | `DocumentSurfaceStack` | 描画面への配線（倍率・スクロール位置・検索設定・参照クリック）と、非対応・読み込み中のオーバーレイ（スピナーの条件は `ViewerContentState.showsLoadingIndicator`。`FileType.rendersFromData` が true の種別＝PDF は `content` を使わないため、空判定だけだと見えている PDF の上に重なる）。**PDF だけを開いた窓では WKWebView を作らない**（生成の遅延であって破棄ではない。一度作った面は残す / TASK-564.7） |
-| `PreviewTarget` / `PreviewTargetResolver` | プレビュー領域が提示する対象（文書・フォルダー一覧・未確定）。導出は `FileListModel.previewTarget` の 1 箇所（[ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
+| `PresentationIntent` / `PreviewTarget` | 本文が提示する対象（文書・フォルダー一覧）。窓ごとの `PresentationIntent` が持ち、書くのは利用者の操作を受けた入口だけで、サイドバーの選択・一覧の行からは導かない。サイドバー側の型へはインスタンスを渡さず、読み取りは `SidebarNavigatorHost.presentedTarget` だけ（[ADR 0013](../adr/0013-presentation-intent-before-sidebar-sync.md)。提示状態を 1 つの値で持つ点は [ADR 0002](../adr/0002-presentation-state-and-capabilities.md)） |
 | `ViewerCapabilities` | 「いま何ができるか」を提示状態から導出する純粋な型。メニュー・ツールバー・コマンド実行はこれだけを見る |
 | `DocumentRendering` | 表示中の文書へできることを表す port。宛先の違いで 2 群に分かれる——`DocumentSurfaceOperating`（倍率・検索・印刷・スクロール位置。**いま描いている 1 枚**へ振り分ける）と `DocumentSurfaceSyncing`（フォント・CSV 表示設定・ジャンプ可否・リネーム追随。**すべての面**へ配る）。実装は 2 つ——`WebViewDocumentRenderer`（WKWebView + ViewerBridge の JS を閉じ込める adapter）と `PDFDocumentRenderer`（`PDFView` の倍率計算と印刷を閉じ込める adapter / ADR 0009） |
 | `DocumentSurfaces` | 窓が持つ描画面の束（WKWebView と `PDFView` の 2 枚）と、命令をどの面へ届けるかの決定。宛先を決めるのはこの型の `operating(on:)` / `syncingAll` だけで、メニュー・ツールバー・コマンドは種別を見ない。判定は**描画が確定した種別**（`ViewerContentState.fileType`）で行い、提示予定の URL では行わない |

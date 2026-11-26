@@ -128,7 +128,7 @@ struct SidebarNavigatorGitStatusTests {
 
         navigator.refreshFileList()
         let staleTask = navigator.pendingGitStatusTask
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         let freshTask = navigator.pendingGitStatusTask
 
         // 新しい結果を確定させたあとで、足止めしていた古い結果を返す。
@@ -213,7 +213,7 @@ struct SidebarNavigatorGitStatusTests {
 
         navigator.refreshFileList()
         await navigator.pendingGitStatusTask?.value
-        navigator.navigateToFolder(outside)
+        navigator.navigateToFolder(outside, presentingFolder: { _ in })
         await navigator.pendingGitStatusTask?.value
 
         #expect(watchers.get().count == 1)

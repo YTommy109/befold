@@ -134,6 +134,7 @@ enum ViewerWindowAssembler {
             csvGrouping: controller.csvNumberFormatPreference.grouping,
             csvNegativeStyle: controller.csvNumberFormatPreference.negativeStyle,
             fileListModel: controller.fileListModel,
+            presentationIntent: controller.presentationIntent,
             rendererDelegate: WeakRendererDelegate(controller),
             onSelectFile: onSelectFile,
             onNavigateToFolder: onNavigateToFolder,
@@ -244,7 +245,7 @@ enum ViewerWindowAssembler {
     /// URL が動かないため直前のファイル名が残る（TASK-469）。導出規則そのものは
     /// `ViewerWindowChrome.applyURL` の 1 箇所にあり、ここは契機を足すだけ。
     static func wirePresentationTargetChange(for controller: ViewerWindowController) {
-        controller.fileListModel.onPresentationTargetChange = { [weak controller] in
+        controller.presentationIntent.onChange = { [weak controller] in
             guard let controller else { return }
             controller.refreshUIState()
             controller.applyURLToWindow(controller.fileURL)

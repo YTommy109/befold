@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// `FileListView` から分けているのは、ここが扱うのが「行に対する副次的な操作」で
 /// あって一覧そのものの表示ではないため(`SidebarHeaderView` と同じ切り分け)。
-/// 「別の場所で開く」のメニュー項目定義と、フォルダ行の開き先解決はここへ寄せる。
+/// 「別の場所で開く」のメニュー項目定義はここへ寄せる。
 /// 開き方と修飾キーの対応表そのものは `OpenDisposition` にあり、修飾キー付き
 /// クリック / ⌘Return(`FileListView.handleRowTap` / `SidebarKeyAction`)も同じ表を通る。
 struct SidebarContextMenu: View {
@@ -89,33 +89,20 @@ struct SidebarContextMenu: View {
         ("sidebar.context.openInSlideMode", .slide),
     ]
 
-    private var openElsewhereButtons: some View {
-        ForEach(Self.openElsewhereEntries, id: \.titleKey) { item in
-            openElsewhereButton(titleKey: item.titleKey, disposition: item.disposition)
-        }
+    /// 行の種別ごとの項目。フォルダー行は新しいタブ/窓にその一覧を出し(ADR 0013 決定 5 /
+    /// TASK-930.8)、スライドは出さない——スライドは文書を見せる窓で、一覧を出せない。
+    /// かつてはフォルダー内で最初に開けるファイルを開いていた。
+    static func openElsewhereEntries(for kind: FileListEntry.Kind) -> [(
+        titleKey: String,
+        disposition: OpenDisposition
+    )] {
+        kind == .folder ? openElsewhereEntries.filter { $0.disposition != .slide } : openElsewhereEntries
     }
 
-    /// フォルダー行では「そのフォルダーで最初に開けるファイル」を開き先にする。
-    /// 走査はメインを止めないよう detached で行い、開けるファイルが無い行は無効化する。
-    @ViewBuilder
-    private func openElsewhereButton(titleKey: String, disposition: OpenDisposition) -> some View {
-        let label = String(localized: String.LocalizationValue(titleKey), bundle: .l10n)
-        if entry.kind == .folder {
-            let folder = entry.url
-            Button(label) {
-                Task {
-                    let resolved = await withBlockingWork {
-                        DirectoryLister.firstSupportedFile(in: folder)
-                    }
-                    if let first = resolved {
-                        delegate?.fileListDidRequestOpenElsewhere(first, disposition: disposition)
-                    }
-                }
-            }
-            .disabled(!entry.containsSupportedFile)
-        } else {
-            Button(label) {
-                delegate?.fileListDidRequestOpenElsewhere(entry.url, disposition: disposition)
+    private var openElsewhereButtons: some View {
+        ForEach(Self.openElsewhereEntries(for: entry.kind), id: \.titleKey) { item in
+            Button(String(localized: String.LocalizationValue(item.titleKey), bundle: .l10n)) {
+                delegate?.fileListDidRequestOpenElsewhere(entry.url, disposition: item.disposition)
             }
         }
     }

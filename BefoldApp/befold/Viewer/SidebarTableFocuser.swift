@@ -71,6 +71,19 @@ final class SidebarTableFocuser {
         attemptPendingScroll()
     }
 
+    /// `NSTableView` の選択行を `row` へ戻す(nil なら選択を外す)。`List` が自分で動かした
+    /// 選択をこちらが確定しなかったとき(修飾キー付きのクリック / TASK-931)の後始末。
+    /// こちらの選択値は変わっていないので、SwiftUI は表へ選択を書き直さず、放っておくと
+    /// ハイライトだけがクリックした行に残る(実測)。`List` がクリックの処理を終えてから
+    /// 戻すよう次のランループへ遅らせ、行番号も遅延後に決めさせる。
+    func restoreSelection(row: @escaping @MainActor () -> Int?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let tableView = self?.tableView else { return }
+            guard let row = row() else { return tableView.deselectAll(nil) }
+            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+    }
+
     /// 直近のスクロール要求の行番号クロージャ。行が見つかるまで保持する。
     /// 新しい要求が来たら上書きされ、古い要求は破棄される(開始時の無効化)。
     private var pendingScroll: (@MainActor () -> Int?)?

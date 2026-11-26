@@ -20,6 +20,18 @@ struct FileListModelScrollTests {
         }
     }
 
+    /// 表の選択の書き直しを記録するスパイ(TASK-931)。nil は選択の解除。
+    private final class SelectionSpyTableView: NSTableView {
+        private(set) var selectedRows: [Int?] = []
+        override func selectRowIndexes(_ indexes: IndexSet, byExtendingSelection extend: Bool) {
+            selectedRows.append(indexes.first)
+        }
+
+        override func deselectAll(_ sender: Any?) {
+            selectedRows.append(nil)
+        }
+    }
+
     private let directory = URL(fileURLWithPath: "/tmp/FileListModelScrollTests")
 
     private func makeEntries(_ count: Int) -> [FileListEntry] {
@@ -44,6 +56,24 @@ struct FileListModelScrollTests {
         await drainMainQueue()
 
         #expect(tableView.scrolledRows == [80])
+    }
+
+    /// ⌘クリックの書き戻しを確定しなかった回、`List` がクリックした行へ動かしたハイライトを
+    /// こちらの選択の行へ戻す(実測では戻さないとクリックした行に残った)。
+    @Test("restoreTableSelection は表の選択を model.selection の行へ戻し、選択が無ければ外す")
+    func restoreTableSelectionReselectsModelRow() async {
+        let entries = makeEntries(5)
+        let model = FileListModel(currentDirectory: directory, entries: entries, selection: entries[1].id)
+        let tableView = SelectionSpyTableView()
+        model.tableFocuser.tableView = tableView
+
+        model.restoreTableSelection()
+        await drainMainQueue()
+        model.selection = nil
+        model.restoreTableSelection()
+        await drainMainQueue()
+
+        #expect(tableView.selectedRows == [1, nil])
     }
 
     /// フォルダー再訪時の選択復元は、選択を書いたあとに一覧が届く。書いた瞬間の

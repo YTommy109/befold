@@ -136,7 +136,7 @@ struct FileListModelTreeFilterTests {
 
         // 見えている先頭は "src"(一致していない祖先)。
         #expect(model.visibleEntries.first?.url == dirA.url)
-        #expect(model.firstSelectableEntryURL == nested.url)
+        #expect(model.listSnapshot.firstSelectable?.url == nested.url)
     }
 
     /// 一致行の優先が「祖先を常に飛ばす」形へ退化していないこと。絞り込みが無ければ
@@ -152,7 +152,7 @@ struct FileListModelTreeFilterTests {
             childrenByPathKey: [dirA.pathKey: [nested]], showsDisclosure: true
         )
 
-        #expect(model.firstSelectableEntryURL == dirA.url)
+        #expect(model.listSnapshot.firstSelectable?.url == dirA.url)
     }
 
     /// 一致が 1 つも無ければ祖先も残らない。祖先保持が「常に全フォルダを残す」形に

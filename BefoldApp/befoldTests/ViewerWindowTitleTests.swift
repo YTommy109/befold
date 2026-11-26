@@ -8,7 +8,7 @@ import Testing
 /// ウィンドウのタイトルとプロキシアイコン(`representedURL`)が **提示対象** に追随することを
 /// 検証する(TASK-469)。
 ///
-/// 導出はファイル URL ではなく `FileListModel.previewTarget` が決める。ファイル URL が
+/// 導出はファイル URL ではなく窓の意図(`PresentationIntent`)が決める。ファイル URL が
 /// 動く契機(生成・切替・リネーム)だけを見ていた頃は、サイドバーでフォルダーを選んで
 /// 一覧を出しても直前のファイル名が残っていた。
 @Suite("ウィンドウタイトルの提示対象追随")
@@ -34,12 +34,11 @@ struct ViewerWindowTitleTests {
         )
         defer { controller.close() }
         applyEntries(to: controller)
-        controller.fileListModel.selection = file
         #expect(controller.window?.title == "doc.mmd")
 
-        controller.fileListModel.selection = folder
+        controller.fileListDidSelectFolder(folder)
 
-        #expect(controller.fileListModel.previewTarget == .folder(folder))
+        #expect(controller.presentationIntent.target == .folder(folder))
         #expect(controller.window?.title == "assets")
         #expect(controller.window?.representedURL?.lastPathComponent == "assets")
     }
@@ -51,12 +50,12 @@ struct ViewerWindowTitleTests {
         )
         defer { controller.close() }
         applyEntries(to: controller)
-        controller.fileListModel.selection = folder
+        controller.fileListDidSelectFolder(folder)
         #expect(controller.window?.title == "assets")
 
-        controller.fileListModel.selection = file
+        controller.fileListDidSelectFile(file)
 
-        #expect(controller.fileListModel.previewTarget == .file)
+        #expect(controller.presentationIntent.target == .file)
         #expect(controller.window?.title == "doc.mmd")
         #expect(controller.window?.representedURL == file)
     }
@@ -75,9 +74,5 @@ struct ViewerWindowTitleTests {
         ViewerWindowChrome.applyURL(file, presenting: .folder(folder), to: window)
         #expect(window.title == "assets")
         #expect(window.representedURL?.lastPathComponent == "assets")
-
-        // 一覧が届く前(未確定)は、開こうとしている文書を出す。
-        ViewerWindowChrome.applyURL(file, presenting: .undetermined, to: window)
-        #expect(window.title == "doc.mmd")
     }
 }

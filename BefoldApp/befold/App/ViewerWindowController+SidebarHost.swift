@@ -14,6 +14,10 @@ extension ViewerWindowController: SidebarNavigatorHost {
         fileURL
     }
 
+    var presentedTarget: PreviewTarget? {
+        presentationIntent.target
+    }
+
     /// 履歴状態の変化をツールバーへ反映する。
     func historyStateDidChange() {
         refreshUIState()

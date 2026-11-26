@@ -1,6 +1,7 @@
 import ArgumentParser
 @testable import BefoldCLI
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -98,6 +99,23 @@ struct BefoldCLIOptionValidationTests {
         )
         #expect(command.options.displayMode == .diff)
         #expect(command.options.comparisonTarget == .defaultBranch)
+    }
+
+    /// パスがすべてディレクトリなら、--compare は一覧の窓の比較基準として単独で効く(TASK-930.8)。
+    /// ファイルが混じれば従来どおり --diff 必須。
+    @Test("--compare はパスがすべてディレクトリなら --diff なしで通る")
+    func compareAloneIsAllowedForFolders() throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.md", contents: "# a")
+
+        let command = try #require(
+            try BefoldCLICommand.parseAsRoot(["--compare", "head", tmp.url.path]) as? BefoldCLICommand
+        )
+        #expect(command.options.comparisonTarget == .head)
+        #expect(throws: (any Error).self) {
+            _ = try BefoldCLICommand.parseAsRoot(["--compare", "head", tmp.url.path, file.path])
+        }
     }
 
     /// 両方が実行されて終了コードの集約が曖昧になるため、同時指定は弾く。

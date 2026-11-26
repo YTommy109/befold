@@ -58,7 +58,7 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { withExtendedLifetime(host) {} }
         defer { navigator.cancelPendingListing() }
 
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         await navigator.pendingListingTask?.value
 
         #expect(navigator.fileListModel.entries.count == 2)
@@ -106,7 +106,7 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { withExtendedLifetime(host) {} }
         defer { navigator.cancelPendingListing() }
 
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
 
         // git はゲートで足止めしたまま一覧の反映だけを待つ。`pendingListingTask?.value` を
         // 直接 await すると、退行で一覧が git 完了待ちに変わったとき(ゲートは後述の
@@ -175,7 +175,7 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { withExtendedLifetime(host) {} }
         defer { navigator.cancelPendingListing() }
 
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         let listingTask = navigator.pendingListingTask
         // 移動の待ち合わせ中に `.git/index` の発火が届く。
         navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
@@ -204,7 +204,7 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { withExtendedLifetime(host) {} }
         defer { navigator.cancelPendingListing() }
 
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         let listingTask = navigator.pendingListingTask
         // 移動の待ち合わせ中に外部で git 状態が変わり、`.git/index` 監視が新しい状態を先に適用する。
         navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
@@ -231,7 +231,7 @@ struct SidebarNavigatorListingCoherenceTests {
         defer { withExtendedLifetime(host) {} }
         defer { navigator.cancelPendingListing() }
 
-        navigator.navigateToFolder(dirB)
+        navigator.navigateToFolder(dirB, presentingFolder: { _ in })
         let listingTask = navigator.pendingListingTask
         navigator.refreshGitStatuses(policy: .onlyIfIndexChanged)
         let singleTask = navigator.pendingGitStatusTask
@@ -241,12 +241,10 @@ struct SidebarNavigatorListingCoherenceTests {
         )
 
         await singleTask?.value
-        // より新しい状態(clean.md のみ変更)が反映される。changed.md が残るのは絞り込みの
-        // 取りこぼしではなく、移動時に先頭行として開いた文書だから(TASK-286 / TASK-310)。
-        // 開いている文書を git 絞り込みで黙って消さないのは意図した振る舞い。
+        // より新しい状態(clean.md のみ変更)が反映される。フォルダーに入っても文書は
+        // 開かない(ADR 0013 決定 5)ので、changed.md を開いている文書として残す理由も無い。
         #expect(
-            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent)
-                == ["changed.md", "clean.md"]
+            navigator.fileListModel.visibleEntries.map(\.url.lastPathComponent) == ["clean.md"]
         )
     }
 

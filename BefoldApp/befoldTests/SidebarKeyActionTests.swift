@@ -81,11 +81,12 @@ struct SidebarKeyActionTests {
         }
     }
 
-    @Test("⌘Return はフォルダ行・選択なしでは何もしない")
-    func commandReturnIgnoresFolderAndMissingSelection() {
+    @Test("⌘Return はフォルダー行も別の場所で開き、選択なしでは何もしない")
+    func commandReturnOpensFolderAndIgnoresMissingSelection() {
         for mode in SidebarLayoutMode.allCases {
-            #expect(action(.return, modifiers: .command, target: folder, mode: mode) == .ignored)
-            #expect(action(.return, modifiers: .command, target: expandedFolder, mode: mode) == .ignored)
+            #expect(action(.return, modifiers: .command, target: folder, mode: mode) == .openFile(.newTab))
+            #expect(action(.return, modifiers: [.command, .shift], target: expandedFolder, mode: mode) ==
+                .openFile(.newWindow))
             #expect(action(.return, modifiers: .command, target: nil, mode: mode) == .ignored)
         }
     }

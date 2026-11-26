@@ -1,6 +1,7 @@
 import AppKit
 @testable import BefoldCLI
 import BefoldKit
+import BefoldTestSupport
 import Foundation
 import Testing
 
@@ -218,5 +219,47 @@ struct CLIAppLauncherTests {
 
         #expect(result.code == 0)
         #expect(activateCount == 1)
+    }
+
+    // MARK: - Folder-only paths (TASK-930.8)
+
+    /// 文書向けの指定をディレクトリだけに付けたら警告し、窓は開く(終了コード 0)。
+    /// ファイルが混じる・一覧の窓が受ける指定だけなら警告しない。
+    @MainActor
+    @Test("文書向けの指定をディレクトリだけに付けると、警告して転送する")
+    func warnsWhenDocumentOnlyOptionsGivenOnlyFolders() async throws {
+        let tmp = try TempDir()
+        defer { withExtendedLifetime(tmp) {} }
+        let file = try tmp.file(named: "a.md", contents: "# a")
+        let dir = tmp.url.path
+        struct Case {
+            let paths: [String]
+            let options: CLIOpenOptions
+            let warns: Bool
+        }
+        let cases = [
+            Case(paths: [dir], options: CLIOpenOptions(showLineNumbers: true), warns: true),
+            Case(paths: [dir], options: CLIOpenOptions(displayMode: .source), warns: true),
+            Case(paths: [dir], options: CLIOpenOptions(displayMode: .diff), warns: true),
+            Case(paths: [dir], options: CLIOpenOptions(displayMode: .source, line: 3), warns: true),
+            Case(paths: [file.path], options: CLIOpenOptions(displayMode: .source), warns: false),
+            Case(paths: [dir, file.path], options: CLIOpenOptions(displayMode: .source), warns: false),
+            Case(paths: [dir], options: CLIOpenOptions(sortOrder: .alphabetical), warns: false),
+            Case(paths: [dir], options: CLIOpenOptions(comparisonTarget: .head), warns: false),
+            Case(paths: [dir], options: CLIOpenOptions(opensInNewWindow: true), warns: false),
+        ]
+        for item in cases {
+            var forwarded = false
+            let result = await runLauncher(paths: item.paths, options: item.options, forward: { _, _, _ in
+                forwarded = true
+                return true
+            })
+            #expect(result.code == 0)
+            #expect(forwarded)
+            #expect(
+                result.errorOutput.contains(CLIAppLauncher.documentOnlyOptionsIgnoredWarning) == item.warns,
+                "paths: \(item.paths) options: \(item.options) stderr: \(result.errorOutput)"
+            )
+        }
     }
 }

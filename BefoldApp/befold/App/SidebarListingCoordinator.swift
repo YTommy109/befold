@@ -133,6 +133,13 @@ final class SidebarListingCoordinator {
                 return entries.contains { $0.pathKey == selectionKey }
             } ?? false
             guard !selectionStillValid else { return }
+            // フォルダー一覧を出しているときは、開いている文書を選び直さない。選択は本文の
+            // 意図に合わせるだけ(ADR 0013 決定 3)で、文書を強調すると提示していない行が
+            // 光り、表示形式の切り替えがその親へカレントを移してしまう(TASK-930.3)。
+            guard host.presentedTarget?.folderURL == nil else {
+                self.fileListModel.selection = nil
+                return
+            }
             self.fileListModel.selection = host.currentFileURL.map(self.fileListModel.matchingEntryURL(for:))
         }
     }

@@ -19,11 +19,11 @@ private final class ObservationFlag: @unchecked Sendable {
 /// 同一ディレクトリの再列挙は、ウィンドウ生成直後(`ViewerWindowController` の
 /// `refreshFileList`)とキーウィンドウ化のたび(`windowDidBecomeKey`)に走る。
 ///
-/// **測るのは `previewTarget` を読む観測が汚れたか**。`entries` を読む観測では測れない
-/// ——Swift の Observation は Equatable な値の同値代入では観測を汚さないので、
-/// ガードの有無に関わらず発火 0 になり、テストが空振りする(実測で確認済み)。
+/// **測るのは行の引き当て(`entry(forPathKey:)`)を読む観測が汚れたか**。`entries` を
+/// 読む観測では測れない——Swift の Observation は Equatable な値の同値代入では観測を
+/// 汚さないので、ガードの有無に関わらず発火 0 になり、テストが空振りする(実測で確認済み)。
 /// 実際に汚れるのは Equatable でない `FileListModel.entryIndex` の作り直しを経由する
-/// 側だけで、それを読むのが `previewTarget`(ViewerContentView・ツールバー同期)。
+/// 側だけで、それを読むのが行の引き当て(サイドバーの一覧・本文のフォルダー一覧)。
 @Suite
 @MainActor
 struct SidebarIdenticalListingTests {
@@ -54,8 +54,8 @@ struct SidebarIdenticalListingTests {
         return flag.isRaised
     }
 
-    @Test("同じ列挙結果を 2 回反映しても、提示対象の観測は汚れない")
-    func identicalListingDoesNotInvalidatePreviewTarget() {
+    @Test("同じ列挙結果を 2 回反映しても、行の引き当ての観測は汚れない")
+    func identicalListingDoesNotInvalidateLookups() {
         let model = makeModel()
         let presenter = makePresenter(model)
         presenter.applyRows(listing(["a.md", "b.md"]), for: directory)
@@ -63,7 +63,7 @@ struct SidebarIdenticalListingTests {
         let dirtied = observesChange {
             presenter.applyRows(listing(["a.md", "b.md"]), for: directory)
         } reading: { [model] in
-            _ = model.previewTarget
+            _ = model.entry(forPathKey: "")
         }
 
         #expect(!dirtied)
@@ -94,7 +94,7 @@ struct SidebarIdenticalListingTests {
         let dirtied = observesChange {
             presenter.applyRows(listing(["a.md"], didFail: true), for: directory)
         } reading: { [model] in
-            _ = model.previewTarget
+            _ = model.entry(forPathKey: "")
         }
 
         #expect(!dirtied)
@@ -135,7 +135,7 @@ struct SidebarIdenticalListingTests {
             let dirtied = observesChange {
                 mutate(presenter, model)
             } reading: { [model] in
-                _ = model.previewTarget
+                _ = model.entry(forPathKey: "")
                 _ = model.entries
                 _ = model.entriesDirectory
                 _ = model.didFailListing
@@ -206,7 +206,7 @@ struct SidebarIdenticalListingTests {
     /// AC#3 の計測。Cmd+クリックで新規タブを開くと、同一ディレクトリの列挙は
     /// 最大 3 回走る(新規タブの生成直後 / 新規タブのキー化 / 元タブへ戻したときのキー化)。
     /// **列挙の回数はこの修正では減らない**——減るのは一覧の反映(索引の作り直しと
-    /// 提示対象の無効化)の回数だけ。
+    /// 行の引き当ての無効化)の回数だけ。
     @Test("同一ディレクトリを 3 回列挙しても、一覧の反映は 1 回に畳まれる")
     func repeatedListingsCollapseToSingleApplication() {
         let model = makeModel()
@@ -214,7 +214,7 @@ struct SidebarIdenticalListingTests {
         let invalidations = ObservationFlag()
         for _ in 0 ..< 3 {
             withObservationTracking { [model] in
-                _ = model.previewTarget
+                _ = model.entry(forPathKey: "")
             } onChange: {
                 invalidations.raise()
             }

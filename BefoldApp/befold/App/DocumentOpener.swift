@@ -49,7 +49,7 @@ final class DocumentOpener {
     ///
     /// 既にどこかの窓で開いていればその窓を前面に出す(手前が文書タブでも空タブでも同じ結果に
     /// する。空タブは残す)。開いていなければ手前の空タブを置き換える。ディレクトリが渡された
-    /// 場合は、フォルダー内最初のファイルを開く。拡張子を問わずウィンドウは開かれ、未対応の内容
+    /// 場合は、同じ一覧を出している窓があれば前面に出し、無ければその一覧を出す窓を開く(ファイルは開かない)。拡張子を問わずウィンドウは開かれ、未対応の内容
     /// ならビューア側でプレースホルダー表示する。フォーカスは本文へ移さない(本文へ移す
     /// Quick Open と CLI はそれぞれ `openInActiveTab` と `openPaths` を通る)。
     @discardableResult
@@ -181,9 +181,12 @@ final class DocumentOpener {
         }
     }
 
-    /// ディレクトリ判定とオープン対象の解決は実 FS の存在確認・列挙を伴い、ネットワーク
-    /// ボリューム上ではウィンドウを出す前に停止しうる。解決だけメインアクターの外へ逃がし、
-    /// ウィンドウ生成は戻ってから行う。
+    /// ディレクトリ判定は実 FS の存在確認を伴い、ネットワークボリューム上ではウィンドウを
+    /// 出す前に停止しうる。判定だけメインアクターの外へ逃がし、ウィンドウ生成は戻ってから行う。
+    ///
+    /// ディレクトリは中のファイルへ解決せず、その一覧を出す窓で開く(ADR 0013 決定 5)。
+    /// ここを通る入口(CLI・Finder・Dock・Open Recent・開くパネル)はすべてこの扱いになる。
+    /// 一覧の窓は文書を持たないので、戻り値は nil。
     @discardableResult
     private func openViewer(
         for url: URL, options: CLIOpenOptions,
@@ -191,30 +194,26 @@ final class DocumentOpener {
         relativeTo sourceWindow: NSWindow? = nil, focusesContent: Bool = false, allowsDirectories: Bool = true,
         prefersExistingWindow: Bool = false
     ) async -> ViewerWindowController? {
-        let resolved = await withBlockingWork {
-            (isDirectory: DirectoryLister.isDirectory(url), target: DirectoryLister.resolveFileToOpen(at: url))
-        }
-        // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。
-        let reusesExisting = prefersExistingWindow && resolved.target.map(windowManager.hasReusableWindow(for:)) == true
-        let isDirectory = resolved.isDirectory
-        if isDirectory, !allowsDirectories { return nil }
-        guard let target = resolved.target else {
-            presentNoFileAlert()
+        let isDirectory = await withBlockingWork { DirectoryLister.isDirectory(url) }
+        if isDirectory {
+            if allowsDirectories {
+                windowManager.blankTabs.openFolder(
+                    url,
+                    options: options,
+                    disposition: disposition,
+                    relativeTo: sourceWindow
+                )
+            }
             return nil
         }
+        // 既にどこかで開いていれば、起点の空タブに関わらず既存の窓を前面に出す。
+        let reusesExisting = prefersExistingWindow && windowManager.hasReusableWindow(for: url)
         // 解決を待つ間に起点が閉じた・置き換わった場合の行き先は、openViewer の入口が決める(TASK-917)。
         let controller = windowManager.openViewer(
-            for: target, options: options, disposition: reusesExisting ? .currentTab : disposition,
-            relativeTo: reusesExisting ? nil : sourceWindow,
-            tabPlacement: placement, forceSidebarVisible: isDirectory
+            for: url, options: options, disposition: reusesExisting ? .currentTab : disposition,
+            relativeTo: reusesExisting ? nil : sourceWindow, tabPlacement: placement
         )
         if focusesContent { controller?.focusContentSurface(nil) }
         return controller
-    }
-
-    private func presentNoFileAlert() {
-        let alert = NSAlert()
-        alert.messageText = String(localized: "cli.folder.noFile", bundle: .l10n)
-        alert.runModal()
     }
 }

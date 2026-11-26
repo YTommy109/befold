@@ -189,7 +189,7 @@ struct SidebarLayoutTransitionTests {
 
         navigator.applyDisplayChange(.toggleLayoutMode)
         await navigator.awaitSettled()
-        navigator.navigateToFolder(fixture.inner)
+        navigator.navigateToFolder(fixture.inner, presentingFolder: { _ in })
         await navigator.awaitSettled()
         navigator.fileListModel.selection = fixture.deepFile
         let spy = SpyTableView()
@@ -235,7 +235,7 @@ struct SidebarLayoutTransitionTests {
 
         navigator.applyDisplayChange(.toggleLayoutMode)
         await navigator.awaitSettled()
-        navigator.navigateToFolder(fixture.outside)
+        navigator.navigateToFolder(fixture.outside, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         navigator.applyDisplayChange(.toggleLayoutMode)
@@ -265,7 +265,7 @@ struct SidebarLayoutTransitionTests {
 
         navigator.applyDisplayChange(.toggleLayoutMode)
         await navigator.awaitSettled()
-        navigator.navigateToFolder(fixture.sub)
+        navigator.navigateToFolder(fixture.sub, presentingFolder: { _ in })
         await navigator.awaitSettled()
 
         #expect(navigator.expandedFolderKeys == savedKeys)

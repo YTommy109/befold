@@ -12,8 +12,7 @@ import Foundation
 /// 両方が添字前提のまま壊れる。
 ///
 /// **材料(childrenByPathKey)をクロージャではなく辞書で受ける**のが要点。
-/// 子の列挙は `FileManager` 走査と `DirectoryLister.containsSupportedFile(in:)`
-/// (フォルダ 1 件ごとにディレクトリ列挙)を伴う。クロージャで受けると、呼び出し元が
+/// 子の列挙は `FileManager` 走査を伴う。クロージャで受けると、呼び出し元が
 /// MainActor でも型は何も言わず、同期 syscall がメインへ紛れ込む余地が残る
 /// (差分取得を detached にしたのにリポジトリルート解決だけ MainActor に残った
 /// TASK-322 と同型)。辞書入力なら列挙は必ず呼び出し側の非同期経路で先に済み、

@@ -33,8 +33,8 @@ public enum DirectoryEnumeration {
         var folders: [URL] = []
         var files: [URL] = []
         // ここでは裏打ち(nativeBackedFileURL)を揃えない。この列挙は
-        // containsSupportedFile / firstSupportedFile など「1 件だけ見て残りを捨てる」
-        // 経路の入口でもあり、フォルダー行ごとに全件ぶんの URL 再構築を払うことになる。
+        // 「フォルダーを開いたとき最初に開くファイル」のような 1 件だけ見て残りを捨てる
+        // 経路の入口でもあり、そこで全件ぶんの URL 再構築を払うことになる。
         // 揃えるのは実際に URL をハッシュキーにする消費側(サイドバー一覧は
         // FileListEntry.init と DirectoryLister.allEntriesSorted、開く対象は
         // ViewerStore が文書 URL を保持するところ)に置く(TASK-273 / TASK-279)。
@@ -56,23 +56,6 @@ public enum DirectoryEnumeration {
         fileReader: any FileReading
     ) -> [URL]? {
         sortedContents(in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader)?.files
-    }
-
-    /// ディレクトリ直下の最初の対応形式(`FileType.isSupported`)ファイル。無ければ nil。
-    ///
-    /// **列挙失敗もここで nil へ畳む。** この関数の消費側(`containsSupportedFile` による
-    /// 「新しいウィンドウで開く」の可否判定と `SupportedFileResolver`)が問うのは
-    /// 「開けるファイルが 1 つ取れるか」だけで、取れない理由(空だったか、読めなかったか)で
-    /// 振る舞いが変わらない。区別が要る消費側は `sortedContents` を直接使うこと。
-    public static func firstSupportedFile(
-        in directory: URL,
-        showHiddenFiles: Bool = false,
-        fileReader: any FileReading
-    ) -> URL? {
-        guard let files = sortedFiles(
-            in: directory, showHiddenFiles: showHiddenFiles, fileReader: fileReader
-        ) else { return nil }
-        return files.firstSupported()
     }
 
     /// 「フォルダを開いたとき最初に開くファイル」の選択規則の単一の実装元。

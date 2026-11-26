@@ -3,7 +3,7 @@ import Foundation
 /// プレビュー内のフォルダー一覧(`FolderListingView`)が、サイドバーの揃えた一覧を使うのか
 /// 自前で列挙するのかを決める解決器(TASK-443)。
 ///
-/// 判断材料を stored 値として引数で受け、状態を持たない。`PreviewTargetResolver` と同じ形で、
+/// 判断材料を stored 値として引数で受け、状態を持たない。純粋な関数にして、
 /// サイドバーの分岐(TASK-293 / 295 / 298 / 301)を `FileListModel` 抜きで測れるようにする。
 enum FolderListingSourceResolver {
     /// 判断材料。`FileListModel` の stored 値をそのまま写した入れ物で、判断そのものは持たない。

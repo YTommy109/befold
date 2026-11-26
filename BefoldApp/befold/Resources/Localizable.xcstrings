@@ -545,23 +545,6 @@
         }
       }
     },
-    "cli.folder.noFile": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No file found in this folder."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このフォルダーにファイルが見つかりません。"
-          }
-        }
-      }
-    },
     "cli.install.failed": {
       "extractionState": "manual",
       "localizations": {
