@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-26T08:30:10Z'
-updated_date: '2026-11-26T10:44:23Z'
+updated_date: '2026-11-26T10:48:35Z'
 labels: []
 dependencies: []
 references:
@@ -49,6 +49,8 @@ ordinal: 873000
 2026-11-26: Toggle での描画に替え、SidebarHeaderControlsModelTests に overflowToggleReadsCheckAndEmitsChange を追加(set を『true のときだけ発行』に壊すと落ちることを確認)。viewer-ui.md を更新。実機確認は未実施: 背景ジョブは補助アクセスが無く ⋯ を開けない。開発ビルド(.build/xcode、T932_OLD=1 で修正前の描き方)を用意済みで、利用者の確認待ち。
 
 実機(2026-11-26、開発ビルド。修正前の描き方への切り替え T932_OLD は一時コードでコミットしていない): 修正あり(PID 28538)で、並び順の選ばれている側と「不可視ファイルを表示」(⌃⌘H で表示にした後)の両方にチェックが付いた(利用者の目視)。T932_OLD=1(PID 29298、Button のラベルの Label(checkmark))では両方ともチェックが付かず、#793 を再現した。Menu 内の Toggle でチェックが出たので、計画にあった Picker(.inline) / 項目名の切り替えへの代替は不要。swift test(--skip Integration/FileWatcherTests/PDF)1907 件通過、swiftlint は main とのベースライン差分ゼロ。
+
+/code-review high の指摘 2 件(2026-11-26): (1) 並び順を Toggle で描くと VoiceOver が独立したチェックボックスとして読む、は実測で否定した。NSHostingMenu で Toggle と Picker(.inline) を NSMenu へ変換して比べると、どちらも role=AXMenuItem・state(0/1)・onStateImage の同じ項目になり、違いは Picker が前後に区切り線を入れることだけ。チェックボックスの役割は出ないので変更しない。(2) SidebarHeaderView.selectControl のコメントが存在しない selectOverflowItem を指していた(TASK-592 以前からの古い記述)。onSelectOverflowItem から perform へ直接届く、に直した。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

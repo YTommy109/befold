@@ -117,7 +117,7 @@ struct SidebarHeaderView: View {
         // 名前フィルターは delegate へ上げない。一覧の絞り込みは窓の一時状態で、
         // 表示 4 値(SidebarDisplayDefaults)には属さない。
         case .filter: toggleFilter()
-        // ⋯ は Menu が自前で開き、項目の選択は selectOverflowItem が受ける。
+        // ⋯ は Menu が自前で開く。項目の選択は onSelectOverflowItem から perform へ直接届く。
         case .overflow: break
         }
     }
