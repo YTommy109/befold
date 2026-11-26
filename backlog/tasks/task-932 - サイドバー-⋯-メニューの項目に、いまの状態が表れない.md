@@ -1,10 +1,11 @@
 ---
 id: TASK-932
 title: サイドバー ⋯ メニューの項目に、いまの状態が表れない
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-26T08:30:10Z'
+updated_date: '2026-11-26T10:44:23Z'
 labels: []
 dependencies: []
 references:
@@ -26,20 +27,32 @@ ordinal: 873000
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ⋯ メニューの並び順 2 項目のうち、選ばれている側にだけチェックマークが表示される(実機で確認)
-- [ ] #2 ⋯ メニューの不可視ファイルの項目から、いま表示中かどうかが読み取れる(チェックマーク、または「不可視ファイルを隠す」への項目名の切り替え。実機で確認)
-- [ ] #3 項目を選んだときに届く SidebarDisplayChange は変わらず、項目の identity とチェックの導出(TASK-592)を破る形にしない。破ったら落ちるテストがある
-- [ ] #4 修正後の表示を実機で確かめ、修正を戻すとチェックが出ないことも確かめる
-- [ ] #5 docs/dev/viewer-ui.md の該当節(サイドバーヘッダーの ⋯)を新しい描き方に合わせる
+- [x] #1 ⋯ メニューの並び順 2 項目のうち、選ばれている側にだけチェックマークが表示される(実機で確認)
+- [x] #2 ⋯ メニューの不可視ファイルの項目から、いま表示中かどうかが読み取れる(チェックマーク、または「不可視ファイルを隠す」への項目名の切り替え。実機で確認)
+- [x] #3 項目を選んだときに届く SidebarDisplayChange は変わらず、項目の identity とチェックの導出(TASK-592)を破る形にしない。破ったら落ちるテストがある
+- [x] #4 修正後の表示を実機で確かめ、修正を戻すとチェックが出ないことも確かめる
+- [x] #5 docs/dev/viewer-ui.md の該当節(サイドバーヘッダーの ⋯)を新しい描き方に合わせる
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. /review-design を回す(⋯ の項目の持ち方・描き方を変え、TASK-592 の不変条件に触れるため)。論点: 並び順を Picker(.inline) の 2 択、不可視ファイルを Toggle に分けたときの SidebarOverflowItem の形 / 選択が SidebarDisplayChange へ届く経路を 1 本に保つこと / Menu 内の Toggle でチェックが出るか
-2. 並び順: 比較基準 ▾ と同じく Picker(.inline) で描く(実機でチェックが出る実績のある形)
-3. 不可視ファイル: Toggle で描く。実機でチェックが出なければ、表示メニューと同じく「表示 / 隠す」の項目名切り替えにする(キーは AppDelegate.validateMenuItem と共有)
-4. SidebarHeaderControlsModelTests を新しい形に合わせ、項目の並びと change の対応を固定する
-5. 実機確認: 背景ジョブは補助アクセスが無くメニューを開けない(TASK-931 の実測)。開発ビルドを用意して、利用者に ⋯ を開いてもらう。修正前のビルドとも比べる
-6. docs/dev/viewer-ui.md を更新する
+1. 単純化の検討(2026-11-26): モデル(SidebarOverflowItem の並び・change・isChecked)は変えず、SidebarHeaderControls.overflowMenu の項目の描き方だけを Label+checkmark から Toggle(isOn: isChecked、set で change を発行)へ替える。並び順を Picker に分ける必要はない(チェック済みの側を選び直しても setSortOrder が同値を書くだけで、排他の 2 択として振る舞う)。1 ファイル内の局所修正で状態も経路も増えないため /review-design の対象外
+2. Toggle の Binding を作る部分を小さな関数に出し、get = isChecked / set = change の発行をユニットテストで固定する(AC #3)
+3. 実機確認: 開発ビルドを用意し、利用者に ⋯ を開いてもらう。修正前の描き方と環境変数で切り替えて比べる(一時コード、コミットしない)。Toggle でチェックが出なければ、並び順は Picker(.inline)、不可視ファイルは項目名の切り替えへ切り替える
+4. docs/dev/viewer-ui.md を更新する
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-26: Toggle での描画に替え、SidebarHeaderControlsModelTests に overflowToggleReadsCheckAndEmitsChange を追加(set を『true のときだけ発行』に壊すと落ちることを確認)。viewer-ui.md を更新。実機確認は未実施: 背景ジョブは補助アクセスが無く ⋯ を開けない。開発ビルド(.build/xcode、T932_OLD=1 で修正前の描き方)を用意済みで、利用者の確認待ち。
+
+実機(2026-11-26、開発ビルド。修正前の描き方への切り替え T932_OLD は一時コードでコミットしていない): 修正あり(PID 28538)で、並び順の選ばれている側と「不可視ファイルを表示」(⌃⌘H で表示にした後)の両方にチェックが付いた(利用者の目視)。T932_OLD=1(PID 29298、Button のラベルの Label(checkmark))では両方ともチェックが付かず、#793 を再現した。Menu 内の Toggle でチェックが出たので、計画にあった Picker(.inline) / 項目名の切り替えへの代替は不要。swift test(--skip Integration/FileWatcherTests/PDF)1907 件通過、swiftlint は main とのベースライン差分ゼロ。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+サイドバーヘッダーの ⋯ メニューで、どの項目にもチェックマークが出なかった不具合(#793)を直した。項目を Button のラベルの Label(_, systemImage: "checkmark") ではなく Toggle で描く。Toggle の値は SidebarOverflowItem.isChecked を読み、選ばれたら書かれた値を使わず項目の SidebarDisplayChange を発行する(SidebarHeaderControls.overflowToggle)。項目の並び・identity・チェックの導出(TASK-592)は変えていない。並び順の 2 択も Toggle で描くが、チェック済みの側を選び直しても同じ setSortOrder が届くだけで外れない。実機で、修正ありではチェックが付き、修正前の描き方では付かないことを確かめた。
+<!-- SECTION:FINAL_SUMMARY:END -->

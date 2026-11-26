@@ -61,18 +61,12 @@ struct SidebarHeaderControls: View {
 
     private func overflowMenu(_ control: SidebarHeaderControl) -> some View {
         Menu {
+            // チェックは Toggle で描く(TASK-932)。Button のラベルに `Label(_, systemImage:
+            // "checkmark")` を置く形では、実機でチェックが 1 つも出なかった(#793)。
+            // 並び順の 2 択も Toggle でよい——チェック済みの側を選び直しても
+            // `setSortOrder` が同じ値を書くだけで、チェックは外れない。
             ForEach(controls.overflowItems, id: \.change) { item in
-                Button {
-                    onSelectOverflowItem(item.change)
-                } label: {
-                    // チェックは Label ではなくテキスト側に持たせる(Menu 内の Toggle は
-                    // 3 項目のうち 2 つが排他選択で意味がずれるため使わない)。
-                    if item.isChecked {
-                        Label(title(for: item), systemImage: "checkmark")
-                    } else {
-                        Text(title(for: item))
-                    }
-                }
+                Toggle(title(for: item), isOn: Self.overflowToggle(for: item, onSelect: onSelectOverflowItem))
             }
         } label: {
             icon(control)
@@ -125,6 +119,15 @@ struct SidebarHeaderControls: View {
     private func icon(_ control: SidebarHeaderControl) -> some View {
         Image(systemName: control.systemImage)
             .foregroundStyle(control.isAccented ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+    }
+
+    /// ⋯ の項目の Toggle に渡す値。読むとチェックの有無(`isChecked`)、書くと項目の
+    /// 切り替えを発行する。**書かれた値は使わない**——チェックはモデルが設定から導き直す
+    /// (TASK-592)。テストから呼べるよう internal。
+    static func overflowToggle(
+        for item: SidebarOverflowItem, onSelect: @escaping (SidebarDisplayChange) -> Void
+    ) -> Binding<Bool> {
+        Binding(get: { item.isChecked }, set: { _ in onSelect(item.change) })
     }
 
     private func title(for item: SidebarOverflowItem) -> String {

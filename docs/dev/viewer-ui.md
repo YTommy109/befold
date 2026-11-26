@@ -579,6 +579,11 @@ SwiftUI の `List` は同じクリックで行の選択を変えて書き戻し�
   チェックマーク（`SidebarOverflowItem`）もここから導く。⋯ の項目は自分が起こす
   `SidebarDisplayChange` を identity として持ち、項目用の Kind を別に立てない——
   Kind を置くと Kind → 切り替えの対応表が要り、交差した対応がコンパイルを通る（TASK-592）
+- **⋯ の項目は `Toggle` で描く**（`SidebarHeaderControls.overflowToggle`）。チェックは
+  `isChecked` を読み、選ばれたら書かれた値ではなく項目の `SidebarDisplayChange` を発行する。
+  並び順の 2 択も `Toggle` でよい——チェック済みの側を選び直しても同じ `setSortOrder` が
+  届くだけで外れない。`Button` のラベルに `Label(_, systemImage: "checkmark")` を置く形は、
+  実機でチェックが 1 つも出なかったので採らない（#793 / TASK-932）
 
 ### ツリー⇄リストの切り替え
 
