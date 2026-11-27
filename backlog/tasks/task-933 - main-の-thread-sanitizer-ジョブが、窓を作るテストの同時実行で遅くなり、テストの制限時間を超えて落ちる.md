@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-11-26T12:40:33Z'
-updated_date: '2026-11-26T14:42:41Z'
+updated_date: '2026-11-27T01:26:26Z'
 labels: []
 dependencies: []
 references:
@@ -91,4 +91,6 @@ Swift Testing はテストを並行に始めるため、窓を作るテストの
 - PDF の停止: sample では 147 スレッドが PDFKit の formFillingQueue と VNRecognizeDocumentsRequest のセマフォ待ちで、PDFSurfaceLayoutTests.survivesDocumentAccessOffTheMainThread の DispatchQueue.global().async が実行されないまま止まっていた。TASK-907 と同じ libdispatch ワーカーの枯渇
 - 上限なしの PDF 16 秒 / CLI 12 秒(成功)。その後、上限ありの PDF をもう 3 回流すと 3 回とも成功(14〜16 秒)。上限ありで止まったのは 4 回中 1 回で、上限との因果は未確認
 - PDF と CLI はもともと遅くないので、上限は本体の実行(1 本目のコマンド)にだけ付ける。ジョブ全体の env には置かない
+
+PR #798 を作成した。残りは AC#1 のみ。着手条件: #798 をマージした後、main への push(または nightly の schedule)で走る thread-sanitizer ジョブが 2 回続けて緑になること。確かめたら AC#1 をチェックして Done にする
 <!-- SECTION:NOTES:END -->
