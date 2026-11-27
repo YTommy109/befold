@@ -1,11 +1,11 @@
 ---
 id: TASK-933
 title: main の thread-sanitizer ジョブが、窓を作るテストの同時実行で遅くなり、テストの制限時間を超えて落ちる
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-11-26T12:40:33Z'
-updated_date: '2026-11-27T01:37:00Z'
+updated_date: '2026-11-27T02:26:58Z'
 labels: []
 dependencies: []
 references:
@@ -56,7 +56,7 @@ Swift Testing はテストを並行に始めるため、窓を作るテストの
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 main の push で走る thread-sanitizer ジョブが、制限時間超過なしで通る(2 回以上続けて)
+- [x] #1 main の push で走る thread-sanitizer ジョブが、制限時間超過なしで通る(2 回以上続けて)
 - [x] #2 窓を作るテストの同時数(または同時に生きる窓の数)が所要時間を押し上げていることを、抑えた場合と抑えない場合の比較で確かめ、結果を Notes に残す
 - [x] #3 対策が、今後窓を作るテストを足したときにも効く形になっている(個別のテストを --skip するのではない)
 - [x] #4 制限時間(BEFOLD_TEST_TIME_LIMIT_MINUTES)やジョブの timeout を延ばすだけで済ませていない
@@ -99,4 +99,12 @@ PR #798 を作成した。残りは AC#1 のみ。着手条件: #798 をマー�
 - 上限 4: 窓のピークは全体 28 / 表示中 7、平均 19.5 枚。1 秒タイマーは 108 秒で 84 回発火した。テストは全件成功(108.0 秒)
 - 既定: 窓のピークは全体 151 / 表示中 74、平均 57.4 枚。1 秒タイマーは 402 秒で 7 回しか発火していない(メインスレッドがほぼ空かない)。1 件失敗: 「drawsBackground の KVC が実 WebView の地の透過/不透過へ効く」が 393.5 秒で失敗(負荷下で実 WebView が詰まる TASK-675 の系統)
 - 同時に走るテストを抑えると、生きている窓が約 1/5 になり、所要時間も約 1/3.7 になる。窓の数とメインスレッドの混み具合が所要時間を押し上げている、という見立てに合う
+
+AC#1: #798 マージ後の main(c553d771)で thread-sanitizer が 2 回続けて成功。run 45925968280 の attempt 1(本体 142.6 秒 / PDF 5.6 秒 / CLI 3.9 秒)と、同じコミットでジョブだけ再実行した attempt 2(本体 153.7 秒 / PDF 6.0 秒 / CLI 3.9 秒)。修正前は本体が 1258 秒 / 1277 秒で時間切れだった
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+thread-sanitizer ジョブの本体実行(--skip befoldCLITests --skip PDF)だけに SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=4 を付け、同時に走るテストを 4 件に抑えた(#798)。Swift Testing は既定で全テストを一斉に始めるため、窓を作るテストが最大 151 枚の窓を同時に開き、メインスレッドの描き直しが所要時間を押し上げていた。上限ありでは窓のピークが 28 枚になり、手元の所要時間は 348〜385 秒から 108〜114 秒に、CI の本体は 1258 秒から 142〜154 秒になった。上限が黙って効かなくなる場合に備えて ParallelizationWidthCapTests を置いた。PDF と CLI は遅くないので上限を付けていない。残るリスク: 変数は experimental。上限下の PDF で 1 回、TASK-907 と同じ Vision によるワーカーの枯渇を見た(因果は未確認)
+<!-- SECTION:FINAL_SUMMARY:END -->
